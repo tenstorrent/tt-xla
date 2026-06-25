@@ -164,12 +164,28 @@ class ModelTestConfig:
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
 
-        # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
-        self.sharding_strategy: ShardingStrategy | None = None
-        self.mesh_shape = None  # e.g. (1, 8), (2, 4)
-        self.shard_inputs = (
-            False  # whether to shard inputs across the batch/data mesh axis
+        # Sharding configuration for multi-chip (TP) runs.
+        #
+        # Two ways these get populated:
+        #   1) test_llms_torch sets them from parametrization (the LLM sweep).
+        #   2) Any entry (incl. non-LLM vision/diffusion/enc-dec) can declare
+        #      them in YAML so a tuned sharded baseline runs via
+        #      test_all_models_torch. YAML values seed the defaults here;
+        #      test_llms_torch still overrides at runtime where applicable.
+        self.sharding_strategy: ShardingStrategy | None = (
+            self._resolve_sharding_strategy()
         )
+        self.mesh_shape = self._resolve_mesh_shape()  # e.g. (1, 8), (2, 4)
+        # whether to shard inputs across the batch/data mesh axis
+        self.shard_inputs = bool(self._resolve("shard_inputs", default=False))
+
+        # A strategy without a mesh shape is ambiguous (mirrors the LLM-path
+        # rule in test_models._validate_llm_sharding_mesh_combination).
+        if self.sharding_strategy is not None and self.mesh_shape is None:
+            raise ValueError(
+                "sharding_strategy requires mesh_shape to be set in the same "
+                f"test_config entry (got sharding_strategy={self.sharding_strategy})"
+            )
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
@@ -224,6 +240,42 @@ class ModelTestConfig:
         if self.arch in overrides and key in overrides[self.arch]:
             return overrides[self.arch][key]
         return self.data.get(key, default)
+
+    def _resolve_sharding_strategy(self) -> "ShardingStrategy | None":
+        """Resolve sharding_strategy from YAML into a ShardingStrategy enum.
+
+        The config loader normalizes the YAML string to a ShardingStrategy, but
+        configs built directly (e.g. placeholders, unit tests) may still carry a
+        raw string, so accept both.
+        """
+        value = self._resolve("sharding_strategy", default=None)
+        if value is None or isinstance(value, ShardingStrategy):
+            return value
+        try:
+            return ShardingStrategy[str(value).strip().upper()]
+        except KeyError:
+            return ShardingStrategy(str(value).strip().lower())
+
+    def _resolve_mesh_shape(self):
+        """Resolve mesh_shape from YAML (a list like [1, 2]) into a tuple.
+
+        Mirrors the tuple form used by the LLM parametrization so downstream
+        consumers (tester mesh setup, reporting) see a consistent type.
+        """
+        value = self._resolve("mesh_shape", default=None)
+        if value is None:
+            return None
+        try:
+            shape = tuple(int(d) for d in value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"mesh_shape must be a list of ints (e.g. [1, 2]); got {value!r}"
+            )
+        if len(shape) != 2:
+            raise ValueError(
+                f"mesh_shape must have exactly 2 dimensions (e.g. [1, 2]); got {value!r}"
+            )
+        return shape
 
     def to_comparison_config(self) -> ComparisonConfig:
         """Build a ComparisonConfig directly from this test metadata."""

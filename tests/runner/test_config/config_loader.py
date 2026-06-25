@@ -9,7 +9,7 @@ from ruamel.yaml import YAML
 
 from tests.infra.utilities.types import Framework
 from tests.runner.test_config.constants import ALLOWED_FIELDS, PLACEHOLDERS_FILENAME
-from tests.runner.test_utils import ModelTestStatus
+from tests.runner.test_utils import ModelTestStatus, ShardingStrategy
 from tests.utils import BringupStatus
 
 # Path to filecheck pattern files
@@ -45,7 +45,23 @@ def _enum_map_bringup(value: str):
             raise ValueError(f"Invalid BringupStatus: '{value}'")
 
 
-# Normalize a config dict (status/bringup_status in top level or nested under arch_overrides).
+# Map YAML 'sharding_strategy' string (enum name or value) to ShardingStrategy; raises on invalid values if provided.
+def _enum_map_sharding_strategy(value: str):
+    # Field may be omitted entirely; only validate if present
+    if value is None:
+        return None
+    value = str(value).strip()
+    try:
+        return ShardingStrategy[value.upper()]  # Try enum name (e.g. "MEGATRON")
+    except KeyError:
+        try:
+            return ShardingStrategy(value.lower())  # Try enum value (e.g. "megatron")
+        except ValueError:
+            valid = [s.value for s in ShardingStrategy]
+            raise ValueError(f"Invalid ShardingStrategy: '{value}'. Valid: {valid}")
+
+
+# Normalize a config dict (status/bringup_status/sharding_strategy in top level or nested under arch_overrides).
 def _normalize_enums_in_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
     cfg = dict(cfg or {})
 
@@ -56,6 +72,7 @@ def _normalize_enums_in_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
     enum_fields = {
         "status": _enum_map_status,
         "bringup_status": _enum_map_bringup,
+        "sharding_strategy": _enum_map_sharding_strategy,
     }
 
     # Apply normalization for any known enum field

@@ -115,6 +115,7 @@ Take a look at `model-test-passing.json` and related `.json` files inside `.gith
   - **Comparators**: `required_pcc`, `assert_pcc`, `assert_allclose`, `allclose_rtol`, `allclose_atol`
   - **Metadata**: `bringup_status`, `reason`, custom `markers` (e.g., `push`, `nightly`)
   - **Architecture scoping**: `supported_archs` used for filtering by CI job and optional `arch_overrides` used if test_config entries need to be modified based on arch.
+  - **Sharding** (on a `tensor_parallel` entry): `mesh_shape` (e.g. `[1, 2]`), `sharding_strategy` (`megatron` or `fsdp`), and `shard_inputs` (bool). These let any model — including non-LLM vision/diffusion/enc-dec models driven by `test_all_models_torch` — declare a tuned sharded baseline instead of relying on the loader-default tensor parallelism. See "Per-entry sharding for tensor_parallel" below.
 
 ### YAML to Python loading and validation
 
@@ -200,6 +201,36 @@ Examples
     },
 },
 ```
+
+## Per-entry sharding for tensor_parallel
+
+By default, a `tensor_parallel` entry runs with the loader-default tensor
+parallelism (mesh from `loader.get_mesh_config(num_devices)` and the loader's
+plain `load_shard_spec(model)`). To give a specific model a tuned sharded
+baseline — including non-LLM vision/diffusion/enc-dec models driven by
+`test_all_models_torch` — declare the sharding on its `tensor_parallel` entry:
+
+- `mesh_shape`: 2-element device mesh, e.g. `[1, 2]` or `[2, 4]`.
+- `sharding_strategy`: `megatron` (weights sharded on the model axis only) or
+  `fsdp` (sharded on both axes). Requires `mesh_shape` to be set.
+- `shard_inputs`: when `true`, inputs are also sharded across the batch/data
+  mesh axis (mesh axes become `("data", "model")` instead of `("batch", "model")`).
+
+```yaml
+# tests/runner/test_config/torch/test_config_inference_tensor_parallel.yaml
+test_config:
+  <vision_model>/pytorch-<variant>-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    mesh_shape: [1, 2]
+    sharding_strategy: megatron
+```
+
+`mesh_shape` is honored for any loader. An explicit `sharding_strategy` takes
+effect only when the loader's `load_shard_spec` accepts `strategy`/`batch_axis`
+kwargs (always true for `ForgePrefillModel` LLM loaders; other loaders opt in by
+overriding `load_shard_spec(model, strategy, batch_axis)`). Loaders without that
+signature fall back to their default tensor-parallel shard spec.
 
 ## Targeting architectures
 

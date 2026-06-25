@@ -5,6 +5,7 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+import inspect
 from typing import Any
 
 import torch
@@ -20,6 +21,27 @@ from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
+
+
+def _load_shard_spec_accepts_strategy(loader) -> bool:
+    """Return True if the loader's load_shard_spec accepts strategy/batch_axis.
+
+    ForgePrefillModel subclasses declare load_shard_spec(model, strategy,
+    batch_axis); regular loaders default to load_shard_spec(model). Inspecting
+    the signature (rather than checking ForgePrefillModel identity) lets non-LLM
+    loaders opt into explicit FSDP/Megatron sharding simply by overriding
+    load_shard_spec with the strategy-aware signature.
+    """
+    fn = getattr(loader, "load_shard_spec", None)
+    if fn is None:
+        return False
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    # Accept either explicit kwargs or **kwargs catch-all.
+    has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    return ("strategy" in params and "batch_axis" in params) or has_var_kw
 
 
 class DynamicTorchModelTester(TorchModelTester):
@@ -204,22 +226,26 @@ class DynamicTorchModelTester(TorchModelTester):
         if loader_shard_spec_fn is None:
             return None
 
-        # Lazy import to match the namespace of dynamically loaded model
-        # modules, so isinstance checks see the same class object.
-        from tt_forge_models.base import ForgePrefillModel
-
         # Build the weight shard spec function.
         # When shard_inputs is on, the mesh uses ("data", "model") axes, so FSDP
         # specs must use "data" instead of "batch" — handled by batch_axis arg.
         # (Megatron ignores batch_axis — its non-model axis is always None.)
+        #
+        # An explicit strategy is only meaningful for loaders whose
+        # load_shard_spec accepts strategy/batch_axis kwargs. ForgePrefillModel
+        # subclasses always do (LLM prefill path), but any loader — including
+        # non-LLM vision/diffusion/enc-dec models driven by test_all_models_torch
+        # — qualifies once it overrides load_shard_spec with that signature.
+        # Detecting by signature rather than ForgePrefillModel identity is what
+        # lets a YAML-declared sharding_strategy take effect for those models.
         batch_axis = "data" if shard_inputs else "batch"
-        if isinstance(self.dynamic_loader.loader, ForgePrefillModel):
+        if _load_shard_spec_accepts_strategy(self.dynamic_loader.loader):
             weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
                 model, strategy=str(strategy), batch_axis=batch_axis
             )
         else:
-            # Backward-compat fallback: ignore explicit strategy if loader is
-            # not a ForgePrefillModel (its load_shard_spec has no strategy kwargs).
+            # Backward-compat fallback: ignore explicit strategy if the loader's
+            # load_shard_spec has no strategy kwargs (default TP spec only).
             weight_fn = loader_shard_spec_fn
 
         if shard_inputs:

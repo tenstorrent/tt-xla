@@ -32,6 +32,11 @@ ALLOWED_FIELDS = {
     "markers",
     "supported_archs",
     "batch_size",
+    # Multi-chip sharding (honored by test_all_models_torch for tensor_parallel
+    # entries; lets non-LLM models declare a tuned sharded baseline from YAML).
+    "mesh_shape",
+    "sharding_strategy",
+    "shard_inputs",
     # Nested arch overrides
     "arch_overrides",
     # Needed for training tests
