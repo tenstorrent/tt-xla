@@ -121,6 +121,12 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
+    # Composite configs (e.g. vision-language models) keep the decoder's
+    # attention dims under a nested text config. get_text_config() returns the
+    # text sub-config for those and is a no-op (returns self) for plain LM
+    # configs, so this is safe for all existing models.
+    if hasattr(config, "get_text_config"):
+        config = config.get_text_config(decoder=True)
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:

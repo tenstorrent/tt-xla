@@ -84,7 +84,18 @@ def setup_model_and_tokenizer(
             experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
         )
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Most loaders expose a `tokenizer`. Vision-language loaders (e.g. image-to-text
+    # models built on a causal-LM backbone) instead expose a `processor`; benchmark
+    # the text-only LM decode path by reusing the processor's wrapped tokenizer.
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    if tokenizer is None:
+        processor = getattr(model_loader, "processor", None)
+        tokenizer = getattr(processor, "tokenizer", processor)
+    if tokenizer is None:
+        raise AttributeError(
+            "model_loader exposes neither a `tokenizer` nor a `processor` with a "
+            "`tokenizer`; cannot construct text inputs for the LLM benchmark."
+        )
 
     return model, tokenizer
 

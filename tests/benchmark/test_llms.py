@@ -2780,3 +2780,40 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# olmOCR-2-7B-1025 is an image-to-text (OCR) model built on a Qwen2.5-VL backbone.
+# HW bringup of the full vision+language model FAILED; there is no perf harness for
+# the full VLM pipeline. We benchmark the *text-only LM decode* sub-path: calling the
+# model with text input_ids only (no pixel_values) exercises the Qwen2.5 language
+# decoder, which the existing test_llm harness supports. The loader exposes a
+# `processor` (not a `tokenizer`) and a composite Qwen2_5_VLConfig (LM dims nested
+# under text_config) — both handled by the general benchmark-infra fallbacks.
+def test_olmocr_2_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.olm_ocr.image_text_generation.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.OLM_OCR_2_7B_1025
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
