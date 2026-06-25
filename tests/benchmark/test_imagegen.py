@@ -191,3 +191,57 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_fibo(output_file, request):
+    from benchmarks.fibo_pipeline import FiboConfig, FiboPipeline
+
+    # FIBO (briaai/FIBO): 8.3B DiT flow-matching text-to-image model. Only the
+    # heavy DiT denoiser runs on TT; the SmolLM3-3B text encoder and the Wan VAE
+    # stay on CPU (the denoiser is the component confirmed on device at loader
+    # bringup, and the one this benchmark times). For single-chip bringup we run
+    # at a tractable 512x512 with guidance_scale=1.0 (batch 1, no CFG); native
+    # settings (1024x1024, guidance 5.0) are left to model-perf-tuning.
+    prompt = (
+        '{"subject":"a hyper-detailed, ultra-fluffy owl in moonlit trees",'
+        '"style_medium":"photograph","camera":"85mm prime, shallow depth of field",'
+        '"lighting":"cool moonlight with subtle silver highlights"}'
+    )
+    num_inference_steps = 4
+    height = width = 512
+
+    def build_pipeline_fn(compile_options):
+        # Only the transformer is moved to TT; text encoder, scheduler and VAE
+        # remain on CPU. compile_options is forwarded for symmetry with the
+        # other imagegen pipelines.
+        pipeline = FiboPipeline(
+            config=FiboConfig(
+                height=height,
+                width=width,
+                guidance_scale=1.0,
+                compile_options=compile_options,
+            )
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="briaai/FIBO",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,   # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,    # safe default for bringup; model-perf-tuning will ramp
+    )
