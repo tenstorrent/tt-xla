@@ -8,7 +8,7 @@ The test itself runs through `minisweeps.py` (sibling file): parametrize
 machinery, input generation, compiler-config parsing, and `verify` live
 there; `test_matmul_mp.py` only owns the models, shape list, and
 known-failure predicate. Targeting individual cases is done via
-`MINISWEEPS_TEST_ID` or `MINISWEEPS_IDS_FILE` env vars (see Reproducing).
+`TEST_ID` or `ID_FILES` env vars (see Reproducing).
 
 ## Snapshots
 
@@ -100,7 +100,7 @@ profile):
 
 ```bash
 PYTHONPATH="$PWD:$PWD/tests" pytest \
-    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py \
+    tests/torch/single_chip/minisweeps/test_matmul_mp.py \
     --runxfail --tb=line --no-header -q \
     > tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_realistic.log 2>&1 || true
 
@@ -113,8 +113,8 @@ Uniform snapshot — same commands with `MINISWEEPS_PROFILE=uniform` and
 the `_uniform` suffixes on the artifacts:
 
 ```bash
-MINISWEEPS_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
-    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py \
+MINISWEEPS_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/minisweeps" pytest \
+    tests/torch/single_chip/minisweeps/test_matmul_mp.py \
     --runxfail --tb=line --no-header -q \
     > tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_uniform.log 2>&1 || true
 
@@ -128,14 +128,14 @@ Targeting one or a few test_ids — use the sweeps-format IDs in
 
 ```bash
 # single id
-MINISWEEPS_TEST_ID="matmul_mp-FROM_ANOTHER_OP-{'compiler_config': 'mp_opt2_bf16_fp32accfalse_hifi2'}-((32, 128, 1024), (1024, 2048))-None-None" \
-    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
-    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py -sv
+TEST_ID="matmul_mp-FROM_ANOTHER_OP-{'compiler_config': 'mp_opt2_bf16_fp32accfalse_hifi2'}-((32, 128, 1024), (1024, 2048))-None-None" \
+    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/minisweeps" pytest \
+    tests/torch/single_chip/minisweeps/test_matmul_mp.py -sv
 
 # bulk: feed sweeps' or our own .conf
-MINISWEEPS_IDS_FILE=tests/torch/single_chip/sweeps_derived/test_matmul_mp_pcc.conf \
-    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
-    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py
+ID_FILES=tests/torch/single_chip/minisweeps/test_matmul_mp_pcc.conf \
+    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/minisweeps" pytest \
+    tests/torch/single_chip/minisweeps/test_matmul_mp.py
 ```
 
 To regenerate the bf16-baseline snapshot, the test has to be edited

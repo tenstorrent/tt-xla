@@ -13,7 +13,7 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-TEST=tests/torch/single_chip/sweeps_derived/test_matmul_mp.py
+TEST=tests/torch/single_chip/minisweeps/test_matmul_mp.py
 ART="$(dirname "$0")"
 
 # Common pytest args. -q --no-header keeps output compact and parseable.
