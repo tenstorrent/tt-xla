@@ -8,7 +8,6 @@ einops
 flax==0.10.4
 fsspec
 jaxtyping
-numpy<2,>=1.24.4 # temporarily force this to sync with tt-lang
 
 # pin exact versions for librosa dependencies to avoid conflicts
 librosa==0.11.0

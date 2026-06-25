@@ -191,7 +191,16 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv pip install wheels/*.whl
+        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" ]]; then
+          # tt-lang's wheel metadata caps numpy<2, but tt-lang works with numpy 2.x.
+          # vllm (via opencv-python-headless>=4.13) requires numpy>=2, so pjrt_plugin_tt
+          # and vllm_tt cannot co-resolve. Override the stale cap; every other
+          # dependency still resolves normally.
+          echo 'numpy>=2' > wheels/numpy-override.txt
+          uv pip install --override wheels/numpy-override.txt wheels/*.whl
+        else
+          uv pip install wheels/*.whl
+        fi
 
     - name: Install custom torch_xla from workflow run
       if: ${{ inputs.torchxla_build_run_id != '' }}
