@@ -1477,11 +1477,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   }
 
   std::string input_file = folder + "/ttnn.mlir";
-  // Controls wether the generated solution is designed
-  // for standalone execution(is_local=false)
-  // or for execution within an existing development environment that already
-  // has prerequisites installed(is_local=true).
-  bool is_local = false;
+
   // Alchemist specific options are passed here.
   // Other options are ingested during TTIR->TTNN conversion.
   std::string should_load = compile_options.export_tensors ? "true" : "false";
@@ -1490,11 +1486,18 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                                  " "
                                  "tensor-load-directory='./tensors'";
 
+  // Controls wether the generated solution is designed
+  // for standalone execution(is_local=false)
+  // or for execution within an existing development environment that already
+  // has prerequisites installed(is_local=true).
+  constexpr bool is_local_cpp = false;
+  constexpr bool is_local_py = true;
+
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     result = m_tt_alchemist_handler.generateCppFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local,
+        instance, input_file.c_str(), folder.c_str(), is_local_cpp,
         pipeline_options.c_str());
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     // For Python specifically,
@@ -1512,9 +1515,8 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     // expects a `forward(inputs, device)` entrypoint).
     std::string target_module = !compile_options.dry_run ? "true" : "false";
     pipeline_options += " target-module=" + target_module;
-    is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local,
+        instance, input_file.c_str(), folder.c_str(), is_local_py,
         pipeline_options.c_str());
   } else {
     TT_THROW("Unsupported backend when doing codegen");
