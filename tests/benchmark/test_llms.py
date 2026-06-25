@@ -2814,7 +2814,6 @@ def test_olmocr_2_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
-        trace_enabled=True,
-        fp32_dest_acc_en=True,
+        optimization_level=0,  # opt>=1 drops Prefill PCC below 0.94 (tuning iters 1-3,5); 0 is the only PCC-safe level
+        trace_enabled=False,  # trace is numerically neutral but gives no real throughput gain at opt=0 (tuning iter 4)
     )
