@@ -4,11 +4,17 @@ Snapshots of measurements and the tooling used to produce them. Regenerate
 when the predicate in `test_matmul_mp.py::_is_known_pcc_failure` or any
 upstream component (tt-mlir, tt-metal, evaluator thresholds) changes.
 
+The test itself runs through `minisweeps.py` (sibling file): parametrize
+machinery, input generation, compiler-config parsing, and `verify` live
+there; `test_matmul_mp.py` only owns the models, shape list, and
+known-failure predicate. Targeting individual cases is done via
+`MINISWEEPS_TEST_ID` or `MINISWEEPS_IDS_FILE` env vars (see Reproducing).
+
 ## Snapshots
 
 Three input regimes captured side-by-side so the impact of input
 distribution on measured PCC can be tracked. The active regime is chosen
-via `TTXLA_MATMUL_MP_PROFILE` (default `mixture`); the test ships with
+via `MINISWEEPS_PROFILE` (default `mixture`); `minisweeps.py` ships with
 `_mixture_normal` and `_uniform_signed` helpers in place so either can be
 re-run without code edits.
 
@@ -25,7 +31,7 @@ under specific `optimization_level` + `fp32_dest_acc_en` combos.
 ### 2. Uniform fp32 — `pcc_report_uniform.md` / `runxfail_uniform.log`
 
 **Inputs**: fp32, uniform `[-1, 1]` on both operands (no Kaiming scaling).
-**Run with**: `TTXLA_MATMUL_MP_PROFILE=uniform pytest ...`.
+**Run with**: `MINISWEEPS_PROFILE=uniform pytest ...`.
 **Result**: 48/192 fail, same exact test_ids as the realistic snapshot.
 PCC values within ~0.0005 of the realistic snapshot — distribution shape
 doesn't affect PCC once inputs are zero-mean. Atol values are ~5–10× smaller
@@ -103,11 +109,11 @@ python3 tests/torch/single_chip/sweeps_derived/pcc_artifacts/build_report.py \
     > tests/torch/single_chip/sweeps_derived/pcc_artifacts/pcc_report_realistic.md
 ```
 
-Uniform snapshot — same commands with `TTXLA_MATMUL_MP_PROFILE=uniform` and
+Uniform snapshot — same commands with `MINISWEEPS_PROFILE=uniform` and
 the `_uniform` suffixes on the artifacts:
 
 ```bash
-TTXLA_MATMUL_MP_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests" pytest \
+MINISWEEPS_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
     tests/torch/single_chip/sweeps_derived/test_matmul_mp.py \
     --runxfail --tb=line --no-header -q \
     > tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_uniform.log 2>&1 || true
@@ -115,6 +121,21 @@ TTXLA_MATMUL_MP_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests" pytest \
 python3 tests/torch/single_chip/sweeps_derived/pcc_artifacts/build_report.py \
     tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_uniform.log \
     > tests/torch/single_chip/sweeps_derived/pcc_artifacts/pcc_report_uniform.md
+```
+
+Targeting one or a few test_ids — use the sweeps-format IDs in
+`test_matmul_mp_pcc.conf` (or any file with the same line format):
+
+```bash
+# single id
+MINISWEEPS_TEST_ID="matmul_mp-FROM_ANOTHER_OP-{'compiler_config': 'mp_opt2_bf16_fp32accfalse_hifi2'}-((32, 128, 1024), (1024, 2048))-None-None" \
+    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
+    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py -sv
+
+# bulk: feed sweeps' or our own .conf
+MINISWEEPS_IDS_FILE=tests/torch/single_chip/sweeps_derived/test_matmul_mp_pcc.conf \
+    PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/sweeps_derived" pytest \
+    tests/torch/single_chip/sweeps_derived/test_matmul_mp.py
 ```
 
 To regenerate the bf16-baseline snapshot, the test has to be edited
