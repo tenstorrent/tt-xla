@@ -38,29 +38,37 @@ CompileOptions CompileOptions::parse(
               options.experimental_enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(options.backend);
+  options.export_path =
+      internal::parseStringOption(compile_options, "export_path");
 
   // The codegen emit/load env vars are a surface over the codegen backends:
-  // they let a workflow opt in externally (e.g. an operator flipping emit/load
-  // on a running vLLM server without editing config code). They resolve here to
-  // a backend + export_path so the rest of parsing keys off the backend alone.
-  // An explicit `backend` compile option always wins.
+  // they let a workflow opt in externally (e.g. flipping emit/load on a running
+  // vLLM server without editing config code). Resolve them here -- right after
+  // the explicit backend/export_path and BEFORE any backend-dependent default
+  // below -- so those defaults all see the final backend. An explicit `backend`
+  // always wins; an explicit export_path is overriden.
   const char *emit_dir = std::getenv("TTXLA_CODEGEN_EXPORT_DIR");
   const char *load_dir = std::getenv("TTXLA_CODEGEN_LOAD_DIR");
   if (!compile_options.count("backend")) {
     if (load_dir) {
       options.backend = BackendRuntime::TTNNCodegenLoadPy;
+      options.export_path = load_dir;
     } else if (emit_dir) {
       options.backend = BackendRuntime::TTNNCodegenPy;
+      // Emit a runnable forward() entrypoint so the code can be reloaded later.
+      options.target_module = true;
+      options.export_path = emit_dir;
     }
   }
 
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
-  // Default export tensors for all backends except TTNNFlatbuffer
+  // By default, export tensors for codegen paths.
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
-          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer);
+          .value_or(options.backend == BackendRuntime::TTNNCodegenPy ||
+                    options.backend == BackendRuntime::TTNNCodegenCpp);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(options.enable_const_eval);
@@ -107,8 +115,6 @@ CompileOptions CompileOptions::parse(
   options.target_module =
       internal::parseBoolOption(compile_options, "target_module")
           .value_or(options.target_module);
-  options.export_path =
-      internal::parseStringOption(compile_options, "export_path");
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
@@ -120,16 +126,6 @@ CompileOptions CompileOptions::parse(
       options.backend == BackendRuntime::TTNNCodegenCpp ||
       options.backend == BackendRuntime::TTNNCodegenLoadPy) {
     options.export_model_name = "";
-  }
-
-  // Supply export_path from the matching env var when not given explicitly.
-  // In load mode export_path is the directory to read saved graphs from.
-  if (!options.export_path.has_value()) {
-    if (options.backend == BackendRuntime::TTNNCodegenLoadPy && load_dir) {
-      options.export_path = load_dir;
-    } else if (emit_dir) {
-      options.export_path = emit_dir;
-    }
   }
 
   if (!options.export_path.has_value() &&
