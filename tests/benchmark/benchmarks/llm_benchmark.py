@@ -210,8 +210,12 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
             # torch.arange(kv_length, device=self.device) + self.cumulative_length,
             # which fails if CL is on CPU and self.device is XLA.
             # Zero before moving so the fresh cache starts at position 0.
-            layer.cumulative_length.zero_()
-            layer.cumulative_length = layer.cumulative_length.to(device)
+            # Some transformers versions' StaticLayer track position via the
+            # passed-in cache_position instead of a stored cumulative_length;
+            # guard for it (mirrors the decode-only reset below).
+            if hasattr(layer, "cumulative_length"):
+                layer.cumulative_length.zero_()
+                layer.cumulative_length = layer.cumulative_length.to(device)
             layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)

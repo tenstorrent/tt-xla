@@ -2780,3 +2780,39 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Molmo2-8B is a multimodal model whose language backbone is a Qwen3-8B-derived
+# decoder-only transformer (36 layers, hidden 4096, GQA 32:8, RoPE theta 1e6).
+# This perf entry benchmarks the text-decoder (LLM) path only: the loader runs
+# Molmo2ForConditionalGeneration with text-only inputs, skipping the vision tower
+# and adapter. Single-chip on p150 (blackhole); bringup-safe defaults
+# (optimization_level=0, trace_enabled=False) — model-perf-tuning will ramp.
+def test_molmo2_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.molmo2.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MOLMO2_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

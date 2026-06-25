@@ -283,6 +283,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "molmo2_8b",
+        "pyreq": "transformers==4.57.1",
+        "runs-on": "p150-perf",
+        "pytest": "tests/benchmark/test_llms.py::test_molmo2_8b"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
