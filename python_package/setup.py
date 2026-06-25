@@ -322,9 +322,6 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EMITPY_EXECUTION=" + enable_emitpy_execution,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
-            # Debug (galaxy bring-up): build the tt-mlir runtime with debug
-            # logging so TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG emits output on CI.
-            "-DTT_RUNTIME_DEBUG=ON",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
