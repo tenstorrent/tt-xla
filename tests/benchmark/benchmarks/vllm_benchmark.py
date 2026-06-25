@@ -53,7 +53,20 @@ class VLLMBenchmarkConfig:
     num_prompts: Optional[int] = None
     max_tokens: int = 128
     warmup_iterations: int = 1
+    # Cap the warmup generation length. Warmup exists to trigger trace capture, not
+    # to generate useful output, and the decode graph is fixed-shape, so a few steps
+    # suffice. Set this small (e.g. 128) on long-OSL sweeps so the warmup doesn't
+    # spend ~OSL/decode_tps seconds generating tokens it discards. None -> use
+    # max_tokens (the measured length). Warmup still prefills the full prompt.
+    warmup_max_tokens: Optional[int] = None
     prompt: str = DEFAULT_PROMPT
+
+    # vLLM automatic prefix caching. Default True (matches vLLM/server default).
+    # Set False for prefill benchmarks: the warmup runs the same prompt first, so
+    # with caching on the measured prefill is a cache hit -> bogus near-zero TTFT
+    # (observed 99.8% hit rate, prefill_tps=63864 for a 16384-token prompt). Keep
+    # the warmup (needed for trace capture); just stop it from poisoning prefill.
+    enable_prefix_caching: bool = True
 
     # When True, send `prompt` as a chat message via llm.chat() so the chat
     # template is applied; instruct models (e.g. Gemma-4-it) degenerate without it.
@@ -97,6 +110,7 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
         "max_num_seqs": config.batch_size,
         "max_num_batched_tokens": max_num_batched_tokens,
         "gpu_memory_utilization": config.gpu_memory_utilization,
+        "enable_prefix_caching": config.enable_prefix_caching,
         "disable_log_stats": False,
         "additional_config": additional_config,
     }
@@ -113,35 +127,51 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
 
 def _extract_metrics(
     outputs: List[vllm.RequestOutput],
-) -> Tuple[float, List[int], float, float]:
+) -> Tuple[float, List[int], float, float, float, float]:
     """
     Extract per-request metrics and return aggregated per-user values.
 
     Returns:
-        (avg_ttft_ms, tokens_per_user, avg_decode_time_s, avg_tokens_per_sec)
+        (avg_ttft_ms, tokens_per_user, avg_decode_time_s, avg_tokens_per_sec,
+         avg_prompt_tokens, avg_prefill_tps)
+
+    avg_prompt_tokens is the measured input length (true ISL, may differ from
+    max_model_len). avg_prefill_tps = prompt_tokens / TTFT — the prefill
+    throughput, matching the tt-inference-server "prefill t/s = ISL/TTFT".
     """
     ttft_values = []
 
     for i, output in enumerate(outputs):
         stats = output.metrics
         gen_tokens = len(output.outputs[0].token_ids)
+        prompt_tokens = len(output.prompt_token_ids)
 
         ttft_ms = stats.first_token_latency * 1000.0
         ttft_values.append(ttft_ms)
+        prefill_tps = (
+            prompt_tokens / stats.first_token_latency
+            if stats.first_token_latency > 0
+            else 0.0
+        )
 
         decode_tokens = stats.num_generation_tokens - 1
         decode_time = stats.last_token_ts - stats.first_token_ts
         if decode_time > 0 and decode_tokens > 0:
             tps = decode_tokens / decode_time
             print(
-                f"  Request {i}: gen_tokens={gen_tokens}, "
-                f"TTFT={ttft_ms:.1f}ms, "
+                f"  Request {i}: prompt_tokens={prompt_tokens}, "
+                f"gen_tokens={gen_tokens}, "
+                f"TTFT={ttft_ms:.1f}ms, prefill_tps={prefill_tps:.1f}, "
                 f"decode_tokens={decode_tokens}, "
                 f"decode_time={decode_time:.3f}s, "
                 f"decode_tps={tps:.1f}"
             )
         else:
-            print(f"  Request {i}: gen_tokens={gen_tokens}, TTFT={ttft_ms:.1f}ms")
+            print(
+                f"  Request {i}: prompt_tokens={prompt_tokens}, "
+                f"gen_tokens={gen_tokens}, TTFT={ttft_ms:.1f}ms, "
+                f"prefill_tps={prefill_tps:.1f}"
+            )
 
     avg_ttft_ms = sum(ttft_values) / len(ttft_values) if ttft_values else 0.0
 
@@ -166,11 +196,29 @@ def _extract_metrics(
         else 0.0
     )
 
+    prompt_tokens_per_user = [len(o.prompt_token_ids) for o in outputs]
+    prefill_tps_per_user = [
+        pt / o.metrics.first_token_latency if o.metrics.first_token_latency > 0 else 0.0
+        for pt, o in zip(prompt_tokens_per_user, outputs)
+    ]
+    avg_prompt_tokens = (
+        sum(prompt_tokens_per_user) / len(prompt_tokens_per_user)
+        if prompt_tokens_per_user
+        else 0.0
+    )
+    avg_prefill_tps = (
+        sum(prefill_tps_per_user) / len(prefill_tps_per_user)
+        if prefill_tps_per_user
+        else 0.0
+    )
+
     return (
         avg_ttft_ms,
         tokens_per_user,
         avg_decode_time_s,
         avg_tokens_per_sec,
+        avg_prompt_tokens,
+        avg_prefill_tps,
     )
 
 
@@ -251,13 +299,29 @@ def benchmark_vllm(
         inputs = [config.prompt] * n_prompts
         run_fn = llm.generate
 
-    def _run() -> List[vllm.RequestOutput]:
-        return run_fn(inputs, sampling_params)
+    def _run(sp: vllm.SamplingParams = sampling_params) -> List[vllm.RequestOutput]:
+        return run_fn(inputs, sp)
 
     if config.warmup_iterations > 0:
-        print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
+        # Warmup only needs to trigger trace capture (decode graph is fixed-shape),
+        # so optionally generate fewer tokens than the measured run. Prefill is
+        # unaffected — the full prompt is still processed.
+        warmup_tokens = (
+            min(config.max_tokens, config.warmup_max_tokens)
+            if config.warmup_max_tokens is not None
+            else config.max_tokens
+        )
+        warmup_sampling_params = vllm.SamplingParams(
+            max_tokens=warmup_tokens,
+            ignore_eos=True,
+            temperature=config.temperature,
+        )
+        print(
+            f"\nWarming up ({config.warmup_iterations} iteration(s), "
+            f"{warmup_tokens} tokens) ..."
+        )
         for _ in range(config.warmup_iterations):
-            _run()
+            _run(warmup_sampling_params)
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
@@ -276,6 +340,8 @@ def benchmark_vllm(
         tokens_per_user,
         avg_decode_time_s,
         avg_tokens_per_sec,
+        avg_prompt_tokens,
+        avg_prefill_tps,
     ) = _extract_metrics(outputs)
     total_samples = sum(tokens_per_user)
 
@@ -296,6 +362,11 @@ def benchmark_vllm(
             "value": avg_tokens_per_sec,
             "target": -1,
         },
+        {
+            "measurement_name": "prefill_tps",
+            "value": avg_prefill_tps,
+            "target": -1,
+        },
     ]
 
     print_benchmark_results(
@@ -313,6 +384,8 @@ def benchmark_vllm(
         data_format="bfloat16",
         input_sequence_length=config.max_model_len,
         ttft_ms=avg_ttft_ms,
+        prefill_tps=avg_prefill_tps,
+        measured_isl=round(avg_prompt_tokens),
     )
 
     arch, device_count, mesh_shape = _get_device_info(config)
