@@ -127,7 +127,7 @@ def _tp_config(
     )
 
 
-def _gemma4_tp_config(model: str, batch_size: int):
+def _gemma4_tp_config(model: str, batch_size: int, optimization_level: int = 0):
     # Gemma-4 is a multimodal model run text-only on a TP mesh. Mirrors
     # tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py
     # ::test_tensor_parallel_generation_gemma4_31b:
@@ -147,6 +147,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         experimental_weight_dtype="",
         cpu_sampling=False,
         flat_model_io=True,
+        optimization_level=optimization_level,
     )
     cfg.limit_mm_per_prompt = {"image": 0, "video": 0, "audio": 0}
     cfg.min_num_batched_tokens = 2560
