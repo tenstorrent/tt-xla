@@ -242,6 +242,6 @@ def test_fibo(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=0,   # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,    # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,   # model-perf-tuning: max-perf sweep
+        trace_enabled=True,     # model-perf-tuning: max-perf sweep
     )
