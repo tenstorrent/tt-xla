@@ -102,11 +102,11 @@ profile):
 PYTHONPATH="$PWD:$PWD/tests" pytest \
     tests/torch/single_chip/minisweeps/test_matmul_mp.py \
     --runxfail --tb=line --no-header -q \
-    > tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_realistic.log 2>&1 || true
+    > tests/torch/single_chip/minisweeps/findings/pcc_artifacts/runxfail_realistic.log 2>&1 || true
 
-python3 tests/torch/single_chip/sweeps_derived/pcc_artifacts/build_report.py \
-    tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_realistic.log \
-    > tests/torch/single_chip/sweeps_derived/pcc_artifacts/pcc_report_realistic.md
+python3 tests/torch/single_chip/minisweeps/findings/pcc_artifacts/build_report.py \
+    tests/torch/single_chip/minisweeps/findings/pcc_artifacts/runxfail_realistic.log \
+    > tests/torch/single_chip/minisweeps/findings/pcc_artifacts/pcc_report_realistic.md
 ```
 
 Uniform snapshot — same commands with `MINISWEEPS_PROFILE=uniform` and
@@ -116,11 +116,11 @@ the `_uniform` suffixes on the artifacts:
 MINISWEEPS_PROFILE=uniform PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/minisweeps" pytest \
     tests/torch/single_chip/minisweeps/test_matmul_mp.py \
     --runxfail --tb=line --no-header -q \
-    > tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_uniform.log 2>&1 || true
+    > tests/torch/single_chip/minisweeps/findings/pcc_artifacts/runxfail_uniform.log 2>&1 || true
 
-python3 tests/torch/single_chip/sweeps_derived/pcc_artifacts/build_report.py \
-    tests/torch/single_chip/sweeps_derived/pcc_artifacts/runxfail_uniform.log \
-    > tests/torch/single_chip/sweeps_derived/pcc_artifacts/pcc_report_uniform.md
+python3 tests/torch/single_chip/minisweeps/findings/pcc_artifacts/build_report.py \
+    tests/torch/single_chip/minisweeps/findings/pcc_artifacts/runxfail_uniform.log \
+    > tests/torch/single_chip/minisweeps/findings/pcc_artifacts/pcc_report_uniform.md
 ```
 
 Targeting one or a few test_ids — use the sweeps-format IDs in
@@ -141,14 +141,14 @@ ID_FILES=tests/torch/single_chip/minisweeps/test_matmul_mp_pcc.conf \
 To regenerate the bf16-baseline snapshot, the test has to be edited
 temporarily to use
 `dtype=torch.bfloat16, minval=-1, maxval=1, run_op_test_with_random_inputs(...)`.
-That path is not behind `TTXLA_MATMUL_MP_PROFILE` because it represents a
+That path is not behind `MINISWEEPS_PROFILE` because it represents a
 different (round-trip-consistency) test entirely.
 
 To regenerate the forked-vs-noforked comparison:
 
 ```bash
 PYTHONPATH="$PWD:$PWD/tests" \
-    tests/torch/single_chip/sweeps_derived/pcc_artifacts/compare_runs.sh
+    tests/torch/single_chip/minisweeps/findings/pcc_artifacts/compare_runs.sh
 ```
 
 ## Current predicate (from realistic snapshot)
