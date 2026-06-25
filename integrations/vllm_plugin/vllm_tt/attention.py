@@ -23,6 +23,9 @@ from vllm.v1.attention.backend import (
     AttentionType,
 )
 
+import torch_xla.distributed.spmd as xs
+from tt_torch.sharding import sharding_constraint_tensor
+
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
@@ -474,17 +477,42 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(0, 1)
             value_for_update = inputs.value.transpose(0, 1)
 
+            update_indices = attn_metadata.cache_position
+            page_table = attn_metadata.page_table
+            # paged_update_cache dispatches one user (sequence) per core and
+            # asserts num_cores == num_users. Under DP the user/batch dim must
+            # be sharded across the "batch" axis so each device sees
+            # batch/dp_size users (matching the per-device [numUsers/dp, 1]
+            # grid that the tt-mlir rewrite builds). Re-pin it here; the
+            # external mark_sharding does not reach this compiled graph.
+            # fill value: [1, users, kv_heads, head_dim] -> shard dim1 (users).
+            if attn_metadata.dp_size > 1:
+                _mesh = xs.get_global_mesh()
+                if _mesh is not None:
+                    key_for_update = sharding_constraint_tensor(
+                        key_for_update, _mesh, (None, "batch", None, None)
+                    )
+                    value_for_update = sharding_constraint_tensor(
+                        value_for_update, _mesh, (None, "batch", None, None)
+                    )
+                    update_indices = sharding_constraint_tensor(
+                        update_indices, _mesh, ("batch",)
+                    )
+                    page_table = sharding_constraint_tensor(
+                        page_table, _mesh, ("batch", None)
+                    )
+
             k_cache = torch.ops.tt.paged_update_cache(
                 k_cache,
                 key_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
+                update_indices,
+                page_table,
             )
             v_cache = torch.ops.tt.paged_update_cache(
                 v_cache,
                 value_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
+                update_indices,
+                page_table,
             )
         else:
             # Prefill: batched across users via N-element batch_idx_tensor.
