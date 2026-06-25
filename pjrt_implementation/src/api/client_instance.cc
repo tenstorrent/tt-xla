@@ -16,7 +16,9 @@
 #include <cstring>
 #include <filesystem>
 #include <map>
+#include <numeric>
 #include <optional>
+#include <utility>
 
 // system includes
 #include <unistd.h>
@@ -667,6 +669,11 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
 
 void ClientInstance::closeParentMesh() {
   if (m_parent_mesh.has_value()) {
+    // Release any device tensors stashed for pipeline-parallel socket transfers
+    // while the submeshes/parent are still open, so their handles don't
+    // destruct after the device is gone.
+    BufferInstance::clearPendingDevicePulls();
+    closeLiveSubmeshes();
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
@@ -674,6 +681,88 @@ void ClientInstance::closeParentMesh() {
   }
 }
 
+tt::runtime::Device ClientInstance::getOrCreateSubmesh(
+    const std::vector<uint32_t> &submesh_shape,
+    const std::vector<uint32_t> &submesh_offset) {
+  // The parent mesh is opened once in populateDevices and stays open; we carve
+  // submeshes from it WITHOUT going through getOrCreateMeshDevice, so we never
+  // risk a reshape (close+reopen) that would invalidate already-cached submesh
+  // handles in m_live_submeshes.
+  TT_FATAL(m_parent_mesh.has_value(),
+           "Parent mesh must be open before carving a submesh");
+
+  auto it = m_live_submeshes.find(submesh_offset);
+  if (it != m_live_submeshes.end()) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateSubmesh - reusing submesh at offset %s",
+           utils::to_string(submesh_offset).c_str());
+    return it->second;
+  }
+
+  DLOG_F(
+      LOG_DEBUG,
+      "ClientInstance::getOrCreateSubmesh - creating submesh %s at offset %s",
+      utils::to_string(submesh_shape).c_str(),
+      utils::to_string(submesh_offset).c_str());
+  tt::runtime::Device submesh = tt::runtime::createSubMeshDevice(
+      *m_parent_mesh, submesh_shape, submesh_offset);
+  m_live_submeshes.emplace(submesh_offset, submesh);
+  return submesh;
+}
+
+bool ClientInstance::isSocketTransferEligible(
+    uint32_t src_id, uint32_t dst_id, const std::vector<uint32_t> &parent_shape,
+    bool fabric_enabled) {
+  if (!fabric_enabled || parent_shape.empty() || src_id == dst_id) {
+    return false;
+  }
+  size_t parent_devices =
+      std::accumulate(parent_shape.begin(), parent_shape.end(),
+                      static_cast<size_t>(1), std::multiplies<size_t>{});
+  return src_id < parent_devices && dst_id < parent_devices;
+}
+
+tt::runtime::Device
+ClientInstance::getSubmeshForDeviceId(uint32_t global_device_id) {
+  std::vector<uint32_t> parent_shape = getParentMeshShape();
+  TT_FATAL(!parent_shape.empty(),
+           "getSubmeshForDeviceId requires an open parent mesh");
+  uint32_t parent_cols = parent_shape.back();
+  std::vector<uint32_t> offset = {global_device_id / parent_cols,
+                                  global_device_id % parent_cols};
+  return getOrCreateSubmesh(/*submesh_shape=*/{1, 1}, offset);
+}
+
+std::pair<tt::runtime::MeshSocketHandle, tt::runtime::MeshSocketHandle> &
+ClientInstance::getOrCreateSocketPair(const std::vector<uint32_t> &src_offset,
+                                      const std::vector<uint32_t> &dst_offset,
+                                      tt::runtime::Device src_submesh,
+                                      tt::runtime::Device dst_submesh) {
+  auto key = std::make_pair(src_offset, dst_offset);
+  auto it = m_socket_pairs.find(key);
+  if (it == m_socket_pairs.end()) {
+    // Worker core {0,0} on each 1x1 submesh.
+    auto pair = tt::runtime::createSocketPair(
+        src_submesh, dst_submesh, /*senderCore=*/{0, 0},
+        /*receiverCore=*/{0, 0}, kSocketFifoSize);
+    it = m_socket_pairs.emplace(std::move(key), std::move(pair)).first;
+  }
+  return it->second;
+}
+
+void ClientInstance::closeLiveSubmeshes() {
+  // Release socket pairs first: they reference the submeshes below.
+  for (auto &entry : m_socket_pairs) {
+    tt::runtime::closeSocket(entry.second.first);
+    tt::runtime::closeSocket(entry.second.second);
+  }
+  m_socket_pairs.clear();
+
+  for (auto &entry : m_live_submeshes) {
+    tt::runtime::releaseSubMeshDevice(entry.second);
+  }
+  m_live_submeshes.clear();
+}
 namespace internal {
 
 PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {

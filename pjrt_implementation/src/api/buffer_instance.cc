@@ -13,6 +13,7 @@
 // c++ standard library includes
 #include <cstddef>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -46,6 +47,44 @@
 namespace tt::pjrt {
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
+
+// Pipeline-parallel device-to-device sockets.
+//
+// torch-xla never calls PJRT_Buffer_CopyToDevice; a cross-device tensor move is
+// a host roundtrip: copyToHost(srcBuf, host_ptr) then copyFromHost(dstBuf,
+// host_ptr) reusing the SAME host pointer. We exploit
+// that: copyToHost stashes a copy of the source's still-on-device tensor handle
+// (its refcount alone keeps the device buffer alive across move_to_host's
+// readback) keyed by the host pointer; copyFromHost, on a matching pointer for
+// a TT->TT submesh hop, sockets the activation device-to-device and skips the
+// upload.
+//
+// Lifetime: the map holds one device-tensor handle per pending readout. It
+// self-bounds because torch-xla pools/reuses host pointers (a reused pointer
+// overwrites and releases the prior handle), matched entries are erased on
+// consumption, and clearPendingDevicePulls() drains the rest before the mesh
+// device is torn down (a handle outliving the device would crash on destruct).
+namespace {
+struct HostPullEntry {
+  uint32_t src_device_id;
+  // Source buffer dimensions, used to reject a coincidental host-pointer reuse:
+  // torch-xla pools host buffers, so a pointer stashed by one readout can later
+  // be handed to an unrelated upload. A shape mismatch means this is not the
+  // activation that was stashed, so we must not socket it.
+  std::vector<std::int64_t> src_dims;
+  tt::runtime::Tensor device_tensor;
+};
+std::mutex g_pending_pulls_mutex;
+std::map<const void *, HostPullEntry> g_pending_device_pulls;
+} // namespace
+
+void BufferInstance::clearPendingDevicePulls() {
+  const std::lock_guard<std::mutex> lock(g_pending_pulls_mutex);
+  // Dropping the handles here (while the device is still open) lets their
+  // backing device buffers deallocate cleanly; doing it at process teardown
+  // (after the device is gone) would crash in the tensor destructor.
+  g_pending_device_pulls.clear();
+}
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
@@ -225,6 +264,95 @@ bool isDenseRowMajor(const std::int64_t *dims, size_t num_dims,
 
 } // namespace
 
+bool BufferInstance::trySocketTransferFromHostPull(
+    const void *host_buffer, EventInstance **out_done_with_host_buffer_event) {
+  // Claim the stashed source device tensor for this host pointer, if any.
+  std::optional<HostPullEntry> pull;
+  {
+    const std::lock_guard<std::mutex> lock(g_pending_pulls_mutex);
+    auto it = g_pending_device_pulls.find(host_buffer);
+    if (it != g_pending_device_pulls.end()) {
+      pull = std::move(it->second);
+      g_pending_device_pulls.erase(it);
+    }
+  }
+  // No stash for this host pointer: an ordinary host->device upload (weights,
+  // inputs, ...), not a pipeline activation hop. Use the normal host path.
+  if (!pull.has_value()) {
+    return false;
+  }
+
+  // Coincidental host-pointer reuse: torch-xla pooled this pointer for a
+  // different (differently-shaped) buffer than the one we stashed. Not the
+  // stashed activation -> normal host path (and do NOT socket stale data).
+  if (pull->src_dims != m_dimensions) {
+    return false;
+  }
+
+  ClientInstance *client = getDevice()->getClient();
+  uint32_t src_id = pull->src_device_id;
+  uint32_t dst_id = static_cast<uint32_t>(getDevice()->getGlobalDeviceId());
+
+  // device->host->same-device roundtrip (e.g. a layout change), not a
+  // cross-device transfer. Nothing to socket; use the normal host path.
+  if (src_id == dst_id) {
+    return false;
+  }
+
+  // From here this IS an intended cross-device activation hop. If it cannot be
+  // socketed, fail loudly rather than silently degrading to a host roundtrip.
+  std::vector<uint32_t> parent_shape = client->getParentMeshShape();
+  bool fabric_on = client->getFabricConfig().has_value();
+  TT_FATAL(ClientInstance::isSocketTransferEligible(src_id, dst_id,
+                                                    parent_shape, fabric_on),
+           "Pipeline-parallel activation hop device {} -> {} is not "
+           "socket-eligible (fabric_enabled={}, parent_open={}); enable "
+           "FABRIC_2D and keep the parent mesh multi-device.",
+           src_id, dst_id, fabric_on, !parent_shape.empty());
+  TT_FATAL(tt::runtime::isTensorAllocated(pull->device_tensor),
+           "Pipeline-parallel source tensor for device {} -> {} is not "
+           "allocated on device; cannot socket the activation.",
+           src_id, dst_id);
+
+  try {
+    uint32_t cols = parent_shape.back();
+    std::vector<uint32_t> src_off = {src_id / cols, src_id % cols};
+    std::vector<uint32_t> dst_off = {dst_id / cols, dst_id % cols};
+
+    tt::runtime::Device src_submesh = client->getSubmeshForDeviceId(src_id);
+    tt::runtime::Device dst_submesh = client->getSubmeshForDeviceId(dst_id);
+    auto &sockets = client->getOrCreateSocketPair(src_off, dst_off, src_submesh,
+                                                  dst_submesh);
+
+    tt::runtime::Tensor recv_tensor =
+        tt::runtime::createEmptyTensorLike(dst_submesh, pull->device_tensor);
+    tt::runtime::socketSend(sockets.first, pull->device_tensor);
+    tt::runtime::socketRecv(sockets.second, recv_tensor);
+    tt::runtime::synchronizeDevice(src_submesh);
+    tt::runtime::synchronizeDevice(dst_submesh);
+
+    m_pjrt_tensor.reset();
+    PjrtTensor::from_runtime_tensor({this}, std::move(recv_tensor));
+    markAsDataReady();
+
+    // We never aliased the host buffer (data came over the socket), so the
+    // framework may free it immediately.
+    std::unique_ptr<EventInstance> done_event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(done_event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_done_with_host_buffer_event = done_event.release();
+
+    DLOG_F(LOG_DEBUG, "Socket D2D transfer (host-pull) device %u -> %u", src_id,
+           dst_id);
+    return true;
+  } catch (const std::exception &e) {
+    // An intended cross-device socket hop failed mid-transfer. Fail loudly
+    // instead of silently degrading to a host roundtrip.
+    TT_THROW("Pipeline-parallel socket transfer device {} -> {} failed: {}",
+             src_id, dst_id, e.what());
+  }
+}
+
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
@@ -237,6 +365,15 @@ void BufferInstance::copyFromHost(
       "m_data_type and data_type do not match: m_data_type={}, data_type={}",
       data_type_utils::getPJRTBufferTypeString(m_data_type),
       data_type_utils::getPJRTBufferTypeString(data_type));
+
+  // Pipeline-parallel: if this upload's host pointer matches a device tensor
+  // that copyToHost stashed (a device->host->device hop), and it is a
+  // socket-eligible TT->TT submesh hop, transfer the activation
+  // device-to-device over a fabric socket and skip the host upload entirely.
+  if (trySocketTransferFromHostPull(host_buffer,
+                                    out_done_with_host_buffer_event)) {
+    return;
+  }
 
   m_pjrt_tensor.reset();
 
@@ -439,6 +576,27 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
+
+  // Pipeline-parallel: if this buffer is a device-resident TT tensor, stash a
+  // copy of its device-tensor handle keyed by the destination host pointer, so
+  // a subsequent copyFromHost reusing that pointer can socket the data
+  // device-to-device instead of re-uploading from host. The handle's refcount
+  // alone keeps the device buffer alive across the move_to_host readback below
+  // (no setTensorRetain: retaining every readout's output tensor would corrupt
+  // the runtime's normal tensor lifecycle).
+  //
+  // The stash aliases the same device tensor the readback thread is about to
+  // pull; that is safe only because the framework waits on this op's completion
+  // event before issuing the partner copyFromHost (so the socketSend that reads
+  // the handle never races the readback).
+  if (m_pjrt_tensor && m_pjrt_tensor->has_runtime_tensor() &&
+      tt::runtime::isTensorAllocated(runtimeTensor())) {
+    tt::runtime::Tensor device_tensor = runtimeTensor();
+    const std::lock_guard<std::mutex> lock(g_pending_pulls_mutex);
+    g_pending_device_pulls[host_buffer] =
+        HostPullEntry{static_cast<uint32_t>(getDevice()->getGlobalDeviceId()),
+                      m_dimensions, std::move(device_tensor)};
+  }
 
   // In compile-only mode, output buffers have no associated tensor (no
   // hardware to compute on). Zero-fill the host buffer and signal success.

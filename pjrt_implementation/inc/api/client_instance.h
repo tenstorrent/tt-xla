@@ -15,6 +15,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -143,11 +144,55 @@ public:
     return m_parent_mesh;
   };
 
+  // Returns the shape of the live parent mesh (row-major), or empty if none is
+  // open. Used by pipeline-parallel routing to map a device id to a submesh
+  // offset within whatever shape the parent was actually opened as.
+  std::vector<uint32_t> getParentMeshShape() const {
+    return m_parent_mesh.has_value() ? tt::runtime::getMeshShape(*m_parent_mesh)
+                                     : std::vector<uint32_t>{};
+  }
+
   // Closes currently opened mesh device, if any.
   void closeMeshDevice();
 
   // Closes currently opened parrent mesh device.
   void closeParentMesh();
+
+  // Pipeline-parallel: returns a live submesh of submesh_shape at
+  // submesh_offset within the already-open parent mesh, creating and caching it
+  // on first use. Carves directly from the parent (no getOrCreateMeshDevice /
+  // reshape), so multiple submeshes stay open concurrently and cached handles
+  // never go stale.
+  //
+  // NOTE: not thread-safe (sequential execution only for now).
+  tt::runtime::Device
+  getOrCreateSubmesh(const std::vector<uint32_t> &submesh_shape,
+                     const std::vector<uint32_t> &submesh_offset);
+
+  // Releases all live pipeline submeshes (before closing the parent mesh).
+  void closeLiveSubmeshes();
+
+  // Pipeline-parallel: returns the live {1,1} submesh that device `global_id`
+  // belongs to within the open parent mesh (row-major offset {id/C, id%C}).
+  // Reuses the submesh cached during that stage's execute.
+  tt::runtime::Device getSubmeshForDeviceId(uint32_t global_device_id);
+
+  // Returns the cached sender/receiver socket pair connecting the submesh at
+  // src_offset to the one at dst_offset, creating it on first use. Endpoints
+  // are worker core {0,0} on each 1x1 submesh.
+  std::pair<tt::runtime::MeshSocketHandle, tt::runtime::MeshSocketHandle> &
+  getOrCreateSocketPair(const std::vector<uint32_t> &src_offset,
+                        const std::vector<uint32_t> &dst_offset,
+                        tt::runtime::Device src_submesh,
+                        tt::runtime::Device dst_submesh);
+
+  // Pure predicate: is a copy from src_id to dst_id a socket-eligible
+  // intra-parent TT submesh hop? True if fabric is on, the parent is open,
+  // ids differ, and both ids index into the parent. Static for unit testing.
+  static bool
+  isSocketTransferEligible(uint32_t src_id, uint32_t dst_id,
+                           const std::vector<uint32_t> &parent_shape,
+                           bool fabric_enabled);
 
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
@@ -211,6 +256,23 @@ private:
 
   // Fabric config computed for the current mesh device.
   std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
+
+  // Live pipeline-parallel submeshes carved from m_parent_mesh, keyed by offset
+  // within the parent (row-major). Kept open concurrently for multi-stage
+  // execution.
+  std::map<std::vector<uint32_t>, tt::runtime::Device> m_live_submeshes;
+
+  // Pipeline-parallel: socket pairs keyed by {src_offset, dst_offset} within
+  // the parent. Created lazily on the first cross-submesh transfer and reused
+  // across runs/microbatches. Released in closeLiveSubmeshes() before the
+  // submeshes close.
+  std::map<
+      std::pair<std::vector<uint32_t>, std::vector<uint32_t>>,
+      std::pair<tt::runtime::MeshSocketHandle, tt::runtime::MeshSocketHandle>>
+      m_socket_pairs;
+
+  // Default socket FIFO size in bytes (tunable).
+  static constexpr uint32_t kSocketFifoSize = 16 * 1024;
 
   // Used to identify the platform.
   const std::string m_platform_name = "tt";

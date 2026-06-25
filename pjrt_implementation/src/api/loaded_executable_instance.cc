@@ -11,6 +11,7 @@
 #include "api/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
@@ -131,6 +132,30 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // offset. We need to keep track of opened devices in Client and map the
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
+
+  // Pipeline-parallel: when this executable targets a strict subset of the
+  // client's devices (a stage), carve/keep a live submesh of the parent instead
+  // of reshaping the parent mesh (which would close any other stage's submesh).
+  // Offsets are computed against the parent's ACTUAL shape (row-major), so this
+  // works whether the parent was opened as [1, N] or 2D (e.g. {4, 8}).
+  // NOTE: assumes the stage's devices are contiguous within the parent (the
+  // runtime can only open contiguous submeshes - tt-xla #502).
+  std::vector<uint32_t> parent_shape = m_client_instance->getParentMeshShape();
+  size_t parent_devices =
+      parent_shape.empty()
+          ? 0
+          : std::accumulate(parent_shape.begin(), parent_shape.end(),
+                            static_cast<size_t>(1), std::multiplies<size_t>{});
+  if (parent_devices > 0 && mesh_shape_num_devices < parent_devices) {
+    uint32_t parent_cols = parent_shape.back();
+    uint32_t min_device_id = static_cast<uint32_t>(
+        *std::min_element(device_ids.begin(), device_ids.end()));
+    // Row-major: device d in an [R, C] parent is at coord {d / C, d % C}.
+    std::vector<uint32_t> submesh_offset = {min_device_id / parent_cols,
+                                            min_device_id % parent_cols};
+    return m_client_instance->getOrCreateSubmesh(devices_mesh_shape,
+                                                 submesh_offset);
+  }
 
   return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }

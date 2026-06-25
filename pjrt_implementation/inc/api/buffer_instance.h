@@ -69,6 +69,13 @@ public:
   // Binds PJRT API functions implementation related to PJRT_Buffer structure.
   static void bindApi(PJRT_Api *api);
 
+  // Pipeline-parallel: releases any device tensors stashed by copyToHost that
+  // were never consumed by a matching copyFromHost (e.g. a genuine device->host
+  // readout to numpy). MUST be called while the mesh device is still open
+  // (before teardown), otherwise the retained tensors destruct after the device
+  // is gone and crash.
+  static void clearPendingDevicePulls();
+
   // Casts this buffer instance to PJRT_Buffer pointer.
   operator PJRT_Buffer *() { return reinterpret_cast<PJRT_Buffer *>(this); }
 
@@ -200,6 +207,21 @@ private:
   // Currently only used for device to device transfer in copy construction
   // of new buffer instance.
   void copyFromBuffer(BufferInstance *src_buffer);
+
+  // Pipeline-parallel: if `host_buffer` matches a device tensor stashed by a
+  // prior copyToHost (a cross-device host roundtrip reusing the same host
+  // pointer) for a genuine cross-device activation hop, moves the activation
+  // device-to-device over a fabric socket, attaches the result to this buffer,
+  // signals the host-buffer-done event, and returns true.
+  //
+  // Returns false only when this is NOT a pipeline hop and the caller should
+  // use the normal host upload: no stash for this pointer, a shape mismatch
+  // (coincidental host-pointer reuse), or a same-device roundtrip. Once a
+  // genuine cross-device hop is identified, an inability to socket it (fabric
+  // disabled, source not on device, or a socket failure) is fatal rather than
+  // a silent host fallback.
+  bool trySocketTransferFromHostPull(
+      const void *host_buffer, EventInstance **out_done_with_host_buffer_event);
 
   // Calculates required tensor shape.
   static std::vector<std::uint32_t> calculateShape(const std::int64_t *dims,
