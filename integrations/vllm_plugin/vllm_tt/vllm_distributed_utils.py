@@ -308,7 +308,11 @@ def partition_row_parallel_linear(
     return layer
 
 
-def partition_linear(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+def partition_linear(
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
+) -> torch.nn.Module:
+    # shard_weights_on_batch_axis is unused: nn.Linear weights are sharded on
+    # the "model" (TP) axis only, with no "batch" (DP) axis in the spec.
     assert isinstance(layer, nn.Linear)
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     if layer.bias is not None:
@@ -339,8 +343,14 @@ def partition_vocab_parallel_embedding(
     return layer
 
 
-def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+def partition_fused_moe(
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
+) -> torch.nn.Module:
     """Fully shard FusedMoE expert weights along the expert dimension (dim 0).
+
+    ``shard_weights_on_batch_axis`` is accepted for a uniform partition-fn
+    signature but unused: experts are distributed over *all* mesh axes on a 2D
+    mesh (see below), independent of the DP/TP weight-sharding flag.
 
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
     [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
