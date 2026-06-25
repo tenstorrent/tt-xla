@@ -1,0 +1,241 @@
+<!--
+SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Live inference dashboard for TT vLLM serving
+
+Two complementary ways to *see* what a TT vLLM server is doing while it serves:
+per-request/per-slot state, decode rate, prefill, and how new requests perturb
+in-flight streams.
+
+| | Approach A — client | Approach B — engine telemetry |
+|---|---|---|
+| `--source` | `client` | `snapshot` |
+| Server changes | **none** | env-gated hooks in `vllm_tt` |
+| State | *inferred* from SSE token cadence | *true* slots / PREFILL vs DECODE / waiting |
+| Interference | inferred from rate hitches | read from the scheduler batch |
+
+Both feed the **same** renderer and in-memory model, so switching approaches is
+one `--source` flag. There is also a `--source demo` that synthesizes data with
+no server at all — start there.
+
+## Quick start (no server needed)
+
+```bash
+# Synthetic data: watch new arrivals' prefill stall in-flight decode.
+python3 integrations/vllm_plugin/tools/live_dashboard.py --source demo
+```
+
+In a tty you get keys: `n` launch one, `b` burst, `1`..`9` launch that many,
+`k` cancel the selected row, `t` counter/text, `p` prefill highlight, `q` quit.
+Fire a burst while streams decode and watch every running stream's tok/s dip
+during the burst's prefill window — that hitch *is* the visualization.
+
+Renderer: a [`textual`](https://github.com/Textualize/textual) TUI in a tty —
+a scrollable, selectable slot table (use ↑/↓ then `k` to cancel a specific
+stream) plus a live footer. Install the optional UI deps once:
+
+```bash
+pip install -r integrations/vllm_plugin/tools/requirements.txt
+```
+
+Without textual (or with `--plain`, a non-tty, or `--exit-after`) it falls back
+to a stdlib ANSI renderer with zero extra deps — handy for headless/CI runs.
+
+## Approach A — play against a running server (zero server changes)
+
+```bash
+# Start any example server (defaults to port 8000):
+bash examples/vllm/Llama-3.1-8B-Instruct/service.sh
+
+# Then, interactively fire requests and watch interference:
+python3 integrations/vllm_plugin/tools/live_dashboard.py \
+    --source client --port 8000 --model meta-llama/Llama-3.1-8B-Instruct \
+    --temperature 0.7 --seed 0 --repetition-penalty 1.0 --max-tokens 200
+```
+
+Each launch uses a distinct nonce-prefixed prompt to defeat prefix caching (else
+TTFT is fake on repeats). Set sampling explicitly so A/B comparisons compare what
+you intend. `--completions` switches to `/v1/completions`; default is
+`/v1/chat/completions`. `--start N` auto-launches N at startup; `--ignore-eos`
+forces the full output length.
+
+**Honest limits (Approach A):** cannot distinguish prefill from queue-wait (both
+= "no token yet", labelled `PREFILL`); no true slot IDs, KV usage, or explicit
+preemption. Interference is *inferred* from rate, not read from the server. Use
+Approach B for ground truth.
+
+## Approach B — true engine state (telemetry)
+
+Launch the server with telemetry on (the wrapper sets an absolute
+`TT_INSTRUMENT_DIR` so the EngineCore subprocess writes where the dashboard
+reads):
+
+```bash
+examples/vllm/serve_instrumented.sh Llama-3.1-8B-Instruct        # batch_size=1
+# prints the telemetry dir + the exact dashboard command, e.g.:
+python3 integrations/vllm_plugin/tools/live_dashboard.py \
+    --source snapshot --dir /tmp/tt_instrument/Llama-3.1-8B-Instruct
+```
+
+**The wrapper is just convenience** — telemetry is env-gated, so any launch path
+works unchanged. Set the env vars yourself and run a server normally (the
+existing `examples/vllm/<model>/service.sh`, a custom `vllm serve`, or
+tt-inference-server):
+
+```bash
+export TT_INSTRUMENT=1
+export TT_INSTRUMENT_DIR=/tmp/tt_instrument/qwen3-8b   # ABSOLUTE -- see below
+bash examples/vllm/Qwen3-8B/service_chunked.sh
+# then, in another shell:
+python3 integrations/vllm_plugin/tools/live_dashboard.py \
+    --source snapshot --dir /tmp/tt_instrument/qwen3-8b
+```
+
+Use an **absolute** `TT_INSTRUMENT_DIR`: the vLLM `EngineCore` runs as a
+subprocess, and an unset/relative dir resolves against *its* working directory
+(default `./.tt_instrument`), which you'd then have to hunt for. The wrapper
+exists only to enforce that and print the dashboard command. For
+tt-inference-server, export the same vars in the environment that launches the
+EngineCore (note: a separate container/sanitized env won't inherit your outer
+shell's vars — set them there instead).
+
+This shows real slot indices, real `PREFILL`/`DECODE` per slot, ISL and output
+length straight from `InputBatch`, the engine-computed per-slot decode rate, and
+(when available) `num_waiting`.
+
+The emitter lives in `vllm_tt/instrumentation.py` and is **off unless
+`TT_INSTRUMENT=1`**. When off, every hook is a single cached-bool no-op. It is
+stdlib-only and strictly `O(active_slots)` per step (snapshots are throttled by
+`TT_INSTRUMENT_THROTTLE_MS`, default 100 ms) — telemetry must never reintroduce
+a per-step host regression (cf. #4278).
+
+## Interactive — drive the server *and* see its truth (`--source interactive`)
+
+`client` infers from its own traffic; `snapshot` shows ground truth but is
+read-only. `interactive` is both in one TUI: it fires requests like a client
+(`n`/`b`/`k`/digits) while the **display is the snapshot ground truth** (real
+slots, PREFILL/DECODE, stall, the slot grid). Needs a `TT_INSTRUMENT=1` server
+and `--dir`:
+
+```bash
+python3 integrations/vllm_plugin/tools/live_dashboard.py --source interactive \
+    --dir /tmp/tt_instrument/qwen3-8b --port 8000 --model Qwen/Qwen3-8B
+```
+
+Two honest limits (the OpenAI API hides the engine's `req_id` from clients): a
+request you fire can't be matched to a specific snapshot row, and `k` cancels
+*your newest launched* request (per-connection abort), not an arbitrary slot.
+For watch-only, use `--source snapshot`; to generate load without telemetry, use
+`--source client`.
+
+### Env vars
+| var | default | meaning |
+|---|---|---|
+| `TT_INSTRUMENT` | unset | `1`/`true`/`yes`/`on` enables emission |
+| `TT_INSTRUMENT_DIR` | `./.tt_instrument` | sink directory (use absolute for servers) |
+| `TT_INSTRUMENT_THROTTLE_MS` | `50` | min gap between step snapshots |
+| `TT_INSTRUMENT_EVENTS` | `1` | also append admit/complete to `events.jsonl` |
+| `TT_INSTRUMENT_SNAPSHOTS_JSONL` | `0` | also append each snapshot to `events.jsonl` |
+
+## Offline analysis (`analyze_run.py`)
+
+After a run, post-process its `events.jsonl` into a summary + a zoomable timeline
+— no live watching needed:
+
+```bash
+python3 integrations/vllm_plugin/tools/analyze_run.py \
+    --dir /tmp/tt_instrument/qwen3-8b --html run.html --json run.json
+```
+
+Prints a markdown summary (throughput, TTFT / OSL / latency percentiles,
+concurrency & overlap, and — with snapshots — where slot-time went, stall-seconds
+of interference, step-kind breakdown, occupancy). `--html` writes a
+self-contained, dependency-free timeline of the N batch slots colored by
+prefill/decode/stalled (wheel-zoom, drag-pan).
+
+**Fidelity:** with only `request_admitted`/`request_completed` you get
+per-request bars + overlap + TTFT/OSL/latency. For the per-slot state timeline,
+stall cost, and step breakdown, run the server with
+**`TT_INSTRUMENT_SNAPSHOTS_JSONL=1`** so step snapshots land in the log too
+(same sampling caveat as live — finer with a lower `TT_INSTRUMENT_THROTTLE_MS`).
+
+## The schema (the A↔B contract)
+
+`schema` version is `instrumentation.SCHEMA_VERSION`. Two sinks in
+`TT_INSTRUMENT_DIR`:
+
+- **`snapshot.json`** — latest `step_snapshot` only, atomically overwritten. A
+  live viewer polls this for *current* state.
+- **`events.jsonl`** — append-only `request_admitted` + `request_completed`
+  (truncated at each fresh run). For offline analysis / request-mix audits.
+
+Current `schema` is `2`.
+
+```jsonc
+// request_admitted  (events.jsonl)
+{"schema":2,"event":"request_admitted","ts":<float>,"req_id":"...","slot_idx":3,
+ "isl":512,"sampling":{"temperature":0.7,"top_k":20,"top_p":0.95,"min_p":0.0,
+   "repetition_penalty":1.1,"presence_penalty":0.0,"frequency_penalty":0.0,
+   "seed":7,"max_tokens":128,"n":1}}
+
+// step_snapshot  (snapshot.json; one per step, throttled)
+{"schema":2,"event":"step_snapshot","ts":<float>,"step_idx":42,"num_running":3,
+ "num_waiting":1,"num_slots":32,"agg_rate":63.2,"step_kind":"prefill",
+ "slots":[{"slot_idx":0,"req_id":"...","state":"DECODE","num_prompt_tokens":512,
+   "num_computed_tokens":512,"out_len":37,"inst_rate":21.1,"scheduled":0}, ...]}
+
+// request_completed  (events.jsonl)
+{"schema":2,"event":"request_completed","ts":<float>,"req_id":"...","slot_idx":0,
+ "isl":512,"out_len":200,"first_token_ts":<float>,"ttft":0.41,"mean_rate":21.0,
+ "finish_reason":"length"}
+```
+
+`step_snapshot.slots[*]` maps directly onto the dashboard's `StreamState`, which
+is why one renderer serves all the sources. `request_completed` carries a derived
+lifecycle summary — `ttft`, `mean_rate`, and a *heuristic* `finish_reason`
+(`length` vs `stop` from `out_len` vs `max_tokens`; the engine's real reason
+isn't available at `InputBatch.remove_request`).
+
+**`scheduled` / `step_kind` — the stall signal.** `state` is the prompt-based
+PREFILL/DECODE label (`num_computed < num_prompt`); it says nothing about whether
+a slot actually ran this step. `slots[*].scheduled` is the authoritative count
+from `scheduler_output.num_scheduled_tokens` — tokens that slot was scheduled to
+process this step (`null` if the engine didn't report it, so "not scheduled"
+isn't confused with "unknown"). A running **DECODE slot with `scheduled == 0` got
+no compute this step** — a real stall (e.g. paused while a peer prefills); the
+dashboard renders it `STALLED`. `step_kind` (`decode`/`prefill`/`mixed`/`idle`)
+summarizes the whole step. Reliability caveat: snapshots are *sampled* (throttle,
+default 100 ms), so a very short stall can fall between samples — `scheduled` is
+authoritative for the steps captured, but isn't a per-step audit. Lower the
+throttle for finer accounting (at some host cost).
+
+`tt-inference-server` (or any downstream) can consume these files directly — the
+data stream is the shared interface, not the TUI.
+
+## Tests
+
+```bash
+# Emitter contract — no hardware/server (runs anywhere):
+pytest -q integrations/vllm_plugin/test_instrumentation.py
+
+# Dashboard renders headless (any source) via --exit-after:
+python3 integrations/vllm_plugin/tools/live_dashboard.py --source demo --plain --exit-after 8
+```
+
+### Morning checklist (needs the rebuilt server)
+1. **A, single stream:** start `service.sh`, `--source client`, press `n` a few
+   times; confirm `CONNECTING → PREFILL → DECODE → DONE` and that the client
+   tok/s looks sane vs the server log.
+2. **A, interference:** with one stream mid-decode, `b` a burst → the in-flight
+   stream's tok/s should visibly dip during the burst's prefill window.
+3. **A, prefix cache:** identical prompts → suspiciously low TTFT; the tool's
+   nonce'd prompts should give realistic TTFT.
+4. **A, cancel:** `k` aborts the HTTP stream server-side (request count stops).
+5. **B, ground truth:** relaunch via `serve_instrumented.sh`, `--source
+   snapshot`; confirm real slot indices, PREFILL/DECODE, and that
+   `request_completed.out_len` ≈ what the client saw.
+6. **B, perf guard:** run a `tests/benchmark` decode sweep with `TT_INSTRUMENT`
+   on vs off — decode tok/s must be unchanged (the #4278 lesson). If snapshot
+   writes show up, raise `TT_INSTRUMENT_THROTTLE_MS`.

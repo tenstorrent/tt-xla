@@ -18,6 +18,8 @@ from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
 
+from . import instrumentation
+
 _SAMPLING_EPS = 1e-5
 
 
@@ -388,6 +390,9 @@ class InputBatch:
             # No LoRA
             self.request_lora_mapping[req_index] = 0
 
+        # Telemetry (env-gated no-op): record arrival, ISL, sampling params.
+        instrumentation.emit_request_admitted(request, req_index)
+
     def remove_request(self, req_id: str) -> Optional[int]:
         """This method must always be followed by a call to condense().
 
@@ -397,6 +402,11 @@ class InputBatch:
         Returns:
           Removed request index, or `None` if `req_id` not recognized
         """
+
+        # Telemetry (env-gated no-op): capture out_len/ISL before the slot's
+        # state is cleared below. Only for requests still in the batch.
+        if req_id in self.req_id_to_index:
+            instrumentation.emit_request_completed(self, req_id)
 
         req_index = self.req_id_to_index.pop(req_id, None)
         if req_index is None:

@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Optional UI dependencies for tools/live_dashboard.py (the standalone TUI).
+# These are NOT imported by the vllm_tt plugin -- install them only to run the
+# dashboard:
+#
+#   pip install -r integrations/vllm_plugin/tools/requirements.txt
+#
+# Without textual the dashboard still runs via its stdlib --plain renderer.
+textual>=8.0
+aiohttp>=3.9

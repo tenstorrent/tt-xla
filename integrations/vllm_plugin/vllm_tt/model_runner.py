@@ -91,6 +91,7 @@ from vllm.v1.worker.utils import (
     sanity_check_mm_encoder_outputs,
 )
 
+from . import instrumentation
 from .attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
@@ -1697,6 +1698,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
+        # Telemetry (env-gated no-op, throttled, O(active_slots)): per-slot
+        # PREFILL/DECODE picture of the batch about to run this step.
+        instrumentation.emit_step_snapshot(self.input_batch, scheduler_output)
         if not scheduler_output.total_num_scheduled_tokens:
             if not has_kv_transfer_group():
                 # Return empty ModelRunnerOutput if there's no work to do.
