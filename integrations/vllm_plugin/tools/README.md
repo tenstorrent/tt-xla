@@ -79,6 +79,28 @@ python3 integrations/vllm_plugin/tools/live_dashboard.py \
     --source snapshot --dir /tmp/tt_instrument/Llama-3.1-8B-Instruct
 ```
 
+**The wrapper is just convenience** — telemetry is env-gated, so any launch path
+works unchanged. Set the env vars yourself and run a server normally (the
+existing `examples/vllm/<model>/service.sh`, a custom `vllm serve`, or
+tt-inference-server):
+
+```bash
+export TT_INSTRUMENT=1
+export TT_INSTRUMENT_DIR=/tmp/tt_instrument/qwen3-8b   # ABSOLUTE -- see below
+bash examples/vllm/Qwen3-8B/service_chunked.sh
+# then, in another shell:
+python3 integrations/vllm_plugin/tools/live_dashboard.py \
+    --source snapshot --dir /tmp/tt_instrument/qwen3-8b
+```
+
+Use an **absolute** `TT_INSTRUMENT_DIR`: the vLLM `EngineCore` runs as a
+subprocess, and an unset/relative dir resolves against *its* working directory
+(default `./.tt_instrument`), which you'd then have to hunt for. The wrapper
+exists only to enforce that and print the dashboard command. For
+tt-inference-server, export the same vars in the environment that launches the
+EngineCore (note: a separate container/sanitized env won't inherit your outer
+shell's vars — set them there instead).
+
 This shows real slot indices, real `PREFILL`/`DECODE` per slot, ISL and output
 length straight from `InputBatch`, the engine-computed per-slot decode rate, and
 (when available) `num_waiting`.

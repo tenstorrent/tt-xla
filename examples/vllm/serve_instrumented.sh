@@ -27,12 +27,15 @@ set -u
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODEL="${1:?usage: serve_instrumented.sh <model-dir under examples/vllm> [batch_size]}"
 BATCH="${2:-1}"
+# Which launch script in the model dir to run (default service.sh). E.g.:
+#   SERVICE_SCRIPT=service_chunked.sh examples/vllm/serve_instrumented.sh Qwen3-8B 32
+SERVICE_SCRIPT="${SERVICE_SCRIPT:-service.sh}"
 
-SERVICE="$REPO_ROOT/examples/vllm/$MODEL/service.sh"
+SERVICE="$REPO_ROOT/examples/vllm/$MODEL/$SERVICE_SCRIPT"
 if [[ ! -f "$SERVICE" ]]; then
-    echo "No service.sh for '$MODEL' (looked at $SERVICE)" >&2
-    echo "Available:" >&2
-    ls "$REPO_ROOT/examples/vllm" >&2
+    echo "No $SERVICE_SCRIPT for '$MODEL' (looked at $SERVICE)" >&2
+    echo "Available scripts:" >&2
+    ls "$REPO_ROOT/examples/vllm/$MODEL"/*.sh 2>/dev/null >&2 || ls "$REPO_ROOT/examples/vllm" >&2
     exit 1
 fi
 
