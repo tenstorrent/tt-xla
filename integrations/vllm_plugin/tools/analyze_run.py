@@ -56,10 +56,16 @@ def parse_events(path):
             except ValueError:
                 continue
             kind = e.get("event")
+            rid = str(e.get("req_id"))
             if kind == "request_admitted":
-                admits[str(e.get("req_id"))] = e
+                # The hooks fire on every input-batch add/remove (a request is
+                # evicted + re-added across steps under b1-prefill / partial
+                # scheduling), so a req_id recurs. Keep the FIRST admit (true
+                # arrival) and the LAST completion (final out_len).
+                if rid not in admits:
+                    admits[rid] = e
             elif kind == "request_completed":
-                completes[str(e.get("req_id"))] = e
+                completes[rid] = e
             elif kind == "step_snapshot":
                 snapshots.append(e)
     snapshots.sort(key=lambda s: s.get("ts", 0))
@@ -83,14 +89,20 @@ def build_run(admits, completes, snapshots):
         return None
     t0, t_end = min(all_ts), max(all_ts)
 
-    # num_slots: prefer the engine-reported value, else infer from slot indices.
+    # num_slots: prefer the engine-reported value (snapshots). Without snapshots
+    # it can only be inferred as a LOWER BOUND from slot indices seen across all
+    # events -- the true batch size needs TT_INSTRUMENT_SNAPSHOTS_JSONL=1.
     num_slots = 0
+    num_slots_exact = False
     for s in snapshots:
         if s.get("num_slots"):
             num_slots = max(num_slots, s["num_slots"])
+            num_slots_exact = True
     if not num_slots:
         idxs = [
-            e.get("slot_idx") for e in admits.values() if e.get("slot_idx") is not None
+            e.get("slot_idx")
+            for e in list(admits.values()) + list(completes.values())
+            if e.get("slot_idx") is not None
         ]
         num_slots = (max(idxs) + 1) if idxs else 1
 
@@ -170,6 +182,7 @@ def build_run(admits, completes, snapshots):
         "t_end": t_end,
         "duration": t_end - t0,
         "num_slots": num_slots,
+        "num_slots_exact": num_slots_exact,
         "requests": requests,
         "segments": segments,
         "steps": steps,
@@ -212,6 +225,7 @@ def compute_metrics(run):
     m = {
         "duration_s": run["duration"],
         "num_slots": run["num_slots"],
+        "num_slots_exact": run["num_slots_exact"],
         "requests_admitted": sum(1 for r in reqs if r["arrival"] is not None),
         "requests_completed": len(completed),
         "total_output_tokens": total_out,
@@ -287,7 +301,10 @@ def _row(label, st, unit=""):
 def render_markdown(run, m):
     o = []
     o.append("# TT vLLM run analysis\n")
-    o.append(f"- duration: **{m['duration_s']:.1f}s**, slots: **{m['num_slots']}**")
+    slots_str = (
+        f"{m['num_slots']}" if m["num_slots_exact"] else f"≥{m['num_slots']} (inferred)"
+    )
+    o.append(f"- duration: **{m['duration_s']:.1f}s**, slots: **{slots_str}**")
     o.append(
         f"- requests: {m['requests_admitted']} admitted, "
         f"{m['requests_completed']} completed"

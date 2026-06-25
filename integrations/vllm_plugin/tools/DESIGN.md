@@ -94,10 +94,23 @@ analyzer is stdlib). The schema is the only coupling.
 - **Slot grid / real STALLED need internals** — snapshot or demo only.
 - **Same-filesystem** assumption for snapshot/analyzer (server + reader share the
   telemetry dir).
+- **admit/complete fire per input-batch add/remove, not per request lifecycle.**
+  Under b1-prefill / partial scheduling a request is evicted and re-added across
+  steps, so its `req_id` recurs (a real log showed 93 admit events for 46
+  requests). Consumers compensate: the dashboard guards on first-seen, and
+  `analyze_run.py` dedups to first-admit / last-complete. True arrival/finish
+  semantics belong in the emitter (see roadmap).
+- **`num_slots` is a lower bound without snapshots** — inferred from slot indices
+  seen in events (`≥N (inferred)`); the true batch size needs snapshot logging.
 
 ## Follow-up / improvement ideas
 
 ### Emitter / telemetry
+- **True arrival/finish semantics**: admit/complete fire on every input-batch
+  add/remove (a request recurs as it's evicted + re-added). Emit a distinct
+  `request_arrived` (first add) and `request_finished` (real `finished_req_ids`)
+  so consumers don't have to dedup; fold re-adds/removes into a transient event
+  (or drop them). This is the top accuracy gap.
 - **Exact `finish_reason`**: pass finished-vs-preempted into the completion hook
   (emit from `model_runner` where `finished_req_ids` is known) instead of the
   heuristic.
