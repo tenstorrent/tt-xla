@@ -58,6 +58,10 @@ setup(
     license="Apache-2.0",
     entry_points={
         "vllm.platform_plugins": ["tt = vllm_tt:register"],
-        "vllm.general_plugins": ["tt_mla = vllm_tt:register_mla_oot_layer", "tt_moe = vllm_tt:register_moe_oot_layer"],
+        "vllm.general_plugins": [
+            "tt_mla = vllm_tt:register_mla_oot_layer",
+            "tt_moe = vllm_tt:register_moe_oot_layer",
+            "tt_hca = vllm_tt:register_hca_oot_layer",
+        ],
     },
 )

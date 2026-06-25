@@ -27,6 +27,13 @@ def register_mla_oot_layer():
     from . import attention_mla  # noqa: F401
 
 
+def register_hca_oot_layer():
+    # OOT-registers TTDeepseekV4MLAAttention (PluggableLayer.register_oot) so
+    # DeepSeek v4's DeepseekV4MultiHeadLatentAttentionWrapper is replaced by the
+    # TT High-Compression Attention layer (latent MLA via torch.ops.tt.*).
+    from . import attention_hca  # noqa: F401
+
+
 def register_moe_oot_layer():
     # OOT-registers TTFusedMoE / TTSharedFusedMoE (CustomOp.register_oot) so
     # Gemma-4's FusedMoE and DeepSeek's SharedFusedMoE use our dense /
