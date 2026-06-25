@@ -223,6 +223,9 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
         _S.last_snapshot_t = now
 
         num_reqs = int(getattr(input_batch, "num_reqs", 0) or 0)
+        # Total persistent-batch slots (the batch size, e.g. 32) so a viewer can
+        # draw fixed slot occupancy, not just per-arrival rows.
+        num_slots = getattr(input_batch, "max_num_reqs", None)
         req_ids = getattr(input_batch, "req_ids", []) or []
         num_computed = getattr(input_batch, "num_computed_tokens_cpu", None)
         num_prompt = getattr(input_batch, "num_prompt_tokens", None)
@@ -326,6 +329,7 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
             "step_idx": _S.step_idx,
             "num_running": len(slots),
             "num_waiting": num_waiting,
+            "num_slots": int(num_slots) if num_slots is not None else None,
             "agg_rate": round(agg_rate, 2),
             "step_kind": step_kind,
             "slots": slots,

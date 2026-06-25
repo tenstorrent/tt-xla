@@ -29,9 +29,11 @@
 # Keys (in a tty):
 #   n  launch 1 request        b  launch a burst (default 4)
 #   k  cancel selected row      t  toggle token-text / counter mode
-#   p  toggle prefill highlight  q  quit (aborts all streams cleanly)
+#   p  toggle prefill highlight  s  toggle batch slot-grid panel
+#   q  quit (aborts all streams cleanly)
 #   1..9  launch that many at once   (plain renderer cancels the newest)
-# (client + demo are interactive; snapshot is read-only except t/p/q.)
+# (client + demo are interactive; snapshot is read-only except t/p/s/q. The
+#  slot-grid needs real slots: snapshot or demo, not client.)
 #
 # Honest limits of --source client (Approach A): it CANNOT distinguish prefill
 # from queue-wait (both look like "no token yet" -- labelled TTFT/PREFILL), and
@@ -128,9 +130,19 @@ class Model:
         self.highlight_prefill: bool = True
         self.source_label: str = ""
         self.num_waiting: Optional[int] = None
+        self.num_slots: Optional[int] = None  # persistent-batch size (snapshot/demo)
         self.step_kind: Optional[str] = None  # decode/prefill/mixed (snapshot src)
+        self.show_slots: bool = True  # slot-grid panel visibility
         self.notice: str = ""
         self._seq = 0
+
+    def slot_occupancy(self) -> dict:
+        """slot_idx -> occupying active StreamState (for the slot grid)."""
+        occ = {}
+        for s in self.streams.values():
+            if s.is_active and s.slot_idx is not None:
+                occ[s.slot_idx] = s
+        return occ
 
     def new_id(self, prefix: str = "s") -> str:
         self._seq += 1
@@ -237,6 +249,7 @@ class DemoSource(Source):
         osl=160,
         auto=True,
         interference="freeze",
+        num_slots=32,
     ):
         self.m = model
         self.base_rate = base_rate
@@ -248,10 +261,15 @@ class DemoSource(Source):
         self._prefill_until: dict[str, float] = {}
         self._stalled_since: dict[str, float] = {}  # freeze: when decode paused
         self._spike_ticks: dict[str, int] = {}  # freeze: post-resume blip
+        self._free = set(range(num_slots))  # available batch slots
+        self._slotted: dict[str, int] = {}  # id -> held slot
         self._stop = False
+        self.m.num_slots = num_slots
         self.m.source_label = f"demo (synthetic, {interference})"
 
     def _admit(self):
+        # Grab a batch slot if one is free; otherwise the request waits.
+        slot = min(self._free) if self._free else None
         st = StreamState(
             id=self.m.new_id("d"),
             state=S_PREFILL,
@@ -259,8 +277,12 @@ class DemoSource(Source):
             osl_target=self.osl,
             num_prompt=self.isl,
             num_computed=0,
+            slot_idx=slot,
         )
         self.m.add(st)
+        if slot is not None:
+            self._free.discard(slot)
+            self._slotted[st.id] = slot
         self._accum[st.id] = 0.0
         # Prefill takes ~ proportional to ISL; larger ISL = longer TTFT window.
         self._prefill_until[st.id] = time.time() + min(2.2, 0.4 + self.isl / 700.0)
@@ -308,11 +330,20 @@ class DemoSource(Source):
             return self.base_rate * 0.15
         return self.base_rate
 
+    def _reclaim_slots(self):
+        """Return slots held by streams that are no longer active."""
+        for sid, slot in list(self._slotted.items()):
+            st = self.m.streams.get(sid)
+            if st is None or not st.is_active:
+                self._free.add(slot)
+                self._slotted.pop(sid, None)
+
     async def run(self):
         last_auto = time.time()
         while not self._stop:
             now = time.time()
-            if self.auto and (now - last_auto) > 2.6 and len(self.m.active()) < 6:
+            self._reclaim_slots()
+            if self.auto and (now - last_auto) > 2.6 and self._free:
                 self._admit()
                 last_auto = now
             # A new request's prefill interferes with everyone's decode.
@@ -345,7 +376,7 @@ class DemoSource(Source):
                     if st.osl_target and st.n_tokens >= st.osl_target:
                         st.state = S_DONE
                         st.finish_reason = "length"
-            self.m.num_waiting = max(0, len(self.m.active()) - 4)
+            self.m.num_waiting = sum(1 for s in self.m.active() if s.slot_idx is None)
             self.m.prune()
             await asyncio.sleep(0.1)
 
@@ -388,6 +419,8 @@ class SnapshotSource(Source):
             return
         self.m.num_waiting = snap.get("num_waiting")
         self.m.step_kind = snap.get("step_kind")
+        if snap.get("num_slots") is not None:
+            self.m.num_slots = snap["num_slots"]
         live = set()
         for slot in snap.get("slots", []):
             self.m.upsert_slot(slot, now)
@@ -593,6 +626,41 @@ def _state_color(state: str) -> str:
     }.get(state, "white")
 
 
+_SLOT_GLYPH = {
+    S_DECODE: "●",
+    S_PREFILL: "▷",
+    S_STALLED: "■",
+    S_CONNECTING: "◌",
+}  # ● ▷ ■ ◌
+
+
+def render_slot_grid(model: "Model", cols: int = 8):
+    """A compact fixed grid of the N batch slots, colored by what each is doing
+    (green decode / yellow prefill / red stalled / dim free). Returns a rich
+    Text. O(num_slots), trivially cheap even at batch-128."""
+    from rich.text import Text
+
+    n = model.num_slots or 0
+    occ = model.slot_occupancy()
+    t = Text()
+    t.append(f"batch slots: {len(occ)}/{n} used\n", style="bold")
+    for i in range(n):
+        s = occ.get(i)
+        st = s.state if s else None
+        glyph = _SLOT_GLYPH.get(st, "·")  # · for free
+        color = _state_color(st) if st else "grey37"
+        t.append(f"{i:>3}{glyph}", style=color)
+        t.append("\n" if (i + 1) % cols == 0 else " ")
+    if n % cols != 0:
+        t.append("\n")
+    t.append("\n")
+    t.append("● decode  ", style="green")
+    t.append("▷ prefill  ", style="yellow")
+    t.append("■ stalled  ", style="bold red")
+    t.append("· free", style="grey37")
+    return t
+
+
 _TABLE_COLS = [
     "ID",
     "SLOT",
@@ -619,6 +687,7 @@ def make_textual_app(
     from rich.text import Text
     from textual.app import App, ComposeResult
     from textual.binding import Binding
+    from textual.containers import Horizontal
     from textual.widgets import DataTable, Footer, Header, Static
 
     def cells_for(st: StreamState, m: Model):
@@ -644,7 +713,9 @@ def make_textual_app(
     class Dashboard(App):
         TITLE = "TT vLLM live dashboard"
         CSS = """
-        DataTable { height: 1fr; }
+        #body { height: 1fr; }
+        #reqs { width: 3fr; height: 1fr; }
+        #slotgrid { width: 40; height: 1fr; border: round $primary; padding: 0 1; }
         #stats { height: 3; padding: 0 1; background: $panel; color: $text; }
         """
         BINDINGS = [
@@ -654,6 +725,7 @@ def make_textual_app(
             Binding("k", "cancel_sel", "cancel"),
             Binding("t", "toggle_counter", "counter"),
             Binding("p", "toggle_prefill", "prefill-hl"),
+            Binding("s", "toggle_slots", "slot-grid"),
         ]
 
         def __init__(self):
@@ -665,7 +737,9 @@ def make_textual_app(
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
-            yield DataTable(id="slots", zebra_stripes=True)
+            with Horizontal(id="body"):
+                yield DataTable(id="reqs", zebra_stripes=True)
+                yield Static("", id="slotgrid")
             yield Static("", id="stats")
             yield Footer()
 
@@ -701,7 +775,17 @@ def make_textual_app(
                 else:
                     table.add_row(*cells, key=st.id)
                     self._row_keys.add(st.id)
+            self._update_slot_grid()
             self._update_stats()
+
+        def _update_slot_grid(self) -> None:
+            grid = self.query_one("#slotgrid", Static)
+            # Only meaningful when we know the batch size (snapshot/demo). In
+            # client mode there are no observable slots, so hide it.
+            visible = bool(self.m.show_slots and self.m.num_slots)
+            grid.display = visible
+            if visible:
+                grid.update(render_slot_grid(self.m))
 
         def _update_stats(self) -> None:
             m = self.m
@@ -758,6 +842,12 @@ def make_textual_app(
         def action_toggle_prefill(self) -> None:
             self.m.highlight_prefill = not self.m.highlight_prefill
 
+        def action_toggle_slots(self) -> None:
+            if not self.m.num_slots:
+                self.m.notice = "slot grid needs --source snapshot or demo"
+                return
+            self.m.show_slots = not self.m.show_slots
+
         async def action_quit_clean(self) -> None:
             try:
                 await self.source.aclose()
@@ -803,8 +893,11 @@ class PlainRenderer:
             f"waiting {waiting}  done {len(m.streams) - len(act)}{kind}  |  "
             f"agg {m.agg_rate():.1f} tok/s  total {m.total_tokens()} tok\n"
         )
+        if m.show_slots and m.num_slots:
+            out.append(self._slot_block(m))
         out.append(
-            "keys: n launch  b burst  k cancel  t counter  p prefill-hl  q quit\n"
+            "keys: n launch  b burst  k cancel  t counter  p prefill-hl  "
+            "s slots  q quit\n"
         )
         if m.notice:
             out.append(">> " + m.notice + "\n")
@@ -813,6 +906,25 @@ class PlainRenderer:
     @staticmethod
     def _ttft(st):
         return f"{st.ttft:.2f}s" if st.ttft else "-"
+
+    @staticmethod
+    def _slot_block(m, cols=16):
+        occ = m.slot_occupancy()
+        lines = [
+            f"batch slots {len(occ)}/{m.num_slots} used "
+            "(D decode  P prefill  S stalled  . free):"
+        ]
+        glyph = {S_DECODE: "D", S_PREFILL: "P", S_STALLED: "S", S_CONNECTING: "c"}
+        row = []
+        for i in range(m.num_slots):
+            s = occ.get(i)
+            row.append(glyph.get(s.state, "?") if s else ".")
+            if (i + 1) % cols == 0:
+                lines.append(" " + " ".join(row))
+                row = []
+        if row:
+            lines.append(" " + " ".join(row))
+        return "\n".join(lines) + "\n"
 
     async def loop(self, stop_evt: asyncio.Event):
         try:
@@ -859,6 +971,11 @@ async def keyboard(source: Source, model: Model, stop_evt: asyncio.Event, burst_
                 model.counter_mode = not model.counter_mode
             elif ch == "p":
                 model.highlight_prefill = not model.highlight_prefill
+            elif ch == "s":
+                if model.num_slots:
+                    model.show_slots = not model.show_slots
+                else:
+                    model.notice = "slot grid needs --source snapshot or demo"
             elif ch == "n" and source.interactive:
                 await source.launch(1)
             elif ch == "b" and source.interactive:
@@ -883,6 +1000,7 @@ def build_source(args, model: Model) -> Source:
             osl=args.max_tokens,
             auto=not args.no_auto,
             interference=args.demo_interference,
+            num_slots=args.demo_slots,
         )
     if args.source == "snapshot":
         return SnapshotSource(model, args.dir)
@@ -979,6 +1097,7 @@ def main():
         default="freeze",
         help="demo: how a prefill perturbs in-flight decode (default: freeze)",
     )
+    p.add_argument("--demo-slots", type=int, default=32, help="demo: batch slot count")
     p.add_argument(
         "--exit-after",
         type=float,
