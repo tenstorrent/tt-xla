@@ -96,12 +96,17 @@ CompileOptions CompileOptions::parse(
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")
           .value_or("");
-  // TTNNFlatbuffer and TTNNCodegenLoadPy backends should NOT be dry runs.
-  const bool is_default_not_dry_run =
-      (options.backend == BackendRuntime::TTNNFlatbuffer ||
-       options.backend == BackendRuntime::TTNNCodegenLoadPy);
+  // Default value of dry_run is dependent on backend
+  bool is_default_dry_run = true;
+  if (options.backend == BackendRuntime::TTNNFlatbuffer ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy) {
+    is_default_dry_run = false;
+  }
   options.dry_run = internal::parseBoolOption(compile_options, "dry_run")
-                        .value_or(!is_default_not_dry_run);
+                        .value_or(is_default_dry_run);
+  options.target_module =
+      internal::parseBoolOption(compile_options, "target_module")
+          .value_or(options.target_module);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   options.export_model_name =

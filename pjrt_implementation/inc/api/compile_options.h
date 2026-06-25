@@ -155,6 +155,12 @@ struct CompileOptions {
   // backends, false for flatbuffer backend.
   bool dry_run = true;
 
+  // Whether Python codegen emits a runnable "target module" -- the main.py file
+  // will contain a forward(inputs, device) entrypoint that is suitable for
+  // runtimes holding the handles on device&tensor objects themselves, like
+  // PythonModelRunner or vLLM.
+  bool target_module = false;
+
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.
