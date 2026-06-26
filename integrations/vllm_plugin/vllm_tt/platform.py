@@ -53,6 +53,14 @@ class TTConfig:
     batch_size: int = 1
     enable_precompile_all: bool = True
 
+    # Per-step prefill chunk size (caps max_num_batched_tokens); 0 (default) =
+    # opt-out. When set, long prompts split into chunks of this many tokens,
+    # bounding compile time + peak prefill DRAM by the chunk, not max_model_len.
+    # KNOWN LIMITATION: at max_num_seqs > 1 output may be inconsistent across
+    # requests (pre-existing batched-prefill precision issue, tt-mlir #8666);
+    # unaffected at max_num_seqs == 1.
+    prefill_chunk_size: int = 0
+
     # Flag to enable data parallel execution of a model. It will require
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
@@ -369,6 +377,42 @@ class TTPlatform(Platform):
                 vllm_config.model_config.max_model_len,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
+        elif model_config is not None and model_config.runner_type != "pooling":
+            # Non-MLA generative: chunked prefill is opt-in via prefill_chunk_size.
+            # NOTE: `chunked_prefill_enabled` is a TT-internal flag (not a vLLM
+            # field) set alongside the real vLLM `enable_chunked_prefill`.
+            chunk_size = int(additional_config.get("prefill_chunk_size", 0))
+            if chunk_size > 0:
+                # PER-SEQUENCE cap bounding the prefill activation + token-padding
+                # ladder, not a batch-wide sum. Floor at one block for alignment.
+                per_seq_chunk = max(chunk_size, cache_config.block_size)
+
+                # max_num_batched_tokens is the per-STEP batch-wide budget. The TT
+                # prefill graph is batched [max_num_seqs, chunk], so it must hold
+                # one chunk PER user; scale by max_num_seqs so all waiting users'
+                # same-stage chunks batch into one step (per_seq_chunk alone would
+                # serialize prefills across users).
+                budget = per_seq_chunk * scheduler_config.max_num_seqs
+                logger.info(
+                    "[TT] Chunked prefill: per-seq chunk %d, "
+                    "max_num_batched_tokens %d -> %d (= chunk x max_num_seqs %d) "
+                    "so up to %d users prefill per step.",
+                    per_seq_chunk,
+                    scheduler_config.max_num_batched_tokens,
+                    budget,
+                    scheduler_config.max_num_seqs,
+                    scheduler_config.max_num_seqs,
+                )
+                scheduler_config.enable_chunked_prefill = True
+                scheduler_config.chunked_prefill_enabled = True
+                # TT-internal per-sequence chunk cap, read by AscendScheduler
+                # (per-request chunk sizing) and TTModelRunner (bucket ladder).
+                scheduler_config.tt_prefill_chunk_size = per_seq_chunk
+                # Derived value: a user-supplied max_num_batched_tokens is
+                # intentionally overridden here (logged above).
+                scheduler_config.max_num_batched_tokens = budget
+                scheduler_config.max_num_encoder_input_tokens = budget
+                scheduler_config.encoder_cache_size = budget
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:

@@ -78,6 +78,15 @@ class AscendScheduler(Scheduler):
         # Record scheduled LoRA requests.
         scheduled_loras: set[int] = set()
 
+        # Partial prefill chunks scheduled this step: kept out of self.running
+        # until prefill completes, so excluded from the scheduled-vs-running check.
+        num_partial_prefill_scheduled = 0
+
+        # Stage (num_computed_tokens) of the first prefill scheduled this step.
+        # Only same-stage prefills batch together; mixing a fresh request with a
+        # continuation corrupts the fresh one's cached-prefix attention.
+        step_prefill_num_computed: Optional[int] = None
+
         # Use a temporary queue to collect requests that need to be skipped
         # and put back at the head of the waiting queue later
         step_skipped_waiting = create_request_queue(self.policy)
@@ -93,6 +102,14 @@ class AscendScheduler(Scheduler):
                 break
 
             request = request_queue.peek_request()
+
+            # Defensive: drop a stale finished/aborted request (e.g. a mid-prefill
+            # chunk aborted on client disconnect) instead of crashing EngineCore
+            # at the status check below.
+            if request.is_finished():
+                request_queue.pop_request()
+                self.scheduled_req_ids.discard(request.request_id)
+                continue
 
             def skip_cur_request(req=request):
                 request_queue.pop_request()
@@ -157,10 +174,27 @@ class AscendScheduler(Scheduler):
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
             else:
-                # P/D: skip checking prefix cache if loaded from remote kvs.
-                new_computed_blocks = self.kv_cache_manager.create_empty_block_list()
+                # P/D: skip prefix-cache check if loaded from remote kvs; also
+                # reached by continued chunked-prefill chunks (prefix already
+                # allocated). Must pass the manager's empty-blocks singleton:
+                # allocate_slots compares it by identity, so a fresh empty
+                # instance would wrongly re-trigger allocate_new_computed_blocks
+                # (which asserts no blocks yet) on later chunks.
+                new_computed_blocks = self.kv_cache_manager.empty_kv_cache_blocks
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
+
+            # Only batch same-stage prefills: if one is already scheduled this
+            # step at a different num_computed_tokens, defer this one (re-enqueued
+            # at the head of waiting). Prevents fresh+continuation mixing that
+            # corrupts the fresh request.
+            if (
+                getattr(self.scheduler_config, "chunked_prefill_enabled", False)
+                and step_prefill_num_computed is not None
+                and num_computed_tokens != step_prefill_num_computed
+            ):
+                skip_cur_request()
+                continue
 
             # P/D: loading remote KV, do not allocate for new work.
             if load_kv_async:
@@ -194,10 +228,43 @@ class AscendScheduler(Scheduler):
                     request_queue.pop_request()
                     continue
 
-                if num_new_tokens > token_budget:
-                    # Scheduling would exceed token_budget, skip.
-                    skip_cur_request()
-                    continue
+                chunked_prefill = getattr(
+                    self.scheduler_config, "chunked_prefill_enabled", False
+                )
+                # Cap each request at the PER-SEQUENCE chunk (tt_prefill_chunk_size),
+                # not the batch-wide token_budget (= chunk x max_num_seqs). This
+                # bounds the prefill activation/bucket and leaves budget for other
+                # users' chunks; without it one long prompt eats the whole budget
+                # and re-serializes prefills.
+                if chunked_prefill:
+                    chunk_cap = min(
+                        token_budget,
+                        getattr(
+                            self.scheduler_config,
+                            "tt_prefill_chunk_size",
+                            token_budget,
+                        ),
+                    )
+                else:
+                    chunk_cap = token_budget
+
+                if num_new_tokens > chunk_cap:
+                    if chunked_prefill:
+                        # Take only the chunk that fits; the rest continues next
+                        # step once num_computed_tokens advances.
+                        num_new_tokens = self._block_aligned_chunk(
+                            num_new_tokens, chunk_cap
+                        )
+                        if num_new_tokens == 0:
+                            # Remaining budget < one block: can't take a
+                            # block-aligned chunk without corrupting the cached-
+                            # prefix fill. Defer to the next step.
+                            skip_cur_request()
+                            continue
+                    else:
+                        # Scheduling would exceed token_budget, skip.
+                        skip_cur_request()
+                        continue
                 assert num_new_tokens > 0
                 blocks = new_computed_blocks.blocks[0]
 
@@ -260,17 +327,38 @@ class AscendScheduler(Scheduler):
                 request.status = RequestStatus.WAITING_FOR_REMOTE_KVS
                 continue
 
-            self.running.append(request)
             if self.log_stats:
                 request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
+
+            # A partially-prefilled request must stay in the prefill path and NOT
+            # enter self.running until done: the decode loop requires every
+            # running request to have exactly one uncomputed token. Evaluated
+            # against the pre-advance num_computed_tokens.
+            fully_prefilled = (
+                num_computed_tokens + num_new_tokens
+            ) >= request.num_tokens
+
             # Check request status.
             if request.status == RequestStatus.WAITING:
                 scheduled_new_reqs.append(request)
             elif request.status == RequestStatus.PREEMPTED:
                 scheduled_resumed_reqs.append(request)
+            elif request.status == RequestStatus.RUNNING:
+                # Continued prefill chunk of an already-started request: emit
+                # cached (running) request data rather than NewRequestData.
+                scheduled_running_reqs.append(request)
             else:
                 raise RuntimeError(f"Invalid request status: {request.status}")
+
+            if fully_prefilled:
+                self.running.append(request)
+            else:
+                # Re-enqueue and mark RUNNING so the next step's chunk is
+                # recognized as a continuation.
+                request.status = RequestStatus.RUNNING
+                step_skipped_waiting.prepend_request(request)
+                num_partial_prefill_scheduled += 1
 
             req_index += 1
 
@@ -280,6 +368,10 @@ class AscendScheduler(Scheduler):
             # Update request info.
             num_scheduled_tokens[request.request_id] = num_new_tokens
             token_budget -= num_new_tokens
+            # Record this step's prefill stage so later iterations only batch
+            # same-stage prefills.
+            if step_prefill_num_computed is None:
+                step_prefill_num_computed = num_computed_tokens
             request.status = RequestStatus.RUNNING
             request.num_computed_tokens = num_computed_tokens
             # Count the number of prefix cached tokens.
@@ -411,9 +503,12 @@ class AscendScheduler(Scheduler):
         assert total_num_scheduled_tokens <= self.max_num_scheduled_tokens
         assert token_budget >= 0
         assert len(self.running) <= self.max_num_running_reqs
-        assert len(scheduled_new_reqs) + len(scheduled_resumed_reqs) + len(
-            scheduled_running_reqs
-        ) <= len(self.running)
+        assert (
+            len(scheduled_new_reqs)
+            + len(scheduled_resumed_reqs)
+            + len(scheduled_running_reqs)
+            <= len(self.running) + num_partial_prefill_scheduled
+        )
 
         # Get the longest common prefix among all requests in the running queue.
         # This can be potentially used for cascade attention.
@@ -497,6 +592,25 @@ class AscendScheduler(Scheduler):
         self.finished_req_ids = set()  # type: ignore
         return scheduler_output
 
+    def _block_aligned_chunk(self, num_new_tokens: int, token_budget: int) -> int:
+        """Size a prefill chunk to fit ``token_budget`` for chunked prefill.
+
+        Non-final chunks are block-aligned so the cumulative prefix length stays
+        block-aligned, which the cached-prefix attention path relies on
+        (``fill_page_table`` is rolled by whole blocks). Also avoid a 1-token
+        remainder: a lone final token is a 1-token "prefill" the attention path
+        (``query_len > 1``) misroutes to decode.
+        """
+        chunk = (token_budget // self.block_size) * self.block_size
+        if chunk <= 0:
+            # Budget < one block: a mid-block num_computed would corrupt the
+            # cached-prefix fill (wrong output at batch>1). Return 0 to defer to
+            # the next step, where the request gets the full budget.
+            return 0
+        if (num_new_tokens - chunk) == 1 and chunk > self.block_size:
+            chunk -= self.block_size
+        return chunk
+
     def _check_watermark_for_prefill(
         self, request, num_new_tokens, computed_blocks, watermark=0.01
     ):
@@ -522,10 +636,15 @@ class AscendScheduler(Scheduler):
         ) >= watermark_blocks
 
     def _get_prompt_limit(self, request: Request) -> int:
-        prompt_limit = min(
-            self.max_model_len,
-            self.max_num_scheduled_tokens,
-        )
+        # With chunked prefill the prompt is split into chunks, so its length
+        # limit is max_model_len alone. Without chunking it must fit one step.
+        if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
+            prompt_limit = self.max_model_len
+        else:
+            prompt_limit = min(
+                self.max_model_len,
+                self.max_num_scheduled_tokens,
+            )
 
         # Model is fine tuned with long context. Return the fine tuned max_len.
         if request.lora_request and request.lora_request.long_lora_max_len:
@@ -543,18 +662,41 @@ class AscendScheduler(Scheduler):
 
         For example, the API server can abort a request when the client
         disconnects.
+
+        Extends the base handler to also purge finished/aborted requests from
+        the *waiting-side* queues. A mid-prefill chunked request (status RUNNING)
+        lives in ``self.skipped_waiting``, not ``self.running``; the base handler
+        only removes RUNNING requests from ``self.running``, so an aborted one
+        would linger and crash the next ``schedule()`` (Invalid request status:
+        FINISHED_ABORTED). Removing it from both waiting queues prevents that.
         """
         if request_ids is None:
             return
+        # Normalize to a concrete list: a str is a single id, and a one-shot
+        # generator would be exhausted before super() could consume it.
+        if isinstance(request_ids, str):
+            request_ids = [request_ids]
+        else:
+            request_ids = list(request_ids)
 
+        to_remove: list[Request] = []
         for req_id in request_ids:
             request = self.requests.get(req_id)
-            if request is None:
-                # Invalid request ID.
+            if request is None or request.is_finished():
+                # Invalid or already-finished request ID.
                 continue
+            to_remove.append(request)
             if request.status == RequestStatus.RUNNING:
                 self.scheduled_req_ids.discard(request.request_id)
+
         super().finish_requests(request_ids, finished_status)
+
+        # Purge from the waiting-side queues (chunked-prefill continuations the
+        # base handler misses). remove_requests just filters the deque, so it is
+        # a safe no-op for already-removed requests.
+        if to_remove:
+            self.waiting.remove_requests(to_remove)
+            self.skipped_waiting.remove_requests(to_remove)
 
     def update_from_output(
         self,
