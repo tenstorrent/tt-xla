@@ -52,6 +52,27 @@ def test_pcc_mode_from_env_delegates(monkeypatch):
     assert PccMode.from_env() == PccMode.from_string("")
 
 
+@pytest.mark.parametrize(
+    "pcc_only, pcc_prefill, pcc_decode, expected",
+    [
+        (False, False, False, None),  # nothing set -> caller falls back to env
+        (True, False, False, "both"),
+        (False, True, False, "prefill"),
+        (False, False, True, "decode"),
+        (False, True, True, "both"),  # both narrow flags -> both
+        (True, False, True, "both"),  # --pcc-only wins
+    ],
+)
+def test_pcc_mode_from_options(pcc_only, pcc_prefill, pcc_decode, expected):
+    mode = PccMode.from_options(
+        pcc_only=pcc_only, pcc_prefill=pcc_prefill, pcc_decode=pcc_decode
+    )
+    if expected is None:
+        assert mode is None
+    else:
+        assert mode == PccMode.from_string(expected)
+
+
 # --------------------------------------------------------------------------- #
 # summarize_perf
 # --------------------------------------------------------------------------- #

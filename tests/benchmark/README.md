@@ -26,7 +26,8 @@ pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
 | `--num-layers N` | Override number of model layers (positive integer) |
 | `--max-output-tokens N` | Limit generated tokens (LLMs only) (useful for profiling runs) |
 | `--decode-only` | Run prefill on CPU and only decode on device (only for local testing, cannot be combined with `--accuracy-testing`) |
-| `--pcc-mode {prefill,decode,both}` | LLMs only: skip warmup and the timed perf loop, run a single PCC iteration, and assert only the selected phase(s). Falls back to the `TT_PCC_MODE` env var |
+| `--pcc-only` | LLMs only: skip warmup and the timed perf loop, run a single PCC iteration, and assert both prefill and decode. Falls back to the `TT_PCC_MODE` env var |
+| `--pcc-prefill` / `--pcc-decode` | Like `--pcc-only` but assert only prefill / only decode |
 
 
 ### Examples
@@ -38,8 +39,8 @@ pytest -svv tests/benchmark/test_llms.py::test_qwen_3_0_6b --num-layers 1 --max-
 # Decode-only: measure pure decode throughput (prefill runs on CPU, skips warmup and PCC check)
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b --decode-only
 
-# PCC-only: validate decode accuracy in isolation (no perf measurement)
-pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b --pcc-mode decode
+# PCC-only: validate accuracy with no perf measurement (--pcc-decode narrows to decode)
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b --pcc-decode
 ```
 
 ## Directory Structure

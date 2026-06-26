@@ -102,7 +102,11 @@ def _run_llm(
         max_output_tokens=cli.max_output_tokens,
         decode_only=cli.decode_only,
         optimization_level=opt,
-        pcc_mode=PccMode.from_string(cli.pcc_mode) if cli.pcc_mode else None,
+        pcc_mode=PccMode.from_options(
+            pcc_only=cli.pcc_only,
+            pcc_prefill=cli.pcc_prefill,
+            pcc_decode=cli.pcc_decode,
+        ),
         **overrides,
     )
 

@@ -88,6 +88,28 @@ class PccMode:
     def from_env(cls) -> "PccMode":
         return cls.from_string(os.environ.get("TT_PCC_MODE", ""))
 
+    @classmethod
+    def from_options(
+        cls,
+        *,
+        pcc_only: bool = False,
+        pcc_prefill: bool = False,
+        pcc_decode: bool = False,
+    ) -> Optional["PccMode"]:
+        """Build from the ``--pcc-only`` / ``--pcc-prefill`` / ``--pcc-decode``
+        CLI flags. Returns None when none are set, so the caller can fall back to
+        the ``TT_PCC_MODE`` env var.
+        """
+        if pcc_prefill and pcc_decode:
+            pcc_only = True
+        if pcc_only:
+            return cls.from_string("both")
+        if pcc_prefill:
+            return cls.from_string("prefill")
+        if pcc_decode:
+            return cls.from_string("decode")
+        return None
+
 
 @dataclass
 class CpuReference:

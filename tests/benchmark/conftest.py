@@ -108,15 +108,28 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--pcc-mode",
-        action="store",
-        default=None,
-        choices=["prefill", "decode", "both"],
+        "--pcc-only",
+        action="store_true",
+        default=False,
         help=(
-            "PCC-only iteration mode for LLM benchmarks: skip warmup and the "
-            "timed perf loop and run a single PCC iteration, asserting only the "
-            "selected phase(s). Falls back to the TT_PCC_MODE env var if unset."
+            "LLMs only: skip warmup and the timed perf loop, run a single PCC "
+            "iteration, and assert both prefill and decode. Falls back to the "
+            "TT_PCC_MODE env var if no --pcc-* flag is given."
         ),
+    )
+
+    parser.addoption(
+        "--pcc-prefill",
+        action="store_true",
+        default=False,
+        help="Like --pcc-only but assert prefill PCC only (implies --pcc-only).",
+    )
+
+    parser.addoption(
+        "--pcc-decode",
+        action="store_true",
+        default=False,
+        help="Like --pcc-only but assert decode PCC only (implies --pcc-only).",
     )
 
 
@@ -161,8 +174,18 @@ def check_fusions(request):
 
 
 @pytest.fixture
-def pcc_mode(request):
-    return request.config.getoption("--pcc-mode")
+def pcc_only(request):
+    return request.config.getoption("--pcc-only")
+
+
+@pytest.fixture
+def pcc_prefill(request):
+    return request.config.getoption("--pcc-prefill")
+
+
+@pytest.fixture
+def pcc_decode(request):
+    return request.config.getoption("--pcc-decode")
 
 
 @dataclass
@@ -182,7 +205,9 @@ class CliOptions:
     max_output_tokens: Optional[int]
     decode_only: bool
     check_fusions: bool
-    pcc_mode: Optional[str]
+    pcc_only: bool
+    pcc_prefill: bool
+    pcc_decode: bool
 
 
 @pytest.fixture
@@ -195,7 +220,9 @@ def cli(
     max_output_tokens,
     decode_only,
     check_fusions,
-    pcc_mode,
+    pcc_only,
+    pcc_prefill,
+    pcc_decode,
 ):
     """Bundle the common command-line options into a single object."""
     return CliOptions(
@@ -207,7 +234,9 @@ def cli(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         check_fusions=check_fusions,
-        pcc_mode=pcc_mode,
+        pcc_only=pcc_only,
+        pcc_prefill=pcc_prefill,
+        pcc_decode=pcc_decode,
     )
 
 
