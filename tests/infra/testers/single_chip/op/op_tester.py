@@ -25,6 +25,7 @@ from infra.utilities import (
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
 from jax._src.typing import DTypeLike
+from ttxla_tools.logging import logger
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -63,25 +64,38 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
+        logger.info("[phase] OpTester.test: start")
+        t0 = time.perf_counter()
+
         cpu_workload = workload
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+        t_cpu = time.perf_counter()
+        logger.info(f"[phase] cpu_golden: {t_cpu - t0:.3f}s")
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
+        t_compile = time.perf_counter()
+        logger.info(f"[phase] compile_for_tt_device: {t_compile - t_cpu:.3f}s")
+
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
+        t_tt = time.perf_counter()
+        logger.info(f"[phase] tt_run: {t_tt - t_compile:.3f}s")
 
         if self._custom_comparator is not None:
             self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
         else:
             self._evaluator.evaluate(tt_res, cpu_res)
+        t_compare = time.perf_counter()
+        logger.info(f"[phase] compare_pcc: {t_compare - t_tt:.3f}s")
 
         if self._enable_perf_measurement:
             self._test_e2e_perf(tt_workload)
 
         if request:
             self.handle_filecheck_and_serialization(request, tt_workload)
+        logger.info(f"[phase] OpTester.test: total {time.perf_counter() - t0:.3f}s")
 
     def _test_e2e_perf(self, workload: Workload) -> None:
         warmup_iters_count = 3
