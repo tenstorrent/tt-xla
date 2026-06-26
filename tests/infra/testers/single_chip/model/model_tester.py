@@ -13,6 +13,7 @@ from typing import Any, Callable, Optional, Tuple
 from infra.evaluators import ComparisonConfig, ComparisonResult
 from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
 from infra.workloads import Workload
+from ttxla_tools.logging import logger
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -171,15 +172,26 @@ class ModelTester(BaseTester, ABC):
         Returns a tuple of (comparison_results, tt_result) where tt_result is the raw
         TT device output tensor.
         """
+        logger.debug("[phase] _test_inference: start")
+        t0 = time.perf_counter()
+
         cpu_res = self._run_on_cpu(self._workload)
+        t_cpu = time.perf_counter()
+        logger.debug(f"[phase] cpu_golden: {t_cpu - t0:.3f}s")
 
         self._compile_for_tt_device(self._workload)
+        t_compile = time.perf_counter()
+        logger.debug(f"[phase] compile_for_tt_device: {t_compile - t_cpu:.3f}s")
 
         if not self._disable_perf_measurement:
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
+        t_perf = time.perf_counter()
+        logger.debug(f"[phase] e2e_perf_block: {t_perf - t_compile:.3f}s")
 
         tt_res = self._run_on_tt_device(self._workload)
+        t_tt = time.perf_counter()
+        logger.debug(f"[phase] final_tt_run: {t_tt - t_perf:.3f}s")
 
         if request:
             self.handle_filecheck_and_serialization(request, self._workload)
@@ -188,8 +200,15 @@ class ModelTester(BaseTester, ABC):
             self._custom_comparator(
                 tt_res, cpu_res, self._workload.args, self._workload.kwargs
             )
+            logger.debug(
+                f"[phase] _test_inference: total {time.perf_counter() - t0:.3f}s (custom_comparator)"
+            )
             return None, tt_res
-        return (self._compare(tt_res, cpu_res),), tt_res
+        compare_result = self._compare(tt_res, cpu_res)
+        t_compare = time.perf_counter()
+        logger.debug(f"[phase] compare_pcc: {t_compare - t_tt:.3f}s")
+        logger.debug(f"[phase] _test_inference: total {t_compare - t0:.3f}s")
+        return (compare_result,), tt_res
 
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
