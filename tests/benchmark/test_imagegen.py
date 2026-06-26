@@ -191,3 +191,51 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_bria_2_3(output_file, request):
+    from benchmarks.bria_2_3_pipeline import Bria23Config, Bria23Pipeline
+
+    # BRIA 2.3: SDXL-class text-to-image with classifier-free guidance.
+    prompt = (
+        "A portrait of a Beautiful and playful ethereal singer, "
+        "golden designs, highly detailed, blurry background"
+    )
+    # BRIA recommends 30-50 steps; 30 keeps the bringup-baseline wall-clock
+    # bounded while staying in the recommended range. The reported
+    # unet_step_mean_s is step-count-independent.
+    num_inference_steps = 30
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        # Text encoders + UNet on TT; VAE on CPU (SDXL VAE on TT hits the
+        # GroupNorm/opt-level issue tt-xla #5176 / #4710, same as
+        # sdxl_lightning).
+        pipeline = Bria23Pipeline(
+            config=Bria23Config(vae_on_tt=False, compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                negative_prompt=None,
+                cfg_scale=5.0,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="bria-2.3",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_bria_2_3_output.png",
+    )
