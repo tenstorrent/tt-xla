@@ -78,19 +78,13 @@ class AscendScheduler(Scheduler):
         # Record scheduled LoRA requests.
         scheduled_loras: set[int] = set()
 
-        # Count partial prefill chunks scheduled this step. These requests are
-        # scheduled but intentionally kept out of self.running until their
-        # prefill completes, so they are excluded from the
-        # scheduled-vs-running invariant check below.
+        # Partial prefill chunks scheduled this step: kept out of self.running
+        # until prefill completes, so excluded from the scheduled-vs-running check.
         num_partial_prefill_scheduled = 0
 
-        # Chunked prefill: the num_computed_tokens stage of the
-        # first prefill request scheduled this step. We only batch prefill
-        # requests at the SAME stage in one step. Mixing a fresh request
-        # (num_computed=0) with a continuation (num_computed>0) forces the fresh
-        # request through the all-or-nothing cached-prefix attention path and
-        # corrupts it (see attention's chunked-prefix path). None until the first
-        # prefill is scheduled this step.
+        # Stage (num_computed_tokens) of the first prefill scheduled this step.
+        # Only same-stage prefills batch together; mixing a fresh request with a
+        # continuation corrupts the fresh one's cached-prefix attention.
         step_prefill_num_computed: Optional[int] = None
 
         # Use a temporary queue to collect requests that need to be skipped
@@ -109,11 +103,9 @@ class AscendScheduler(Scheduler):
 
             request = request_queue.peek_request()
 
-            # Defensive: an aborted/finished request must never be scheduled.
-            # finish_requests() purges these from the queues, but guard here too
-            # so a stale finished request (e.g. a mid-prefill chunk aborted on a
-            # client disconnect) is dropped instead of crashing the EngineCore
-            # at the status check below (the FINISHED_ABORTED scheduler crash).
+            # Defensive: drop a stale finished/aborted request (e.g. a mid-prefill
+            # chunk aborted on client disconnect) instead of crashing EngineCore
+            # at the status check below.
             if request.is_finished():
                 request_queue.pop_request()
                 self.scheduled_req_ids.discard(request.request_id)
@@ -182,23 +174,20 @@ class AscendScheduler(Scheduler):
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
             else:
-                # P/D: skip checking prefix cache if loaded from remote kvs.
-                # Also reached by continued chunked-prefill chunks,
-                # where the prefix is already computed/allocated. Use the
-                # manager's empty-blocks singleton: allocate_slots compares it by
-                # identity to decide whether to (re)allocate computed blocks, so
-                # passing a fresh empty instance would wrongly trigger
-                # allocate_new_computed_blocks (which asserts the request has no
-                # blocks yet) on the second and later chunks.
+                # P/D: skip prefix-cache check if loaded from remote kvs; also
+                # reached by continued chunked-prefill chunks (prefix already
+                # allocated). Must pass the manager's empty-blocks singleton:
+                # allocate_slots compares it by identity, so a fresh empty
+                # instance would wrongly re-trigger allocate_new_computed_blocks
+                # (which asserts no blocks yet) on later chunks.
                 new_computed_blocks = self.kv_cache_manager.empty_kv_cache_blocks
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
 
-            # Chunked prefill: only batch prefill requests at the
-            # same stage. If a prefill is already scheduled this step at a
-            # different num_computed_tokens, defer this one to a later step (it
-            # is re-enqueued at the head of the waiting queue). Prevents the
-            # fresh+continuation mixing that corrupts the fresh request.
+            # Only batch same-stage prefills: if one is already scheduled this
+            # step at a different num_computed_tokens, defer this one (re-enqueued
+            # at the head of waiting). Prevents fresh+continuation mixing that
+            # corrupts the fresh request.
             if (
                 getattr(self.scheduler_config, "chunked_prefill_enabled", False)
                 and step_prefill_num_computed is not None
@@ -242,14 +231,11 @@ class AscendScheduler(Scheduler):
                 chunked_prefill = getattr(
                     self.scheduler_config, "chunked_prefill_enabled", False
                 )
-                # Chunked prefill: a request may take at most a
-                # PER-SEQUENCE chunk (tt_prefill_chunk_size) this step, not the
-                # whole batch-wide token_budget. The budget is sized
-                # chunk x max_num_seqs so multiple users batch into one prefill
-                # step; capping each request at the per-seq chunk both keeps the
-                # prefill activation/bucket bounded AND leaves budget for the
-                # other users' chunks. Without this cap one long prompt would
-                # consume the entire budget, re-serializing prefills.
+                # Cap each request at the PER-SEQUENCE chunk (tt_prefill_chunk_size),
+                # not the batch-wide token_budget (= chunk x max_num_seqs). This
+                # bounds the prefill activation/bucket and leaves budget for other
+                # users' chunks; without it one long prompt eats the whole budget
+                # and re-serializes prefills.
                 if chunked_prefill:
                     chunk_cap = min(
                         token_budget,
@@ -264,9 +250,8 @@ class AscendScheduler(Scheduler):
 
                 if num_new_tokens > chunk_cap:
                     if chunked_prefill:
-                        # Take only the per-seq chunk that fits this step; the
-                        # rest continues next step (the request is re-picked once
-                        # num_computed_tokens advances).
+                        # Take only the chunk that fits; the rest continues next
+                        # step once num_computed_tokens advances.
                         num_new_tokens = self._block_aligned_chunk(
                             num_new_tokens, chunk_cap
                         )
@@ -346,14 +331,10 @@ class AscendScheduler(Scheduler):
                 request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
 
-            # Chunked prefill: a request whose prompt does not
-            # fully fit in this step's token budget is scheduled as a partial
-            # chunk and continued on subsequent steps. Such a request must stay
-            # in the prefill path (re-enqueued below) and must NOT enter
-            # self.running until its prefill completes, because the decode loop
-            # requires every running request to have exactly one uncomputed
-            # token. fully_prefilled is evaluated against the pre-advance
-            # num_computed_tokens (advanced later in this method).
+            # A partially-prefilled request must stay in the prefill path and NOT
+            # enter self.running until done: the decode loop requires every
+            # running request to have exactly one uncomputed token. Evaluated
+            # against the pre-advance num_computed_tokens.
             fully_prefilled = (
                 num_computed_tokens + num_new_tokens
             ) >= request.num_tokens
@@ -373,9 +354,8 @@ class AscendScheduler(Scheduler):
             if fully_prefilled:
                 self.running.append(request)
             else:
-                # Re-enqueue for the prefill loop to continue next step. Mark
-                # RUNNING now so the next chunk is recognized as a continuation
-                # (status is otherwise re-set to RUNNING at the end of the loop).
+                # Re-enqueue and mark RUNNING so the next step's chunk is
+                # recognized as a continuation.
                 request.status = RequestStatus.RUNNING
                 step_skipped_waiting.prepend_request(request)
                 num_partial_prefill_scheduled += 1
@@ -615,23 +595,17 @@ class AscendScheduler(Scheduler):
     def _block_aligned_chunk(self, num_new_tokens: int, token_budget: int) -> int:
         """Size a prefill chunk to fit ``token_budget`` for chunked prefill.
 
-        Non-final chunks are block-aligned (a multiple of ``block_size``) so the
-        cumulative prefix length stays block-aligned -- the cached-prefix
-        attention path relies on this, because ``fill_page_table`` is rolled by
-        whole blocks (``num_computed // block_size``) to write each chunk into
-        the correct suffix blocks (see model_runner ``_prepare_inputs`` /
-        attention). We also avoid leaving a 1-token remainder: a lone final
-        token would be a 1-token "prefill" chunk, which the attention path
-        (``is_prefill := query_len > 1``) misroutes to decode.
+        Non-final chunks are block-aligned so the cumulative prefix length stays
+        block-aligned, which the cached-prefix attention path relies on
+        (``fill_page_table`` is rolled by whole blocks). Also avoid a 1-token
+        remainder: a lone final token is a 1-token "prefill" the attention path
+        (``query_len > 1``) misroutes to decode.
         """
         chunk = (token_budget // self.block_size) * self.block_size
         if chunk <= 0:
-            # Remaining budget this step is smaller than one block, so we cannot
-            # take a block-aligned non-final chunk. Returning the partial budget
-            # here would leave num_computed_tokens mid-block and corrupt the
-            # cached-prefix fill (fill_page_table is rolled by whole blocks),
-            # producing wrong output for that user at batch>1. Return 0 to signal
-            # "defer to next step", where the request gets the full budget.
+            # Budget < one block: a mid-block num_computed would corrupt the
+            # cached-prefix fill (wrong output at batch>1). Return 0 to defer to
+            # the next step, where the request gets the full budget.
             return 0
         if (num_new_tokens - chunk) == 1 and chunk > self.block_size:
             chunk -= self.block_size
@@ -662,10 +636,8 @@ class AscendScheduler(Scheduler):
         ) >= watermark_blocks
 
     def _get_prompt_limit(self, request: Request) -> int:
-        # With chunked prefill a prompt may be far longer than the per-step
-        # token budget (max_num_scheduled_tokens) -- it is split into chunks --
-        # so the prompt-length limit is max_model_len alone. Without chunking, a
-        # prompt must fit in a single scheduled step, hence the min.
+        # With chunked prefill the prompt is split into chunks, so its length
+        # limit is max_model_len alone. Without chunking it must fit one step.
         if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
             prompt_limit = self.max_model_len
         else:
@@ -692,21 +664,16 @@ class AscendScheduler(Scheduler):
         disconnects.
 
         Extends the base handler to also purge finished/aborted requests from
-        the *waiting-side* queues. AscendScheduler keeps a mid-prefill chunked
-        request (status RUNNING) in ``self.skipped_waiting`` rather than
-        ``self.running`` until its prefill completes. The base
-        ``finish_requests`` removes RUNNING requests only from ``self.running``,
-        so an aborted mid-prefill request would linger in ``skipped_waiting``
-        and the next ``schedule()`` would raise
-        ``RuntimeError: Invalid request status: FINISHED_ABORTED``, killing the
-        EngineCore for every in-flight request. We remove the request from both
-        waiting queues here so a single client abort cannot crash the engine.
+        the *waiting-side* queues. A mid-prefill chunked request (status RUNNING)
+        lives in ``self.skipped_waiting``, not ``self.running``; the base handler
+        only removes RUNNING requests from ``self.running``, so an aborted one
+        would linger and crash the next ``schedule()`` (Invalid request status:
+        FINISHED_ABORTED). Removing it from both waiting queues prevents that.
         """
         if request_ids is None:
             return
-        # Normalize to a concrete list: a str is a single id (not an iterable of
-        # ids), and a one-shot generator would otherwise be exhausted by the
-        # loop below before super() could consume it.
+        # Normalize to a concrete list: a str is a single id, and a one-shot
+        # generator would be exhausted before super() could consume it.
         if isinstance(request_ids, str):
             request_ids = [request_ids]
         else:
@@ -724,11 +691,9 @@ class AscendScheduler(Scheduler):
 
         super().finish_requests(request_ids, finished_status)
 
-        # Purge from the waiting-side queues. The base handler only removes
-        # RUNNING-status requests from self.running, missing chunked-prefill
-        # continuations that live in skipped_waiting.
-        # remove_requests just filters the deque, so it is a safe no-op for
-        # requests the base handler already removed.
+        # Purge from the waiting-side queues (chunked-prefill continuations the
+        # base handler misses). remove_requests just filters the deque, so it is
+        # a safe no-op for already-removed requests.
         if to_remove:
             self.waiting.remove_requests(to_remove)
             self.skipped_waiting.remove_requests(to_remove)
