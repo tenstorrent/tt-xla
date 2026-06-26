@@ -242,6 +242,35 @@ def _replicate_row_parallel(model, *, attn, ffn):
     return specs
 
 
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_pcc_model2_2dev_fullres():
+    """model=2 (head-divisible, 30/2=15 whole heads) at FULL resolution, with the
+    SAME per-chip footprint as a real 2-device deployment.
+
+    SPMD requires the mesh to span all opened devices (8 here), so a literal
+    (1,2) 2-device mesh is rejected. Instead use mesh (4,2) -> batch=4, model=2:
+    the model is sharded 2-way (half the ~6.2B model per chip) and the batch axis
+    only replicates, so per-chip memory (half model + full-res activations) is
+    identical to a real 2-chip (1,2) model=2 mesh. Answers the OOM question and
+    gives the full-res model=2 PCC."""
+    xr.set_device_type("TT")
+    torch.manual_seed(mu.SEED)
+    # full resolution (override the module-level reduced 32x32)
+    mu.LATENT_H, mu.LATENT_W = mu.latent_hw_from_pixels()
+    n = xr.global_runtime_device_count()
+    loader, model = _load_small()  # NLAYERS via ZIMAGE_NLAYERS (set 30 to run full)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
+    # Physical topology is 2x4, so keep shape (2,4); name the size-2 axis "model"
+    # => model=2 (half model per chip == 2-device footprint), batch=4 replicates.
+    mesh = Mesh(np.array(range(n)), (2, 4), ("model", "batch"))
+    run_graph_test(
+        model, inputs, framework=Framework.TORCH, mesh=mesh,
+        shard_spec_fn=loader.load_shard_spec,
+        custom_comparator=_logging_comparator("model2_2dev_fullres"),
+    )
+
+
 def _run(label, mesh_names, *, dtype=torch.bfloat16, compiler_config=None, shard_spec_fn=None):
     xr.set_device_type("TT")
     torch.manual_seed(mu.SEED)

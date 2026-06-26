@@ -1,0 +1,17 @@
+tick 1min age=27s kernels=0
+tick 2min age=88s kernels=0
+tick 3min age=148s kernels=0
+tick 4min age=208s kernels=0
+tick 5min age=17s kernels=0
+tick 6min age=77s kernels=0
+tick 7min age=137s kernels=0
+tick 8min age=35s kernels=2
+tick 9min age=95s kernels=2
+tick 10min age=155s kernels=2
+tick 11min age=215s kernels=2
+tick 12min age=275s kernels=2
+tick 13min age=335s kernels=2
+tick 14min age=395s kernels=2
+tick 15min age=455s kernels=2
+tick 16min age=515s kernels=2
+PROC-ENDED ~17min

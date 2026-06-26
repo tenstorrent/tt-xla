@@ -1,0 +1,11 @@
+tick 1min: log_age=9s kernels_built=0
+tick 2min: log_age=69s kernels_built=0
+tick 3min: log_age=59s kernels_built=0
+tick 4min: log_age=119s kernels_built=0
+tick 5min: log_age=179s kernels_built=0
+tick 6min: log_age=239s kernels_built=0
+tick 7min: log_age=299s kernels_built=0
+tick 8min: log_age=359s kernels_built=0
+tick 9min: log_age=420s kernels_built=0
+tick 10min: log_age=480s kernels_built=0
+STALL: no log activity for 541s at ~11min (kernels_built=0) -> likely optimizer hang

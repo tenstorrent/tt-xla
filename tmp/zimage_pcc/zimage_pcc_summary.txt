@@ -1,0 +1,23 @@
+Z-IMAGE SHARDED-TRANSFORMER PCC DROP — SUMMARY (2026-06-24)
+Refs: tt-xla #5351 (drop) | #5367 (concat) | tt-mlir #8874 (RoPE) | forge PR #783 (fix)
+
+- PROBLEM (#5351): After tt-mlir #8874, the sharded ZImageTransformer2DModel runs but is
+  wrong — full 30-layer PCC = 0.626 vs 0.99; unsharded passes, error compounds with depth.
+
+- LOCALISED BY EXPERIMENT: replicated-on-mesh=0.99996 (mesh/CCL/freqs_cis fine); no_reduce=0.857
+  (NOT all_reduce); model2_fp32=0.919≈bf16 (NOT precision); repl_adaln_only=0.9969 -> adaLN is it.
+
+- ROOT CAUSE: adaLN_modulation was column-sharded ("model",None), but its output is chunk(4)'d
+  into scale/gate along that dim -> each device gets a scrambled slice, wrong modulation per block.
+
+- FIX (forge PR #783): replicate adaLN_modulation (block + final) so chunk(4) sees the full tensor;
+  via real shard spec model4 0.870->0.9969, model2 0.920->0.99997, PCC stays ~0.996 across depth.
+
+- NEW ISSUE (#5367): the fix exposes a compile failure at full 30 layers — ttnn.concat page 1.97MB
+  > L1 1.39MB (replicated adaLN weight consteval'd across layers; page scales with depth).
+
+- EXPERIMENTS ON CONCAT: depth-dependent/resolution-independent; <=18 layers pass (~0.996), >=24
+  fail; optimization_level=1 AND =2 both HANG in the optimizer -> opt-levels not a usable fix.
+
+- CONCLUSION: PCC root cause solved & shipped (PR #783, 0.626->~0.99). Remaining = tt-mlir fix in
+  #5367: tile/shard the oversized concat or avoid the cross-layer adaLN consteval.

@@ -1,0 +1,12 @@
+2026-06-25 10:42:36.556 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/venv/bin/python3
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-136-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'split': '0.11.0', 'jaxtyping': '0.3.11', 'anyio': '4.14.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, forked-1.6.0, metadata-3.1.1, split-0.11.0, jaxtyping-0.3.11, anyio-4.14.0
+collecting ... collected 1 item
+
+tests/torch/models/z_image/test_vae_decoder.py::test_vae_decoder Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-06-25 10:43:18.247385: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin

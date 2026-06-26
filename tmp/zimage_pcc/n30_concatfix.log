@@ -1,0 +1,52 @@
+2026-06-25 08:34:13.424 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/venv/bin/python3
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'split': '0.11.0', 'jaxtyping': '0.3.11', 'anyio': '4.14.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, forked-1.6.0, metadata-3.1.1, split-0.11.0, jaxtyping-0.3.11, anyio-4.14.0
+collecting ... collected 1 item
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4 2026-06-25 08:34:53.680008: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 509.48it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:08<00:08,  8.71s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:10<00:00,  4.79s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:10<00:00,  5.38s/it]
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights:   3%|▎         | 12/398 [00:00<00:05, 70.15it/s]Loading weights:   5%|▌         | 20/398 [00:00<00:05, 65.78it/s]Loading weights:   8%|▊         | 31/398 [00:00<00:06, 55.91it/s]Loading weights:  11%|█         | 43/398 [00:00<00:06, 57.42it/s]Loading weights:  12%|█▏        | 49/398 [00:00<00:06, 50.06it/s]Loading weights:  14%|█▍        | 55/398 [00:01<00:06, 51.54it/s]Loading weights:  17%|█▋        | 67/398 [00:01<00:05, 61.28it/s]Loading weights:  19%|█▉        | 75/398 [00:01<00:06, 51.37it/s]Loading weights:  20%|██        | 81/398 [00:01<00:06, 47.80it/s]Loading weights:  23%|██▎       | 90/398 [00:01<00:07, 42.35it/s]Loading weights:  27%|██▋       | 108/398 [00:01<00:04, 58.20it/s]Loading weights:  30%|██▉       | 118/398 [00:02<00:04, 59.46it/s]Loading weights:  33%|███▎      | 130/398 [00:02<00:04, 54.01it/s]Loading weights:  34%|███▍      | 136/398 [00:02<00:05, 46.21it/s]Loading weights:  38%|███▊      | 153/398 [00:02<00:03, 61.50it/s]Loading weights:  41%|████      | 162/398 [00:03<00:04, 52.75it/s]Loading weights:  43%|████▎     | 173/398 [00:03<00:03, 61.12it/s]Loading weights:  45%|████▌     | 180/398 [00:03<00:03, 62.45it/s]Loading weights:  47%|████▋     | 187/398 [00:03<00:03, 55.95it/s]Loading weights:  49%|████▉     | 195/398 [00:03<00:04, 50.61it/s]Loading weights:  52%|█████▏    | 205/398 [00:03<00:03, 56.31it/s]Loading weights:  54%|█████▍    | 214/398 [00:03<00:02, 61.48it/s]Loading weights:  56%|█████▌    | 221/398 [00:03<00:03, 58.85it/s]Loading weights:  57%|█████▋    | 228/398 [00:04<00:03, 50.26it/s]Loading weights:  60%|█████▉    | 238/398 [00:04<00:02, 59.06it/s]Loading weights:  62%|██████▏   | 245/398 [00:04<00:02, 57.53it/s]Loading weights:  63%|██████▎   | 252/398 [00:04<00:02, 55.38it/s]Loading weights:  65%|██████▍   | 258/398 [00:04<00:02, 54.14it/s]Loading weights:  66%|██████▋   | 264/398 [00:04<00:02, 55.15it/s]Loading weights:  68%|██████▊   | 271/398 [00:04<00:02, 53.19it/s]Loading weights:  70%|██████▉   | 277/398 [00:05<00:02, 51.18it/s]Loading weights:  72%|███████▏  | 285/398 [00:05<00:02, 45.30it/s]Loading weights:  74%|███████▍  | 296/398 [00:05<00:01, 54.33it/s]Loading weights:  76%|███████▌  | 302/398 [00:05<00:01, 53.68it/s]Loading weights:  77%|███████▋  | 308/398 [00:05<00:01, 48.15it/s]Loading weights:  79%|███████▉  | 315/398 [00:05<00:01, 46.46it/s]Loading weights:  82%|████████▏ | 325/398 [00:06<00:01, 50.07it/s]Loading weights:  83%|████████▎ | 331/398 [00:06<00:01, 49.22it/s]Loading weights:  84%|████████▍ | 336/398 [00:06<00:01, 42.32it/s]Loading weights:  87%|████████▋ | 346/398 [00:06<00:00, 52.28it/s]Loading weights:  88%|████████▊ | 352/398 [00:06<00:01, 39.73it/s]Loading weights:  93%|█████████▎| 372/398 [00:06<00:00, 58.11it/s]Loading weights:  96%|█████████▌| 381/398 [00:07<00:00, 63.78it/s]Loading weights:  97%|█████████▋| 388/398 [00:07<00:00, 59.31it/s]Loading weights: 100%|██████████| 398/398 [00:07<00:00, 55.54it/s]
+2026-06-25 08:36:48.318 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_0. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.
+2026-06-25 08:36:48.318 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_1. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.
+2026-06-25 08:36:48.318 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_2. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.
+
+[PCC-PROBE] model4: pcc=0.897038  (all=[0.897038])
+
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4
+  /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4
+  /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/tests/conftest.py:530: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4
+  /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/tests/conftest.py:534: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 1 passed, 20 warnings in 169.74s (0:02:49) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

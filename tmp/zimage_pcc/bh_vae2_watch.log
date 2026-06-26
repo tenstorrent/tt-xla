@@ -1,0 +1,8 @@
+tick 1min age=133s kernels=0
+tick 2min age=193s kernels=0
+tick 3min age=253s kernels=0
+tick 4min age=313s kernels=0
+tick 5min age=373s kernels=0
+tick 6min age=433s kernels=0
+tick 7min age=493s kernels=0
+STALL 553s ~8min kernels=0 -> hung again

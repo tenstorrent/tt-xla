@@ -1,0 +1,4 @@
+tick 1min age=0s kernels=0
+tick 2min age=56s kernels=0
+tick 3min age=44s kernels=0
+PROC-ENDED at ~4min
