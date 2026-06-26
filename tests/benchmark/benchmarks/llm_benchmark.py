@@ -29,6 +29,7 @@ from llm_utils import (
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
+from text_generation import ttft_measurement
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -1192,13 +1193,7 @@ def benchmark_llm_torch_xla(
     )
 
     evaluation_score = 0.0
-    custom_measurements = [
-        {
-            "measurement_name": "ttft",
-            "value": perf.ttft_ms,
-            "target": -1,
-        },
-    ]
+    custom_measurements = [ttft_measurement(perf.ttft_ms)]
 
     if accuracy_testing:
         evaluation_score, accuracy_measurements = evaluate_accuracy(

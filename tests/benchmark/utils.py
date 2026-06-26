@@ -499,6 +499,27 @@ def create_benchmark_result(
     }
 
 
+def write_benchmark_json(
+    results: Dict[str, Any],
+    output_file: str,
+    *,
+    model_rawname: str,
+    project: str = "tt-forge/tt-xla",
+) -> None:
+    """Stamp the dashboard fields onto a result dict and write it as JSON.
+
+    The ``project`` / ``model_rawname`` stamping plus the ``json.dump(indent=2)``
+    is identical across every benchmark driver's output-file path, so it lives
+    here (domain-agnostic). Domain-specific post-processing (e.g. the LLM
+    decode-graph perf aggregation) should mutate ``results`` *before* calling
+    this.
+    """
+    results["project"] = project
+    results["model_rawname"] = model_rawname
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2)
+
+
 def apply_mean_pooling(
     hidden_states: torch.Tensor, attention_mask: torch.Tensor
 ) -> torch.Tensor:

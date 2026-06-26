@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import vllm
+from text_generation import throughput_measurement, ttft_measurement
 from utils import (
     create_benchmark_result,
     get_benchmark_metadata,
@@ -272,16 +273,8 @@ def benchmark_vllm(
     # vLLM doesn't expose raw logits, so PCC comparison is not possible.
     evaluation_score = 0.0
     custom_measurements = [
-        {
-            "measurement_name": "ttft",
-            "value": avg_ttft_ms,
-            "target": -1,
-        },
-        {
-            "measurement_name": "samples_per_sec",
-            "value": avg_tokens_per_sec,
-            "target": -1,
-        },
+        ttft_measurement(avg_ttft_ms),
+        throughput_measurement(avg_tokens_per_sec),
     ]
 
     print_benchmark_results(

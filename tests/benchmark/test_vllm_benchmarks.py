@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 import os
 
 import pytest
@@ -12,7 +11,7 @@ from benchmarks.vllm_benchmark import (
     benchmark_vllm,
     benchmark_vllm_embedding,
 )
-from utils import resolve_display_name, sanitize_model_name
+from utils import resolve_display_name, sanitize_model_name, write_benchmark_json
 
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
 # batch_size). CI re-runs the same matrix with different sampling
@@ -275,10 +274,7 @@ def _run_vllm_benchmark(config, output_file, request):
     results = benchmark_vllm(config, display_name)
 
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = config.model
-        with open(output_file, "w") as f:
-            json.dump(results, f, indent=2)
+        write_benchmark_json(results, output_file, model_rawname=config.model)
         print(f"Results written to {output_file}")
 
 
@@ -310,10 +306,7 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
     )
     results = benchmark_vllm_embedding(config, display_name)
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = config.model
-        with open(output_file, "w") as f:
-            json.dump(results, f, indent=2)
+        write_benchmark_json(results, output_file, model_rawname=config.model)
         print(f"Results written to {output_file}")
 
 

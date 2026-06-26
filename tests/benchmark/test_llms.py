@@ -16,7 +16,7 @@ from benchmarks.llm_benchmark import (
 )
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
-from utils import create_model_loader, resolve_display_name
+from utils import create_model_loader, resolve_display_name, write_benchmark_json
 
 # Defaults for all llms
 DEFAULT_OPTIMIZATION_LEVEL = 2
@@ -280,9 +280,6 @@ def _benchmark_llm(
     )
 
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = model_info_name
-
         # LLM-specific perf metrics handling: Use only decode graph (second file)
         # LLMs split into 2 graphs: prefill (index 0) and decode (index 1)
         # Only decode is relevant for throughput
@@ -327,8 +324,7 @@ def _benchmark_llm(
             )
             results["config"]["ttnn_num_graphs"] = len(perf_files)
 
-        with open(output_file, "w") as file:
-            json.dump(results, file, indent=2)
+        write_benchmark_json(results, output_file, model_rawname=model_info_name)
 
 
 def test_llama_3_2_1b(cli, request):
