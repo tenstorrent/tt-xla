@@ -1,30 +1,3 @@
-#!/usr/bin/env bash
-#
-# Invokes Claude on the supplied failure context to fix transformers
-# compatibility issues in the working tree of tt-xla + tt-forge-models.
-#
-# Inputs come from the calling stage:
-#   --failures <path>            file containing the captured pytest /
-#                                hardware-test output for the current
-#                                iteration. Fed verbatim to Claude.
-#   --scope api-check|base-coverage
-#                                tells Claude whether the failures are
-#                                import-time (api-check) or runtime
-#                                (base-coverage), so it can frame its
-#                                approach accordingly.
-#
-# This script does NOT stage, commit, or push anything — the orchestrator
-# job owns the git steps. Claude is expected to leave the working tree
-# dirty with whatever edits it deemed appropriate.
-#
-# Exit code:  whatever Claude exits with. Non-zero is informational only
-#             (the orchestrator re-runs the check after this script).
-#
-# Required env:
-#   ANTHROPIC_API_KEY      Claude Code authentication
-#   CLAUDE_FIX_TIMEOUT     optional, GNU `timeout` spec (default 30m)
-#   CLAUDE_BIN             optional, claude binary path (default: `claude`)
-
 set -euo pipefail
 
 FAILURES=""
