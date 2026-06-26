@@ -100,6 +100,59 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
             results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
 
 
+def aggregate_llm_decode_perf(ttnn_perf_metrics_output_file, results) -> None:
+    """Fold the *decode-graph* TTNN perf metrics into an LLM result.
+
+    Unlike :func:`aggregate_ttnn_perf_metrics` (which sums every graph), an LLM
+    run emits exactly two perf-metric files - prefill (graph ``0``) and decode
+    (graph ``1``) - and only the decode graph drives steady-state throughput, so
+    we report that one alone. If the expected two files are not present we record
+    how many were found and skip the metrics rather than guessing.
+
+    Parameters
+    ----------
+    ttnn_perf_metrics_output_file: str
+        Base name for the perf-metric files to look up.
+    results: dict
+        Result dictionary to update in place (``results["config"]``).
+    """
+    base_name = os.path.basename(ttnn_perf_metrics_output_file)
+    perf_files = sorted(
+        f for f in os.listdir(".") if f.startswith(base_name) and f.endswith(".json")
+    )
+
+    if len(perf_files) != 2:
+        print(
+            f"WARNING: expected 2 perf metrics files (prefill + decode) for LLM, "
+            f"but found {len(perf_files)}: {perf_files}. Skipping perf metrics."
+        )
+        results["config"]["ttnn_num_graphs"] = len(perf_files)
+        return
+
+    decode_perf_file = perf_files[1]
+    print(f"Using decode graph perf metrics from: {decode_perf_file}")
+
+    with open(decode_perf_file, "r") as f:
+        perf_metrics_data = json.load(f)
+
+    summary = perf_metrics_data.get("summary")
+    if isinstance(summary, dict):
+        results["config"]["ttnn_total_ops"] = summary.get("total_ops", 0)
+        results["config"]["ttnn_total_shardable_ops"] = summary.get(
+            "total_shardable_ops", 0
+        )
+        results["config"]["ttnn_effectively_sharded_ops"] = summary.get(
+            "effectively_sharded_ops", 0
+        )
+        results["config"]["ttnn_system_memory_ops"] = summary.get(
+            "system_memory_ops", 0
+        )
+        results["config"]["ttnn_effectively_sharded_percentage"] = summary.get(
+            "effectively_sharded_percentage", 0.0
+        )
+        results["config"]["ttnn_num_graphs"] = 2  # prefill + decode
+
+
 def print_benchmark_results(
     model_title: str,
     full_model_name: str,

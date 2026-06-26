@@ -11,7 +11,12 @@ share, so the extraction stays byte-identical to the inline code it replaced
 
 import json
 
-from reporting import throughput_measurement, ttft_measurement, write_benchmark_json
+from reporting import (
+    aggregate_llm_decode_perf,
+    throughput_measurement,
+    ttft_measurement,
+    write_benchmark_json,
+)
 
 
 def test_ttft_measurement_shape():
@@ -81,3 +86,48 @@ def test_write_benchmark_json_aggregates_perf_metrics(tmp_path, monkeypatch):
     assert cfg["ttnn_effectively_sharded_ops"] == 2
     assert cfg["ttnn_effectively_sharded_percentage"] == 50.0
     assert cfg["ttnn_num_graphs"] == 1
+
+
+def _write_perf_file(path, summary):
+    path.write_text(json.dumps({"summary": summary}))
+
+
+def test_aggregate_llm_decode_perf_uses_decode_graph(tmp_path, monkeypatch):
+    # LLMs emit prefill (index 0) + decode (index 1); only decode should be used.
+    monkeypatch.chdir(tmp_path)
+    _write_perf_file(
+        tmp_path / "tt_xla_m_perf_metrics_0.json",
+        {"total_ops": 100, "total_shardable_ops": 50, "effectively_sharded_ops": 10},
+    )
+    _write_perf_file(
+        tmp_path / "tt_xla_m_perf_metrics_1.json",
+        {
+            "total_ops": 7,
+            "total_shardable_ops": 4,
+            "effectively_sharded_ops": 3,
+            "system_memory_ops": 1,
+            "effectively_sharded_percentage": 75.0,
+        },
+    )
+
+    results = {"config": {}}
+    aggregate_llm_decode_perf("tt_xla_m_perf_metrics", results)
+
+    cfg = results["config"]
+    assert cfg["ttnn_total_ops"] == 7  # decode graph, not prefill's 100
+    assert cfg["ttnn_total_shardable_ops"] == 4
+    assert cfg["ttnn_effectively_sharded_ops"] == 3
+    assert cfg["ttnn_system_memory_ops"] == 1
+    assert cfg["ttnn_effectively_sharded_percentage"] == 75.0
+    assert cfg["ttnn_num_graphs"] == 2
+
+
+def test_aggregate_llm_decode_perf_unexpected_file_count(tmp_path, monkeypatch):
+    # Anything other than exactly two files records the count and skips metrics.
+    monkeypatch.chdir(tmp_path)
+    _write_perf_file(tmp_path / "tt_xla_m_perf_metrics_0.json", {"total_ops": 5})
+
+    results = {"config": {}}
+    aggregate_llm_decode_perf("tt_xla_m_perf_metrics", results)
+
+    assert results["config"] == {"ttnn_num_graphs": 1}

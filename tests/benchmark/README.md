@@ -108,32 +108,30 @@ gh workflow run "Performance benchmark" --ref my-feature-branch \
 
 ### Adding a variant of an existing architecture
 
-**Add the test function** in the appropriate test file (e.g. `test_llms.py`):
+**Add the test function** in the appropriate test file (e.g. `test_llms.py`). Each
+test takes the `cli` and `request` fixtures and delegates to the shared driver
+`_run_llm`, which unpacks all CLI options from the `cli` bundle:
 
 ```python
-def test_new_model(
-    output_file, num_layers, request, accuracy_testing, batch_size, max_output_tokens, decode_only
-):
+def test_new_model(cli, request):
     from third_party.tt_forge_models.new_model.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    variant = ModelVariant.NEW_VARIANT
-    test_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=variant,
-        output_file=output_file,
-        num_layers=num_layers,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        batch_size=batch_size,
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
+    _run_llm(
+        ModelLoader,
+        ModelVariant.NEW_VARIANT,
+        cli,
+        request,
+        expected_ops=["ttnn.scaled_dot_product_attention", "ttnn.rms_norm"],
+        check_fusions=cli.check_fusions,
     )
 ```
 
-Vision and encoder tests follow the same pattern — import the existing `ModelLoader`, pick a variant, and call `test_vision()` or `test_encoder()`.
+Vision and encoder tests follow the same pattern — import the existing
+`ModelLoader`, pick a variant, and call the shared `_run_vision()` /
+`_run_encoder()` driver from the respective file.
 
 ### Adding the test to CI
 

@@ -22,7 +22,7 @@ DEFAULT_TRACE_ENABLED = False
 DEFAULT_SEED = 42
 
 
-def test_imagegen(
+def _run_imagegen(
     build_pipeline_fn,
     model_info_name,
     output_file,
@@ -125,7 +125,7 @@ def test_playground_v2_5(output_file, request):
 
         return pipeline, generate_fn
 
-    test_imagegen(
+    _run_imagegen(
         build_pipeline_fn=build_pipeline_fn,
         model_info_name="playground-v2.5",
         output_file=output_file,
@@ -175,7 +175,7 @@ def test_sdxl_lightning(output_file, request):
 
         return pipeline, generate_fn
 
-    test_imagegen(
+    _run_imagegen(
         build_pipeline_fn=build_pipeline_fn,
         model_info_name="sdxl-lightning",
         output_file=output_file,

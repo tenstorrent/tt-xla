@@ -58,7 +58,7 @@ DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = ""
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 
 
-def test_encoder(
+def _run_encoder(
     model,
     model_info_name,
     output_file,
@@ -190,7 +190,7 @@ def test_bert(output_file, num_layers, request):
         out.last_hidden_state, inputs["attention_mask"]
     )
 
-    test_encoder(
+    _run_encoder(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -251,7 +251,7 @@ def test_qwen3_embedding_4b(output_file, num_layers, request):
         out.last_hidden_state, inputs["attention_mask"]
     )
 
-    test_encoder(
+    _run_encoder(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -314,7 +314,7 @@ def test_qwen3_embedding_8b(output_file, num_layers, request):
         out.last_hidden_state, inputs["attention_mask"]
     )
 
-    test_encoder(
+    _run_encoder(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -476,7 +476,7 @@ def test_bge_m3(output_file, request):
         # to ensure their computation is included in the benchmark timing
         return torch.tensor(all_dense_embeddings)
 
-    test_encoder(
+    _run_encoder(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -530,7 +530,7 @@ def test_unet_for_conditional_generation(output_file, request):
     preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
     output_processor_fn = lambda out, inputs: out.sample
 
-    test_encoder(
+    _run_encoder(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,

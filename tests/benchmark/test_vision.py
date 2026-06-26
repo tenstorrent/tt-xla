@@ -17,7 +17,7 @@ DEFAULT_DATA_FORMAT = torch.bfloat16
 DEFAULT_REQUIRED_PCC = 0.97
 
 
-def test_vision(
+def _run_vision(
     model,
     model_info_name,
     output_file,
@@ -114,7 +114,7 @@ def test_efficientnet(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -150,7 +150,7 @@ def test_mnist(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -187,7 +187,7 @@ def test_mobilenetv2(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -222,7 +222,7 @@ def test_resnet50(output_file, request):
     def extract_output_tensor_fn(output):
         return output.logits
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -260,7 +260,7 @@ def test_segformer(output_file, request):
     def extract_output_tensor_fn(output):
         return output.logits
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -298,7 +298,7 @@ def test_swin(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -337,7 +337,7 @@ def test_ufld(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -374,7 +374,7 @@ def test_ufld_v2(output_file, request):
     def extract_output_tensor_fn(output):
         return output[0]
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -408,7 +408,7 @@ def test_unet(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -442,7 +442,7 @@ def test_vit(output_file, request):
     def extract_output_tensor_fn(output):
         return output.logits
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
@@ -477,7 +477,7 @@ def test_vovnet(output_file, request):
     def extract_output_tensor_fn(output):
         return output
 
-    test_vision(
+    _run_vision(
         model=model,
         model_info_name=model_info_name,
         output_file=output_file,
