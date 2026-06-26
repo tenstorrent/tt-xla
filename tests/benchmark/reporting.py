@@ -25,24 +25,6 @@ def get_benchmark_metadata() -> Dict[str, str]:
     }
 
 
-def determine_model_type_and_dataset(
-    task: str, full_model_name: str
-) -> tuple[str, str]:
-    """Determine model type and dataset name based on task."""
-    model_type = "Classification"
-
-    if task == "classification":
-        model_type += ", ImageNet-1K"
-        dataset_name = "ImageNet-1K"
-    elif task == "na":
-        model_type += ", Random Input Data"
-        dataset_name = full_model_name + ", Random Data"
-    else:
-        raise ValueError(f"Unsupported task: {task}.")
-
-    return model_type, dataset_name
-
-
 def ttft_measurement(ttft_ms: float) -> Dict[str, Any]:
     """Custom-measurement entry for time-to-first-token (milliseconds).
 

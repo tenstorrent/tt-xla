@@ -5,20 +5,22 @@
 """Execution layer: selecting the Tenstorrent runtime, configuring the compiler,
 and reading device properties.
 
-This is the only shared benchmark module that talks to the live torch-xla / TT
-backend (it selects the runtime, registers custom compile options, and queries
-device arch / count). Everything here has side effects on global state or
-depends on a running device — keep pure, device-free helpers in the other
-modules (``reporting``, ``accuracy``, ``naming``, ``model_utils``).
+This is the shared benchmark module that talks to the live runtime (it selects
+the torch-xla runtime, registers custom compile options, and queries device
+arch / count). Everything here has side effects on global state or depends on a
+running device — keep pure, device-free helpers in the other modules
+(``reporting``, ``accuracy``, ``naming``, ``model_utils``).
+
+``torch_xla`` / ``jax`` are imported lazily inside the functions that need them
+so that, e.g., the JAX resnet benchmark can pull ``get_jax_device_arch`` without
+dragging the torch-xla PJRT client into a JAX process (two clients in one
+process is exactly what we want to avoid).
 """
 
 import socket
 
-import torch_xla
-import torch_xla.runtime as xr
-
 # Directory the compiler exports compiled TTNN modules to (consumed e.g. by the
-# fusion checker). Shared by every torch-xla driver.
+# fusion checker). Shared by every benchmark.
 MODULE_EXPORT_PATH = "modules"
 
 # Sentinel distinguishing "argument omitted" from an explicit ``None``: an
@@ -29,6 +31,8 @@ _UNSET = object()
 
 def init_tt_runtime() -> None:
     """Select the Tenstorrent PJRT runtime. Idempotent; safe to call at import."""
+    import torch_xla.runtime as xr
+
     xr.set_device_type("TT")
 
 
@@ -54,6 +58,8 @@ def get_jax_device_arch() -> str:
 
 def get_xla_device_arch() -> str:
     """Get the architecture of the XLA device."""
+    import torch_xla.runtime as xr
+
     # Query the physical runtime devices directly. This works in both regular
     # and SPMD modes. xm.xla_device_kind() cannot be used because in SPMD mode
     # (e.g. tensor-parallel benchmarks) xm.xla_device() resolves to a virtual
@@ -113,6 +119,8 @@ def set_compile_options(**kwargs) -> dict:
     Returns the dict so callers that need to forward it (e.g. diffusion
     pipelines that merge extra options) can do so.
     """
+    import torch_xla
+
     options = build_compile_options(**kwargs)
     torch_xla.set_custom_compile_options(options)
     return options
@@ -120,6 +128,8 @@ def set_compile_options(**kwargs) -> dict:
 
 def tt_xla_device_fields() -> dict:
     """Common ``create_benchmark_result`` device/backend kwargs for TT drivers."""
+    import torch_xla.runtime as xr
+
     return {
         "program_cache_enabled": True,
         "torch_xla_enabled": True,

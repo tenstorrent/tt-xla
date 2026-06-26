@@ -20,9 +20,8 @@ from reporting import (
     get_benchmark_metadata,
     print_benchmark_results,
 )
-from runtime import get_jax_device_arch
+from runtime import MODULE_EXPORT_PATH, get_jax_device_arch
 
-MODULE_EXPORT_PATH = "modules"
 WARMUP_STEPS = 8
 
 
