@@ -2,17 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""CPU-only unit tests for the shared driver harness (``harness.py``).
+"""CPU-only unit tests for runtime.build_compile_options.
 
-These pin ``build_compile_options`` to the exact dicts the vision / encoder /
-imagegen / llm drivers used to assemble inline, so the shared builder stays a
-behavior-preserving replacement for drivers that can't be exercised on CPU.
+These pin the compile-options builder to the exact dicts the vision / encoder /
+imagegen / llm drivers used to assemble inline, so it stays a behavior-preserving
+replacement for drivers that can't run on CPU here.
 """
 
-import pytest
-import torch
-
-from harness import assert_pcc, build_compile_options
+from runtime import build_compile_options
 
 
 def test_compile_options_vision_imagegen_shape():
@@ -99,15 +96,3 @@ def test_compile_options_llm_optionals_omitted_when_unset():
     assert "fp32_dest_acc_en" not in opts
     assert "experimental-kv-cache-dtype" not in opts
     assert "enable_create_d2m_subgraphs" not in opts
-
-
-def test_assert_pcc_passes_on_identical():
-    t = torch.arange(12, dtype=torch.float32).reshape(3, 4)
-    assert assert_pcc(t, t.clone(), 0.99) == pytest.approx(1.0)
-
-
-def test_assert_pcc_raises_below_threshold():
-    a = torch.arange(12, dtype=torch.float32).reshape(3, 4)
-    b = torch.randn(3, 4)
-    with pytest.raises(AssertionError, match="PCC comparison failed"):
-        assert_pcc(a, b, 0.999999)

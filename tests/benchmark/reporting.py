@@ -2,134 +2,64 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import inspect
+"""Turning a benchmark run into a standardized, printed, and persisted result.
+
+Owns the result/measurement schema, the human-readable summary printer, the
+output-file writer, the TTNN perf-metric aggregation, and the shared
+text-generation measurement constructors (used by both the llm and vllm
+benchmarks). Pure and device-free.
+"""
+
 import json
 import os
-import re
-import secrets
 import socket
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-
-import torch
-from PIL import Image
+from typing import Any, Dict, List, Optional
 
 
-def align_arch(arch: str):
-    """Align architecture name to standard format."""
-    for item in ["wormhole", "blackhole"]:
-        if item in arch:
-            return item
-    return ""
+def get_benchmark_metadata() -> Dict[str, str]:
+    """Get common benchmark metadata."""
+    return {
+        "date": datetime.now().strftime("%d-%m-%Y"),
+        "machine_name": socket.gethostname(),
+    }
 
 
-def get_jax_device_arch():
+def determine_model_type_and_dataset(
+    task: str, full_model_name: str
+) -> tuple[str, str]:
+    """Determine model type and dataset name based on task."""
+    model_type = "Classification"
 
-    import jax
-
-    devices = jax.devices("tt")
-    for device in devices:
-        arch_name = str(device.device_kind).lower()
-        return align_arch(arch_name)
-
-    return ""
-
-
-def get_xla_device_arch():
-    """Get the architecture of the XLA device."""
-    import torch_xla.runtime as xr
-
-    # Query the physical runtime devices directly. This works in both regular
-    # and SPMD modes. xm.xla_device_kind() cannot be used because in SPMD mode
-    # (e.g. tensor-parallel benchmarks) xm.xla_device() resolves to a virtual
-    # "SPMD:0" device that the device-kind lookup cannot find.
-    attrs = xr.global_runtime_device_attributes()
-    if not attrs:
-        return ""
-    arch_name = str(attrs[0]["device_arch"]).lower()
-    return align_arch(arch_name)
-
-
-def sanitize_filename(name: str) -> str:
-    """
-    Sanitize a string to be safe for use in filenames.
-    Replaces illegal filesystem characters with underscores and converts to lowercase.
-    """
-    # Replace illegal filesystem characters: / \ : * ? " < > | and spaces
-    # Also replace dots and dashes for consistency
-    sanitized = re.sub(r'[/\\:*?"<>|\s.\-]', "_", str(name))
-    # Remove consecutive underscores
-    sanitized = re.sub(r"_+", "_", sanitized)
-    # Remove leading/trailing underscores and convert to lowercase
-    return sanitized.strip("_").lower()
-
-
-def sanitize_model_name(value: Any) -> str:
-    text = str(value).strip()
-    text = re.sub(r"\s+", "_", text)
-    text = re.sub(r"[^a-zA-Z0-9_]+", "_", text)
-    text = re.sub(r"_+", "_", text)
-    text = text.strip("_").lower()
-    return text or "na"
-
-
-def build_xla_export_name(
-    model_name: str,
-    num_layers: Optional[Union[int, str]],
-    batch_size: int,
-    input_sequence_length: Optional[int],
-) -> str:
-    """Build a standardized export name for XLA benchmark runs."""
-    run_id = secrets.token_hex(2)
-
-    if num_layers is None or (isinstance(num_layers, int) and num_layers <= 0):
-        layers_part = None
+    if task == "classification":
+        model_type += ", ImageNet-1K"
+        dataset_name = "ImageNet-1K"
+    elif task == "na":
+        model_type += ", Random Input Data"
+        dataset_name = full_model_name + ", Random Data"
     else:
-        layers_part = f"{num_layers}lyr"
+        raise ValueError(f"Unsupported task: {task}.")
 
-    if not isinstance(model_name, str) and hasattr(model_name, "name"):
-        model_name = model_name.name
-    parts = [sanitize_model_name(model_name)]
-    if layers_part:
-        parts.append(layers_part)
-    parts.append(f"bs{batch_size}")
-    if input_sequence_length is not None and input_sequence_length > 0:
-        parts.append(f"isl{input_sequence_length}")
-    parts.append(f"run{run_id}")
-    return "_".join(parts)
+    return model_type, dataset_name
 
 
-def resolve_display_name(request: Any = None, fallback: Optional[str] = None) -> str:
-    """Resolve a display name, optionally overriding with pytest test name."""
-    name = None
-    if (
-        request is not None
-        and hasattr(request, "node")
-        and hasattr(request.node, "name")
-    ):
-        test_name = request.node.name
-        if test_name and test_name.startswith("test_"):
-            name = test_name[5:]
+def ttft_measurement(ttft_ms: float) -> Dict[str, Any]:
+    """Custom-measurement entry for time-to-first-token (milliseconds).
 
-    if not name:
-        name = sanitize_model_name(fallback or "")
-    return name
-
-
-def create_model_loader(ModelLoader, num_layers: Optional[int] = None, *args, **kwargs):
-    """Create a model loader with optional num_layers override.
-
-    Returns None if num_layers is requested but the loader does not support it.
+    Shared vocabulary between the llm and vllm text-generation benchmarks: each
+    computes ``ttft_ms`` its own way (on-device iteration timings vs. vLLM
+    engine metrics) but agrees here on the measurement shape.
     """
-    if num_layers is None:
-        return ModelLoader(*args, **kwargs)
-    params = inspect.signature(ModelLoader.__init__).parameters
-    supports_num_layers = "num_layers" in params or any(
-        param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values()
-    )
-    if not supports_num_layers:
-        return None
-    return ModelLoader(*args, num_layers=num_layers, **kwargs)
+    return {"measurement_name": "ttft", "value": ttft_ms, "target": -1}
+
+
+def throughput_measurement(samples_per_sec: float) -> Dict[str, Any]:
+    """Custom-measurement entry for decode throughput (tokens/samples per second)."""
+    return {
+        "measurement_name": "samples_per_sec",
+        "value": samples_per_sec,
+        "target": -1,
+    }
 
 
 def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
@@ -186,99 +116,6 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
                 results["config"]["ttnn_effectively_sharded_percentage"] = 0.0
 
             results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
-
-
-def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
-    """Compute Pearson Correlation Coefficient between two tensors.
-
-    Args:
-        golden_output: Golden reference tensor
-        device_output: Device output tensor
-
-    Returns:
-        PCC value in [-1, 1].
-
-    Raises:
-        ValueError: If denominator is zero and tensors are not close.
-    """
-    golden_flat = golden_output.to(torch.float32).flatten()
-    device_flat = device_output.to(torch.float32).flatten()
-
-    golden_centered = golden_flat - golden_flat.mean()
-    device_centered = device_flat - device_flat.mean()
-    denom = golden_centered.norm() * device_centered.norm()
-
-    if denom == 0:
-        if torch.allclose(golden_flat, device_flat, rtol=1e-2, atol=1e-2):
-            return 1.0
-        raise ValueError(
-            "PCC computation failed: denominator is zero but tensors are not close"
-        )
-
-    pcc = ((golden_centered @ device_centered) / denom).item()
-    # Clamp to [-1, 1] to handle floating-point precision errors
-    return max(-1.0, min(1.0, pcc))
-
-
-def compute_rel_l2(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
-    """Compute relative L2 error between two tensors.
-
-    rel_l2 = ||device_output - golden_output||_2 / ||golden_output||_2
-
-    Computed in float64 to avoid norm underflow in bf16/fp32. Complements PCC:
-    PCC is scale-blind, max-atol is dominated by a single outlier, max-rtol
-    blows up near zero. rel_l2 is scale-sensitive, stable near zero globally
-    (denominator is the golden norm, not per-element |y|), and captures
-    distributed degradation rather than one bad element.
-
-    Args:
-        golden_output: Golden reference tensor.
-        device_output: Device output tensor.
-
-    Returns:
-        Non-negative float. 0.0 if both tensors are exactly zero, inf if the
-        golden norm is zero but the difference norm is non-zero, NaN
-        propagated through if either tensor contains NaN.
-    """
-    golden_flat = golden_output.to(torch.float64).flatten()
-    device_flat = device_output.to(torch.float64).flatten()
-
-    diff_norm = torch.linalg.vector_norm(device_flat - golden_flat)
-    golden_norm = torch.linalg.vector_norm(golden_flat)
-
-    if torch.isnan(diff_norm) or torch.isnan(golden_norm):
-        return float("nan")
-
-    if golden_norm.item() == 0.0:
-        return 0.0 if diff_norm.item() == 0.0 else float("inf")
-
-    return (diff_norm / golden_norm).item()
-
-
-def get_benchmark_metadata() -> Dict[str, str]:
-    """Get common benchmark metadata."""
-    return {
-        "date": datetime.now().strftime("%d-%m-%Y"),
-        "machine_name": socket.gethostname(),
-    }
-
-
-def determine_model_type_and_dataset(
-    task: str, full_model_name: str
-) -> tuple[str, str]:
-    """Determine model type and dataset name based on task."""
-    model_type = "Classification"
-
-    if task == "classification":
-        model_type += ", ImageNet-1K"
-        dataset_name = "ImageNet-1K"
-    elif task == "na":
-        model_type += ", Random Input Data"
-        dataset_name = full_model_name + ", Random Data"
-    else:
-        raise ValueError(f"Unsupported task: {task}.")
-
-    return model_type, dataset_name
 
 
 def print_benchmark_results(
@@ -510,95 +347,10 @@ def write_benchmark_json(
 
     The ``project`` / ``model_rawname`` stamping plus the ``json.dump(indent=2)``
     is identical across every benchmark driver's output-file path, so it lives
-    here (domain-agnostic). Domain-specific post-processing (e.g. the LLM
-    decode-graph perf aggregation) should mutate ``results`` *before* calling
-    this.
+    here. Domain-specific post-processing (e.g. the LLM decode-graph perf
+    aggregation) should mutate ``results`` *before* calling this.
     """
     results["project"] = project
     results["model_rawname"] = model_rawname
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
-
-
-def apply_mean_pooling(
-    hidden_states: torch.Tensor, attention_mask: torch.Tensor
-) -> torch.Tensor:
-    """Apply mean pooling over hidden states.
-
-    Args:
-        hidden_states: Token embeddings with shape [batch_size, seq_len, hidden_size]
-        attention_mask: Attention mask with shape [batch_size, seq_len]
-
-    Returns:
-        Sentence embeddings with shape [batch_size, hidden_size]
-    """
-    input_mask_expanded = (
-        attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
-    )
-    sentence_embeddings = torch.sum(
-        hidden_states * input_mask_expanded, 1
-    ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
-    return sentence_embeddings
-
-
-def apply_last_token_pooling(
-    hidden_states: torch.Tensor, attention_mask: torch.Tensor
-) -> torch.Tensor:
-    """Apply last token pooling over hidden states.
-
-    Args:
-        hidden_states: Token embeddings with shape [batch_size, seq_len, hidden_size]
-        attention_mask: Attention mask with shape [batch_size, seq_len]
-
-    Returns:
-        Sentence embeddings with shape [batch_size, hidden_size]
-    """
-    # Check if left padding was used (all sequences end with non-padding tokens)
-    left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0]).item()
-    if left_padding:
-        return hidden_states[:, -1]
-    sequence_lengths = attention_mask.sum(dim=1) - 1
-    batch_size = hidden_states.shape[0]
-    return hidden_states[
-        torch.arange(batch_size, device=hidden_states.device), sequence_lengths
-    ]
-
-
-def move_to_cpu(data):
-    """Recursively move all tensors in a data structure to CPU.
-
-    Handles dicts, lists, tuples, and HuggingFace ModelOutput objects.
-    Preserves the original data structure types.
-    """
-    if isinstance(data, torch.Tensor):
-        return data.cpu()
-    # Check for HuggingFace ModelOutput BEFORE dict (ModelOutput inherits from OrderedDict)
-    # ModelOutput has to_tuple() method which plain dicts don't have
-    elif hasattr(data, "to_tuple") and hasattr(data, "keys"):
-        # HuggingFace ModelOutput - modify in-place to preserve the object type
-        for key in list(data.keys()):
-            value = data[key]
-            if isinstance(value, torch.Tensor):
-                data[key] = value.cpu()
-            elif value is not None:
-                data[key] = move_to_cpu(value)
-        return data
-    elif isinstance(data, dict):
-        # Plain dicts - recursively move values
-        return {k: move_to_cpu(v) for k, v in data.items()}
-    elif isinstance(data, (list, tuple)):
-        moved = [move_to_cpu(item) for item in data]
-        return type(data)(moved)
-    return data
-
-
-def save_image(image: torch.Tensor, filepath: str = "output.png"):
-    """Save a diffusion-model output tensor (range [-1, 1], CHW or BCHW) as a PNG."""
-    image = (
-        (torch.clamp(image / 2 + 0.5, 0.0, 1.0) * 255.0).round().to(dtype=torch.uint8)
-    )
-    image_np = image.cpu().squeeze().numpy()
-    assert image_np.ndim == 3, "Image must be 3D"
-    if image_np.shape[0] == 3:
-        image_np = image_np.transpose(1, 2, 0)
-    Image.fromarray(image_np).save(filepath)

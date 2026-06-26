@@ -7,19 +7,15 @@ from typing import List
 
 import torch
 import torch_xla
-from harness import (
-    assert_pcc,
-    init_tt_runtime,
-    set_compile_options,
-    tt_xla_device_fields,
-)
-from utils import (
-    build_xla_export_name,
+from accuracy import assert_pcc
+from model_utils import move_to_cpu
+from naming import build_xla_export_name
+from reporting import (
     create_benchmark_result,
     get_benchmark_metadata,
-    move_to_cpu,
     print_benchmark_results,
 )
+from runtime import init_tt_runtime, set_compile_options, tt_xla_device_fields
 
 init_tt_runtime()
 

@@ -11,7 +11,8 @@ from benchmarks.vllm_benchmark import (
     benchmark_vllm,
     benchmark_vllm_embedding,
 )
-from utils import resolve_display_name, sanitize_model_name, write_benchmark_json
+from naming import resolve_display_name, sanitize_model_name
+from reporting import write_benchmark_json
 
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
 # batch_size). CI re-runs the same matrix with different sampling

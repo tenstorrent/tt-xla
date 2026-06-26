@@ -24,14 +24,14 @@ and emits a standardized benchmark result.
 
 import time
 
-from harness import init_tt_runtime, set_compile_options, tt_xla_device_fields
-from utils import (
-    build_xla_export_name,
+from model_utils import save_image
+from naming import build_xla_export_name
+from reporting import (
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
-    save_image,
 )
+from runtime import init_tt_runtime, set_compile_options, tt_xla_device_fields
 
 init_tt_runtime()
 

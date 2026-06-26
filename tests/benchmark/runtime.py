@@ -2,24 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared driver-layer harness for the torch-xla / TT perf benchmarks.
+"""Execution layer: selecting the Tenstorrent runtime, configuring the compiler,
+and reading device properties.
 
-Every torch-xla benchmark driver (vision, encoder, imagegen, llm) repeats the
-same boilerplate: select the Tenstorrent runtime, name the module export path,
-assemble the custom compile-options dict, fill in the common device/backend
-fields of the result, and assert PCC against the CPU golden. This module owns
-that boilerplate so the drivers stay focused on their measurement logic.
-
-``utils.py`` remains the lower-level layer (PCC math, naming, result schema);
-this harness orchestrates those helpers for the driver layer.
+This is the only shared benchmark module that talks to the live torch-xla / TT
+backend (it selects the runtime, registers custom compile options, and queries
+device arch / count). Everything here has side effects on global state or
+depends on a running device — keep pure, device-free helpers in the other
+modules (``reporting``, ``accuracy``, ``naming``, ``model_utils``).
 """
 
 import socket
 
 import torch_xla
 import torch_xla.runtime as xr
-
-from utils import compute_pcc, get_xla_device_arch
 
 # Directory the compiler exports compiled TTNN modules to (consumed e.g. by the
 # fusion checker). Shared by every torch-xla driver.
@@ -34,6 +30,39 @@ _UNSET = object()
 def init_tt_runtime() -> None:
     """Select the Tenstorrent PJRT runtime. Idempotent; safe to call at import."""
     xr.set_device_type("TT")
+
+
+def align_arch(arch: str) -> str:
+    """Align architecture name to standard format."""
+    for item in ["wormhole", "blackhole"]:
+        if item in arch:
+            return item
+    return ""
+
+
+def get_jax_device_arch() -> str:
+    """Get the architecture of the first JAX TT device."""
+    import jax
+
+    devices = jax.devices("tt")
+    for device in devices:
+        arch_name = str(device.device_kind).lower()
+        return align_arch(arch_name)
+
+    return ""
+
+
+def get_xla_device_arch() -> str:
+    """Get the architecture of the XLA device."""
+    # Query the physical runtime devices directly. This works in both regular
+    # and SPMD modes. xm.xla_device_kind() cannot be used because in SPMD mode
+    # (e.g. tensor-parallel benchmarks) xm.xla_device() resolves to a virtual
+    # "SPMD:0" device that the device-kind lookup cannot find.
+    attrs = xr.global_runtime_device_attributes()
+    if not attrs:
+        return ""
+    arch_name = str(attrs[0]["device_arch"]).lower()
+    return align_arch(arch_name)
 
 
 def build_compile_options(
@@ -99,13 +128,3 @@ def tt_xla_device_fields() -> dict:
         "arch": get_xla_device_arch(),
         "device_count": xr.global_runtime_device_count(),
     }
-
-
-def assert_pcc(device_output, golden_output, required_pcc: float) -> float:
-    """Compute PCC against the CPU golden and assert it meets ``required_pcc``."""
-    pcc_value = compute_pcc(device_output, golden_output)
-    assert (
-        pcc_value >= required_pcc
-    ), f"PCC comparison failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-    print(f"PCC verification passed with PCC={pcc_value:.6f}")
-    return pcc_value

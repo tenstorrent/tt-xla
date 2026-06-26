@@ -8,18 +8,14 @@ import time
 import torch
 import torch.nn as nn
 import torch_xla
-from harness import (
-    assert_pcc,
-    init_tt_runtime,
-    set_compile_options,
-    tt_xla_device_fields,
-)
-from utils import (
-    build_xla_export_name,
+from accuracy import assert_pcc
+from naming import build_xla_export_name
+from reporting import (
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
 )
+from runtime import init_tt_runtime, set_compile_options, tt_xla_device_fields
 
 init_tt_runtime()
 

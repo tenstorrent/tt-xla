@@ -16,9 +16,8 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
+from accuracy import compute_pcc, compute_rel_l2
 from fusion_check import check_fusions
-from harness import MODULE_EXPORT_PATH, init_tt_runtime
-from harness import build_compile_options as _build_compile_options
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
@@ -29,22 +28,21 @@ from llm_utils import (
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
-from text_generation import ttft_measurement
+from naming import build_xla_export_name
+from reporting import (
+    create_benchmark_result,
+    get_benchmark_metadata,
+    print_benchmark_results,
+    ttft_measurement,
+)
+from runtime import MODULE_EXPORT_PATH, get_xla_device_arch, init_tt_runtime
+from runtime import build_compile_options as _build_compile_options
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
-from utils import (
-    build_xla_export_name,
-    compute_pcc,
-    compute_rel_l2,
-    create_benchmark_result,
-    get_benchmark_metadata,
-    get_xla_device_arch,
-    print_benchmark_results,
-)
 
 init_tt_runtime()
 
@@ -549,7 +547,7 @@ def build_compile_options(
 ) -> dict:
     """Assemble the torch-xla custom compile options dict from a CompileConfig.
 
-    Thin adapter over :func:`harness.build_compile_options` that unpacks the
+    Thin adapter over :func:`runtime.build_compile_options` that unpacks the
     LLM-specific :class:`CompileConfig`.
     """
     return _build_compile_options(

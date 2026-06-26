@@ -12,15 +12,15 @@ import torch
 from jax import device_put
 from transformers import FlaxResNetForImageClassification
 from tt_jax import serialize_compiled_artifacts_to_disk
-from utils import (
+from accuracy import compute_pcc
+from naming import sanitize_filename
+from reporting import (
     aggregate_ttnn_perf_metrics,
-    compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
-    get_jax_device_arch,
     print_benchmark_results,
-    sanitize_filename,
 )
+from runtime import get_jax_device_arch
 
 MODULE_EXPORT_PATH = "modules"
 WARMUP_STEPS = 8
@@ -259,16 +259,14 @@ def test_resnet_jax(output_file):
     ttnn_perf_metrics_output_file = f"tt_xla_{sanitized_model_name}_perf_metrics"
 
     print(f"Running JAX benchmark for model: {model_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     variant={variant}
     batch_size={batch_size}
     loop_count={loop_count}
     input_size={input_size}
     data_format={data_format}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_resnet_jax(
         variant=variant,

@@ -16,7 +16,9 @@ from benchmarks.llm_benchmark import (
 )
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
-from utils import create_model_loader, resolve_display_name, write_benchmark_json
+from model_utils import create_model_loader
+from naming import resolve_display_name
+from reporting import write_benchmark_json
 
 # Defaults for all llms
 DEFAULT_OPTIMIZATION_LEVEL = 2

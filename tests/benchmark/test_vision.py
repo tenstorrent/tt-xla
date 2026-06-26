@@ -6,7 +6,8 @@ import json
 
 import torch
 from benchmarks.vision_benchmark import benchmark_vision_torch_xla
-from utils import aggregate_ttnn_perf_metrics, resolve_display_name
+from naming import resolve_display_name
+from reporting import aggregate_ttnn_perf_metrics
 
 # Defaults for all vision models
 DEFAULT_OPTIMIZATION_LEVEL = 2
@@ -56,8 +57,7 @@ def test_vision(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running vision benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -66,8 +66,7 @@ def test_vision(
     data_format={data_format}
     required_pcc={required_pcc}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_vision_torch_xla(
         model=model,

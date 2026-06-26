@@ -8,11 +8,12 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import vllm
-from text_generation import throughput_measurement, ttft_measurement
-from utils import (
+from reporting import (
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
+    throughput_measurement,
+    ttft_measurement,
 )
 
 DEFAULT_PROMPT = (

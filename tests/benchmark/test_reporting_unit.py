@@ -2,17 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""CPU-only unit tests for the shared text-generation / reporting helpers.
+"""CPU-only unit tests for the reporting helpers shared across benchmarks.
 
-These pin the measurement-dict and output-JSON shapes that the LLM and vLLM
-drivers now share, so the extraction stays byte-identical to the inline code it
-replaced (the vLLM path isn't runnable on CPU here).
+Pins the measurement-dict and output-JSON shapes that the llm and vllm drivers
+share, so the extraction stays byte-identical to the inline code it replaced
+(the vLLM path isn't runnable on CPU here).
 """
 
 import json
 
-from text_generation import throughput_measurement, ttft_measurement
-from utils import write_benchmark_json
+from reporting import throughput_measurement, ttft_measurement, write_benchmark_json
 
 
 def test_ttft_measurement_shape():
