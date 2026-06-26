@@ -160,6 +160,45 @@ INVALID_TOKEN_ID = -1
 MIN_NUM_SEQS = 1
 
 
+def _retilize_page_table(page_table: torch.Tensor) -> torch.Tensor:
+    """Force ``page_table`` into a TILE-friendly layout before its all_gather.
+
+    ``page_table`` is ``[num_reqs, max_num_blocks_per_req]`` and its trailing
+    dim is typically below the 32-element tile width, so under DP it reaches the
+    cluster-axis-0 all_gather as ROW_MAJOR and the CCL kernel asserts
+    ("expected TILE, got ROW_MAJOR"). cache_position survives the analogous
+    gather only because it is reshaped to ``1xN`` (tile-aligned trailing dim)
+    first. We mirror that here: flatten to a single row whose width is a tile
+    multiple, then reshape back to the original shape. This is a logical no-op
+    on the values but routes the tensor through a tile-aligned intermediate so
+    the compiler keeps it in TILE layout into the gather.
+    """
+    orig_shape = page_table.shape
+    flat = page_table.reshape(1, -1)
+    return flat.reshape(orig_shape)
+
+
+def _retilize_cache_position(cache_position: torch.Tensor) -> torch.Tensor:
+    """Force ``cache_position`` into a TILE-friendly layout before its all_gather.
+
+    ``cache_position`` is a 1-D ``[num_reqs]`` integer (si32) index tensor that,
+    under DP, reaches the cluster-axis-0 all_gather as ROW_MAJOR and trips the
+    same CCL assert as ``page_table`` ("expected TILE, got ROW_MAJOR"). The
+    compiler 2D-izes the gather input itself (an internal ``1xN`` reshape) but
+    keeps it ROW_MAJOR. We mirror ``_retilize_page_table``: route the tensor
+    through a user-level ``1xN`` round-trip (N == num_reqs, a tile-aligned width
+    here) and return to the original 1-D shape. This is a logical no-op on the
+    integer position values but gives the compiler a user-level reshape it may
+    keep in TILE into the gather (analogous to the page_table fix). The 1-D
+    return shape is required: downstream (attention.py) indexes
+    ``cache_position[start:end]`` and reads ``cache_position.shape[0]`` as the
+    logical batch size, so a 2-D leak would break it.
+    """
+    orig_shape = cache_position.shape
+    flat = cache_position.reshape(1, -1)
+    return flat.reshape(orig_shape)
+
+
 def generate_attn_mask(
     context_lens: torch.Tensor,
     num_query_tokens: int,
@@ -1254,9 +1293,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
+            # The page_table all_gather (DP/cluster_axis=0) requires a TILE
+            # layout, but page_table's trailing dim (max_num_blocks_per_req) is
+            # below the tile width, so it stays ROW_MAJOR and the gather asserts.
+            # Round-trip through a tile-aligned flat shape to retilize it (mirror
+            # of how cache_position survives via its 1xN reshape). Applied
+            # identically in _dummy_run so the two graphs match.
+            had_separate_fill = fill_page_table is not page_table
+            page_table = _retilize_page_table(page_table)
+            if had_separate_fill:
+                fill_page_table = _retilize_page_table(fill_page_table)
+            else:
+                fill_page_table = page_table
+            # cache_position is the other si32 tensor all_gathered on the DP
+            # axis; like page_table it arrives ROW_MAJOR and asserts. Route it
+            # through the same retilize round-trip. Applied identically in
+            # _dummy_run so the two graphs match.
+            cache_position = _retilize_cache_position(cache_position)
             xs.mark_sharding(page_table, self.mesh, ("batch", None))
             xs.mark_sharding(cache_position, self.mesh, ("batch",))
-            if fill_page_table is not page_table:
+            if had_separate_fill:
                 xs.mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         if self.lora_config is not None:
@@ -2061,6 +2117,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
+            # Retilize page_table before its all_gather (see _execute_model's
+            # use of _retilize_page_table). Kept identical here so the warmup
+            # graph matches the real graph.
+            page_table = _retilize_page_table(page_table)
+            cache_position = _retilize_cache_position(cache_position)
             xs.mark_sharding(page_table, self.mesh, ("batch", None))
             xs.mark_sharding(cache_position, self.mesh, ("batch",))
 
