@@ -65,7 +65,7 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
-  bloom/pytorch-single_device-inference:
+  bloom/pytorch-1b1-single_device-inference:
     status: EXPECTED_PASSING
 
   xglm/pytorch-564M-single_device-inference:

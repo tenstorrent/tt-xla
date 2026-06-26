@@ -63,6 +63,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
@@ -115,6 +116,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   test-uplift-extended:
     if: needs.inspect-changes.outputs.detected-uplifts != ''
@@ -126,6 +128,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   test-tools:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
