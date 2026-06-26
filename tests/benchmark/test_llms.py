@@ -123,9 +123,11 @@ def _run_llm_tp(
     Resolves the mesh / shard-spec functions from the loader class (or the
     per-test overrides) and defaults the optimization level to the TP default.
     """
-    if mesh_config_fn is not _UNSET and mesh_config_fn is not None:
-        ModelLoaderModule.get_mesh_config = mesh_config_fn
-    resolved_mesh = getattr(ModelLoaderModule, "get_mesh_config", None)
+    resolved_mesh = (
+        mesh_config_fn
+        if (mesh_config_fn is not _UNSET and mesh_config_fn is not None)
+        else getattr(ModelLoaderModule, "get_mesh_config", None)
+    )
     resolved_shard = (
         shard_spec_fn
         if shard_spec_fn is not _UNSET
@@ -141,6 +143,258 @@ def _run_llm_tp(
         shard_spec_fn=resolved_shard,
         **kwargs,
     )
+
+
+# =========================================================================== #
+# Tensor-parallel mesh + weight-sharding specs                                #
+# --------------------------------------------------------------------------- #
+# TRANSIENT SCAFFOLDING - move these to forge-models once they are stable.
+#
+# A shard spec is a ``{parameter_tensor: axis_tuple}`` map consumed by
+# ``xs.mark_sharding`` (see ``benchmarks/llm_benchmark.py``); a mesh fn returns
+# ``((rows, cols), (axis_names))``. These live here, inline next to the TP tests,
+# precisely as a reminder that they are temporary: once a model's sharding lands
+# in its tt-forge-models loader as ``load_shard_spec`` (and ``get_mesh_config``),
+# the per-model spec below is deleted and the TP test falls back to the loader's.
+#
+# Each per-model spec is a short, self-contained function composing the reusable
+# *primitives* below (the only durable part) - so adding a model is "copy one and
+# tweak the axes / module paths" and removing one is "delete the function".
+# Axis names (``"model"`` / ``"batch"``) refer to the mesh axes from the mesh fn.
+# =========================================================================== #
+
+
+# --- reusable parallelism primitives --------------------------------------- #
+def megatron_attention(shard_specs, attn, axis="model", *, bias=False, qk_norm=False):
+    """Megatron-style column->row tensor parallelism for an attention block.
+
+    q/k/v projections are column-parallel (shard output features along ``axis``)
+    and the output projection is row-parallel, so the only collective is a single
+    all-reduce after o_proj. Optionally shards q/k/v biases and replicates the
+    q/k RMS norms when present.
+    """
+    shard_specs[attn.q_proj.weight] = (axis, None)
+    shard_specs[attn.k_proj.weight] = (axis, None)
+    shard_specs[attn.v_proj.weight] = (axis, None)
+    shard_specs[attn.o_proj.weight] = (None, axis)
+    if bias and attn.q_proj.bias is not None:
+        shard_specs[attn.q_proj.bias] = (axis,)
+        shard_specs[attn.k_proj.bias] = (axis,)
+        shard_specs[attn.v_proj.bias] = (axis,)
+    if qk_norm and hasattr(attn, "q_norm"):
+        shard_specs[attn.q_norm.weight] = (None,)
+        shard_specs[attn.k_norm.weight] = (None,)
+
+
+def mla_attention(shard_specs, attn, axis="model"):
+    """Tensor parallelism for multi-head latent attention (DeepSeek / Kimi).
+
+    The low-rank down-projections (``q_a`` / ``kv_a``) are row-parallel and the
+    up-projections (``q_b`` / ``kv_b``) are column-parallel along ``axis``, with a
+    row-parallel output projection - the MLA analogue of column->row attention.
+    """
+    shard_specs[attn.q_a_proj.weight] = (None, axis)
+    shard_specs[attn.q_b_proj.weight] = (axis, None)
+    shard_specs[attn.kv_a_proj_with_mqa.weight] = (None, axis)
+    shard_specs[attn.kv_b_proj.weight] = (axis, None)
+    shard_specs[attn.o_proj.weight] = (None, axis)
+
+
+def fused_gate_up_experts(
+    shard_specs,
+    experts,
+    *,
+    gate_up=("model", None, None),
+    down=("model", None, None),
+    gate_up_bias=("model", None),
+    down_bias=("model", None),
+):
+    """Shard a MoE block whose experts fuse gate+up into one ``gate_up_proj``.
+
+    Defaults give plain expert-parallelism along the model axis; pass ``gate_up``
+    / ``down`` / ``down_bias`` to additionally shard experts along the batch axis
+    (the galaxy throughput layout).
+    """
+    shard_specs[experts.gate_up_proj] = gate_up
+    shard_specs[experts.gate_up_proj_bias] = gate_up_bias
+    shard_specs[experts.down_proj] = down
+    shard_specs[experts.down_proj_bias] = down_bias
+
+
+def routed_experts(shard_specs, experts, *, expert_axes=("batch", "model"), bias=False):
+    """Shard routed (all-to-all) experts with separate gate/up/down projections.
+
+    Used by DeepSeek V3.x / GLM / Kimi-style MoE: each of gate/up/down is sharded
+    across both mesh axes (EP = rows*cols), i.e. ``(expert_axes, None, None)``.
+    Optionally shards the matching expert biases.
+    """
+    spec = (expert_axes, None, None)
+    shard_specs[experts.gate_proj] = spec
+    shard_specs[experts.up_proj] = spec
+    shard_specs[experts.down_proj] = spec
+    if bias:
+        for name in ("gate_proj_bias", "up_proj_bias", "down_proj_bias"):
+            b = getattr(experts, name, None)
+            if b is not None:
+                shard_specs[b] = (expert_axes, None)
+
+
+# --- mesh topologies ------------------------------------------------------- #
+def single_row_mesh(model_loader, num_devices):
+    """1xN mesh: DP=1, every device on the model (TP) axis - i.e. pure TP.
+
+    Used for gpt-oss-20b at 1x8 until
+    https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
+    """
+    return (1, num_devices), ("batch", "model")
+
+
+def galaxy_4x8_mesh(model_loader, num_devices):
+    """4x8 wormhole_galaxy mesh (DP=4, TP=8)."""
+    if num_devices != 32:
+        raise ValueError("wormhole_galaxy benchmarks expect 32 devices (4x8 mesh).")
+    return (4, 8), ("batch", "model")
+
+
+def qb2_1x4_mesh(model_loader, num_devices):
+    """1x4 QB2 mesh: DP=1, TP=4."""
+    return (1, 4), ("batch", "model")
+
+
+# --- per-model shard specs ------------------------------------------------- #
+def gpt_oss_20b_shard_spec(model_loader, model):
+    shard_specs = {}
+    for layer in model.model.layers:
+        megatron_attention(shard_specs, layer.self_attn)
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        fused_gate_up_experts(shard_specs, layer.mlp.experts)
+    return shard_specs
+
+
+def gpt_oss_120b_galaxy_shard_spec(model_loader, model):
+    """gpt-oss-120b throughput layout on the 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+    Inputs are sharded on the batch axis DP - 4. One tile per device so batch 128 should be used.
+    Attention weights are sharded on model axis TP - 8 and replicated along the batch axis.
+    Expert weights are sharded across both model and batch axes EP - 32.
+    """
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        megatron_attention(shard_specs, layer.self_attn)
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
+        # Once the MoE module is refactored, this should be changed to EP 32.
+        fused_gate_up_experts(
+            shard_specs,
+            layer.mlp.experts,
+            gate_up=("model", "batch", None),
+            down=("model", None, "batch"),
+            down_bias=("model", "batch"),
+        )
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+    return shard_specs
+
+
+def gpt_oss_120b_qb2_shard_spec(model_loader, model):
+    """gpt-oss-120b on the 1x4 QB2 mesh — model-axis-only, no batch"""
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+
+    for layer in model.model.layers:
+        megatron_attention(shard_specs, layer.self_attn)
+        shard_specs[layer.self_attn.sinks] = (None,)
+        fused_gate_up_experts(shard_specs, layer.mlp.experts)
+    return shard_specs
+
+
+def deepseek_v3_1_shard_spec(model_loader, model):
+    """DeepSeek V3.1 on the 4x8 galaxy mesh (TP 8, DP 4, EP 32).
+
+    Hidden dim sharded along the model axis: MLA attention, model-sharded norms,
+    vocab-parallel embed/lm_head, routed (+ shared) experts across both axes. The
+    leading dense layers fall through to the dense branch.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, "model")
+    shard_specs[model.model.norm.weight] = ("model",)
+    shard_specs[model.lm_head.weight] = (None, "model")
+
+    for layer in model.model.layers:
+        mla_attention(shard_specs, layer.self_attn)
+        shard_specs[layer.input_layernorm.weight] = ("model",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("model",)
+
+        mlp = layer.mlp
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp if hasattr(mlp, "mlp") else mlp
+            shard_specs[inner.router.gate.weight] = (None, "model")
+            routed_experts(shard_specs, inner.experts, bias=True)
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = (None, "model")
+                shard_specs[shared.up_proj.weight] = (None, "model")
+                shard_specs[shared.down_proj.weight] = ("model", None)
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("batch", "model")
+            shard_specs[mlp.up_proj.weight] = ("batch", "model")
+            shard_specs[mlp.down_proj.weight] = ("model", "batch")
+
+    return shard_specs
+
+
+def glm_4_7_shard_spec(model_loader, model):
+    """GLM-4 on the 4x8 galaxy mesh (TP 8, DP 4, EP 32), hidden replicated.
+
+    Hidden dim kept replicated so RMS norms reduce locally instead of lowering to
+    a distributed all_gather. Embedding replicated, lm_head vocab-parallel,
+    attention / dense MLP / shared experts col->row along the model axis; routed
+    experts across both axes (EP 32).
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = ("model", None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+        megatron_attention(shard_specs, layer.self_attn, bias=True, qk_norm=True)
+
+        mlp = layer.mlp
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp
+            shard_specs[inner.router.gate.weight] = (None, None)
+            routed_experts(shard_specs, inner.experts)
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = ("model", None)
+                shard_specs[shared.up_proj.weight] = ("model", None)
+                shard_specs[shared.down_proj.weight] = (None, "model")
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+
+    return shard_specs
 
 
 def _benchmark_llm(
@@ -528,83 +782,43 @@ def test_qwen_2_5_7b(cli, request):
 
 
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
-def test_gemma_1_1_7b(
-    output_file, num_layers, request, max_output_tokens, optimization_level
-):
+def test_gemma_1_1_7b(cli, request):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    _benchmark_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=ModelVariant.GEMMA_1_1_7B_IT,
-        output_file=output_file,
-        num_layers=num_layers,
-        request=request,
-        max_output_tokens=max_output_tokens,
-        optimization_level=_resolve_opt(optimization_level),
-    )
+    _run_llm(ModelLoader, ModelVariant.GEMMA_1_1_7B_IT, cli, request)
 
 
 # FAILED: TypeError: Phi3ForCausalLM.forward() got an unexpected keyword argument 'cache_position'
-def test_phi3_mini(
-    output_file, num_layers, request, max_output_tokens, optimization_level
-):
+def test_phi3_mini(cli, request):
     from third_party.tt_forge_models.phi3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    _benchmark_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=ModelVariant.MINI_4K,
-        output_file=output_file,
-        num_layers=num_layers,
-        request=request,
-        max_output_tokens=max_output_tokens,
-        optimization_level=_resolve_opt(optimization_level),
-    )
+    _run_llm(ModelLoader, ModelVariant.MINI_4K, cli, request)
 
 
 # FAILED: KeyError: 'lifted_tensor_0'
-def test_phi3_5_mini(
-    output_file, num_layers, request, max_output_tokens, optimization_level
-):
+def test_phi3_5_mini(cli, request):
     from third_party.tt_forge_models.phi3.phi_3_5.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    _benchmark_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=ModelVariant.MINI_INSTRUCT,
-        output_file=output_file,
-        num_layers=num_layers,
-        request=request,
-        max_output_tokens=max_output_tokens,
-        optimization_level=_resolve_opt(optimization_level),
-    )
+    _run_llm(ModelLoader, ModelVariant.MINI_INSTRUCT, cli, request)
 
 
 # FAILED: AttributeError: 'MambaConfig' object has no attribute 'num_attention_heads'
-def test_mamba_2_8b(
-    output_file, num_layers, request, max_output_tokens, optimization_level
-):
+def test_mamba_2_8b(cli, request):
     from third_party.tt_forge_models.mamba.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    _benchmark_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=ModelVariant.MAMBA_2_8B,
-        output_file=output_file,
-        num_layers=num_layers,
-        request=request,
-        max_output_tokens=max_output_tokens,
-        optimization_level=_resolve_opt(optimization_level),
-    )
+    _run_llm(ModelLoader, ModelVariant.MAMBA_2_8B, cli, request)
 
 
 def test_falcon3_7b(cli, request):
@@ -902,27 +1116,6 @@ def test_llama_3_1_70b_tp(cli, request):
     )
 
 
-# Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
-def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
-    return (1, num_devices), ("batch", "model")
-
-
-def _gpt_oss_20b_shard_spec_fn(model_loader, model):
-    shard_specs = {}
-    for layer in model.model.layers:
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-        shard_specs[layer.self_attn.sinks] = (None,)
-        shard_specs[layer.mlp.router.weight] = (None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
-    return shard_specs
-
-
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
 # The n300-llmbox perf entry (gpt_oss_20b_tp) is excluded from the onPR perf filter
 # (still runs in nightly): hangs on n300-llmbox (https://github.com/tenstorrent/tt-xla/issues/5151).
@@ -939,8 +1132,8 @@ def test_gpt_oss_20b_tp(cli, request):
         ModelVariant.GPT_OSS_20B,
         cli,
         request,
-        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
-        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        mesh_config_fn=single_row_mesh,
+        shard_spec_fn=gpt_oss_20b_shard_spec,
         trace_enabled=False,
         optimization_level=1,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
@@ -963,8 +1156,8 @@ def test_gpt_oss_20b_tp_d2m(cli, request):
         ModelVariant.GPT_OSS_20B,
         cli,
         request,
-        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
-        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        mesh_config_fn=single_row_mesh,
+        shard_spec_fn=gpt_oss_20b_shard_spec,
         trace_enabled=False,
         optimization_level=1,
         enable_create_d2m_subgraphs=True,
@@ -987,8 +1180,8 @@ def test_gpt_oss_20b_tp_batch_size_1(cli, request):
         ModelVariant.GPT_OSS_20B,
         cli,
         request,
-        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
-        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        mesh_config_fn=single_row_mesh,
+        shard_spec_fn=gpt_oss_20b_shard_spec,
         default_batch_size=1,
         optimization_level=1,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
@@ -1033,48 +1226,6 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(cli, request):
     )
 
 
-def _galaxy_mesh_config_fn(model_loader, num_devices):
-    """4x8 wormhole_galaxy mesh"""
-
-    if num_devices != 32:
-        raise ValueError("wormhole_galaxy benchmarks expect 32 devices (4x8 mesh).")
-    return (4, 8), ("batch", "model")
-
-
-def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
-    """Sharding specs for MoE models optimized for throughput on 4x8 galaxy mesh.
-    TP - 8 : DP - 4 : EP - 32
-    Inputs are sharded on the batch axis DP - 4. One tile per device so batch 128 should be used.
-    Attention weights are sharded on model axis TP - 8 and replicated along the batch axis.
-    Expert weights are sharded across both model and batch axes EP - 32.
-    """
-
-    shard_specs = {}
-
-    shard_specs[model.model.embed_tokens.weight] = (None, None)
-    shard_specs[model.model.norm.weight] = (None,)
-    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
-    shard_specs[model.lm_head.weight] = (None, None)
-
-    for layer in model.model.layers:
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-        shard_specs[layer.self_attn.sinks] = ("model",)
-        shard_specs[layer.mlp.router.weight] = (None, None)
-        # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
-        # Once the MoE module is refactored, this should be changed to EP 32.
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
-        shard_specs[layer.input_layernorm.weight] = (None,)
-        shard_specs[layer.post_attention_layernorm.weight] = (None,)
-
-    return shard_specs
-
-
 def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(cli, request):
     from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
 
@@ -1090,8 +1241,8 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(cli, request):
         request,
         batch_size=128,
         optimization_level=1,
-        mesh_config_fn=_galaxy_mesh_config_fn,
-        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        mesh_config_fn=galaxy_4x8_mesh,
+        shard_spec_fn=gpt_oss_120b_galaxy_shard_spec,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
@@ -1115,37 +1266,14 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(cli, request):
         request,
         default_batch_size=64,
         optimization_level=1,
-        mesh_config_fn=_galaxy_mesh_config_fn,
-        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        mesh_config_fn=galaxy_4x8_mesh,
+        shard_spec_fn=gpt_oss_120b_galaxy_shard_spec,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
         experimental_kv_cache_dtype=None,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
-
-
-def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
-    return (1, 4), ("batch", "model")
-
-
-def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
-    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
-    shard_specs = {}
-    shard_specs[model.model.embed_tokens.weight] = (None, None)
-    shard_specs[model.model.norm.weight] = (None,)
-
-    for layer in model.model.layers:
-        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
-        shard_specs[layer.self_attn.sinks] = (None,)
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
-    return shard_specs
 
 
 def test_gpt_oss_120b_tp_qb2(cli, request):
@@ -1172,8 +1300,8 @@ def test_gpt_oss_120b_tp_qb2(cli, request):
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
-        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
-        # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        mesh_config_fn=qb2_1x4_mesh,
+        # shard_spec_fn=gpt_oss_120b_qb2_shard_spec,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
@@ -1398,69 +1526,11 @@ def test_gpt_oss_20b_tp_qb2(cli, request):
         ModelVariant.GPT_OSS_20B,
         cli,
         request,
-        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
-        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        mesh_config_fn=single_row_mesh,
+        shard_spec_fn=gpt_oss_20b_shard_spec,
         optimization_level=2,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
-
-
-def _deepseek_v3_1_shard_spec_fn(model_loader, model):
-    """Sharding specs for DeepSeek V3.1 on 4x8 galaxy mesh with TP 8, DP 4, EP 32."""
-    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
-
-    shard_specs = {}
-
-    shard_specs[model.model.embed_tokens.weight] = (None, "model")
-    shard_specs[model.model.norm.weight] = ("model",)
-    shard_specs[model.lm_head.weight] = (None, "model")
-
-    for layer in model.model.layers:
-        sa = layer.self_attn
-        shard_specs[sa.q_a_proj.weight] = (None, "model")
-        shard_specs[sa.q_b_proj.weight] = ("model", None)
-        shard_specs[sa.kv_a_proj_with_mqa.weight] = (None, "model")
-        shard_specs[sa.kv_b_proj.weight] = ("model", None)
-        shard_specs[sa.o_proj.weight] = (None, "model")
-
-        shard_specs[layer.input_layernorm.weight] = ("model",)
-        shard_specs[layer.post_attention_layernorm.weight] = ("model",)
-
-        mlp = layer.mlp
-        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
-            inner = mlp.mlp if hasattr(mlp, "mlp") else mlp
-            shard_specs[inner.router.gate.weight] = (None, "model")
-            shard_specs[inner.experts.gate_proj] = (
-                ("batch", "model"),
-                None,
-                None,
-            )
-            shard_specs[inner.experts.up_proj] = (
-                ("batch", "model"),
-                None,
-                None,
-            )
-            shard_specs[inner.experts.down_proj] = (
-                ("batch", "model"),
-                None,
-                None,
-            )
-            for bias_name in ("gate_proj_bias", "up_proj_bias", "down_proj_bias"):
-                b = getattr(inner.experts, bias_name, None)
-                if b is not None:
-                    shard_specs[b] = (("batch", "model"), None)
-
-            shared = getattr(mlp, "shared_experts", None)
-            if shared is not None:
-                shard_specs[shared.gate_proj.weight] = (None, "model")
-                shard_specs[shared.up_proj.weight] = (None, "model")
-                shard_specs[shared.down_proj.weight] = ("model", None)
-        else:
-            shard_specs[mlp.gate_proj.weight] = ("batch", "model")
-            shard_specs[mlp.up_proj.weight] = ("batch", "model")
-            shard_specs[mlp.down_proj.weight] = ("model", "batch")
-
-    return shard_specs
 
 
 # This test only runs 4 layers so we expect to see incoherent output
@@ -1481,67 +1551,10 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(cli, request):
         use_mla_cache=True,
         optimization_level=0,
         trace_enabled=False,
-        shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
+        shard_spec_fn=deepseek_v3_1_shard_spec,
         required_pcc=0.96,
         experimental_kv_cache_dtype=None,
     )
-
-
-def _glm_4_7_shard_spec_fn(model_loader, model):
-    """Hidden-replicated sharding spec for GLM-4 on the 4x8 galaxy mesh.
-    TP - 8 : DP - 4 : EP - 32
-    The residual hidden dim is kept replicated along the model axis so the RMS norms reduce locally instead of lowering to a distributed all_gather norm.
-    Embedding is replicated, lm_head is vocab-parallel, and attention / dense MLP / shared experts are col->row parallel along model axis TP - 8.
-    Routed expert weights are sharded across both model and batch axes EP - 32, matching DeepSeek V3.x / Kimi K2.
-    """
-    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
-
-    shard_specs = {}
-
-    shard_specs[model.model.embed_tokens.weight] = (None, None)
-    shard_specs[model.model.norm.weight] = (None,)
-    shard_specs[model.lm_head.weight] = ("model", None)
-
-    for layer in model.model.layers:
-        shard_specs[layer.input_layernorm.weight] = (None,)
-        shard_specs[layer.post_attention_layernorm.weight] = (None,)
-
-        attn = layer.self_attn
-        shard_specs[attn.q_proj.weight] = ("model", None)
-        shard_specs[attn.k_proj.weight] = ("model", None)
-        shard_specs[attn.v_proj.weight] = ("model", None)
-        shard_specs[attn.o_proj.weight] = (None, "model")
-
-        if attn.q_proj.bias is not None:
-            shard_specs[attn.q_proj.bias] = ("model",)
-            shard_specs[attn.k_proj.bias] = ("model",)
-            shard_specs[attn.v_proj.bias] = ("model",)
-
-        if hasattr(attn, "q_norm"):
-            shard_specs[attn.q_norm.weight] = (None,)
-            shard_specs[attn.k_norm.weight] = (None,)
-
-        mlp = layer.mlp
-
-        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
-            inner = mlp.mlp
-            shard_specs[inner.router.gate.weight] = (None, None)
-            shard_specs[inner.experts.gate_proj] = (("batch", "model"), None, None)
-            shard_specs[inner.experts.up_proj] = (("batch", "model"), None, None)
-            shard_specs[inner.experts.down_proj] = (("batch", "model"), None, None)
-
-            shared = getattr(mlp, "shared_experts", None)
-            if shared is not None:
-                shard_specs[shared.gate_proj.weight] = ("model", None)
-                shard_specs[shared.up_proj.weight] = ("model", None)
-                shard_specs[shared.down_proj.weight] = (None, "model")
-
-        else:
-            shard_specs[mlp.gate_proj.weight] = ("model", None)
-            shard_specs[mlp.up_proj.weight] = ("model", None)
-            shard_specs[mlp.down_proj.weight] = (None, "model")
-
-    return shard_specs
 
 
 # This test only runs 4 layers so we expect to see incoherent output
@@ -1560,7 +1573,7 @@ def test_glm_4_7_tp_galaxy_4_layers(cli, request):
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         optimization_level=0,
         trace_enabled=False,
-        shard_spec_fn=_glm_4_7_shard_spec_fn,
+        shard_spec_fn=glm_4_7_shard_spec,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
