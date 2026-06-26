@@ -1,35 +1,11 @@
-# One iteration of the perf benchmark sweep for the transformers uplift
-# pipeline. Used by the orchestrator's finalize stage, and dispatchable
-# directly by humans during PR review for a one-off perf re-run.
-#
-# Stages:
-#   1. run-perf         — call-filtered-perf-tests.yml on the narrowed
-#                         device filter (matches the uplift loop's other
-#                         test scope).
-#   2. extract-failures — for each failed perf leg in this run, download
-#                         the GHA job stdout via the actions API and lift
-#                         Python tracebacks into a failure context.
-#                         (Perf tests use `pytest -svv` straight to
-#                         stdout — no junit XML, no log artifact — so we
-#                         pull from GHA itself instead.)
-#   3. claude-fix       — invoke the transformers-uplift-fix skill with
-#                         scope=model-perf-uplift on the failures; commit
-#                         any edits to the WIP branch (and to
-#                         tt-forge-models if the submodule was touched).
-#
-# Claude only addresses INFRASTRUCTURE breakage in the perf code (the
-# benchmark itself raised TypeError / AttributeError / ImportError due
-# to a transformers API change) — not algorithmic perf regressions,
-# which still need human judgment.
-
-name: Call - Perf + Uplift Fix
+name: Perf Benchmark + Uplift Fix
 
 permissions:
-  contents: write   # claude-fix commits + pushes to the WIP branch
-  actions:  write   # extract-failures reads job logs + call-filtered-perf-tests.yml cascade
-  checks:   write   # call-filtered-perf-tests.yml publishes check runs
-  packages: write   # GHCR pulls in the perf workflow
-  id-token: write   # OIDC for cloud-auth steps in the perf workflow
+  contents: write
+  actions:  write
+  checks:   write
+  packages: write
+  id-token: write
 
 on:
   workflow_call:
@@ -66,12 +42,7 @@ on:
       adv_filter:
         type: string
         required: false
-        # TEMP: narrowed to n150-perf only for transformers-uplift perf
-        # testing. The matrix uses `-perf` runner labels directly
-        # post-rebase. Restore the full-arch entry below once the
-        # regression-fix loop is validated end-to-end.
-        default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}]'
-        # default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}, {"runs-on": "p150-perf", "exclude": "vllm"}, {"runs-on": "n300-llmbox", "exclude": "vllm"}, {"runs-on": "galaxy-wh-6u", "exclude": "vllm"}, {"runs-on": "qb2-blackhole", "exclude": "vllm"} ]'
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}, {"runs-on": "p150-perf", "exclude": "vllm"}, {"runs-on": "n300-llmbox", "exclude": "vllm"}, {"runs-on": "galaxy-wh-6u", "exclude": "vllm"}, {"runs-on": "qb2-blackhole", "exclude": "vllm"} ]'
     outputs:
       perf_result:
         description: 'Result of the underlying perf job (success | failure | skipped | cancelled)'
@@ -87,10 +58,6 @@ env:
   LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Stage 1: run the standard perf workflow with the uplift's narrowed
-  # device filter.
-  # ---------------------------------------------------------------------------
   run-perf:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     secrets: inherit
@@ -105,10 +72,6 @@ jobs:
       artifact_suffix:         ${{ inputs.artifact_suffix }}
       wheel_build:             release
 
-  # ---------------------------------------------------------------------------
-  # Stage 2: extract per-job tracebacks from the GHA stdout of any failed
-  # perf legs in THIS run. Skipped if run-perf was skipped (no work to do).
-  # ---------------------------------------------------------------------------
   extract-failures:
     needs: run-perf
     if: always() && needs.run-perf.result != 'skipped'
@@ -128,11 +91,6 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           mkdir -p perf-logs
-          # List failed jobs in this run whose name matches the perf
-          # naming convention from call-perf-test.yml ("perf <model> (<runner>)").
-          # We emit `<id>\t<name>` so we can build a model+runner slug
-          # for the saved log filename — the log BODY doesn't contain
-          # the perf job name (that's GHA metadata, not log content).
           mapfile -t FAILED < <(
             gh api --paginate "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
               --jq '.jobs[] | select(.conclusion == "failure") | select(.name | test("perf .* \\(")) | "\(.id)\t\(.name)"'
@@ -141,15 +99,6 @@ jobs:
           for line in "${FAILED[@]}"; do
             jid="${line%%$'\t'*}"
             jname="${line#*$'\t'}"
-            # Pull the trailing "perf <model> (<runner>)" out of the GHA
-            # job name and turn it into a filesystem-safe slug. The job
-            # name has a matrix-leg prefix like "run-uplift / perf-benchmark
-            # / run-perf / run-perf-benchmarks / perf llama_3_2_1b (p150)"
-            # — note "run-perf" also contains literal "perf", so we MUST
-            # anchor on the trailing pattern with a greedy `.*` skip, not
-            # a non-anchored grep (the previous grep-then-sed combo
-            # matched the first "perf " inside "run-perf" and produced
-            # garbage slugs like "perf___run_perf_benchmarks___...").
             slug=$(echo "$jname" \
               | sed -nE 's/.*perf +([^ ]+) +\(([^)]+)\)$/\1__\2/p')
             slug="${slug:-unknown}"
@@ -170,9 +119,6 @@ jobs:
             --matrix-file .github/workflows/perf-bench-matrix.json \
             --out-context failure_context.txt \
             --out-failed-tests "$LAST_FAILED_FILE"
-          # `grep -c` prints the count AND exits non-zero when it's 0, so
-          # use `|| true` (not `|| echo 0`) — otherwise we'd append a
-          # second "0" and break the integer comparison below.
           COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
           echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
           if [[ "$COUNT" -eq 0 ]]; then
@@ -189,11 +135,6 @@ jobs:
             failure_context.txt
             ${{ env.LAST_FAILED_FILE }}
 
-  # ---------------------------------------------------------------------------
-  # Stage 3: invoke the transformers-uplift-fix skill on the failures.
-  # Same shape as call-test-uplift.yml's claude-fix, with scope pinned to
-  # model-perf-uplift so the skill picks the perf-specific guidance.
-  # ---------------------------------------------------------------------------
   claude-fix:
     needs: extract-failures
     if: |
@@ -232,9 +173,6 @@ jobs:
         run: |
           source venv/activate
           uv pip install wheels/*.whl
-          # The wheel was built against the OLD pin; force-install the
-          # uplifted version so Claude inspects the same API surface the
-          # benchmarks are running against.
           uv pip install --force-reinstall --no-deps \
             "transformers==${TARGET_VERSION}"
 
@@ -271,8 +209,6 @@ jobs:
             --scope "$SCOPE"
 
       - name: Commit + push fixes (if any)
-        # Run on failure/timeout too so any partial edits Claude made
-        # before bailing still get committed.
         if: always()
         shell: bash
         env:
@@ -283,9 +219,6 @@ jobs:
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Prefer Claude's structured summary (see the
-          # transformers-uplift-fix skill's "Output format" section);
-          # otherwise fall back to a generic message tagged with tag/iter.
           SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
           if [[ -s "$SUMMARY_FILE" ]]; then
             COMMIT_FLAG=(-F "$SUMMARY_FILE")
@@ -293,9 +226,7 @@ jobs:
             COMMIT_FLAG=(-m "transformers uplift: model-perf-uplift/${TAG} fixes (iter ${ITER})")
           fi
 
-          # 1. tt-forge-models submodule — `git add -A` in the parent only
-          #    updates the submodule pointer, not the submodule's contents.
-          #    Commit + push inside the submodule first.
+          # tt-forge-models submodule commit
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
@@ -306,8 +237,7 @@ jobs:
             popd >/dev/null
           fi
 
-          # 2. tt-xla parent — picks up the new submodule pointer + any
-          #    other edits Claude made under the allowlist.
+          # tt-xla commit
           git add "$LAST_FAILED_FILE"
           if ! git diff --staged --quiet || [[ -n "$(git status --porcelain)" ]]; then
             git add -A

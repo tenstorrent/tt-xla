@@ -1,25 +1,9 @@
-# One iteration of the test+claude-fix cycle for a generic test suite.
-# Used by the transformers uplift pipeline for BOTH base-coverage (narrow,
-# in-loop) and full-coverage (broad, finalize) stages, and dispatchable
-# directly by humans during PR review.
-#
-# Stages:
-#   1. run-tests        — call-test.yml with the supplied test_suite
-#   2. extract-failures — parse junit, emit failure_context + node-id list
-#   3. claude-fix       — invoke the transformers-uplift-fix skill on the
-#                         failures; commit edits to the WIP branch (and
-#                         to tt-forge-models if the submodule was touched)
-#
-# Only ONE iteration runs per invocation. The orchestrator's self-dispatch
-# loop is what drives multiple iterations during automated uplift runs;
-# humans can call this workflow directly to do a single retry.
-
-name: Call - Test + Uplift Fix
+name: Test + Uplift Fix
 
 permissions:
   contents: write
   actions:  write
-  checks:   write   # call-test.yml publishes check runs
+  checks:   write
 
 on:
   workflow_call:
@@ -84,9 +68,6 @@ env:
   LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Stage 1: run the test suite via the standard call-test.yml plumbing.
-  # ---------------------------------------------------------------------------
   run-tests:
     uses: ./.github/workflows/call-test.yml
     with:
@@ -98,10 +79,6 @@ jobs:
       wheel_build:             release
     secrets: inherit
 
-  # ---------------------------------------------------------------------------
-  # Stage 2: extract per-test failures from the junit XML uploaded by
-  # call-test.yml. Skipped if run-tests was skipped (no work to do).
-  # ---------------------------------------------------------------------------
   extract-failures:
     needs: run-tests
     if: always() && needs.run-tests.result != 'skipped'
@@ -117,17 +94,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: test-results
-          # call-test.yml uploads one artifact per matrix leg with this prefix
-          # (see call-test.yml's "Upload Test Report" step).
           pattern: test-reports-*
 
       - uses: actions/download-artifact@v4
         with:
           path: test-results
-          # call-test.yml also uploads the pytest.log per leg under this
-          # prefix (see "Upload Test Log" step). The extractor falls back
-          # to grepping these when the junit XML doesn't carry the full
-          # context (e.g. C++ stderr or loguru output).
           pattern: test-log-*
 
       - name: Download baseline nightly junit reports
@@ -151,31 +122,18 @@ jobs:
       - name: Extract failures
         id: extract
         run: |
-          # download-artifact@v4 doesn't create the path dir when zero
-          # artifacts match — happens when every test crashed before
-          # writing junit (so no `test-reports-*` to upload). Create it
-          # so the extractor can treat it as "no failures detected".
           mkdir -p test-results baseline-results
 
-          # First invocation: current iteration's failures.
           python3 .github/scripts/uplift/transformers/extract-failures.py \
             --inputs-dir test-results \
             --out-context failure_context.txt \
             --out-failed-tests "$LAST_FAILED_FILE"
 
-          # Second invocation: same extractor, pointed at the baseline
-          # nightly's junit, written to a parallel file. Claude reads both
-          # in the claude-fix step and skips any current failure whose root
-          # cause matches the baseline (pre-existing on main). Throwaway
-          # node-id list — we don't need it.
           python3 .github/scripts/uplift/transformers/extract-failures.py \
             --inputs-dir baseline-results \
             --out-context baseline_failures.txt \
             --out-failed-tests /tmp/baseline_failed.txt
 
-          # `grep -c` prints the count AND exits non-zero when it's 0, so
-          # use `|| true` (not `|| echo 0`) — otherwise we'd append a
-          # second "0" and break the integer comparison below.
           COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
           echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
           if [[ "$COUNT" -eq 0 ]]; then
@@ -194,11 +152,6 @@ jobs:
             ${{ env.LAST_FAILED_FILE }}
           if-no-files-found: ignore
 
-  # ---------------------------------------------------------------------------
-  # Stage 3: invoke the transformers-uplift-fix skill on the failures.
-  # Commits any edits to the WIP branch (and to tt-forge-models if the
-  # submodule was touched).
-  # ---------------------------------------------------------------------------
   claude-fix:
     needs: extract-failures
     if: |
@@ -276,8 +229,6 @@ jobs:
             --scope "$SCOPE"
 
       - name: Commit + push fixes (if any)
-        # Run on failure/timeout too so any partial edits Claude made
-        # before bailing still get committed.
         if: always()
         shell: bash
         env:
@@ -289,10 +240,6 @@ jobs:
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Use Claude's structured summary as the commit body if it
-          # wrote one (per the transformers-uplift-fix skill's
-          # "Output format" section); otherwise fall back to a generic
-          # message tagged with scope/tag/iter.
           SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
           if [[ -s "$SUMMARY_FILE" ]]; then
             COMMIT_FLAG=(-F "$SUMMARY_FILE")
@@ -300,9 +247,7 @@ jobs:
             COMMIT_FLAG=(-m "transformers uplift: ${SCOPE}/${TAG} fixes (iter ${ITER})")
           fi
 
-          # 1. tt-forge-models submodule — `git add -A` in the parent only
-          #    updates the submodule pointer, not the submodule's contents.
-          #    Commit + push inside the submodule first.
+          # tt-forge-models submodule commit
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
@@ -313,8 +258,7 @@ jobs:
             popd >/dev/null
           fi
 
-          # 2. tt-xla parent — picks up the new submodule pointer + any
-          #    other edits Claude made under the allowlist.
+          # tt-xla commit
           git add "$LAST_FAILED_FILE"
           if ! git diff --staged --quiet || [[ -n "$(git status --porcelain)" ]]; then
             git add -A
