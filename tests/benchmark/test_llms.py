@@ -2812,7 +2812,7 @@ def test_vibevoice_1_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
+        optimization_level=1,
         trace_enabled=True,
         experimental_kv_cache_dtype=None,
         weight_dtype_overrides={"default": "bfp_bf8"},
