@@ -57,7 +57,8 @@ RUN dnf remove -y epel-release openmpi openmpi-devel || true
 RUN dnf install --refresh -y \
     protobuf-compiler \
     protobuf-devel \
-    flex
+    flex \
+    lld
 
 # Install ccache latest version from GitHub releases
 RUN CCACHE_VERSION="4.7.4" && \

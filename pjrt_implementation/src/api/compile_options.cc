@@ -76,6 +76,10 @@ CompileOptions CompileOptions::parse(
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
+  options.all_reduce_workaround_enabled =
+      internal::parseBoolOption(compile_options,
+                                "all_reduce_workaround_enabled")
+          .value_or(options.all_reduce_workaround_enabled);
   options.ttnn_perf_metrics_output_file =
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")

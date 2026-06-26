@@ -18,3 +18,5 @@ seaborn==0.13.2
 pyyaml==6.0.3
 click==8.3.1
 pandas==3.0.0
+# tracy's serve_wasm.py imports websockets
+websockets==16.0
