@@ -5,15 +5,13 @@
 """
 Shared helpers for Wan 2.2 A14B (14B) component tests.
 
-A14B comes in two pipeline variants that share the same UMT5 text encoder
-and Wan 2.1 VAE but use different transformer repos:
-
-  - ``MODEL_ID_T2V`` — text-to-video (in_channels=16)
-  - ``MODEL_ID_I2V`` — image-to-video (in_channels=36; 16 latent + 4 mask + 16 cond)
-
-Both variants use a *dual* transformer (``transformer/`` high-noise expert +
-``transformer_2/`` low-noise expert), gated by ``boundary_ratio`` at inference
-time. ``load_dit(subfolder=...)`` picks one expert.
+These tests target the image-to-video (I2V) variant: ``MODEL_ID`` is the I2V
+transformer repo (``in_channels=36`` = 16 latent + 4 mask + 16 image-cond).
+A14B also has a text-to-video variant (``in_channels=16``); both share the same
+UMT5 text encoder and Wan 2.1 VAE and use a *dual* transformer
+(``transformer/`` high-noise expert + ``transformer_2/`` low-noise expert),
+gated by ``boundary_ratio`` at inference. ``load_dit(subfolder=...)`` picks one
+expert.
 
 Exposes:
   - RESOLUTIONS: dict of 480p and 720p shape configs (Wan 2.1 VAE: scale=8)
@@ -36,11 +34,10 @@ from PIL import Image
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-MODEL_ID_T2V = "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
 MODEL_ID_I2V = "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
-# Default for standalone component tests (text encoder, VAE encoder/decoder,
-# DiT in_channels=16). The e2e test selects per-mode.
-MODEL_ID = MODEL_ID_T2V
+# Default repo for the component tests (text encoder, VAE encoder/decoder, DiT
+# in_channels=36). UMT5/VAE weights are shared with the T2V variant.
+MODEL_ID = MODEL_ID_I2V
 
 # Boundary timestep ratio = boundary_ratio * num_train_timesteps. Above
 # boundary → high-noise expert (``transformer``); below → low-noise expert
