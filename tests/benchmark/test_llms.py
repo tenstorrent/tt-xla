@@ -2780,3 +2780,38 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def test_dots_ocr(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # dots.ocr (`rednote-hilab/dots.ocr`) is a document-OCR VLM whose language model is
+    # a standard Qwen2 decoder (`DotsOCRForCausalLM(Qwen2ForCausalLM)`); this benchmarks
+    # the text decoder, mirroring the Qwen2.5 LLM tests. The vision tower is dropped by
+    # the loader and benchmarked separately under dots_ocr/vision.
+    from third_party.tt_forge_models.dots_ocr.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BASE
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        experimental_kv_cache_dtype=None,  # match Qwen2 family tests
+    )
