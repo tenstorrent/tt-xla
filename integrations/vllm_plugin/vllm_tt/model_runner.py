@@ -285,7 +285,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         elif self.enable_data_parallel:
             self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
         elif self.enable_tensor_parallel:
-            if self.use_2d_mesh:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, so the chosen mode matches the mesh that
+            # determine_mesh_shape will actually build.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            if self.use_2d_mesh or explicit_2d_mesh:
                 self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
             else:
                 self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
@@ -1664,16 +1671,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
             ):
-                # Data-parallel: inputs carry distinct sentences per replica,
-                # so shard them on the "batch" (DP) axis. The model forward now
-                # runs inside the fused _model_* helpers (main's refactor), so
-                # these marks must be applied here, before that call. Mirrors
-                # the warmup-path marks in _dummy_run so the graphs match.
-                if input_ids is not None:
-                    xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-                if inputs_embeds is not None:
-                    xs.mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
-                xs.mark_sharding(self.position_ids, self.mesh, ("batch", None))
+                # _pin_input_shardings already batch-shards input_ids /
+                # inputs_embeds for the DP modes (and leaves TP-only inputs
+                # replicated). position_ids is the one model input it does not
+                # cover, so shard it here on the "batch" (DP) axis before the
+                # fused _model_* forward call.
+                safe_mark_sharding(self.position_ids, self.mesh, ("batch", None))
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1954,12 +1957,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
-                    # Apply sharding constraints to the model weights.
-                    shard_model(
-                        model,
-                        self.mesh,
-                        self.tt_config.shard_weights_on_batch_axis,
+                    # shard_weights_on_batch_axis (FSDP-style extra weight
+                    # sharding on the "batch" axis) is a DP+TP-only knob. In the
+                    # pure-TP modes the "batch" axis is a TP axis (TP-2D shards
+                    # across both mesh axes; TP-1D has a size-1 batch axis), so
+                    # weights must always be sharded on it there — force it on
+                    # unless we are in DATA_TENSOR_PARALLEL.
+                    shard_on_batch_axis = (
+                        self.tt_config.shard_weights_on_batch_axis
+                        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                        else True
                     )
+                    # Apply sharding constraints to the model weights.
+                    shard_model(model, self.mesh, shard_on_batch_axis)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "

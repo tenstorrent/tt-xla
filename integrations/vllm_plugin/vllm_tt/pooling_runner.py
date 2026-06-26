@@ -280,7 +280,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         elif self.enable_data_parallel:
             self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
         elif self.enable_tensor_parallel:
-            if self.use_2d_mesh:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, so the chosen mode matches the mesh that
+            # determine_mesh_shape will actually build.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            if self.use_2d_mesh or explicit_2d_mesh:
                 self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
             else:
                 self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
@@ -1410,12 +1417,19 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
-                    # Apply sharding constraints to the model weights.
-                    shard_model(
-                        model,
-                        self.mesh,
-                        self.tt_config.shard_weights_on_batch_axis,
+                    # shard_weights_on_batch_axis (FSDP-style extra weight
+                    # sharding on the "batch" axis) is a DP+TP-only knob. In the
+                    # pure-TP modes the "batch" axis is a TP axis (TP-2D shards
+                    # across both mesh axes; TP-1D has a size-1 batch axis), so
+                    # weights must always be sharded on it there — force it on
+                    # unless we are in DATA_TENSOR_PARALLEL.
+                    shard_on_batch_axis = (
+                        self.tt_config.shard_weights_on_batch_axis
+                        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                        else True
                     )
+                    # Apply sharding constraints to the model weights.
+                    shard_model(model, self.mesh, shard_on_batch_axis)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "

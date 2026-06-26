@@ -35,6 +35,27 @@ def determine_mesh_shape(
                 f"mesh_shape {tuple(dims)} has product {dims[0] * dims[1]}, "
                 f"which does not match the device count {num_devices}"
             )
+        # mesh_shape is (batch, model). Warn (don't fail) when it contradicts the
+        # parallel mode, e.g. a (1, 4) mesh under DATA_PARALLEL_ONLY has a size-1
+        # batch axis and so provides no data-parallel replicas.
+        batch_dim, model_dim = dims[0], dims[1]
+        incompatible = None
+        if parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY and batch_dim == 1:
+            incompatible = "data-parallel needs batch dim > 1"
+        elif (
+            parallel_mode == ParallelismMode.TENSOR_PARALLEL_ONLY_1D and batch_dim != 1
+        ):
+            incompatible = "1D tensor-parallel expects a (1, model) mesh"
+        elif parallel_mode in (
+            ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ) and (batch_dim == 1 or model_dim == 1):
+            incompatible = "2D / DP+TP parallel expects both mesh dims > 1"
+        if incompatible is not None:
+            logger.warning(
+                f"mesh_shape {tuple(dims)} may be incompatible with parallel mode "
+                f"{parallel_mode}: {incompatible}."
+            )
         resolved = (dims[0], dims[1])
         logger.info(f"Using mesh shape for {num_devices} devices: {resolved}")
         return resolved

@@ -293,7 +293,11 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    # Weight is [output, input]: output on the "model" (TP) axis, and the input
+    # dim optionally on the "batch" axis for FSDP-style sharding (mirrors
+    # partition_parallel_lm_head).
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
