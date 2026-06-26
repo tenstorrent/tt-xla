@@ -62,6 +62,16 @@ def build_xla_export_name(
     return "_".join(parts)
 
 
+def perf_metrics_filename(display_name: str) -> str:
+    """Base name for the per-graph TTNN perf-metric files emitted by the compiler.
+
+    Single source of truth for the filename convention shared by every driver
+    that aggregates perf metrics into its result (vision / encoder / imagegen /
+    llm / resnet).
+    """
+    return f"tt_xla_{display_name}_perf_metrics"
+
+
 def resolve_display_name(request: Any = None, fallback: Optional[str] = None) -> str:
     """Resolve a display name, optionally overriding with pytest test name."""
     name = None

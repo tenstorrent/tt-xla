@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 import socket
 import time
 
@@ -13,12 +12,12 @@ from jax import device_put
 from transformers import FlaxResNetForImageClassification
 from tt_jax import serialize_compiled_artifacts_to_disk
 from accuracy import compute_pcc
-from naming import sanitize_filename
+from naming import perf_metrics_filename, sanitize_filename
 from reporting import (
-    aggregate_ttnn_perf_metrics,
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
+    write_benchmark_json,
 )
 from runtime import MODULE_EXPORT_PATH, get_jax_device_arch
 
@@ -255,7 +254,7 @@ def test_resnet_jax(output_file):
 
     # Sanitize model name for safe filesystem usage
     sanitized_model_name = sanitize_filename(model_name)
-    ttnn_perf_metrics_output_file = f"tt_xla_{sanitized_model_name}_perf_metrics"
+    ttnn_perf_metrics_output_file = perf_metrics_filename(sanitized_model_name)
 
     print(f"Running JAX benchmark for model: {model_name}")
     print(f"""Configuration:
@@ -277,10 +276,9 @@ def test_resnet_jax(output_file):
     )
 
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = model_name
-
-        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results)
-
-        with open(output_file, "w") as file:
-            json.dump(results, file, indent=2)
+        write_benchmark_json(
+            results,
+            output_file,
+            model_rawname=model_name,
+            ttnn_perf_metrics_file=ttnn_perf_metrics_output_file,
+        )

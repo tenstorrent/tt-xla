@@ -49,3 +49,35 @@ def test_write_benchmark_json_custom_project(tmp_path):
     out = tmp_path / "out.json"
     write_benchmark_json(results, str(out), model_rawname="m", project="other/proj")
     assert json.loads(out.read_text())["project"] == "other/proj"
+
+
+def test_write_benchmark_json_aggregates_perf_metrics(tmp_path, monkeypatch):
+    # aggregate_ttnn_perf_metrics scans the cwd for "<base>*.json" files.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tt_xla_m_perf_metrics_0.json").write_text(
+        json.dumps(
+            {
+                "summary": {
+                    "total_ops": 10,
+                    "total_shardable_ops": 4,
+                    "effectively_sharded_ops": 2,
+                    "system_memory_ops": 1,
+                }
+            }
+        )
+    )
+
+    results = {"config": {}}
+    out = tmp_path / "out.json"
+    write_benchmark_json(
+        results,
+        str(out),
+        model_rawname="m",
+        ttnn_perf_metrics_file="tt_xla_m_perf_metrics",
+    )
+
+    cfg = json.loads(out.read_text())["config"]
+    assert cfg["ttnn_total_ops"] == 10
+    assert cfg["ttnn_effectively_sharded_ops"] == 2
+    assert cfg["ttnn_effectively_sharded_percentage"] == 50.0
+    assert cfg["ttnn_num_graphs"] == 1

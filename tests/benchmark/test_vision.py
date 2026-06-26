@@ -2,12 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
-
 import torch
 from benchmarks.vision_benchmark import benchmark_vision_torch_xla
-from naming import resolve_display_name
-from reporting import aggregate_ttnn_perf_metrics
+from naming import perf_metrics_filename, resolve_display_name
+from reporting import write_benchmark_json
 
 # Defaults for all vision models
 DEFAULT_OPTIMIZATION_LEVEL = 2
@@ -54,7 +52,7 @@ def test_vision(
     resolved_display_name = resolve_display_name(
         request=request, fallback=model_info_name
     )
-    ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
+    ttnn_perf_metrics_output_file = perf_metrics_filename(resolved_display_name)
 
     print(f"Running vision benchmark for model: {model_info_name}")
     print(f"""Configuration:
@@ -85,13 +83,12 @@ def test_vision(
     )
 
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = model_info_name
-
-        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results)
-
-        with open(output_file, "w") as file:
-            json.dump(results, file, indent=2)
+        write_benchmark_json(
+            results,
+            output_file,
+            model_rawname=model_info_name,
+            ttnn_perf_metrics_file=ttnn_perf_metrics_output_file,
+        )
 
 
 def test_efficientnet(output_file, request):

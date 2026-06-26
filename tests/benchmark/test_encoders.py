@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import json
 from typing import List
 
 import pytest
@@ -13,8 +12,8 @@ from model_utils import (
     apply_mean_pooling,
     create_model_loader,
 )
-from naming import resolve_display_name
-from reporting import aggregate_ttnn_perf_metrics
+from naming import perf_metrics_filename, resolve_display_name
+from reporting import write_benchmark_json
 
 DTYPE_MAP = {
     "bfloat16": torch.bfloat16,
@@ -105,7 +104,7 @@ def test_encoder(
         request=request,
         fallback=display_name or model_info_name,
     )
-    ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
+    ttnn_perf_metrics_output_file = perf_metrics_filename(resolved_display_name)
 
     print(f"Running encoder benchmark for model: {model_info_name}")
     print(f"""Configuration:
@@ -142,13 +141,12 @@ def test_encoder(
     )
 
     if output_file:
-        results["project"] = "tt-forge/tt-xla"
-        results["model_rawname"] = model_info_name
-
-        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results)
-
-        with open(output_file, "w") as file:
-            json.dump(results, file, indent=2)
+        write_benchmark_json(
+            results,
+            output_file,
+            model_rawname=model_info_name,
+            ttnn_perf_metrics_file=ttnn_perf_metrics_output_file,
+        )
 
 
 def test_bert(output_file, num_layers, request):

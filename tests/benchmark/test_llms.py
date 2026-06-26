@@ -17,7 +17,7 @@ from benchmarks.llm_benchmark import (
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
 from model_utils import create_model_loader
-from naming import resolve_display_name
+from naming import perf_metrics_filename, resolve_display_name
 from reporting import write_benchmark_json
 
 # Defaults for all llms
@@ -209,7 +209,7 @@ def _benchmark_llm(
     model_info_name = model_loader.get_model_info(variant=variant).name
     display_name = resolve_display_name(request=request, fallback=model_info_name)
 
-    ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
+    ttnn_perf_metrics_output_file = perf_metrics_filename(display_name)
 
     print(f"Running LLM benchmark for variant: {variant}")
     print(f"""Configuration:

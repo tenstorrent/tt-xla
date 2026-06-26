@@ -324,15 +324,23 @@ def write_benchmark_json(
     *,
     model_rawname: str,
     project: str = "tt-forge/tt-xla",
+    ttnn_perf_metrics_file: Optional[str] = None,
 ) -> None:
     """Stamp the dashboard fields onto a result dict and write it as JSON.
 
     The ``project`` / ``model_rawname`` stamping plus the ``json.dump(indent=2)``
     is identical across every benchmark driver's output-file path, so it lives
-    here. Domain-specific post-processing (e.g. the LLM decode-graph perf
-    aggregation) should mutate ``results`` *before* calling this.
+    here.
+
+    If ``ttnn_perf_metrics_file`` is given, the per-graph TTNN perf metrics are
+    aggregated into ``results["config"]`` before writing (the vision / encoder /
+    imagegen / resnet drivers share this step). Other domain-specific
+    post-processing (e.g. the LLM decode-graph perf aggregation) should mutate
+    ``results`` *before* calling this.
     """
     results["project"] = project
     results["model_rawname"] = model_rawname
+    if ttnn_perf_metrics_file is not None:
+        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_file, results)
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
