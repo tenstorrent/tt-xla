@@ -550,3 +550,68 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+# Trace disabled / opt_level=0: bringup-safe defaults. On qb2-blackhole opt>=1
+# aborts (OpModel assumes an unharvested grid); model-perf-tuning ramps the knobs.
+def test_srpo_transformer(output_file, request):
+    """Benchmark the SRPO (Tencent) denoising transformer.
+
+    SRPO is a FLUX.1-dev fine-tune that ships only the FluxTransformer2DModel
+    weights (the heavy per-step compute of the text-to-image pipeline); the
+    CLIP/T5 encoders and VAE are reused from FLUX.1-dev unchanged. The loader
+    exposes the transformer as a standalone tensor-in / tensor-out module with
+    synthetic bringup-resolution (128x128) inputs, so we benchmark a single
+    denoising forward through the encoder harness -- the same per-component
+    pattern as the SDXL UNet above (a diffusion backbone, not a text encoder).
+    """
+    from third_party.tt_forge_models.srpo.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    def inputs_to_device(inputs, device):
+        """Move every tensor in the loader's input dict to the device."""
+        return {
+            key: (value.to(device) if isinstance(value, torch.Tensor) else value)
+            for key, value in inputs.items()
+        }
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+    # Cosmetic (reporting/naming only): the transformer consumes packed latents
+    # and precomputed text embeds, not tokenized text. Use the FLUX T5 length.
+    transformer_seqlen = 256
+
+    # Load the SRPO denoiser (DEFAULT_VARIANT == TRANSFORMER).
+    variant = ModelVariant.TRANSFORMER
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # SRPO's load_inputs returns a fixed batch-1 dict; batch_size is unused here.
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        dtype_override=DTYPE_MAP[data_format]
+    )
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    # The loader's FluxTransformerWrapper already returns the output tensor.
+    output_processor_fn = lambda out, inputs: out
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="srpo_transformer",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=transformer_seqlen,
+        loop_count=32,
+        optimization_level=0,  # qb2-blackhole: opt>=1 aborts (harvested grid)
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

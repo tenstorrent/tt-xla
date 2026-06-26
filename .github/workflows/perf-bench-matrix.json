@@ -316,6 +316,11 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "srpo_transformer_qb2",
+        "pytest": "tests/benchmark/test_encoders.py::test_srpo_transformer",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "deepseek_v3_1_tp_galaxy_4_layers",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"
