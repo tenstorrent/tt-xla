@@ -117,6 +117,7 @@ jobs:
       - name: Extract failures
         id: extract
         run: |
+          mkdir -p "$(dirname "$LAST_FAILED_FILE")"
           python3 .github/scripts/uplift/transformers/extract-perf-failures.py \
             --inputs-dir perf-logs \
             --matrix-file .github/workflows/perf-bench-matrix.json \
@@ -236,7 +237,13 @@ jobs:
             git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" || true
             git add -A
             git commit "${COMMIT_FLAG[@]}"
-            git push --force-with-lease origin "$BRANCH"
+
+            echo "=== submodule push diagnostic ==="
+            echo "local HEAD                : $(git rev-parse HEAD)"
+            echo "local origin/$BRANCH      : $(git rev-parse "origin/$BRANCH" 2>/dev/null || echo "(missing)")"
+            echo "server tip $BRANCH        : $(git ls-remote origin "$BRANCH" | cut -f1)"
+            echo "================================="
+            git push --force origin "$BRANCH"
             popd >/dev/null
           fi
 
