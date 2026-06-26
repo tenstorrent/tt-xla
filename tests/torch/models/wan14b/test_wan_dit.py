@@ -51,7 +51,7 @@ from .shared import (
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
 MAX_BLOCKS = 0
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
     enable_trace=True,
@@ -126,7 +126,7 @@ def _run(resolution: str, sharded: bool) -> None:
             graph=model,
             inputs=[hidden_states, timestep, encoder_hidden_states],
             framework=Framework.TORCH,
-            compiler_config=_COMPILER_CONFIG,
+            compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
         )

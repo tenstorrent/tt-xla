@@ -42,8 +42,28 @@ from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 from tests.infra.testers.compiler_config import CompilerConfig
 from tests.torch.models.wan5b import monkey_patch as wan5b_monkey_patch
 from tests.torch.models.wan5b import shared as wan5b_shared
+from tests.torch.models.wan5b.test_umt5_text_encoder import (
+    COMPILER_CONFIG as wan5b_umt5_config,
+)
+from tests.torch.models.wan5b.test_vae_decoder import (
+    COMPILER_CONFIG as wan5b_vae_decoder_config,
+)
+from tests.torch.models.wan5b.test_vae_encoder import (
+    COMPILER_CONFIG as wan5b_vae_encoder_config,
+)
+from tests.torch.models.wan5b.test_wan_dit import COMPILER_CONFIG as wan5b_dit_config
 from tests.torch.models.wan14b import monkey_patch as wan14b_monkey_patch
 from tests.torch.models.wan14b import shared as wan14b_shared
+from tests.torch.models.wan14b.test_umt5_text_encoder import (
+    COMPILER_CONFIG as wan14b_umt5_config,
+)
+from tests.torch.models.wan14b.test_vae_decoder import (
+    COMPILER_CONFIG as wan14b_vae_decoder_config,
+)
+from tests.torch.models.wan14b.test_vae_encoder import (
+    COMPILER_CONFIG as wan14b_vae_encoder_config,
+)
+from tests.torch.models.wan14b.test_wan_dit import COMPILER_CONFIG as wan14b_dit_config
 
 # Shared, family-independent benchmark constants.
 SEED = 42
@@ -106,6 +126,10 @@ class WanFamily:
         dit_override_disabled: Context manager wrapping the whole DiT run — the
             family's ``monkey_patch.torch_function_override_disabled``, which
             pops the tt_torch matmul/linear override for the trace + execution.
+        umt5_config / vae_encoder_config / vae_decoder_config / dit_config:
+            Per-component ``CompilerConfig`` imported from that family's
+            functional test module (its ``COMPILER_CONFIG``), so the benchmark
+            and functional tests always compile with identical options.
     """
 
     name_prefix: str
@@ -115,15 +139,32 @@ class WanFamily:
     dit_timestep: Callable[[dict], torch.Tensor]
     safe_xla_slicing: Callable
     dit_override_disabled: Callable
+    umt5_config: CompilerConfig
+    vae_encoder_config: CompilerConfig
+    vae_decoder_config: CompilerConfig
+    dit_config: CompilerConfig
 
 
-def build_family(name_prefix, shared, monkey_patch, dit_timestep):
+def build_family(
+    name_prefix,
+    shared,
+    monkey_patch,
+    dit_timestep,
+    *,
+    umt5_config,
+    vae_encoder_config,
+    vae_decoder_config,
+    dit_config,
+):
     """Assemble a :class:`WanFamily` from a family's ``shared`` /
-    ``monkey_patch`` modules.
+    ``monkey_patch`` modules and its functional tests' compiler configs.
 
     Both families' ``monkey_patch.py`` expose the same names, so the patch
     wiring is identical and only ``name_prefix`` and the DiT ``dit_timestep``
-    convention (per-patch vs scalar) differ per family.
+    convention (per-patch vs scalar) differ per family. The per-component
+    compiler configs are imported straight from the functional test modules
+    (their ``COMPILER_CONFIG``) so benchmark and functional runs stay in
+    lockstep.
     """
     return WanFamily(
         name_prefix=name_prefix,
@@ -133,6 +174,10 @@ def build_family(name_prefix, shared, monkey_patch, dit_timestep):
         dit_timestep=dit_timestep,
         safe_xla_slicing=monkey_patch.safe_xla_slicing,
         dit_override_disabled=monkey_patch.torch_function_override_disabled,
+        umt5_config=umt5_config,
+        vae_encoder_config=vae_encoder_config,
+        vae_decoder_config=vae_decoder_config,
+        dit_config=dit_config,
     )
 
 
@@ -224,11 +269,6 @@ def run_wan_benchmark(
             json.dump(results, file, indent=2)
 
 
-def _trace_compiler_config(**overrides):
-    """CompilerConfig with optimization_level=1 and trace enabled."""
-    return CompilerConfig(optimization_level=1, enable_trace=True, **overrides)
-
-
 def benchmark_umt5(family, sharded, output_file, request):
     """UMT5-XXL text encoder. NOTE: unsharded variants OOM on a single device."""
     shared = family.shared
@@ -243,7 +283,7 @@ def benchmark_umt5(family, sharded, output_file, request):
         model_info_name=f"{family.name_prefix}-UMT5-Text-Encoder",
         wrapper=wrapper,
         inputs=[input_ids, attention_mask],
-        compiler_config=_trace_compiler_config(),
+        compiler_config=family.umt5_config,
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(family.shared.shard_umt5_specs, "encoder"),
         sharded=sharded,
@@ -265,7 +305,7 @@ def benchmark_vae_encoder(family, resolution, sharded, output_file, request):
         model_info_name=f"{family.name_prefix}-VAE-Encoder",
         wrapper=wrapper,
         inputs=[x],
-        compiler_config=_trace_compiler_config(),
+        compiler_config=family.vae_encoder_config,
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(
             family.shared.shard_vae_encoder_specs, "vae", mesh_aware=True
@@ -304,9 +344,7 @@ def benchmark_vae_decoder(family, resolution, sharded, output_file, request):
         model_info_name=f"{family.name_prefix}-VAE-Decoder",
         wrapper=wrapper,
         inputs=[z],
-        compiler_config=_trace_compiler_config(
-            experimental_enable_dram_space_saving_optimization=True,
-        ),
+        compiler_config=family.vae_decoder_config,
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(
             family.shared.shard_vae_decoder_specs, "vae", mesh_aware=True
@@ -351,9 +389,7 @@ def benchmark_dit(family, resolution, sharded, output_file, request):
         model_info_name=f"{family.name_prefix}-DiT",
         wrapper=wrapper,
         inputs=[hidden_states, timestep, encoder_hidden_states],
-        compiler_config=_trace_compiler_config(
-            experimental_enable_dram_space_saving_optimization=True,
-        ),
+        compiler_config=family.dit_config,
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(
             family.shared.shard_dit_specs,
@@ -373,13 +409,27 @@ def benchmark_dit(family, resolution, sharded, output_file, request):
 
 _FAMILY_5B = pytest.param(
     build_family(
-        "Wan2.2-TI2V-5B", wan5b_shared, wan5b_monkey_patch, per_patch_timestep
+        "Wan2.2-TI2V-5B",
+        wan5b_shared,
+        wan5b_monkey_patch,
+        per_patch_timestep,
+        umt5_config=wan5b_umt5_config,
+        vae_encoder_config=wan5b_vae_encoder_config,
+        vae_decoder_config=wan5b_vae_decoder_config,
+        dit_config=wan5b_dit_config,
     ),
     id="5b",
 )
 _FAMILY_14B = pytest.param(
     build_family(
-        "Wan2.2-I2V-A14B", wan14b_shared, wan14b_monkey_patch, scalar_timestep
+        "Wan2.2-I2V-A14B",
+        wan14b_shared,
+        wan14b_monkey_patch,
+        scalar_timestep,
+        umt5_config=wan14b_umt5_config,
+        vae_encoder_config=wan14b_vae_encoder_config,
+        vae_decoder_config=wan14b_vae_decoder_config,
+        dit_config=wan14b_dit_config,
     ),
     id="14b",
 )
