@@ -30,6 +30,11 @@ logger = tt_init_logger(__name__)
 # TT requires the head size to be a multiple of 32.
 TT_HEAD_SIZE_ALIGNMENT = 32
 
+# Max decode "users" (batch) per NLPConcatHeads call: a Blackhole device's usable
+# worker grid is 120 cores, and NLPConcatHeadsDecode height-shards one user per core.
+# Above this we chunk the decode over users and concat, so each call stays <= grid.
+_MAX_DECODE_USERS_PER_CALL = 120
+
 # Note: TPU can fp8 as storage dtype but doesn't support converting from uint8
 # from to fp32 directly. That's why it has a dtype mapping different from GPU
 TPU_STR_DTYPE_TO_TORCH_DTYPE = {
@@ -474,18 +479,51 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(0, 1)
             value_for_update = inputs.value.transpose(0, 1)
 
-            k_cache = torch.ops.tt.paged_update_cache(
-                k_cache,
-                key_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
-            )
-            v_cache = torch.ops.tt.paged_update_cache(
-                v_cache,
-                value_for_update,
-                attn_metadata.cache_position,
-                attn_metadata.page_table,
-            )
+            # PagedUpdateCacheOp height-shards one user per worker core, so a
+            # batch larger than the worker grid (120 on Blackhole) can't be
+            # written in a single call. Chunk over the users dim (dim 1 here)
+            # into equal pieces that each stay within the grid. Each chunk
+            # writes disjoint cache blocks (per-user page table), so we chain
+            # the returned cache through the chunks instead of concatenating.
+            users = key_for_update.shape[1]
+            if users <= _MAX_DECODE_USERS_PER_CALL:
+                k_cache = torch.ops.tt.paged_update_cache(
+                    k_cache,
+                    key_for_update,
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
+                )
+                v_cache = torch.ops.tt.paged_update_cache(
+                    v_cache,
+                    value_for_update,
+                    attn_metadata.cache_position,
+                    attn_metadata.page_table,
+                )
+            else:
+                n_chunks = cdiv(users, _MAX_DECODE_USERS_PER_CALL)
+                if users % n_chunks != 0:
+                    raise NotImplementedError(
+                        f"Chunked decode cache update requires users ({users}) to "
+                        f"be evenly divisible into {n_chunks} chunks (max "
+                        f"{_MAX_DECODE_USERS_PER_CALL} users per chunk); got "
+                        f"remainder {users % n_chunks}."
+                    )
+                chunk_size = users // n_chunks
+                for i in range(n_chunks):
+                    start = i * chunk_size
+                    end = start + chunk_size
+                    k_cache = torch.ops.tt.paged_update_cache(
+                        k_cache,
+                        key_for_update[:, start:end, :, :],  # users is dim 1
+                        attn_metadata.cache_position[start:end],  # per-user, dim 0
+                        attn_metadata.page_table[start:end],  # per-user, dim 0
+                    )
+                    v_cache = torch.ops.tt.paged_update_cache(
+                        v_cache,
+                        value_for_update[:, start:end, :, :],
+                        attn_metadata.cache_position[start:end],
+                        attn_metadata.page_table[start:end],
+                    )
         else:
             # Prefill: batched across users via N-element batch_idx_tensor.
             key_for_update = inputs.key.transpose(1, 2)
@@ -626,10 +664,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         # In decode, query_num_tokens == 1 is normal
         query_for_decode = inputs.query.transpose(0, 1)
 
+        # Common kwargs shared by every decode call (sink is per-HEAD, not per-user).
         decode_kwargs = {
-            "cur_pos_tensor": attn_metadata.cache_position,
             "is_causal": attn_metadata.is_causal,
-            "attn_mask": attn_metadata.attn_mask,
             "attention_sink": self.sinks,
             "scale": self.scale,
         }
@@ -638,16 +675,61 @@ class TTAttentionBackendImpl(AttentionImpl):
         if self.sliding_window is not None:
             decode_kwargs["sliding_window_size"] = self.sliding_window
 
-        out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
-            query_for_decode,
-            k_cache,
-            v_cache,
-            attn_metadata.page_table,
-            **decode_kwargs,
-        )
-        # out: [query_num_tokens, users, num_heads, head_size]
-        out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
+        users = query_for_decode.shape[1]
 
+        if users <= _MAX_DECODE_USERS_PER_CALL:
+            out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
+                query_for_decode,
+                k_cache,
+                v_cache,
+                attn_metadata.page_table,
+                cur_pos_tensor=attn_metadata.cache_position,
+                attn_mask=attn_metadata.attn_mask,
+                **decode_kwargs,
+            )
+            # out: [query_num_tokens, users, num_heads, head_size]
+            out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head]
+            return out
+
+        # NLPConcatHeadsDecode height-shards one user per worker core, so a batch
+        # larger than the worker grid (120 on Blackhole) can't be processed in a
+        # single call. Chunk the decode over the users dim into equal pieces that
+        # each stay within the grid, then concat the per-chunk outputs.
+        n_chunks = cdiv(users, _MAX_DECODE_USERS_PER_CALL)
+        if users % n_chunks != 0:
+            raise NotImplementedError(
+                f"Chunked decode requires users ({users}) to be evenly divisible "
+                f"into {n_chunks} chunks (max {_MAX_DECODE_USERS_PER_CALL} users "
+                f"per chunk); got remainder {users % n_chunks}."
+            )
+        chunk_size = users // n_chunks
+
+        out_chunks = []
+        for i in range(n_chunks):
+            start = i * chunk_size
+            end = start + chunk_size
+            # attn_mask is per-user along dim 0 when present.
+            chunk_attn_mask = (
+                attn_metadata.attn_mask[start:end]
+                if attn_metadata.attn_mask is not None
+                else None
+            )
+            out_chunk = torch.ops.tt.paged_scaled_dot_product_attention_decode(
+                query_for_decode[:, start:end, :, :],  # users is dim 1
+                k_cache,
+                v_cache,
+                attn_metadata.page_table[start:end],  # per-user, dim 0
+                cur_pos_tensor=attn_metadata.cache_position[start:end],  # per-user
+                attn_mask=chunk_attn_mask,
+                **decode_kwargs,
+            )
+            # out_chunk: [query_num_tokens, chunk, num_heads, head_size]
+            out_chunks.append(out_chunk)
+
+        # [query_num_tokens, users, num_heads, head_size]
+        out = torch.cat(out_chunks, dim=1)
+        # out: [users, query_num_tokens, num_heads, head_size]
+        out = out.transpose(0, 1)
         return out
 
     def _finalize_output(self, output: torch.Tensor, inputs) -> torch.Tensor:
