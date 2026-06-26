@@ -614,5 +614,8 @@ def test_srpo_transformer(output_file, request):
         loop_count=32,
         optimization_level=0,  # qb2-blackhole: opt>=1 aborts (harvested grid)
         trace_enabled=False,  # trace warmup segfaults for this model on qb2-blackhole
-        experimental_enable_permute_matmul_fusion=True,
+        # Tuning (model-perf-tuning) found no improving knob: opt>=1 aborts
+        # (OpModel harvested-grid mismatch), trace=True and bfp_bf8 both segfault,
+        # and permute_matmul_fusion was perf-neutral (-0.18%, within noise). The
+        # shipped opt=0/trace=False config is the winning (only viable) config.
     )
