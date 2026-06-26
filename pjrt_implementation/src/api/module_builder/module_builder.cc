@@ -937,6 +937,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
+  // PERF EXPERIMENT: force the analytical-time layout cost model for this
+  // benchmark branch (tt-mlir layout-accumulated-cost-model). Remove before
+  // merge; the default is "heuristic".
+  options.layoutCostModel = "time";
   // Map user-facing dtype names to BFPDtype enum values.
   if (compile_options.experimental_weight_dtype == "bfp_bf8") {
     options.experimentalWeightDtype = mlir::tt::ttnn::BFPDtype::BFP_BFloat8;
