@@ -251,7 +251,7 @@ jobs:
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
-            git fetch origin "$BRANCH" || true
+            git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" || true
             git add -A
             git commit "${COMMIT_FLAG[@]}"
             git push --force-with-lease origin "$BRANCH"
