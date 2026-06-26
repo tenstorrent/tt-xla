@@ -71,6 +71,21 @@ class DynamicTorchModelTester(TorchModelTester):
         if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
             self._inject_custom_moe(self._model)
 
+        # Workaround for the Qwen3.5 gated-delta tensor-parallel low-PCC bug:
+        # the fused QKV split miscompiles on the contiguously-model-sharded
+        # conv_dim axis. Replicate the conv output before the split. Self-guarded:
+        # only hooks gated-delta modules and only constrains under SPMD on device.
+        if self.parallelism == Parallelism.TENSOR_PARALLEL:
+            from tt_torch.transformers_overrides import (
+                apply_gated_delta_conv_replication,
+            )
+
+            n = apply_gated_delta_conv_replication(self._model)
+            if n:
+                logger.info(
+                    f"Applied gated-delta conv-replication sharding fix to {n} layer(s)"
+                )
+
     def _compile_for_tt_device(self, workload, options=None):
         """Apply per-variant weight dtype overrides before compiling for TT device."""
         self._apply_weight_dtype_overrides()

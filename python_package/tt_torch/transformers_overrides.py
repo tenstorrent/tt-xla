@@ -12,6 +12,49 @@ from transformers.masking_utils import (
 )
 
 
+def apply_gated_delta_conv_replication(model):
+    """Workaround for the Qwen3.5 gated-delta tensor-parallel low-PCC bug.
+
+    The gated-delta `in_proj_qkv` emits one FUSED tensor of
+    ``conv_dim = key_dim*2 + value_dim`` channels, sharded contiguously on the
+    "model" axis. The model then `torch.split`s that sharded axis into
+    ``[key_dim, key_dim, value_dim]`` and reshapes to heads. Splitting a
+    contiguously-sharded axis whose split points don't align with the per-device
+    shard boundaries miscompiles under Shardy -> q/k/v come out scrambled (PCC
+    ~0.01, ~5x norm blow-up) before the (correct) recurrence, collapsing model
+    PCC. See QWEN3_5_LOW_PCC_OPLEVEL.md.
+
+    Fix: force the conv1d output REPLICATED before the split, so the split +
+    head reshape run on correct (non-sharded) data. Downstream ops reshard as
+    needed. No-op on CPU / single-device (only constrains XLA tensors when a
+    global SPMD mesh exists), and only touches gated-delta modules.
+    """
+    try:
+        import torch_xla.distributed.spmd as xs
+    except Exception:
+        return 0
+
+    from tt_torch.sharding import sharding_constraint_tensor
+
+    def _replicate_conv_out(_m, _inp, out):
+        if not torch.is_tensor(out) or out.device.type != "xla":
+            return out
+        try:
+            mesh = xs.get_global_mesh()
+        except Exception:
+            mesh = None
+        if mesh is None:
+            return out
+        return sharding_constraint_tensor(out, mesh, tuple([None] * out.dim()))
+
+    n = 0
+    for _name, mod in model.named_modules():
+        if type(mod).__name__.endswith("GatedDeltaNet") and hasattr(mod, "conv1d"):
+            mod.conv1d.register_forward_hook(_replicate_conv_out)
+            n += 1
+    return n
+
+
 def override_model_sliding_window_causal_mask(model):
     """Apply TT-friendly in-place rewrites to a HuggingFace model's modeling module.
 
