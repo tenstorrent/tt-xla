@@ -162,3 +162,36 @@ def test_long_prompt_capped_at_per_seq_chunk():
         "long prompt must be capped at the per-seq chunk, not the batch-wide "
         f"budget; scheduled {out.num_scheduled_tokens['r0']} tokens this step"
     )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_chunk_boundary_avoids_single_token_remainder():
+    """ISL = chunk + 1 must NOT produce a 1-token final chunk.
+
+    A 1-token "prefill" chunk would be misrouted to the decode path
+    (is_prefill := query_len > 1). The scheduler's _block_aligned_chunk backs
+    off by one block so the final chunk is > 1 token. With ISL=33, chunk=32,
+    block_size=16: step 1 takes 16 (not 32), step 2 takes the remaining 17.
+    """
+    chunk = 2 * _BLOCK_SIZE  # 32
+    n_users = 4
+    isl = chunk + 1  # 33 tokens: one more than chunk
+    sched = _make_scheduler(chunk=chunk, max_num_seqs=n_users)
+    sched.add_request(_make_request("r0", num_tokens=isl))
+
+    # Step 1: backs off by one block to avoid leaving a 1-token final chunk.
+    out1 = sched.schedule()
+    expected_step1 = chunk - _BLOCK_SIZE  # 16
+    assert out1.num_scheduled_tokens["r0"] == expected_step1, (
+        f"step 1: expected {expected_step1} tokens (backed off to avoid "
+        f"1-token remainder), got {out1.num_scheduled_tokens['r0']}"
+    )
+
+    # Step 2: takes the rest (17 tokens) as the final chunk.
+    out2 = sched.schedule()
+    expected_step2 = isl - expected_step1  # 17
+    assert out2.num_scheduled_tokens["r0"] == expected_step2, (
+        f"step 2: expected {expected_step2} tokens (final chunk), "
+        f"got {out2.num_scheduled_tokens['r0']}"
+    )
