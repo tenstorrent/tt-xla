@@ -612,6 +612,7 @@ def test_srpo_transformer(output_file, request):
         batch_size=batch_size,
         input_sequence_length=transformer_seqlen,
         loop_count=32,
-        optimization_level=0,  # qb2-blackhole: opt>=1 aborts (harvested grid)
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
     )
