@@ -89,15 +89,17 @@ def test_summarize_perf_empty():
 # --------------------------------------------------------------------------- #
 def test_build_compile_options_required_only():
     opts = build_compile_options(
-        optimization_level=2,
-        trace_enabled=True,
+        CompileConfig(
+            optimization_level=2,
+            trace_enabled=True,
+            experimental_weight_dtype="bfp_bf8",
+            experimental_enable_permute_matmul_fusion=False,
+            fp32_dest_acc_en=None,
+            experimental_kv_cache_dtype=None,
+            enable_create_d2m_subgraphs=False,
+        ),
         export_model_name="m",
         ttnn_perf_metrics_output_file="f",
-        experimental_weight_dtype="bfp_bf8",
-        experimental_enable_permute_matmul_fusion=False,
-        fp32_dest_acc_en=None,
-        experimental_kv_cache_dtype=None,
-        enable_create_d2m_subgraphs=False,
     )
     assert opts["optimization_level"] == 2
     assert opts["enable_trace"] is True
@@ -110,15 +112,17 @@ def test_build_compile_options_required_only():
 
 def test_build_compile_options_includes_optionals_when_set():
     opts = build_compile_options(
-        optimization_level=1,
-        trace_enabled=False,
+        CompileConfig(
+            optimization_level=1,
+            trace_enabled=False,
+            experimental_weight_dtype="",
+            experimental_enable_permute_matmul_fusion=True,
+            fp32_dest_acc_en=True,
+            experimental_kv_cache_dtype="bfp_bf8",
+            enable_create_d2m_subgraphs=True,
+        ),
         export_model_name="m",
         ttnn_perf_metrics_output_file="f",
-        experimental_weight_dtype="",
-        experimental_enable_permute_matmul_fusion=True,
-        fp32_dest_acc_en=True,
-        experimental_kv_cache_dtype="bfp_bf8",
-        enable_create_d2m_subgraphs=True,
     )
     assert opts["fp32_dest_acc_en"] is True
     assert opts["experimental-kv-cache-dtype"] == "bfp_bf8"

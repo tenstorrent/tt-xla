@@ -541,34 +541,32 @@ def compute_cpu_reference(model, read_logits_fn, input_args: dict) -> CpuReferen
 
 
 def build_compile_options(
+    compile_config: "CompileConfig",
     *,
-    optimization_level,
-    trace_enabled,
     export_model_name,
     ttnn_perf_metrics_output_file,
-    experimental_weight_dtype,
-    experimental_enable_permute_matmul_fusion,
-    fp32_dest_acc_en,
-    experimental_kv_cache_dtype,
-    enable_create_d2m_subgraphs,
 ) -> dict:
-    """Assemble the torch-xla custom compile options dict."""
+    """Assemble the torch-xla custom compile options dict from a CompileConfig."""
     options = {
-        "optimization_level": optimization_level,
-        "enable_trace": trace_enabled,
+        "optimization_level": compile_config.optimization_level,
+        "enable_trace": compile_config.trace_enabled,
         "export_path": MODULE_EXPORT_PATH,
         "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "experimental_weight_dtype": experimental_weight_dtype,
-        "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+        "experimental_weight_dtype": compile_config.experimental_weight_dtype,
+        "experimental_enable_permute_matmul_fusion": (
+            compile_config.experimental_enable_permute_matmul_fusion
+        ),
     }
-    if fp32_dest_acc_en is not None:
-        options["fp32_dest_acc_en"] = fp32_dest_acc_en
-    if experimental_kv_cache_dtype is not None:
-        options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
-    if enable_create_d2m_subgraphs:
-        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
+    if compile_config.fp32_dest_acc_en is not None:
+        options["fp32_dest_acc_en"] = compile_config.fp32_dest_acc_en
+    if compile_config.experimental_kv_cache_dtype is not None:
+        options["experimental-kv-cache-dtype"] = (
+            compile_config.experimental_kv_cache_dtype
+        )
+    if compile_config.enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = compile_config.enable_create_d2m_subgraphs
     return options
 
 
@@ -946,6 +944,7 @@ def benchmark_llm_torch_xla(
     compile_config: CompileConfig,
     sharding_config: Optional[ShardingConfig] = None,
     accuracy_config: Optional[AccuracyConfig] = None,
+    pcc_mode: Optional[PccMode] = None,
     max_output_tokens=None,
     decode_only: bool = False,
     weight_dtype_overrides: dict = None,
@@ -967,46 +966,39 @@ def benchmark_llm_torch_xla(
     Args:
         model_loader: Model loader instance for loading the LLM
         model_variant: Specific variant/version of the model to benchmark
-        optimization_level: tt-mlir optimization level for compilation
+        display_name: Human-readable model name (used for export/report naming)
         batch_size: Batch size for text generation
         loop_count: Number of inference iterations
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of input sequence for generation context
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
-        experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         read_logits_fn: Callback function to extract logits from model output
         required_pcc: Required PCC threshold for validation
-        accuracy_testing: Whether to perform token accuracy testing
-        model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
-        hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
-        expert_implementation: Expert implementation type
+        compile_config: tt-mlir / torch-xla compilation knobs (CompileConfig)
+        sharding_config: Multi-chip mesh and sharding specs (ShardingConfig);
+            None means single-chip
+        accuracy_config: Token-accuracy testing settings (AccuracyConfig);
+            when enabled, validates TOP1/TOP5 against reference data instead of PCC
+        pcc_mode: PCC-only iteration mode; defaults to the TT_PCC_MODE env var
+        max_output_tokens: Max tokens to generate (defaults to fill the cache)
+        decode_only: Run prefill on CPU and only benchmark decode on device
+        weight_dtype_overrides: Optional per-module weight dtype overrides
+        use_mla_cache / use_indexer_cache: Cache variants for MLA / indexer models
+        expected_ops / check_fusions_enabled: Op-fusion verification settings
+        experts_implementation: Expert implementation type
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
     sharding_config = sharding_config or ShardingConfig()
     accuracy_config = accuracy_config or AccuracyConfig()
-
-    # Unpack grouped configs into locals used throughout the benchmark flow.
-    optimization_level = compile_config.optimization_level
-    trace_enabled = compile_config.trace_enabled
-    experimental_weight_dtype = compile_config.experimental_weight_dtype
-    experimental_enable_permute_matmul_fusion = (
-        compile_config.experimental_enable_permute_matmul_fusion
-    )
-    fp32_dest_acc_en = compile_config.fp32_dest_acc_en
-    experimental_kv_cache_dtype = compile_config.experimental_kv_cache_dtype
-    enable_create_d2m_subgraphs = compile_config.enable_create_d2m_subgraphs
-
-    mesh_config_fn = sharding_config.mesh_config_fn
-    shard_spec_fn = sharding_config.shard_spec_fn
-    input_output_sharding_spec = sharding_config.input_output_sharding_spec
-    kv_cache_sharding_spec = sharding_config.kv_cache_sharding_spec
-
     accuracy_testing = accuracy_config.enabled
-    model_name_for_accuracy = accuracy_config.model_name_for_accuracy
-    hf_model_name_for_accuracy = accuracy_config.hf_model_name_for_accuracy
+
+    # PCC-only iteration mode. Defaults to the TT_PCC_MODE env var (a dev
+    # iteration knob) but can be passed explicitly. Prefill still runs first
+    # even for isolated decode: the standalone decode graph crashes when
+    # compiled at optimization_level > 0.
+    pcc = pcc_mode if pcc_mode is not None else PccMode.from_env()
 
     _validate_args(
         data_format=data_format,
@@ -1016,19 +1008,17 @@ def benchmark_llm_torch_xla(
         decode_only=decode_only,
         accuracy_testing=accuracy_testing,
         task=task,
-        enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
-        optimization_level=optimization_level,
+        enable_create_d2m_subgraphs=compile_config.enable_create_d2m_subgraphs,
+        optimization_level=compile_config.optimization_level,
     )
-
-    # PCC-only iteration modes (env-gated). Prefill still runs first even for
-    # isolated decode: the standalone decode graph crashes when compiled at
-    # optimization_level > 0.
-    pcc = PccMode.from_env()
 
     xr.set_device_type("TT")
 
     # Set up for multi-chip if applicable
-    if mesh_config_fn is not None and shard_spec_fn is not None:
+    if (
+        sharding_config.mesh_config_fn is not None
+        and sharding_config.shard_spec_fn is not None
+    ):
         is_multichip = xr.global_runtime_device_count() > 1
         if is_multichip:
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
@@ -1058,10 +1048,10 @@ def benchmark_llm_torch_xla(
     custom_input_prompt = None
     if accuracy_testing:
         token_accuracy, custom_input_prompt = init_accuracy_testing(
-            model_name_for_accuracy=model_name_for_accuracy,
+            model_name_for_accuracy=accuracy_config.model_name_for_accuracy,
             max_cache_len=max_cache_len,
             tokenizer=tokenizer,
-            hf_model_name=hf_model_name_for_accuracy,
+            hf_model_name=accuracy_config.hf_model_name_for_accuracy,
         )
 
     # Session owns input construction + device placement + cache bookkeeping.
@@ -1074,8 +1064,8 @@ def benchmark_llm_torch_xla(
         device=device,
         mesh=None,
         use_mla_cache=use_mla_cache,
-        kv_cache_sharding_spec=kv_cache_sharding_spec,
-        input_output_sharding_spec=input_output_sharding_spec,
+        kv_cache_sharding_spec=sharding_config.kv_cache_sharding_spec,
+        input_output_sharding_spec=sharding_config.input_output_sharding_spec,
         custom_input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
@@ -1114,8 +1104,8 @@ def benchmark_llm_torch_xla(
     # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
-        shard_specs = shard_spec_fn(model_loader, model)
-        mesh = get_mesh(model_loader, mesh_config_fn)
+        shard_specs = sharding_config.shard_spec_fn(model_loader, model)
+        mesh = get_mesh(model_loader, sharding_config.mesh_config_fn)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
@@ -1137,15 +1127,9 @@ def benchmark_llm_torch_xla(
         input_sequence_length=input_sequence_length,
     )
     options = build_compile_options(
-        optimization_level=optimization_level,
-        trace_enabled=trace_enabled,
+        compile_config,
         export_model_name=export_model_name,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
-        experimental_weight_dtype=experimental_weight_dtype,
-        experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
-        fp32_dest_acc_en=fp32_dest_acc_en,
-        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
-        enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
     )
     torch_xla.set_custom_compile_options(options)
 
@@ -1253,10 +1237,10 @@ def benchmark_llm_torch_xla(
         total_samples=perf.decode_total_tokens,
         evaluation_score=evaluation_score,
         custom_measurements=custom_measurements,
-        optimization_level=optimization_level,
+        optimization_level=compile_config.optimization_level,
         program_cache_enabled=True,
-        trace_enabled=trace_enabled,
-        experimental_weight_dtype=experimental_weight_dtype,
+        trace_enabled=compile_config.trace_enabled,
+        experimental_weight_dtype=compile_config.experimental_weight_dtype,
         model_info=full_model_name,
         display_name=display_name,
         torch_xla_enabled=True,
