@@ -145,7 +145,9 @@ def _gemma4_tp_config(model: str, batch_size: int, optimization_level: int = 0):
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",
-        cpu_sampling=False,
+        cpu_sampling=(
+            False if optimization_level == 0 else True
+        ),  # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
         flat_model_io=True,
         optimization_level=optimization_level,
     )
@@ -263,7 +265,14 @@ TP_CONFIGS = [
         ),
         id="llama-3.1-70b-qb2-tp",
     ),
-    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
+    pytest.param(
+        _gemma4_tp_config("google/gemma-4-31B-it", 32, optimization_level=0),
+        id="gemma4-31b-it-tp",
+    ),
+    pytest.param(
+        _gemma4_tp_config("google/gemma-4-31B-it", 32, optimization_level=1),
+        id="gemma4-31b-it-tp-opt1",
+    ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
