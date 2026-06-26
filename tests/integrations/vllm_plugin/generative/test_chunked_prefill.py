@@ -23,8 +23,28 @@ correctly attend to the cached prefix (the cached-prefill attention bug).
 Prefix caching is disabled in the equivalence test so the *only* variable is
 the chunk size.
 """
+
+import gc
+
 import pytest
 import vllm
+
+
+def _shutdown(llm) -> None:
+    """Release the TT device before the next engine is built.
+
+    A bare ``del llm`` defers teardown to weakref finalize, so the EngineCore
+    subprocess can still hold the device when the next ``vllm.LLM`` starts and
+    deadlock it. Shut the engine core down explicitly instead. (Same idiom as
+    tests/integrations/vllm_plugin/sampling/conftest.py.)
+    """
+    try:
+        llm.llm_engine.engine_core.shutdown()
+    except Exception:
+        pass
+    del llm
+    gc.collect()
+
 
 _MODEL = "meta-llama/Llama-3.2-3B-Instruct"
 _MAX_MODEL_LEN = 2048
@@ -76,7 +96,7 @@ def _generate(max_num_batched_tokens: int) -> str:
     sp = vllm.SamplingParams(temperature=0.0, max_tokens=_MAX_TOKENS, ignore_eos=True)
     out = llm.generate([_PROMPT], sp)[0].outputs[0]
     text, token_ids = out.text, list(out.token_ids)
-    del llm
+    _shutdown(llm)
     return text, token_ids
 
 
@@ -146,7 +166,13 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
     chunk = 32
     n_users = 4
     max_tokens = 16
-    prompt = "The quick brown fox jumps over the lazy dog and then runs away quickly"
+    # Prompt must be longer than ``chunk`` so each user's prefill is split into
+    # several chunks (ceil(len/chunk) > 1) and the multi-chunk cached-prefix path
+    # is exercised in the batch dimension -- a one-chunk prompt would not.
+    prompt = (
+        "The quick brown fox jumps over the lazy dog and then runs away "
+        "quickly while the slow grey cat watches from the warm windowsill. "
+    ) * 4
 
     llm = vllm.LLM(
         model="facebook/opt-125m",
@@ -162,9 +188,12 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
         },
     )
     sp = vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens, ignore_eos=True)
-    outputs = llm.generate([prompt] * n_users, sp)
+    try:
+        outputs = llm.generate([prompt] * n_users, sp)
+        token_ids = [list(o.outputs[0].token_ids) for o in outputs]
+    finally:
+        _shutdown(llm)
 
-    token_ids = [list(o.outputs[0].token_ids) for o in outputs]
     for i, ids in enumerate(token_ids):
         print(f"user {i}: {ids}")
         assert len(ids) == max_tokens, f"user {i} produced {len(ids)} tokens"
