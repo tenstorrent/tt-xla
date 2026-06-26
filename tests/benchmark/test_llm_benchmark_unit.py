@@ -23,10 +23,10 @@ from benchmarks.llm_benchmark import (
 
 
 # --------------------------------------------------------------------------- #
-# PccMode.from_env
+# PccMode
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
-    "env_value, pcc_only, assert_prefill, assert_decode, isolated",
+    "value, pcc_only, assert_prefill, assert_decode, isolated",
     [
         (None, False, True, True, False),
         ("", False, True, True, False),
@@ -37,19 +37,19 @@ from benchmarks.llm_benchmark import (
         ("garbage", False, True, True, False),  # unknown -> full run
     ],
 )
-def test_pcc_mode_from_env(
-    monkeypatch, env_value, pcc_only, assert_prefill, assert_decode, isolated
-):
-    if env_value is None:
-        monkeypatch.delenv("TT_PCC_MODE", raising=False)
-    else:
-        monkeypatch.setenv("TT_PCC_MODE", env_value)
-
-    mode = PccMode.from_env()
+def test_pcc_mode_from_string(value, pcc_only, assert_prefill, assert_decode, isolated):
+    mode = PccMode.from_string(value)
     assert mode.pcc_only is pcc_only
     assert mode.assert_prefill is assert_prefill
     assert mode.assert_decode is assert_decode
     assert mode.isolated is isolated
+
+
+def test_pcc_mode_from_env_delegates(monkeypatch):
+    monkeypatch.setenv("TT_PCC_MODE", "decode")
+    assert PccMode.from_env() == PccMode.from_string("decode")
+    monkeypatch.delenv("TT_PCC_MODE", raising=False)
+    assert PccMode.from_env() == PccMode.from_string("")
 
 
 # --------------------------------------------------------------------------- #

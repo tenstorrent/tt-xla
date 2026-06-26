@@ -10,6 +10,7 @@ import pytest
 from benchmarks.llm_benchmark import (
     AccuracyConfig,
     CompileConfig,
+    PccMode,
     ShardingConfig,
     benchmark_llm_torch_xla,
 )
@@ -101,6 +102,7 @@ def _run_llm(
         max_output_tokens=cli.max_output_tokens,
         decode_only=cli.decode_only,
         optimization_level=opt,
+        pcc_mode=PccMode.from_string(cli.pcc_mode) if cli.pcc_mode else None,
         **overrides,
     )
 
@@ -173,6 +175,7 @@ def _benchmark_llm(
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
+    pcc_mode: Optional[PccMode] = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -278,6 +281,7 @@ def _benchmark_llm(
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
         experts_implementation=experts_implementation,
+        pcc_mode=pcc_mode,
     )
 
     if output_file:

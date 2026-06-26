@@ -107,6 +107,18 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--pcc-mode",
+        action="store",
+        default=None,
+        choices=["prefill", "decode", "both"],
+        help=(
+            "PCC-only iteration mode for LLM benchmarks: skip warmup and the "
+            "timed perf loop and run a single PCC iteration, asserting only the "
+            "selected phase(s). Falls back to the TT_PCC_MODE env var if unset."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -148,6 +160,11 @@ def check_fusions(request):
     return request.config.getoption("--check-fusions")
 
 
+@pytest.fixture
+def pcc_mode(request):
+    return request.config.getoption("--pcc-mode")
+
+
 @dataclass
 class CliOptions:
     """Bundle of the command-line benchmark options shared by every test.
@@ -165,6 +182,7 @@ class CliOptions:
     max_output_tokens: Optional[int]
     decode_only: bool
     check_fusions: bool
+    pcc_mode: Optional[str]
 
 
 @pytest.fixture
@@ -177,6 +195,7 @@ def cli(
     max_output_tokens,
     decode_only,
     check_fusions,
+    pcc_mode,
 ):
     """Bundle the common command-line options into a single object."""
     return CliOptions(
@@ -188,6 +207,7 @@ def cli(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         check_fusions=check_fusions,
+        pcc_mode=pcc_mode,
     )
 
 

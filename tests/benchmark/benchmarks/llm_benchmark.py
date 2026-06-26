@@ -54,14 +54,17 @@ DEFAULT_INPUT_PROMPT = (
 
 @dataclass
 class PccMode:
-    """PCC-only iteration mode parsed from the TT_PCC_MODE env var.
+    """PCC-only iteration mode.
 
-    TT_PCC_MODE = "prefill" | "decode" | "both" skips warmup and the timed perf
+    A value of "prefill" | "decode" | "both" skips warmup and the timed perf
     loop and runs a single PCC iteration. Both prefill and decode PCC are always
     printed; only the selected mode's PCC(s) are asserted. For "decode"/"both"
     the decode PCC is isolated by reseeding the device KV cache from the
     CPU-golden post-prefill cache so it does not inherit the device prefill's
     numerical error.
+
+    Resolved from the ``--pcc-mode`` CLI option (see ``conftest.py``), falling
+    back to the ``TT_PCC_MODE`` env var.
     """
 
     pcc_only: bool
@@ -70,8 +73,9 @@ class PccMode:
     isolated: bool
 
     @classmethod
-    def from_env(cls) -> "PccMode":
-        pcc_mode = os.environ.get("TT_PCC_MODE", "").strip().lower()
+    def from_string(cls, value: Optional[str]) -> "PccMode":
+        """Parse a mode string; anything outside {prefill,decode,both} -> off."""
+        pcc_mode = (value or "").strip().lower()
         pcc_only = pcc_mode in ("prefill", "decode", "both")
         return cls(
             pcc_only=pcc_only,
@@ -79,6 +83,10 @@ class PccMode:
             assert_decode=(not pcc_only) or (pcc_mode in ("both", "decode")),
             isolated=pcc_mode in ("decode", "both"),
         )
+
+    @classmethod
+    def from_env(cls) -> "PccMode":
+        return cls.from_string(os.environ.get("TT_PCC_MODE", ""))
 
 
 @dataclass
