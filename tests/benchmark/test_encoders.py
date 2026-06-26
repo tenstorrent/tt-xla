@@ -613,6 +613,6 @@ def test_srpo_transformer(output_file, request):
         input_sequence_length=transformer_seqlen,
         loop_count=32,
         optimization_level=0,  # qb2-blackhole: opt>=1 aborts (harvested grid)
-        trace_enabled=True,
+        trace_enabled=False,  # trace warmup segfaults for this model on qb2-blackhole
         experimental_weight_dtype="bfp_bf8",
     )
