@@ -129,3 +129,48 @@ def test_chunk_budget_decoupled_from_max_model_len():
     """
     text, _ = _generate(256)  # 256 << max_model_len (2048)
     assert text, "generation with budget << max_model_len was empty"
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+def test_chunked_prefill_batch_all_users_match(monkeypatch):
+    """Batch>1 chunked prefill must produce identical output for all users.
+
+    Guards against bugs that hide in the batch dimension: if only user 0 is
+    correct (e.g. a stale page-table pointer or bad GQA broadcast), this test
+    catches it. Also sets VLLM_XLA_CHECK_RECOMPILATION=1 to verify that the
+    chunked-prefill path reuses compiled graphs after warm-up (no recompile).
+    """
+    monkeypatch.setenv("VLLM_XLA_CHECK_RECOMPILATION", "1")
+
+    chunk = 32
+    n_users = 4
+    max_tokens = 16
+    prompt = "The quick brown fox jumps over the lazy dog and then runs away quickly"
+
+    llm = vllm.LLM(
+        model="facebook/opt-125m",
+        max_model_len=256,
+        max_num_seqs=n_users,
+        max_num_batched_tokens=chunk * n_users,
+        gpu_memory_utilization=0.25,
+        enable_prefix_caching=False,
+        additional_config={
+            "prefill_chunk_size": chunk,
+            "enable_const_eval": True,
+            "min_context_len": 32,
+        },
+    )
+    sp = vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens, ignore_eos=True)
+    outputs = llm.generate([prompt] * n_users, sp)
+
+    token_ids = [list(o.outputs[0].token_ids) for o in outputs]
+    for i, ids in enumerate(token_ids):
+        print(f"user {i}: {ids}")
+        assert len(ids) == max_tokens, f"user {i} produced {len(ids)} tokens"
+
+    for i in range(1, n_users):
+        assert token_ids[i] == token_ids[0], (
+            f"user {i} output differs from user 0 -- batch-dim attention bug.\n"
+            f"  user 0: {token_ids[0]}\n  user {i}: {token_ids[i]}"
+        )
