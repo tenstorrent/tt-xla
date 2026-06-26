@@ -934,12 +934,11 @@ def chunked_scaled_dot_product_attention(
 ) -> torch.Tensor:
     """Chunked prefill attention over a paged K/V cache.
 
-    A prefill chunk of ``query`` (whose prefix is already resident in the paged
-    cache) attends causally over ``[0, chunk_start_idx + chunk_len)`` read from
-    the cache via ``page_table`` -- entirely on device, with the prefix offset
-    supplied by the device tensor ``chunk_start_idx_tensor`` (the tensor overload
-    of ``ttnn.transformer.chunked_scaled_dot_product_attention``, required so the
-    op is trace-compatible). Replaces the host gather + masked-SDPA workaround.
+    A ``query`` chunk (prefix already in the paged cache) attends causally over
+    ``[0, chunk_start_idx + chunk_len)`` read from the cache via ``page_table``,
+    on device. The prefix offset comes from the device tensor
+    ``chunk_start_idx_tensor`` (the trace-compatible tensor overload of
+    ``ttnn.transformer.chunked_scaled_dot_product_attention``).
 
     Shapes:
         query                 [users, n_heads, chunk_len, head]

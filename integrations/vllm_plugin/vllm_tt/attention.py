@@ -177,10 +177,9 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
-    # Chunked-prefill prefix offset: device [1] int32 tensor =
-    # num_computed (shared across users by the same-stage-batching invariant).
-    # Set only on a cached-prefix prefill chunk; consumed by the on-device
-    # chunked_scaled_dot_product_attention op (the no-gather path).
+    # Chunked-prefill prefix offset: device [1] int32 = num_computed (shared
+    # across users by same-stage batching). Set only on a cached-prefix chunk;
+    # consumed by the chunked_scaled_dot_product_attention op.
     chunk_start_idx: torch.Tensor
 
     def __init__(
@@ -540,15 +539,12 @@ class TTAttentionBackendImpl(AttentionImpl):
         shared_kv_mode = (
             self.kv_sharing_target_layer_name is not None and has_paged_cache
         )
-        # Cached-prefix path: a prefill chunk whose prefix is
-        # already in the paged cache attends over it on device via
-        # chunked_scaled_dot_product_attention (page_table + chunk_start_idx;
-        # causal mask + prefix offset handled inside the op -- no host mask, no
-        # dense gather, trace-compatible). chunk_start_idx is set by the model
-        # runner only when chunking actually occurs AND the kernel supports the
-        # page-table layout (_chunked_sdpa_active); otherwise it stays None and
-        # we take the standard path. The trigger is Python-level, so it traces as
-        # a distinct graph from the fast path -- no data-dependent control flow.
+        # Cached-prefix path: a chunk whose prefix is in the paged cache attends
+        # over it via chunked_scaled_dot_product_attention (mask + offset internal,
+        # no host mask/gather). The model runner sets chunk_start_idx only when
+        # chunking occurs and the kernel supports the layout (_chunked_sdpa_active),
+        # else it stays None (standard path). The trigger is Python-level, so it
+        # traces as a distinct graph -- no data-dependent control flow.
         chunked_prefix = (
             attn_metadata.chunk_start_idx is not None
             and has_paged_cache
