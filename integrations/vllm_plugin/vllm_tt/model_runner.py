@@ -282,7 +282,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # first time each distinct input shape is executed (the torch.zeros dummies
         # used during precompile only warm the compiler; the real-input graph still
         # compiles on first real use). For single-shot prefill that is one shape on
-        # the first step. For chunked prefill (#4986) it is several shapes -- one per
+        # the first step. For chunked prefill it is several shapes -- one per
         # chunk-size (num_tokens) bucket -- first seen across the first few steps
         # (e.g. a 256-token chunk on step 1 and a final 128-padded chunk on step 3).
         # So "warm-up" legitimately spans multiple steps: accept new graphs until the
@@ -317,7 +317,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sliding_window = model_config.get_sliding_window()
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
-        # Chunked prefill (tt-xla #4986): the budget need only hold one chunk
+        # Chunked prefill: the budget need only hold one chunk
         # (+ one token per running seq for decode); the legacy single-shot path
         # still requires it to cover the whole prompt.
         if getattr(scheduler_config, "chunked_prefill_enabled", False):
@@ -353,7 +353,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # activation (compile time / DRAM) instead of max_model_len. This is the
         # per-seq chunk, NOT scheduler_config.max_num_batched_tokens -- under
         # chunked prefill the latter is the batch-wide budget (chunk x
-        # max_num_seqs, so multiple users batch per step, tt-xla #4986); using it
+        # max_num_seqs, so multiple users batch per step); using it
         # here would size the bucket ladder by chunk x max_num_seqs and blow up
         # compile/DRAM. KV-cache and page-table buffers below stay at
         # max_model_len (KV spans full context).
@@ -366,7 +366,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_model_len,
         )
 
-        # The on-device chunked SDPA op (tt-xla #4986) is only usable when
+        # The on-device chunked SDPA op is only usable when
         # (a) chunking can actually occur at this config (per-step budget <
         #     full context), and
         # (b) the page-table "stick" is 32B-aligned: stick = num_blocks_per_user
@@ -390,12 +390,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             os.environ.get("TTXLA_UNIFY_FIRST_CHUNK", "0") == "1"
         )
 
-        # The chunked SDPA op is the only cached-prefix prefill path now (the
-        # gather workaround was removed). So if chunked prefill would actually
-        # chunk (budget < full context) but the page-table layout is unsupported
-        # (num_blocks_per_req % 8 != 0), there is no correct path -- fail loudly
-        # rather than silently dropping the cached prefix. Realistic (power-of-2)
-        # max_model_len always satisfies this; pick a multiple of 8*block_size.
+        # The chunked SDPA op is the only cached-prefix prefill path. If chunked
+        # prefill would actually chunk (budget < full context) but the page-table
+        # layout is unsupported (num_blocks_per_req % 8 != 0), there is no correct
+        # path -- fail loudly rather than silently dropping the cached prefix.
+        # Realistic (power-of-2) max_model_len always satisfies this; pick a
+        # multiple of 8*block_size.
         if (
             getattr(scheduler_config, "chunked_prefill_enabled", False)
             and self.prefill_chunk_budget < self.max_model_len
@@ -555,7 +555,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for n in self.num_tokens_paddings
         }
         self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
-        # Chunked-prefill prefix offset (tt-xla #4986): persistent [1] int32 dev
+        # Chunked-prefill prefix offset: persistent [1] int32 dev
         # buffer so the value can change per step under a captured trace without
         # recompiling (the chunked SDPA "flexible" tensor overload).
         self._chunk_start_idx_dev = _alloc_dev((1,), torch.int32)
@@ -1277,7 +1277,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
-        # Cached-prefix prefill chunk (tt-xla #4986): a step with L > 1 and a
+        # Cached-prefix prefill chunk: a step with L > 1 and a
         # cached prefix (num_computed > 0) attends over the paged cache via the
         # on-device chunked SDPA op. decode (L == 1) and first-chunk prefill take
         # the standard path (chunk_start_idx stays None).
@@ -1297,7 +1297,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if prefix_chunk_step and self._chunked_sdpa_active:
             # Prefix offset for the on-device chunked SDPA op (no-gather path).
             # All users in a chunked step share num_computed (same-stage batching
-            # invariant, tt-xla #4986), so a single [1] offset is correct. Copy
+            # invariant), so a single [1] offset is correct. Copy
             # into the persistent buffer (trace-safe). The op masks causally and
             # applies the offset internally, so there is no host attn_mask.
             # (Configs where chunking can't occur or the kernel can't support the
@@ -2650,7 +2650,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Precompile the cached-prefix prefill (chunked SDPA op) graph only when
         # the op is actually usable for this config; otherwise there is no
         # cached-prefix path to precompile and small configs would hit the ttnn
-        # page-table-stick assert (tt-xla #4986).
+        # page-table-stick assert.
         chunked = self._chunked_sdpa_active
 
         def _run_backbone_dummies(num_tokens: int, prefix_chunk: bool) -> None:
@@ -2684,7 +2684,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 _run_backbone_dummies(num_tokens, prefix_chunk=False)
                 # Precompile the cached-prefix prefill attention graph for prompt
                 # chunks (num_tokens > 1) so it is not compiled at runtime on the
-                # first continuation chunk (tt-xla #4986).
+                # first continuation chunk.
                 if chunked and num_tokens > 1:
                     _run_backbone_dummies(num_tokens, prefix_chunk=True)
         xm.wait_device_ops()
