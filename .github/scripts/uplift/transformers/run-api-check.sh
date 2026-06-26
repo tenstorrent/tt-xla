@@ -1,26 +1,3 @@
-#!/usr/bin/env bash
-#
-# Runs the api-check: a pytest collection-only pass over the model test
-# files. Collection imports every test module, which in turn imports
-# every model loader — surfacing transformers API breakage (renamed
-# classes, removed exports, restructured modules) without instantiating
-# anything or running any inference.
-#
-# Iteration 1:   sub-loops up to --max-subloops attempts. Each failed
-#                attempt invokes Claude on the failure context, then
-#                re-runs collection. Designed for the first pass over a
-#                freshly-bumped transformers pin where many imports may
-#                be broken at once.
-#
-# Iteration 2+: collapses to a fast sanity check — one run; if it fails,
-#                one Claude pass + one re-run, then accept the result.
-#                The outer orchestrator handles further iterations.
-#
-# Exit code:    0 iff the final collection ended green.
-#
-# Usage:
-#   run-api-check.sh --iteration <N> [--max-subloops <K>]
-
 set -euo pipefail
 
 ITERATION=""
