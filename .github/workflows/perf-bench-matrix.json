@@ -707,6 +707,13 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "vllm_gemma4_31b_it_tp_opt1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gemma4-31b-it-tp-opt1]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "vllm_qwen3_32b_qb2_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-32b-qb2-tp]",
         "vllm": true,
