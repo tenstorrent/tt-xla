@@ -2686,7 +2686,6 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         optimization_level=0,
         trace_enabled=False,
         shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
-        required_pcc=0.96,
         experimental_kv_cache_dtype=None,
         required_pcc=0.99,
     )
