@@ -5,14 +5,12 @@
 # Built-in modules
 import os
 import socket
-import sys
 from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
 import numpy as np
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
@@ -38,9 +36,8 @@ from reporting import (
 from runtime import MODULE_EXPORT_PATH, get_xla_device_arch, init_tt_runtime
 from runtime import build_compile_options as _build_compile_options
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
+from transformers import PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
-from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
 

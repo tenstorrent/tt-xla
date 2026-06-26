@@ -10,8 +10,6 @@ isolation so the benchmark's behavior-critical bookkeeping has fast regression
 coverage independent of the on-device integration path.
 """
 
-import math
-
 import pytest
 import torch
 
@@ -143,8 +141,12 @@ def test_evaluate_pcc_passes_when_identical():
     cpu = [t.clone() for t in out]
     # Identical -> PCC ~1.0 -> no assertion error.
     evaluate_pcc(
-        out, cpu, required_pcc=0.99, decode_only=False,
-        assert_prefill=True, assert_decode=True,
+        out,
+        cpu,
+        required_pcc=0.99,
+        decode_only=False,
+        assert_prefill=True,
+        assert_decode=True,
     )
 
 
@@ -153,8 +155,12 @@ def test_evaluate_pcc_raises_on_bad_prefill():
     cpu = [_logits([4.0, 3.0, 2.0, 1.0]), _logits([1.0, 2.0, 3.0, 4.0])]
     with pytest.raises(AssertionError, match="Prefill PCC failed"):
         evaluate_pcc(
-            out, cpu, required_pcc=0.99, decode_only=False,
-            assert_prefill=True, assert_decode=False,
+            out,
+            cpu,
+            required_pcc=0.99,
+            decode_only=False,
+            assert_prefill=True,
+            assert_decode=False,
         )
 
 
@@ -163,8 +169,12 @@ def test_evaluate_pcc_decode_only_uses_cpu_index_1():
     out = [_logits([1.0, 2.0, 3.0, 4.0])]
     cpu = [_logits([9.0, 9.0, 9.0, 9.0]), _logits([1.0, 2.0, 3.0, 4.0])]
     evaluate_pcc(
-        out, cpu, required_pcc=0.99, decode_only=True,
-        assert_prefill=False, assert_decode=True,
+        out,
+        cpu,
+        required_pcc=0.99,
+        decode_only=True,
+        assert_prefill=False,
+        assert_decode=True,
     )
 
 
@@ -173,6 +183,10 @@ def test_evaluate_pcc_skips_assert_when_flags_false():
     out = [_logits([1.0, 2.0, 3.0, 4.0]), _logits([1.0, 2.0, 3.0, 4.0])]
     cpu = [_logits([1.0, 2.0, 3.0, 4.0]), _logits([4.0, 3.0, 2.0, 1.0])]
     evaluate_pcc(
-        out, cpu, required_pcc=0.99, decode_only=False,
-        assert_prefill=True, assert_decode=False,
+        out,
+        cpu,
+        required_pcc=0.99,
+        decode_only=False,
+        assert_prefill=True,
+        assert_decode=False,
     )

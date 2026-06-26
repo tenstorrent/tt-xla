@@ -159,7 +159,7 @@ def print_benchmark_results(
 
     # Print validation results (Token Accuracy or PCC)
     if top1_accuracy is not None and top5_accuracy is not None:
-        print(f"\n=== Token Accuracy Results ===")
+        print("\n=== Token Accuracy Results ===")
         print(f"TOP1 Accuracy: {top1_accuracy * 100:.2f}%")
         print(f"TOP5 Accuracy: {top5_accuracy * 100:.2f}%")
     elif pcc_value is not None:

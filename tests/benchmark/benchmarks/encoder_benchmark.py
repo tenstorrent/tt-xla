@@ -79,7 +79,7 @@ def warmup_encoder_model(
 
     with torch.no_grad():
         for i in range(loop_count):
-            output = run_encoder_model(
+            run_encoder_model(
                 model, raw_inputs, preprocess_fn, device, output_processor_fn
             )
 

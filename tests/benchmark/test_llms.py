@@ -6,7 +6,6 @@ import json
 import os
 from typing import Optional
 
-import numpy as np
 import pytest
 from benchmarks.llm_benchmark import (
     AccuracyConfig,
