@@ -32,6 +32,7 @@ model_auto_discovery_tests
 :maxdepth: 2
 
 fusing_and_composite_ops
+tt_lang_integration
 ```
 
 ```{toctree}
