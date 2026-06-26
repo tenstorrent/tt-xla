@@ -721,6 +721,216 @@ def evaluate_pcc(
         ), f"First decode PCC failed. PCC={decode_pcc_value}, Required={required_pcc}"
 
 
+@dataclass
+class DeviceRunContext:
+    """Immutable context shared by the on-device perf and logits phases."""
+
+    session: GenerationSession
+    model: torch.nn.Module
+    read_logits_fn: Callable
+    decode_only: bool
+    pcc: PccMode
+    accuracy_testing: bool
+    golden: Optional[CpuReference]
+    ground_truth_tokens: Optional[torch.Tensor]
+    tokenizer: object
+
+
+def run_perf_phase(ctx: DeviceRunContext, *, initial_inputs: dict, max_output_tokens):
+    """Warm up and run the timed decode loop; return per-iteration times (ns).
+
+    Returns an empty list in PCC-only mode (the timed loop is skipped), but the
+    perf inputs are still placed on device to mirror the full-run setup.
+    """
+    session = ctx.session
+    iospec = session.input_output_sharding_spec
+
+    # No logits returned to maximize performance and avoid device DRAM OOM.
+    perf_wrapper = LLMSamplingWrapper(
+        ctx.model,
+        ctx.read_logits_fn,
+        return_logits=False,
+        mesh=session.mesh,
+        output_sharding_spec=iospec,
+    )
+    perf_wrapper.eval()
+    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+
+    # Warmup run (skip in decode-only mode and in pcc-only mode)
+    current_inputs = initial_inputs
+    if not ctx.decode_only and not ctx.pcc.pcc_only:
+        warmup_inputs = session.build_inputs()
+        warmup_inputs = session.place_on_device(
+            warmup_inputs,
+            shard_kv=session.is_multichip,
+            shard_input_ids=session.is_multichip and bool(iospec),
+        )
+        print("Warming up...")
+        warmup_tokens = min(MIN_STEPS, max_output_tokens)
+        generate_and_benchmark(
+            compiled_perf_model,
+            warmup_inputs,
+            session.device,
+            warmup_tokens,
+            verbose=False,
+            collect_logits=False,
+        )
+        print("Warmup complete")
+        tracy.signpost("warmup_complete")
+        current_inputs = warmup_inputs
+
+    # Reconstruct inputs for the perf benchmark run.
+    existing_cache = (
+        current_inputs["past_key_values"]
+        if not ctx.decode_only
+        else ctx.golden.decode_cache
+    )
+    session.reset_cumulative_length(existing_cache)
+
+    perf_inputs = session.build_inputs(past_key_values=existing_cache)
+    if ctx.decode_only:
+        session.seed_decode(
+            perf_inputs,
+            input_ids=ctx.golden.first_decode_input_ids,
+            cache_position=ctx.golden.decode_cache_position,
+        )
+    perf_inputs = session.place_on_device(
+        perf_inputs,
+        shard_kv=session.is_multichip and ctx.decode_only,
+        shard_input_ids=bool(iospec),
+        cumulative_lengths=(
+            ctx.golden.decode_cumulative_lengths if ctx.decode_only else None
+        ),
+    )
+
+    # Run perf benchmark (skipped in pcc-only mode for fast iteration)
+    iteration_times = []
+    if not ctx.pcc.pcc_only:
+        print("\nStarting performance benchmark...")
+        _, iteration_times = generate_and_benchmark(
+            compiled_perf_model,
+            perf_inputs,
+            session.device,
+            max_output_tokens,
+            verbose=True,
+            tokenizer=ctx.tokenizer,
+            ground_truth_tokens=ctx.ground_truth_tokens,
+            collect_logits=False,
+        )
+        print("\nPerformance benchmark complete")
+    return iteration_times
+
+
+def run_logits_phase(ctx: DeviceRunContext, *, max_output_tokens):
+    """Run prefill + decode collecting logits; return per-step logits (on CPU)."""
+    session = ctx.session
+    iospec = session.input_output_sharding_spec
+
+    # Return logits to calculate PCC/TOPK
+    logits_wrapper = LLMSamplingWrapper(
+        ctx.model,
+        ctx.read_logits_fn,
+        return_logits=True,
+        mesh=session.mesh,
+        output_sharding_spec=iospec,
+    )
+    logits_wrapper.eval()
+    compiled_logits = torch.compile(logits_wrapper, backend="tt")
+
+    logits_steps = (
+        (1 if ctx.decode_only else 2) if ctx.pcc.pcc_only else max_output_tokens
+    )
+
+    # Reconstruct inputs for PCC/TOPK run
+    input_args = session.build_inputs(
+        past_key_values=ctx.golden.decode_cache if ctx.decode_only else None
+    )
+    if ctx.decode_only:
+        session.seed_decode(
+            input_args,
+            input_ids=ctx.golden.first_decode_input_ids,
+            cache_position=ctx.golden.decode_cache_position,
+        )
+    input_args = session.place_on_device(
+        input_args,
+        shard_kv=session.is_multichip,
+        shard_input_ids=bool(iospec),
+        cumulative_lengths=(
+            ctx.golden.decode_cumulative_lengths if ctx.decode_only else None
+        ),
+    )
+
+    print("\nStarting PCC/TOPK benchmark...")
+
+    device_prefill_logits = []
+    if not ctx.decode_only:
+        device_prefill_logits, _ = generate_and_benchmark(
+            compiled_logits,
+            input_args,
+            session.device,
+            1,
+            verbose=False,
+            ground_truth_tokens=ctx.ground_truth_tokens,
+            collect_logits=True,
+        )
+
+        device_prefill_output_ids = input_args["input_ids"].to("cpu")
+
+        if ctx.pcc.isolated:
+            # Rebuild decode inputs from the CPU-golden post-prefill KV cache.
+            input_args = session.build_inputs(past_key_values=ctx.golden.decode_cache)
+            session.seed_decode(
+                input_args,
+                input_ids=ctx.golden.first_decode_input_ids,
+                cache_position=ctx.golden.decode_cache_position,
+            )
+            input_args = session.place_on_device(
+                input_args,
+                shard_kv=session.is_multichip,
+                shard_input_ids=bool(iospec),
+                cumulative_lengths=ctx.golden.decode_cumulative_lengths,
+            )
+        # Override device's first-decode input with CPU's prefill output when they
+        # diverge, so the decode PCC reference is comparing apples to apples
+        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
+        elif not ctx.accuracy_testing and not torch.equal(
+            device_prefill_output_ids, ctx.golden.first_decode_input_ids.cpu()
+        ):
+            logger.warning(
+                "Device prefill produced different tokens than CPU prefill; "
+                "using CPU prefill output as decode PCC reference."
+            )
+            input_args["input_ids"] = ctx.golden.first_decode_input_ids.to(
+                session.device
+            )
+            if iospec:
+                xs.mark_sharding(input_args["input_ids"], session.mesh, iospec)
+
+    # The prefill call above already consumed gt[0] as teacher-forced input for
+    # the first decode step, so the decode call must start its ground-truth
+    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
+    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
+    decode_ground_truth = (
+        ctx.ground_truth_tokens[1:]
+        if ctx.ground_truth_tokens is not None and not ctx.decode_only
+        else ctx.ground_truth_tokens
+    )
+    decode_steps = logits_steps if ctx.decode_only else logits_steps - 1
+    device_decode_logits, _ = generate_and_benchmark(
+        compiled_logits,
+        input_args,
+        session.device,
+        decode_steps,
+        verbose=False,
+        ground_truth_tokens=decode_ground_truth,
+        collect_logits=True,
+    )
+
+    output_logits = device_prefill_logits + device_decode_logits
+    print("\nPCC/TOPK benchmark complete")
+    return output_logits
+
+
 def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
@@ -890,14 +1100,13 @@ def benchmark_llm_torch_xla(
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
     # Run CPU prefill+decode (used as PCC baseline, and as decode-only prefill).
+    # The returned CpuReference carries the post-prefill seeds (input ids, cache
+    # position, KV cache, cumulative lengths) consumed by the device phases.
     cpu_reference = None
+    cpu_output_logits = None
     if not accuracy_testing:
         cpu_reference = compute_cpu_reference(model, read_logits_fn, input_args)
         cpu_output_logits = cpu_reference.output_logits
-        first_decode_input_ids = cpu_reference.first_decode_input_ids
-        decode_only_cache_position = cpu_reference.decode_cache_position
-        decode_only_cache = cpu_reference.decode_cache
-        decode_only_cumlen = cpu_reference.decode_cumulative_lengths
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
@@ -943,187 +1152,28 @@ def benchmark_llm_torch_xla(
     apply_weight_dtypes(model, model_loader, weight_dtype_overrides)
 
     # ========================================================
-    # PERFORMANCE BENCHMARK
+    # ON-DEVICE PERF + PCC/TOPK BENCHMARK
     # ========================================================
-
-    # No logits returned to maximize performance and avoid device DRAM OOM.
-    perf_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=False,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    perf_wrapper.eval()
-    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
-
-    # Warmup run (skip in decode-only mode and in pcc-only mode)
-    if not decode_only and not pcc.pcc_only:
-        input_args = session.build_inputs()
-        input_args = session.place_on_device(
-            input_args,
-            shard_kv=session.is_multichip,
-            shard_input_ids=session.is_multichip and bool(input_output_sharding_spec),
-        )
-        print("Warming up...")
-        warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
-            compiled_perf_model,
-            input_args,
-            device,
-            warmup_tokens,
-            verbose=False,
-            collect_logits=False,
-        )
-        print("Warmup complete")
-
-        tracy.signpost("warmup_complete")
-
-    # Reconstruct inputs for the perf benchmark run.
-    existing_cache = (
-        input_args["past_key_values"] if not decode_only else decode_only_cache
-    )
-    session.reset_cumulative_length(existing_cache)
-
-    input_args = session.build_inputs(past_key_values=existing_cache)
-    if decode_only:
-        session.seed_decode(
-            input_args,
-            input_ids=first_decode_input_ids,
-            cache_position=decode_only_cache_position,
-        )
-
-    input_args = session.place_on_device(
-        input_args,
-        shard_kv=session.is_multichip and decode_only,
-        shard_input_ids=bool(input_output_sharding_spec),
-        cumulative_lengths=decode_only_cumlen if decode_only else None,
-    )
 
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
-
-    # Run perf benchmark (skipped in pcc-only mode for fast iteration)
-    iteration_times = []
-    if not pcc.pcc_only:
-        print(f"\nStarting performance benchmark...")
-        _, iteration_times = generate_and_benchmark(
-            compiled_perf_model,
-            input_args,
-            device,
-            max_output_tokens,
-            verbose=True,
-            tokenizer=tokenizer,
-            ground_truth_tokens=ground_truth_for_benchmark,
-            collect_logits=False,
-        )
-        print("\nPerformance benchmark complete")
-
-    # ========================================================
-    # PCC/TOPK BENCHMARK
-    # ========================================================
-
-    # Return logits to calculate PCC/TOPK
-    logits_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=True,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    logits_wrapper.eval()
-    compiled_logits = torch.compile(logits_wrapper, backend="tt")
-
-    logits_steps = (1 if decode_only else 2) if pcc.pcc_only else max_output_tokens
-
-    # Reconstruct inputs for PCC/TOPK run
-    input_args = session.build_inputs(
-        past_key_values=decode_only_cache if decode_only else None
-    )
-    if decode_only:
-        session.seed_decode(
-            input_args,
-            input_ids=first_decode_input_ids,
-            cache_position=decode_only_cache_position,
-        )
-
-    input_args = session.place_on_device(
-        input_args,
-        shard_kv=session.is_multichip,
-        shard_input_ids=bool(input_output_sharding_spec),
-        cumulative_lengths=decode_only_cumlen if decode_only else None,
+    run_ctx = DeviceRunContext(
+        session=session,
+        model=model,
+        read_logits_fn=read_logits_fn,
+        decode_only=decode_only,
+        pcc=pcc,
+        accuracy_testing=accuracy_testing,
+        golden=cpu_reference,
+        ground_truth_tokens=ground_truth_for_benchmark,
+        tokenizer=tokenizer,
     )
 
-    print("\nStarting PCC/TOPK benchmark...")
-
-    device_prefill_logits = []
-    if not decode_only:
-        device_prefill_logits, _ = generate_and_benchmark(
-            compiled_logits,
-            input_args,
-            device,
-            1,
-            verbose=False,
-            ground_truth_tokens=ground_truth_for_benchmark,
-            collect_logits=True,
-        )
-
-        device_prefill_output_ids = input_args["input_ids"].to("cpu")
-
-        if pcc.isolated:
-            # Rebuild decode inputs from the CPU-golden post-prefill KV cache.
-            input_args = session.build_inputs(past_key_values=decode_only_cache)
-            session.seed_decode(
-                input_args,
-                input_ids=first_decode_input_ids,
-                cache_position=decode_only_cache_position,
-            )
-            input_args = session.place_on_device(
-                input_args,
-                shard_kv=session.is_multichip,
-                shard_input_ids=bool(input_output_sharding_spec),
-                cumulative_lengths=decode_only_cumlen,
-            )
-        # Override device's first-decode input with CPU's prefill output when they
-        # diverge, so the decode PCC reference is comparing apples to apples
-        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
-        elif not accuracy_testing and not torch.equal(
-            device_prefill_output_ids, first_decode_input_ids.cpu()
-        ):
-            logger.warning(
-                "Device prefill produced different tokens than CPU prefill; "
-                "using CPU prefill output as decode PCC reference."
-            )
-            input_args["input_ids"] = first_decode_input_ids.to(device)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-
-    # The prefill call above already consumed gt[0] as teacher-forced input for
-    # the first decode step, so the decode call must start its ground-truth
-    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
-    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
-    decode_ground_truth = (
-        ground_truth_for_benchmark[1:]
-        if ground_truth_for_benchmark is not None and not decode_only
-        else ground_truth_for_benchmark
+    iteration_times = run_perf_phase(
+        run_ctx, initial_inputs=input_args, max_output_tokens=max_output_tokens
     )
-    decode_steps = logits_steps if decode_only else logits_steps - 1
-    device_decode_logits, _ = generate_and_benchmark(
-        compiled_logits,
-        input_args,
-        device,
-        decode_steps,
-        verbose=False,
-        ground_truth_tokens=decode_ground_truth,
-        collect_logits=True,
-    )
-
-    output_logits = device_prefill_logits + device_decode_logits
-
-    print("\nPCC/TOPK benchmark complete")
+    output_logits = run_logits_phase(run_ctx, max_output_tokens=max_output_tokens)
 
     # ========================================================
     # METRICS & VALIDATION
