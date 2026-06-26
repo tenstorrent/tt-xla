@@ -1531,23 +1531,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids: torch.Tensor,
         inputs_embeds: torch.Tensor | None,
     ) -> None:
-        """Pin the model input shardings (batch dim across the mesh). Applied in
-        BOTH the warmup (_dummy_run) and execution (sample_tokens) paths so their
-        graphs match;
-        otherwise warmup shards these inputs while execution leaves them
-        replicated, and the backbone recompiles at the first real step for any
-        shardable batch. Also keeps large prefill traces from splitting into a
-        secondary sync that drops mhlo.spmd_output_sharding (which trips
-        shlo_clean_for_xla_ingestion)."""
-        if not self.enable_tensor_parallel:
+        """Pin the model input shardings (batch dim across the mesh) for the
+        data-parallel modes. Applied in BOTH the warmup (_dummy_run) and
+        execution (sample_tokens) paths so their graphs match; otherwise warmup
+        shards these inputs while execution leaves them replicated, and the
+        backbone recompiles at the first real step for any shardable batch. Also
+        keeps large prefill traces from splitting into a secondary sync that
+        drops mhlo.spmd_output_sharding (which trips shlo_clean_for_xla_ingestion).
+
+        Only DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL split the batch across
+        the mesh's "batch" axis. The tensor-parallel-only modes (1D and 2D/FSDP)
+        replicate the full batch to every device and shard the model weights
+        instead, so their inputs must stay unsharded here."""
+        if self.parallel_mode not in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
             return
-        # 2D mesh: model batch dim -> "batch" axis (data-parallel).
-        # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
         if input_ids is not None:
-            safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
+            safe_mark_sharding(input_ids, self.mesh, ("batch", None))
         if inputs_embeds is not None:
-            safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+            safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
 
     def _prepare_model_call_tensors(
         self,
