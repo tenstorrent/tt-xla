@@ -22,23 +22,18 @@ builds the pipeline (which compiles the heavy net for TT), runs the two passes
 and emits a standardized benchmark result.
 """
 
-import socket
 import time
 
-import torch_xla
-import torch_xla.runtime as xr
+from harness import init_tt_runtime, set_compile_options, tt_xla_device_fields
 from utils import (
     build_xla_export_name,
     create_benchmark_result,
     get_benchmark_metadata,
-    get_xla_device_arch,
     print_benchmark_results,
     save_image,
 )
 
-xr.set_device_type("TT")
-
-MODULE_EXPORT_PATH = "modules"
+init_tt_runtime()
 
 
 def benchmark_imagegen_torch_xla(
@@ -82,15 +77,12 @@ def benchmark_imagegen_torch_xla(
         input_sequence_length=None,
     )
 
-    options = {
-        "optimization_level": optimization_level,
-        "export_path": MODULE_EXPORT_PATH,
-        "export_model_name": export_model_name,
-        "ttnn_perf_metrics_enabled": True,
-        "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "enable_trace": trace_enabled,
-    }
-    torch_xla.set_custom_compile_options(options)
+    options = set_compile_options(
+        optimization_level=optimization_level,
+        export_model_name=export_model_name,
+        ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+        enable_trace=trace_enabled,
+    )
 
     # Build + compile the pipeline (heavy net registers the "tt" backend and is
     # moved to the XLA device here; actual kernel compilation happens lazily on
@@ -183,16 +175,11 @@ def benchmark_imagegen_torch_xla(
         evaluation_score=0.0,
         custom_measurements=custom_measurements,
         optimization_level=optimization_level,
-        program_cache_enabled=True,
         trace_enabled=trace_enabled,
         model_info=model_info_name,
         display_name=display_name,
-        torch_xla_enabled=True,
-        backend="tt",
-        device_name=socket.gethostname(),
-        arch=get_xla_device_arch(),
-        device_count=xr.global_runtime_device_count(),
         input_is_image=True,
+        **tt_xla_device_fields(),
     )
 
     return result

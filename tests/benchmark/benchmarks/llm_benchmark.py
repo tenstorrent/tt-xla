@@ -17,6 +17,8 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 from fusion_check import check_fusions
+from harness import MODULE_EXPORT_PATH, init_tt_runtime
+from harness import build_compile_options as _build_compile_options
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
@@ -43,7 +45,7 @@ from utils import (
     print_benchmark_results,
 )
 
-xr.set_device_type("TT")
+init_tt_runtime()
 
 MIN_STEPS = 16
 DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
@@ -52,8 +54,6 @@ DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 DEFAULT_INPUT_PROMPT = (
     "Here is an exaustive list of the best practices for writing clean code:"
 )
-
-MODULE_EXPORT_PATH = "modules"
 
 
 @dataclass
@@ -546,28 +546,24 @@ def build_compile_options(
     export_model_name,
     ttnn_perf_metrics_output_file,
 ) -> dict:
-    """Assemble the torch-xla custom compile options dict from a CompileConfig."""
-    options = {
-        "optimization_level": compile_config.optimization_level,
-        "enable_trace": compile_config.trace_enabled,
-        "export_path": MODULE_EXPORT_PATH,
-        "export_model_name": export_model_name,
-        "ttnn_perf_metrics_enabled": True,
-        "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "experimental_weight_dtype": compile_config.experimental_weight_dtype,
-        "experimental_enable_permute_matmul_fusion": (
+    """Assemble the torch-xla custom compile options dict from a CompileConfig.
+
+    Thin adapter over :func:`harness.build_compile_options` that unpacks the
+    LLM-specific :class:`CompileConfig`.
+    """
+    return _build_compile_options(
+        optimization_level=compile_config.optimization_level,
+        enable_trace=compile_config.trace_enabled,
+        export_model_name=export_model_name,
+        ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+        experimental_weight_dtype=compile_config.experimental_weight_dtype,
+        experimental_enable_permute_matmul_fusion=(
             compile_config.experimental_enable_permute_matmul_fusion
         ),
-    }
-    if compile_config.fp32_dest_acc_en is not None:
-        options["fp32_dest_acc_en"] = compile_config.fp32_dest_acc_en
-    if compile_config.experimental_kv_cache_dtype is not None:
-        options["experimental-kv-cache-dtype"] = (
-            compile_config.experimental_kv_cache_dtype
-        )
-    if compile_config.enable_create_d2m_subgraphs:
-        options["enable_create_d2m_subgraphs"] = compile_config.enable_create_d2m_subgraphs
-    return options
+        fp32_dest_acc_en=compile_config.fp32_dest_acc_en,
+        experimental_kv_cache_dtype=compile_config.experimental_kv_cache_dtype,
+        enable_create_d2m_subgraphs=compile_config.enable_create_d2m_subgraphs,
+    )
 
 
 def apply_weight_dtypes(model, model_loader, weight_dtype_overrides):

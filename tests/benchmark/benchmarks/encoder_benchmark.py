@@ -2,28 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import socket
 import time
 from typing import List
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
+from harness import (
+    assert_pcc,
+    init_tt_runtime,
+    set_compile_options,
+    tt_xla_device_fields,
+)
 from utils import (
     build_xla_export_name,
-    compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
-    get_xla_device_arch,
     move_to_cpu,
     print_benchmark_results,
 )
 
-xr.set_device_type("TT")
+init_tt_runtime()
 
 WARMUP_STEPS = 3  # Number of warmup iterations before benchmarking
-
-MODULE_EXPORT_PATH = "modules"
 
 
 def run_encoder_model(
@@ -217,18 +217,14 @@ def benchmark_encoder_torch_xla(
     )
 
     # Set XLA compilation options
-    options = {
-        "optimization_level": optimization_level,
-        "export_path": MODULE_EXPORT_PATH,
-        "export_model_name": export_model_name,
-        "ttnn_perf_metrics_enabled": True,
-        "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "enable_trace": trace_enabled,
-        "experimental_weight_dtype": experimental_weight_dtype,
-        "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
-    }
-
-    torch_xla.set_custom_compile_options(options)
+    set_compile_options(
+        optimization_level=optimization_level,
+        export_model_name=export_model_name,
+        ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+        enable_trace=trace_enabled,
+        experimental_weight_dtype=experimental_weight_dtype,
+        experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
+    )
 
     # Compile model
     framework_model.compile(backend="tt")
@@ -259,12 +255,7 @@ def benchmark_encoder_torch_xla(
     )
 
     # Evaluate PCC
-    pcc_value = compute_pcc(predictions[0], golden_output)
-    assert (
-        pcc_value >= required_pcc
-    ), f"PCC comparison failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-    print(f"PCC verification passed with PCC={pcc_value:.6f}")
-    evaluation_score = pcc_value
+    evaluation_score = assert_pcc(predictions[0], golden_output, required_pcc)
 
     total_samples = batch_size * loop_count
     samples_per_sec = total_samples / total_time
@@ -305,18 +296,13 @@ def benchmark_encoder_torch_xla(
         total_samples=total_samples,
         evaluation_score=evaluation_score,
         optimization_level=optimization_level,
-        program_cache_enabled=True,
         trace_enabled=trace_enabled,
         model_info=full_model_name,
         display_name=display_name,
-        torch_xla_enabled=True,
-        backend="tt",
-        device_name=socket.gethostname(),
-        arch=get_xla_device_arch(),
         input_is_image=False,
         input_sequence_length=input_sequence_length,
         experimental_weight_dtype=experimental_weight_dtype,
-        device_count=xr.global_runtime_device_count(),
+        **tt_xla_device_fields(),
     )
 
     return result
