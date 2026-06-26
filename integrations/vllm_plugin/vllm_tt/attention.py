@@ -177,7 +177,7 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
-    # Chunked-prefill prefix offset (tt-xla #4986): device [1] int32 tensor =
+    # Chunked-prefill prefix offset: device [1] int32 tensor =
     # num_computed (shared across users by the same-stage-batching invariant).
     # Set only on a cached-prefix prefill chunk; consumed by the on-device
     # chunked_scaled_dot_product_attention op (the no-gather path).
@@ -540,7 +540,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         shared_kv_mode = (
             self.kv_sharing_target_layer_name is not None and has_paged_cache
         )
-        # Cached-prefix path (tt-xla #4986): a prefill chunk whose prefix is
+        # Cached-prefix path: a prefill chunk whose prefix is
         # already in the paged cache attends over it on device via
         # chunked_scaled_dot_product_attention (page_table + chunk_start_idx;
         # causal mask + prefix offset handled inside the op -- no host mask, no

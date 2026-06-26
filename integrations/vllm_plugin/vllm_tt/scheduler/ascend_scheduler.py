@@ -80,11 +80,11 @@ class AscendScheduler(Scheduler):
 
         # Count partial prefill chunks scheduled this step. These requests are
         # scheduled but intentionally kept out of self.running until their
-        # prefill completes (tt-xla #4986), so they are excluded from the
+        # prefill completes, so they are excluded from the
         # scheduled-vs-running invariant check below.
         num_partial_prefill_scheduled = 0
 
-        # Chunked prefill (tt-xla #4986): the num_computed_tokens stage of the
+        # Chunked prefill: the num_computed_tokens stage of the
         # first prefill request scheduled this step. We only batch prefill
         # requests at the SAME stage in one step. Mixing a fresh request
         # (num_computed=0) with a continuation (num_computed>0) forces the fresh
@@ -183,7 +183,7 @@ class AscendScheduler(Scheduler):
                 )
             else:
                 # P/D: skip checking prefix cache if loaded from remote kvs.
-                # Also reached by continued chunked-prefill chunks (tt-xla #4986),
+                # Also reached by continued chunked-prefill chunks,
                 # where the prefix is already computed/allocated. Use the
                 # manager's empty-blocks singleton: allocate_slots compares it by
                 # identity to decide whether to (re)allocate computed blocks, so
@@ -194,7 +194,7 @@ class AscendScheduler(Scheduler):
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
 
-            # Chunked prefill (tt-xla #4986): only batch prefill requests at the
+            # Chunked prefill: only batch prefill requests at the
             # same stage. If a prefill is already scheduled this step at a
             # different num_computed_tokens, defer this one to a later step (it
             # is re-enqueued at the head of the waiting queue). Prevents the
@@ -242,7 +242,7 @@ class AscendScheduler(Scheduler):
                 chunked_prefill = getattr(
                     self.scheduler_config, "chunked_prefill_enabled", False
                 )
-                # Chunked prefill (tt-xla #4986): a request may take at most a
+                # Chunked prefill: a request may take at most a
                 # PER-SEQUENCE chunk (tt_prefill_chunk_size) this step, not the
                 # whole batch-wide token_budget. The budget is sized
                 # chunk x max_num_seqs so multiple users batch into one prefill
@@ -273,7 +273,7 @@ class AscendScheduler(Scheduler):
                         if num_new_tokens == 0:
                             # Remaining budget < one block: can't take a
                             # block-aligned chunk without corrupting the cached-
-                            # prefix fill. Defer to the next step. (#4986)
+                            # prefix fill. Defer to the next step.
                             skip_cur_request()
                             continue
                     else:
@@ -346,7 +346,7 @@ class AscendScheduler(Scheduler):
                 request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
 
-            # Chunked prefill (tt-xla #4986): a request whose prompt does not
+            # Chunked prefill: a request whose prompt does not
             # fully fit in this step's token budget is scheduled as a partial
             # chunk and continued on subsequent steps. Such a request must stay
             # in the prefill path (re-enqueued below) and must NOT enter
@@ -389,7 +389,7 @@ class AscendScheduler(Scheduler):
             num_scheduled_tokens[request.request_id] = num_new_tokens
             token_budget -= num_new_tokens
             # Record this step's prefill stage so later iterations only batch
-            # same-stage prefills (tt-xla #4986).
+            # same-stage prefills.
             if step_prefill_num_computed is None:
                 step_prefill_num_computed = num_computed_tokens
             request.status = RequestStatus.RUNNING
@@ -631,7 +631,7 @@ class AscendScheduler(Scheduler):
             # here would leave num_computed_tokens mid-block and corrupt the
             # cached-prefix fill (fill_page_table is rolled by whole blocks),
             # producing wrong output for that user at batch>1. Return 0 to signal
-            # "defer to next step", where the request gets the full budget. (#4986)
+            # "defer to next step", where the request gets the full budget.
             return 0
         if (num_new_tokens - chunk) == 1 and chunk > self.block_size:
             chunk -= self.block_size
@@ -665,7 +665,7 @@ class AscendScheduler(Scheduler):
         # With chunked prefill a prompt may be far longer than the per-step
         # token budget (max_num_scheduled_tokens) -- it is split into chunks --
         # so the prompt-length limit is max_model_len alone. Without chunking, a
-        # prompt must fit in a single scheduled step, hence the min. (tt-xla #4986)
+        # prompt must fit in a single scheduled step, hence the min.
         if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
             prompt_limit = self.max_model_len
         else:
@@ -694,7 +694,7 @@ class AscendScheduler(Scheduler):
         Extends the base handler to also purge finished/aborted requests from
         the *waiting-side* queues. AscendScheduler keeps a mid-prefill chunked
         request (status RUNNING) in ``self.skipped_waiting`` rather than
-        ``self.running`` until its prefill completes (tt-xla #4986). The base
+        ``self.running`` until its prefill completes. The base
         ``finish_requests`` removes RUNNING requests only from ``self.running``,
         so an aborted mid-prefill request would linger in ``skipped_waiting``
         and the next ``schedule()`` would raise
@@ -726,7 +726,7 @@ class AscendScheduler(Scheduler):
 
         # Purge from the waiting-side queues. The base handler only removes
         # RUNNING-status requests from self.running, missing chunked-prefill
-        # continuations that live in skipped_waiting (tt-xla #4986).
+        # continuations that live in skipped_waiting.
         # remove_requests just filters the deque, so it is a safe no-op for
         # requests the base handler already removed.
         if to_remove:

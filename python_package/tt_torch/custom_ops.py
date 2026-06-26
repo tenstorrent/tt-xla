@@ -932,7 +932,7 @@ def chunked_scaled_dot_product_attention(
     chunk_start_idx_tensor: torch.Tensor,
     scale: float = None,
 ) -> torch.Tensor:
-    """Chunked prefill attention over a paged K/V cache (tt-xla #4986).
+    """Chunked prefill attention over a paged K/V cache.
 
     A prefill chunk of ``query`` (whose prefix is already resident in the paged
     cache) attends causally over ``[0, chunk_start_idx + chunk_len)`` read from
@@ -963,9 +963,8 @@ def chunked_scaled_dot_product_attention(
             frontend_attributes=attrs,
         )
     elif device.type == "cpu":
-        # Reference: gather the full prefix+chunk K/V from the paged cache (the
-        # same math as the gather workaround in vllm_tt/attention.py), then run
-        # causal+offset masked SDPA. Doubles as the equivalence oracle.
+        # Reference: gather the full prefix+chunk K/V from the paged cache, then
+        # run causal+offset masked SDPA. Doubles as the equivalence oracle.
         users, n_heads, chunk_len, head_size = query.shape
         num_kv_heads = key.shape[1]
         block_size = key.shape[2]
