@@ -331,30 +331,106 @@ def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
             xs.mark_sharding(layer.values, mesh, kv_spec)
 
 
-def _to_device_and_shard(
-    input_args: dict,
-    device: torch.device,
-    *,
-    mesh=None,
-    shard_kv: bool = False,
-    kv_cache_sharding_spec=None,
-    shard_input_ids: bool = False,
-    input_output_sharding_spec=None,
-    cumulative_lengths=None,
-) -> dict:
-    """Transfer inputs to device and apply the optional sharding/seed ritual.
+class GenerationSession:
+    """Owns the input + KV-cache lifecycle for one model on one device.
 
-    Consolidates the transfer + KV-cache shard + input_ids shard + cumulative
-    length restore sequence shared by the warmup, perf, and PCC phases.
+    Centralizes input construction, device transfer, sharding, and the
+    post-prefill cache bookkeeping (cumulative_length reset/restore) that the
+    warmup, perf, and PCC phases would otherwise each re-implement. The session
+    holds the static context (tokenizer, mesh, sharding specs, prompt) so the
+    phases only express what differs between them.
     """
-    input_args = transfer_to_device(input_args, device)
-    if shard_kv:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-    if shard_input_ids:
-        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
-    if cumulative_lengths is not None:
-        _restore_cumulative_length(input_args["past_key_values"], cumulative_lengths)
-    return input_args
+
+    def __init__(
+        self,
+        *,
+        tokenizer,
+        model_config,
+        batch_size: int,
+        max_cache_len: int,
+        device: torch.device,
+        mesh=None,
+        use_mla_cache: bool = False,
+        kv_cache_sharding_spec=None,
+        input_output_sharding_spec=None,
+        custom_input_prompt=None,
+        input_prompt_tokens=None,
+    ):
+        self.tokenizer = tokenizer
+        self.model_config = model_config
+        self.batch_size = batch_size
+        self.max_cache_len = max_cache_len
+        self.device = device
+        self.mesh = mesh
+        self.use_mla_cache = use_mla_cache
+        self.kv_cache_sharding_spec = kv_cache_sharding_spec
+        self.input_output_sharding_spec = input_output_sharding_spec
+        self.custom_input_prompt = custom_input_prompt
+        self.input_prompt_tokens = input_prompt_tokens
+
+    @property
+    def is_multichip(self) -> bool:
+        return self.mesh is not None
+
+    def build_inputs(self, *, past_key_values=None) -> dict:
+        """Construct fresh CPU input_args (optionally reusing an existing cache)."""
+        return construct_inputs(
+            self.tokenizer,
+            self.model_config,
+            self.batch_size,
+            self.max_cache_len,
+            past_key_values=past_key_values,
+            input_prompt=self.custom_input_prompt,
+            input_prompt_tokens=self.input_prompt_tokens,
+            use_mla_cache=self.use_mla_cache,
+        )
+
+    @staticmethod
+    def seed_decode(input_args: dict, *, input_ids, cache_position) -> dict:
+        """Reset input_args to a single-token post-prefill decode state."""
+        input_args["input_ids"] = input_ids.clone()
+        input_args["cache_position"] = cache_position.clone()
+        return input_args
+
+    @staticmethod
+    def reset_cumulative_length(cache) -> None:
+        """Zero each layer's cumulative_length on CPU (fresh-cache invariant)."""
+        for layer in cache.layers:
+            if hasattr(layer, "cumulative_length"):
+                if layer.cumulative_length.device.type != "cpu":
+                    layer.cumulative_length = layer.cumulative_length.cpu()
+                layer.cumulative_length.zero_()
+
+    def place_on_device(
+        self,
+        input_args: dict,
+        *,
+        shard_kv: bool,
+        shard_input_ids: bool,
+        cumulative_lengths=None,
+    ) -> dict:
+        """Transfer inputs to the device and apply the sharding/seed ritual.
+
+        Consolidates the transfer + KV-cache shard + input_ids shard +
+        cumulative-length restore sequence shared by the warmup, perf, and PCC
+        phases. shard_kv / shard_input_ids stay explicit because the phases
+        differ in whether a cache/input is freshly placed (and thus needs
+        re-sharding) versus reused from a prior placement.
+        """
+        input_args = transfer_to_device(input_args, self.device)
+        if shard_kv:
+            _shard_kv_cache(
+                input_args["past_key_values"], self.mesh, self.kv_cache_sharding_spec
+            )
+        if shard_input_ids:
+            xs.mark_sharding(
+                input_args["input_ids"], self.mesh, self.input_output_sharding_spec
+            )
+        if cumulative_lengths is not None:
+            _restore_cumulative_length(
+                input_args["past_key_values"], cumulative_lengths
+            )
+        return input_args
 
 
 def _validate_args(
@@ -778,16 +854,24 @@ def benchmark_llm_torch_xla(
             hf_model_name=hf_model_name_for_accuracy,
         )
 
-    # Construct inputs, including static cache
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    # Session owns input construction + device placement + cache bookkeeping.
+    # mesh is attached later, once multi-chip sharding has been set up.
+    session = GenerationSession(
+        tokenizer=tokenizer,
+        model_config=model.config,
+        batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device=device,
+        mesh=None,
         use_mla_cache=use_mla_cache,
+        kv_cache_sharding_spec=kv_cache_sharding_spec,
+        input_output_sharding_spec=input_output_sharding_spec,
+        custom_input_prompt=custom_input_prompt,
+        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
+
+    # Construct inputs, including static cache
+    input_args = session.build_inputs()
 
     # Initialize indexer cache if enabled (needs to be done before model.to(device))
     # Models using this cache are expected to handle stale values since it cannot be
@@ -832,6 +916,9 @@ def benchmark_llm_torch_xla(
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
 
+    # Attach the (possibly None) mesh now that sharding setup is complete.
+    session.mesh = mesh
+
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
     export_model_name = build_xla_export_name(
@@ -872,26 +959,11 @@ def benchmark_llm_torch_xla(
 
     # Warmup run (skip in decode-only mode and in pcc-only mode)
     if not decode_only and not pcc.pcc_only:
-        # Construct inputs for warmup run
-        input_args = construct_inputs(
-            tokenizer,
-            model.config,
-            batch_size,
-            max_cache_len,
-            input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
-            use_mla_cache=use_mla_cache,
-        )
-        input_args = _to_device_and_shard(
+        input_args = session.build_inputs()
+        input_args = session.place_on_device(
             input_args,
-            device,
-            mesh=mesh,
-            shard_kv=is_multichip,
-            kv_cache_sharding_spec=kv_cache_sharding_spec,
-            shard_input_ids=is_multichip and bool(input_output_sharding_spec),
-            input_output_sharding_spec=input_output_sharding_spec,
+            shard_kv=session.is_multichip,
+            shard_input_ids=session.is_multichip and bool(input_output_sharding_spec),
         )
         print("Warming up...")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
@@ -911,38 +983,20 @@ def benchmark_llm_torch_xla(
     existing_cache = (
         input_args["past_key_values"] if not decode_only else decode_only_cache
     )
+    session.reset_cumulative_length(existing_cache)
 
-    # Reset cumulative_length to 0 on CPU
-    for layer in existing_cache.layers:
-        if hasattr(layer, "cumulative_length"):
-            if layer.cumulative_length.device.type != "cpu":
-                layer.cumulative_length = layer.cumulative_length.cpu()
-            layer.cumulative_length.zero_()
-
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=existing_cache,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        use_mla_cache=use_mla_cache,
-    )
-
+    input_args = session.build_inputs(past_key_values=existing_cache)
     if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = first_decode_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
+        session.seed_decode(
+            input_args,
+            input_ids=first_decode_input_ids,
+            cache_position=decode_only_cache_position,
+        )
 
-    input_args = _to_device_and_shard(
+    input_args = session.place_on_device(
         input_args,
-        device,
-        mesh=mesh,
-        shard_kv=is_multichip and decode_only,
-        kv_cache_sharding_spec=kv_cache_sharding_spec,
+        shard_kv=session.is_multichip and decode_only,
         shard_input_ids=bool(input_output_sharding_spec),
-        input_output_sharding_spec=input_output_sharding_spec,
         cumulative_lengths=decode_only_cumlen if decode_only else None,
     )
 
@@ -984,30 +1038,20 @@ def benchmark_llm_torch_xla(
     logits_steps = (1 if decode_only else 2) if pcc.pcc_only else max_output_tokens
 
     # Reconstruct inputs for PCC/TOPK run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=decode_only_cache if decode_only else None,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        use_mla_cache=use_mla_cache,
+    input_args = session.build_inputs(
+        past_key_values=decode_only_cache if decode_only else None
     )
-
     if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = first_decode_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
+        session.seed_decode(
+            input_args,
+            input_ids=first_decode_input_ids,
+            cache_position=decode_only_cache_position,
+        )
 
-    input_args = _to_device_and_shard(
+    input_args = session.place_on_device(
         input_args,
-        device,
-        mesh=mesh,
-        shard_kv=is_multichip,
-        kv_cache_sharding_spec=kv_cache_sharding_spec,
+        shard_kv=session.is_multichip,
         shard_input_ids=bool(input_output_sharding_spec),
-        input_output_sharding_spec=input_output_sharding_spec,
         cumulative_lengths=decode_only_cumlen if decode_only else None,
     )
 
@@ -1029,28 +1073,16 @@ def benchmark_llm_torch_xla(
 
         if pcc.isolated:
             # Rebuild decode inputs from the CPU-golden post-prefill KV cache.
-            input_args = construct_inputs(
-                tokenizer,
-                model.config,
-                batch_size,
-                max_cache_len,
-                past_key_values=decode_only_cache,
-                input_prompt=custom_input_prompt,
-                input_prompt_tokens=(
-                    token_accuracy.input_prompt if accuracy_testing else None
-                ),
-                use_mla_cache=use_mla_cache,
-            )
-            input_args["input_ids"] = first_decode_input_ids.clone()
-            input_args["cache_position"] = decode_only_cache_position.clone()
-            input_args = _to_device_and_shard(
+            input_args = session.build_inputs(past_key_values=decode_only_cache)
+            session.seed_decode(
                 input_args,
-                device,
-                mesh=mesh,
-                shard_kv=is_multichip,
-                kv_cache_sharding_spec=kv_cache_sharding_spec,
+                input_ids=first_decode_input_ids,
+                cache_position=decode_only_cache_position,
+            )
+            input_args = session.place_on_device(
+                input_args,
+                shard_kv=session.is_multichip,
                 shard_input_ids=bool(input_output_sharding_spec),
-                input_output_sharding_spec=input_output_sharding_spec,
                 cumulative_lengths=decode_only_cumlen,
             )
         # Override device's first-decode input with CPU's prefill output when they
