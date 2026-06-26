@@ -614,5 +614,5 @@ def test_srpo_transformer(output_file, request):
         loop_count=32,
         optimization_level=0,  # qb2-blackhole: opt>=1 aborts (harvested grid)
         trace_enabled=False,  # trace warmup segfaults for this model on qb2-blackhole
-        experimental_weight_dtype="bfp_bf8",
+        experimental_enable_permute_matmul_fusion=True,
     )
