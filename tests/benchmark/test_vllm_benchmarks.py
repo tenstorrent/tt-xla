@@ -278,7 +278,7 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config(
             "mistralai/Devstral-2-123B-Instruct-2512",
-            32,
+            128,
             mesh_shape=[4, 8],
             experimental_weight_dtype="bfp_bf8",
             gpu_memory_utilization=0.085,
