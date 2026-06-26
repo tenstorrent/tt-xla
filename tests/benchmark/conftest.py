@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from dataclasses import dataclass
+from typing import Optional
+
 import pytest
 import torch
 
@@ -143,6 +146,49 @@ def decode_only(request):
 @pytest.fixture
 def check_fusions(request):
     return request.config.getoption("--check-fusions")
+
+
+@dataclass
+class CliOptions:
+    """Bundle of the command-line benchmark options shared by every test.
+
+    Lets a test declare a single ``cli`` fixture instead of repeating the full
+    list of option fixtures, and centralizes their resolution (see the
+    ``_run_llm`` helpers in ``test_llms.py``).
+    """
+
+    output_file: Optional[str]
+    num_layers: Optional[int]
+    batch_size: Optional[int]
+    accuracy_testing: bool
+    optimization_level: Optional[int]
+    max_output_tokens: Optional[int]
+    decode_only: bool
+    check_fusions: bool
+
+
+@pytest.fixture
+def cli(
+    output_file,
+    num_layers,
+    batch_size,
+    accuracy_testing,
+    optimization_level,
+    max_output_tokens,
+    decode_only,
+    check_fusions,
+):
+    """Bundle the common command-line options into a single object."""
+    return CliOptions(
+        output_file=output_file,
+        num_layers=num_layers,
+        batch_size=batch_size,
+        accuracy_testing=accuracy_testing,
+        optimization_level=optimization_level,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        check_fusions=check_fusions,
+    )
 
 
 @pytest.fixture(autouse=True)
