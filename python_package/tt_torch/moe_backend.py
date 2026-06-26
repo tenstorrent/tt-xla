@@ -16,6 +16,7 @@ Works with any ``@use_experts_implementation`` Experts module that exposes
 
 from __future__ import annotations
 
+import os
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
@@ -49,6 +50,14 @@ _TT_MOE_GPT_BATCH_ATTR = "_tt_moe_gpt_batch"
 # (not inline const-eval constants). See register_tt_moe_gpt_decode_hooks.
 _TT_DISPATCH_MAPPING_ATTR = "_tt_dispatch_mapping"
 _TT_MOE_GPT_MAPPING_ATTR = "_tt_moe_gpt_mapping"
+
+# Router weight/bias/top_k stashed on the experts module so the fused decode
+# forward can emit ttir.topk_router_gpt in the SAME traced function as
+# ttir.moe_gpt_decode (matching the e2e structure; avoids cross-function
+# composite-marking failures).
+_TT_ROUTER_WEIGHT_ATTR = "_tt_router_weight"
+_TT_ROUTER_BIAS_ATTR = "_tt_router_bias"
+_TT_ROUTER_TOPK_ATTR = "_tt_router_top_k"
 
 # Parameter names for the preprocessed 6D fused kernel weights, stamped on each
 # experts module before device transfer (CPU preprocessing) and sharded with a
@@ -637,8 +646,7 @@ def _moe_gpt_decode_fallback(
     """Decode-only GPT-OSS decomposition expressed with the SHLO custom ops.
 
     Expects 4D inputs: hidden_states ``[B, 1, S, H]``, topk_indices/scores
-    ``[B, 1, S, K]``. Returns the unweighted combine output ``[K, S, B, H]``
-    (output_shard_dim=2); the weighted sum is applied by the caller.
+    ``[B, 1, S, K]``. Returns the score-weighted MoE output ``[B, H]``.
 
     When ``fused_w0_w1`` / ``fused_w2`` (preprocessed 6D kernel weights) are
     supplied, ``moe_gpt`` consumes those directly; otherwise the tt-MLIR
@@ -683,7 +691,11 @@ def _moe_gpt_decode_fallback(
         num_experts_per_tok=num_experts_per_tok,
         output_shard_dim=2,
     )
-    return combined
+    B = hidden_states.shape[0]
+    H = hidden_states.shape[-1]
+    K = num_experts_per_tok
+    weights_k = topk_scores.reshape(B, K).permute(1, 0).view(K, 1, B, 1)
+    return (combined * weights_k.to(combined.dtype)).sum(dim=0).view(B, H)
 
 
 def _composite_moe_gpt_decode(
@@ -779,6 +791,84 @@ def _composite_moe_gpt_decode(
     return builder.mark_outputs(output)
 
 
+def _composite_topk_router_gpt(
+    hidden_states: torch.Tensor,
+    router_weight: torch.Tensor,
+    router_bias: torch.Tensor,
+    k: int,
+    num_experts: int,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Emit the ``tenstorrent.topk_router_gpt`` StableHLO composite.
+
+    tt-MLIR legalizes it to ``ttir.topk_router_gpt`` (the fused GPT-OSS router
+    kernel: logits = hidden @ weight^T + bias -> top-k -> softmax over k). The
+    traced body below is plain HF router math and only fixes the output
+    shapes/dtypes for tracing; ``StableHLOLegalizeCompositePass`` replaces the
+    whole composite with the op, which does its own top-k + softmax on device.
+
+    Contract (StableHLOLegalizeCompositePass): exactly 3 operands
+    (hidden_states ``[..., H]`` bf16, router_weight ``[E, H]`` bf16, router_bias
+    ``[E]`` bf16) and 2 results (indices ``[..., k]``, weights ``[..., k]``
+    bf16), with ``k`` / ``num_experts`` attributes.
+    """
+    from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
+
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.topk_router_gpt",
+        attr={"k": int(k), "num_experts": int(num_experts)},
+    )
+    hidden_states, router_weight, router_bias = builder.mark_inputs(
+        hidden_states, router_weight, router_bias
+    )
+    # Traced body == HF router math (float32), matching the on-device kernel.
+    logits = F.linear(hidden_states.float(), router_weight.float(), router_bias.float())
+    top_value, top_index = torch.topk(logits, int(k), dim=-1)
+    top_weights = F.softmax(top_value, dim=-1, dtype=top_value.dtype)
+    top_index = top_index.to(torch.int64)
+    top_weights = top_weights.to(hidden_states.dtype)
+    return builder.mark_outputs(top_index, top_weights)
+
+
+def _tt_topk_router_gpt_router_forward(
+    self: torch.nn.Module, hidden_states: torch.Tensor
+):
+    """``GptOssTopKRouter.forward`` replacement that emits ``topk_router_gpt``.
+
+    Mirrors HF ``GptOssTopKRouter.forward`` exactly, returning the same 3-tuple
+    ``(router_logits, router_scores [..., k], router_indices [..., k])`` (note
+    router_scores is the softmaxed top-k weights, NOT a dense [.., E] tensor) so
+    the GptOssMLP / ExpertsInterface consume it unchanged. Only the DECODE step
+    (flattened T == global batch, S==1) routes through the fused topk_router_gpt
+    op (the e2e fused-decode path); prefill keeps the plain HF math so the dense
+    fallback stays byte-identical. router_logits is None on the fused path (the
+    MLP discards it).
+    """
+    num_experts = int(getattr(self, "num_experts", self.weight.shape[0]))
+    H = hidden_states.shape[-1]
+    T = hidden_states.reshape(-1, H).shape[0]
+
+    batch = _tt_moe_gpt_decode_batch
+    use_fused = batch is not None and int(T) == int(batch)
+    if use_fused:
+        # topk_router_gpt does logits -> top-k -> softmax on device. Keep the
+        # original leading dims (router returns [..., k] like HF).
+        router_indices, router_scores = _composite_topk_router_gpt(
+            hidden_states, self.weight, self.bias, self.top_k, num_experts
+        )
+        # router_logits is discarded by GptOssMLP (the `_`); return a real
+        # tensor (not None) so the traced func output structure is well-formed.
+        # It DCEs away since nothing consumes it.
+        router_logits = F.linear(hidden_states, self.weight, self.bias)
+        return router_logits, router_scores, router_indices
+
+    router_logits = F.linear(hidden_states, self.weight, self.bias)
+    router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
+    router_scores = F.softmax(
+        router_top_value, dim=1, dtype=router_top_value.dtype
+    )
+    return router_logits, router_scores, router_indices
+
+
 def _tt_moe_gpt_decode_forward(
     self: torch.nn.Module,
     hidden_states: torch.Tensor,
@@ -848,6 +938,29 @@ def _tt_moe_gpt_decode_forward(
     fused_w2 = getattr(self, _TT_FUSED_W2_ATTR)
 
     # Frame tokens as [B, 1, S, H] with B=T, S=1 (decode).
+    # Emit the fused ttir.topk_router_gpt op IN THIS function so it and
+    # ttir.moe_gpt_decode are marked in a single trace (the e2e fused-decode
+    # structure). When the router weight/bias were stashed at setup, re-derive
+    # routing on device, replacing the HF-router top_k_index / top_k_weights.
+    # The intervening .view() to 4D is a real reshape, so the topk_router_gpt
+    # composite output and the moe_gpt_decode composite input are NOT adjacent
+    # xla_mark_tensor ops (which would fail to order).
+    # Off by default: the topk_router_gpt composite chains into moe_gpt_decode and
+    # its xla_mark_tensor ordering is fragile with >1 MoE layer (the composite
+    # builder fails to order the marks). It also does not change PCC (the router
+    # is numerically equivalent to HF top-k+softmax). Enable for single-layer
+    # bring-up / parity experiments with TT_USE_TOPK_ROUTER_GPT=1.
+    router_weight = getattr(self, _TT_ROUTER_WEIGHT_ATTR, None)
+    router_bias = getattr(self, _TT_ROUTER_BIAS_ATTR, None)
+    if (
+        os.environ.get("TT_USE_TOPK_ROUTER_GPT")
+        and router_weight is not None
+        and router_bias is not None
+    ):
+        top_k_index, top_k_weights = _composite_topk_router_gpt(
+            hidden_states, router_weight, router_bias, K, E
+        )
+
     hidden_4d = hidden_states.view(T, 1, 1, H)
     indices_4d = top_k_index.view(T, 1, 1, K)
     scores_4d = top_k_weights.to(dtype).view(T, 1, 1, K)
@@ -881,13 +994,9 @@ def _tt_moe_gpt_decode_forward(
         limit=limit,
         fused_w0_w1=fused_w0_w1,
         fused_w2=fused_w2,
-    )  # combined: [K, S=1, B=T, H]
+    )  # [T, H], score-weighted and TP-reduced inside the decomposition.
 
-    # Top-k weighted sum (done outside the composite so batch-sharded weights
-    # are not pulled into the dispatch-replicated composite body).
-    weights_k = top_k_weights.permute(1, 0).view(K, T, 1).to(combined.dtype)
-    output = (combined.squeeze(1) * weights_k).sum(dim=0)  # [T, H]
-    return output.to(dtype)
+    return combined.to(dtype)
 
 
 def _tt_moe_gpt_is_decode(self: torch.nn.Module, hidden_states: torch.Tensor) -> bool:
@@ -1159,6 +1268,17 @@ def register_tt_moe_gpt_decode_hooks(
         if experts is None:
             continue
         setattr(experts, _TT_MOE_GPT_BATCH_ATTR, int(batch_size))
+        # Stash the router weight/bias on the experts module so the decode
+        # forward can emit the fused ttir.topk_router_gpt op IN THE SAME function
+        # as ttir.moe_gpt_decode (the e2e fused-decode structure). Emitting both
+        # composites in one traced function avoids the back-to-back xla_mark_tensor
+        # ordering failure that occurs when the topk_router_gpt composite output
+        # feeds the moe_gpt_decode composite input across the HF MLP boundary.
+        router = getattr(mlp, "router", None)
+        if router is not None and hasattr(router, "weight") and hasattr(router, "top_k"):
+            setattr(experts, _TT_ROUTER_WEIGHT_ATTR, router.weight)
+            setattr(experts, _TT_ROUTER_BIAS_ATTR, getattr(router, "bias", None))
+            setattr(experts, _TT_ROUTER_TOPK_ATTR, int(router.top_k))
         # Stash the dispatch/moe_gpt expert mappings as two DISTINCT replicated
         # buffers (graph parameters), not inline constants. As parameters they
         # become runtime inputs, so the moe_gpt op's mapping reshape/to_layout
