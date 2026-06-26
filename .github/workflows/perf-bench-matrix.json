@@ -772,56 +772,77 @@
         "name": "wan_umt5_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_umt5[14b-sharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_vae_encoder_480p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-unsharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_vae_encoder_720p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-unsharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_vae_decoder_480p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-unsharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_vae_decoder_720p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-unsharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_dit_480p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
         ]
       },
       {
         "name": "wan14b_dit_720p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-720p-sharded]",
         "runs-on": [
-          "qb2-blackhole",
-          "galaxy-bh"
+          "qb2-blackhole"
         ]
       }
     ]
