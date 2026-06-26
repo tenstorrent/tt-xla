@@ -2780,3 +2780,42 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Llasa-8B is a text-to-speech model built on a LlamaForCausalLM backbone
+# (fine-tuned from Llama-3.1-8B-Instruct) with a vocabulary extended by discrete
+# XCodec2 speech tokens. The perf path benchmarks the standard causal-LM forward
+# over the speech-generation prompt; the downstream XCodec2 waveform decoder is a
+# separate component and out of scope here. p150 (blackhole) is single-chip, so
+# this uses test_llm (not test_llm_tp). The model OOMs on a single 12GB
+# wormhole_b0 (n150) but fits on blackhole's larger DRAM. weight_dtype_overrides
+# packs the two untied 193800x4096 embedding-class weights (~1.59GB each in bf16)
+# into block float to keep weight-transfer headroom.
+def test_llasa_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.llasa.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLASA_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
