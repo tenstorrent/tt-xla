@@ -396,6 +396,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # path -- fail loudly rather than silently dropping the cached prefix.
         # Realistic (power-of-2) max_model_len always satisfies this; pick a
         # multiple of 8*block_size.
+        # Raising is correct while chunked prefill is opt-in: the user explicitly
+        # asked to chunk, so a loud error beats silently degrading.
+        # TODO(default-on): when chunked prefill becomes the default, fall back to
+        # standard single-shot prefill here instead of raising, so configs that
+        # never opted in are not regressed.
         if (
             getattr(scheduler_config, "chunked_prefill_enabled", False)
             and self.prefill_chunk_budget < self.max_model_len
