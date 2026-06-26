@@ -2816,5 +2816,5 @@ def test_vibevoice_1_5b(
         trace_enabled=True,
         experimental_kv_cache_dtype=None,
         experimental_weight_dtype="",
-        fp32_dest_acc_en=True,
+        experimental_enable_permute_matmul_fusion=False,
     )
