@@ -110,6 +110,7 @@ def test_tensor_parallel_generation_llmbox_large(
         "additional_config": {
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
@@ -149,6 +150,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
         "additional_config": {
             "min_context_len": 64,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
