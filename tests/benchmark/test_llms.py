@@ -8,7 +8,12 @@ from typing import Optional
 
 import numpy as np
 import pytest
-from benchmarks.llm_benchmark import benchmark_llm_torch_xla
+from benchmarks.llm_benchmark import (
+    AccuracyConfig,
+    CompileConfig,
+    ShardingConfig,
+    benchmark_llm_torch_xla,
+)
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
 from utils import create_model_loader, resolve_display_name
@@ -137,8 +142,6 @@ def test_llm(
         )
 
     results = benchmark_llm_torch_xla(
-        optimization_level=optimization_level,
-        trace_enabled=trace_enabled,
         model_loader=model_loader,
         model_variant=variant,
         display_name=display_name,
@@ -147,28 +150,36 @@ def test_llm(
         task=task,
         data_format=data_format,
         input_sequence_length=input_sequence_length,
-        experimental_weight_dtype=experimental_weight_dtype,
-        experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         read_logits_fn=read_logits_fn,
-        mesh_config_fn=mesh_config_fn,
-        shard_spec_fn=shard_spec_fn,
         required_pcc=required_pcc,
-        fp32_dest_acc_en=fp32_dest_acc_en,
-        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
-        accuracy_testing=accuracy_testing,
-        model_name_for_accuracy=model_name_for_accuracy,
-        hf_model_name_for_accuracy=hf_model_name,
+        compile_config=CompileConfig(
+            optimization_level=optimization_level,
+            trace_enabled=trace_enabled,
+            experimental_weight_dtype=experimental_weight_dtype,
+            experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
+            fp32_dest_acc_en=fp32_dest_acc_en,
+            experimental_kv_cache_dtype=experimental_kv_cache_dtype,
+            enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
+        ),
+        sharding_config=ShardingConfig(
+            mesh_config_fn=mesh_config_fn,
+            shard_spec_fn=shard_spec_fn,
+            input_output_sharding_spec=input_output_sharding_spec,
+            kv_cache_sharding_spec=kv_cache_sharding_spec,
+        ),
+        accuracy_config=AccuracyConfig(
+            enabled=accuracy_testing,
+            model_name_for_accuracy=model_name_for_accuracy,
+            hf_model_name_for_accuracy=hf_model_name,
+        ),
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         weight_dtype_overrides=weight_dtype_overrides,
-        input_output_sharding_spec=input_output_sharding_spec,
-        kv_cache_sharding_spec=kv_cache_sharding_spec,
         use_mla_cache=use_mla_cache,
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
-        enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
         experts_implementation=experts_implementation,
     )
 

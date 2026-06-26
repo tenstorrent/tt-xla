@@ -7,7 +7,7 @@ import os
 import socket
 import sys
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 import torch
@@ -104,6 +104,38 @@ class PerfSummary:
     decode_total_time: float
     decode_total_tokens: int
     tokens_per_second: float
+
+
+@dataclass
+class CompileConfig:
+    """tt-mlir / torch-xla compilation knobs."""
+
+    optimization_level: int
+    trace_enabled: bool
+    experimental_weight_dtype: str
+    experimental_enable_permute_matmul_fusion: bool
+    fp32_dest_acc_en: Optional[bool] = None
+    experimental_kv_cache_dtype: Optional[str] = None
+    enable_create_d2m_subgraphs: bool = False
+
+
+@dataclass
+class ShardingConfig:
+    """Multi-chip mesh and sharding specs (all None for single-chip)."""
+
+    mesh_config_fn: Optional[Callable] = None
+    shard_spec_fn: Optional[Callable] = None
+    input_output_sharding_spec: Optional[tuple] = None
+    kv_cache_sharding_spec: Optional[tuple] = None
+
+
+@dataclass
+class AccuracyConfig:
+    """Token-accuracy testing settings."""
+
+    enabled: bool = False
+    model_name_for_accuracy: Optional[str] = None
+    hf_model_name_for_accuracy: Optional[str] = None
 
 
 def setup_model_and_tokenizer(
@@ -617,35 +649,24 @@ def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
     display_name,
-    optimization_level,
-    trace_enabled,
     batch_size,
     loop_count,
     task,
     data_format,
     input_sequence_length,
-    experimental_weight_dtype,
-    experimental_enable_permute_matmul_fusion,
     ttnn_perf_metrics_output_file,
     read_logits_fn,
-    mesh_config_fn,
-    shard_spec_fn,
     required_pcc,
-    fp32_dest_acc_en=None,
-    experimental_kv_cache_dtype=None,
-    accuracy_testing: bool = False,
-    model_name_for_accuracy: str = None,
-    hf_model_name_for_accuracy: str = None,
+    compile_config: CompileConfig,
+    sharding_config: Optional[ShardingConfig] = None,
+    accuracy_config: Optional[AccuracyConfig] = None,
     max_output_tokens=None,
     decode_only: bool = False,
     weight_dtype_overrides: dict = None,
-    input_output_sharding_spec=None,
-    kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
-    enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
 ):
     """
@@ -678,6 +699,29 @@ def benchmark_llm_torch_xla(
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
+    sharding_config = sharding_config or ShardingConfig()
+    accuracy_config = accuracy_config or AccuracyConfig()
+
+    # Unpack grouped configs into locals used throughout the benchmark flow.
+    optimization_level = compile_config.optimization_level
+    trace_enabled = compile_config.trace_enabled
+    experimental_weight_dtype = compile_config.experimental_weight_dtype
+    experimental_enable_permute_matmul_fusion = (
+        compile_config.experimental_enable_permute_matmul_fusion
+    )
+    fp32_dest_acc_en = compile_config.fp32_dest_acc_en
+    experimental_kv_cache_dtype = compile_config.experimental_kv_cache_dtype
+    enable_create_d2m_subgraphs = compile_config.enable_create_d2m_subgraphs
+
+    mesh_config_fn = sharding_config.mesh_config_fn
+    shard_spec_fn = sharding_config.shard_spec_fn
+    input_output_sharding_spec = sharding_config.input_output_sharding_spec
+    kv_cache_sharding_spec = sharding_config.kv_cache_sharding_spec
+
+    accuracy_testing = accuracy_config.enabled
+    model_name_for_accuracy = accuracy_config.model_name_for_accuracy
+    hf_model_name_for_accuracy = accuracy_config.hf_model_name_for_accuracy
+
     _validate_args(
         data_format=data_format,
         model_loader=model_loader,
