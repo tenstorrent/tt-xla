@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MAX_ITERATIONS: 5
+  MAX_ITERATIONS: 2
 
 jobs:
   build-image:
@@ -223,13 +223,25 @@ jobs:
         run: |
           NEXT=$((NEXT_ITER + 1))
           echo "Re-dispatching as iteration $NEXT"
-          gh workflow run workflow-transformers-uplift.yml \
-            --ref "${{ github.ref_name }}" \
-            -f iteration="$NEXT" \
-            -f branch="${{ inputs.branch }}" \
-            -f target_version="${{ inputs.target_version }}" \
-            -f current_version="${{ inputs.current_version }}" \
-            -f baseline_run_id="${{ inputs.baseline_run_id }}"
+          # TEMP: workflow file isn't on main yet — dispatch via the
+          # REST API by numeric workflow ID. Swap back to
+          # `gh workflow run workflow-transformers-uplift.yml ...` once
+          # this lands on main.
+          WORKFLOW_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
+          if [[ -z "$WORKFLOW_ID" ]]; then
+            echo "::error::workflow-transformers-uplift.yml is not registered" >&2
+            exit 1
+          fi
+          gh api -X POST \
+            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
+            -f ref="${{ github.ref_name }}" \
+            -f "inputs[iteration]=$NEXT" \
+            -f "inputs[branch]=${{ inputs.branch }}" \
+            -f "inputs[target_version]=${{ inputs.target_version }}" \
+            -f "inputs[current_version]=${{ inputs.current_version }}" \
+            -f "inputs[baseline_run_id]=${{ inputs.baseline_run_id }}"
 
       - name: Log finalize handoff
         if: steps.next.outputs.action == 'finalize'

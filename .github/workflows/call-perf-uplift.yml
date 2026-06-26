@@ -42,7 +42,10 @@ on:
       adv_filter:
         type: string
         required: false
-        default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}, {"runs-on": "p150-perf", "exclude": "vllm"}, {"runs-on": "n300-llmbox", "exclude": "vllm"}, {"runs-on": "galaxy-wh-6u", "exclude": "vllm"}, {"runs-on": "qb2-blackhole", "exclude": "vllm"} ]'
+        # TEMP: narrowed to n150-perf only for transformers-uplift perf
+        # testing. Restore the full-arch entry below before merging.
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}]'
+        # default: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf", "exclude": "vllm"}, {"runs-on": "p150-perf", "exclude": "vllm"}, {"runs-on": "n300-llmbox", "exclude": "vllm"}, {"runs-on": "galaxy-wh-6u", "exclude": "vllm"}, {"runs-on": "qb2-blackhole", "exclude": "vllm"} ]'
     outputs:
       perf_result:
         description: 'Result of the underlying perf job (success | failure | skipped | cancelled)'
