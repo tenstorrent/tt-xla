@@ -2812,9 +2812,7 @@ def test_vibevoice_1_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
-        trace_enabled=True,
+        optimization_level=0,  # opt>=1 fails prefill PCC (0.82-0.87 < 0.94); see model-perf-tuning report
+        trace_enabled=False,  # no speedup at opt=0; perf gain is gated behind opt>=1 which regresses PCC
         experimental_kv_cache_dtype=None,
-        experimental_weight_dtype="",
-        experimental_enable_permute_matmul_fusion=False,
     )
