@@ -8,6 +8,7 @@ Central registry of all fusion pattern providers.
 All fusion provider classes are defined in this file.
 """
 
+import os
 from abc import ABC, abstractmethod
 from typing import Callable, List, Type
 
@@ -15,6 +16,15 @@ import torch
 from torch import Tensor
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 from ttxla_tools.logging import logger
+
+# [#5140 A/B toggle] When TTXLA_REVERT_RMSNORM_FUSION_5140 is set, drop the Gemma
+# family RMSNorm patterns that #5140 added, leaving only the two pre-#5140 Llama /
+# GPT-OSS patterns. Paired with the gate in vllm_tt/layers/rmsnorm.py so a branch
+# rebased on top of #5140 can be A/B-compared against the parent without checking
+# out the parent commit. See ISSUE_*rmsnorm_fusion*.
+REVERT_RMSNORM_FUSION_5140 = os.environ.get(
+    "TTXLA_REVERT_RMSNORM_FUSION_5140", "0"
+).lower() not in ("0", "", "false", "no")
 
 
 class FusionProvider(ABC):
@@ -272,10 +282,14 @@ class RMSNormFusionProvider(FusionProvider):
         )
 
     def get_patterns(self) -> List[tuple]:
-        return [
+        patterns = [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
-            (self.pattern_gemma, self.replacement_gemma),
-            (self.pattern_gemma4, self.replacement_gemma4),
-            (self.pattern_gemma4_no_scale, self.replacement_gemma4_no_scale),
         ]
+        if not REVERT_RMSNORM_FUSION_5140:
+            patterns += [
+                (self.pattern_gemma, self.replacement_gemma),
+                (self.pattern_gemma4, self.replacement_gemma4),
+                (self.pattern_gemma4_no_scale, self.replacement_gemma4_no_scale),
+            ]
+        return patterns

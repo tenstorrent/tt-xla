@@ -2,9 +2,21 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
+import os
+
 import torch
 import torch.nn as nn
 from vllm.model_executor.layers.layernorm import RMSNorm
+
+# [#5140 A/B toggle] When TTXLA_REVERT_RMSNORM_FUSION_5140 is set, revert the two
+# behavioral changes #5140 made to this module (operand order of the weight
+# multiply, and the .mean() signature) to their pre-#5140 form. Paired with the
+# gate in tt_torch/fusion_providers.py, this lets a branch rebased on top of #5140
+# be A/B-compared against the parent's behavior without checking out the parent
+# commit (which would drop unreleased work). See ISSUE_*rmsnorm_fusion*.
+REVERT_RMSNORM_FUSION_5140 = os.environ.get(
+    "TTXLA_REVERT_RMSNORM_FUSION_5140", "0"
+).lower() not in ("0", "", "false", "no")
 
 
 class TTRMSNorm(nn.Module):
@@ -65,12 +77,15 @@ class TTRMSNorm(nn.Module):
 
             x_var = x[:, :, : self.variance_size_override]
 
-        variance = x_var.pow(2).mean(-1, keepdim=True)
+        if REVERT_RMSNORM_FUSION_5140:
+            variance = x_var.pow(2).mean(dim=-1, keepdim=True)
+        else:
+            variance = x_var.pow(2).mean(-1, keepdim=True)
 
         x = x * torch.rsqrt(variance + self.variance_epsilon)
         x = x.to(orig_dtype)
         if self.has_weight and self.weight is not None:
-            x = self.weight * x
+            x = x * self.weight if REVERT_RMSNORM_FUSION_5140 else self.weight * x
         if residual is None:
             return x
         return x, residual
