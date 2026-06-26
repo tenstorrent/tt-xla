@@ -20,6 +20,28 @@ on:
         type: string
         required: false
         default: ""
+  workflow_dispatch:
+    inputs:
+      iteration:
+        description: 'Iteration number (1 for fresh start; 2+ for self-dispatched continuations).'
+        type: string
+        required: true
+        default: "1"
+      branch:
+        description: 'Uplift WIP branch (e.g. transformers-uplift/5.9.0).'
+        type: string
+        required: true
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      baseline_run_id:
+        description: 'Optional schedule-nightly run ID (on main) to seed the baseline-failures filter.'
+        type: string
+        required: false
+        default: ""
 
 
 permissions:
@@ -158,10 +180,17 @@ jobs:
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
+
             git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" || true
             git add -A
             git commit "${COMMIT_FLAG[@]}"
-            git push --force-with-lease origin "$BRANCH"
+
+            echo "=== submodule push diagnostic ==="
+            echo "local HEAD                : $(git rev-parse HEAD)"
+            echo "local origin/$BRANCH      : $(git rev-parse "origin/$BRANCH" 2>/dev/null || echo "(missing)")"
+            echo "server tip $BRANCH        : $(git ls-remote origin "$BRANCH" | cut -f1)"
+            echo "================================="
+            git push --force origin "$BRANCH"
             popd >/dev/null
           fi
   
@@ -187,9 +216,11 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
       docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-      baseline_run_id:         ${{ inputs.baseline_run_id }}
+      # TEMP: hardcoded baseline run for transformers-uplift testing.
+      # Restore `${{ inputs.baseline_run_id }}` before merging.
+      baseline_run_id:         "28209379088"
     secrets: inherit
- 
+
   decide:
     needs: [setup, api-check, test-and-fix-base]
     if: always() && needs.setup.result == 'success'
@@ -264,11 +295,13 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
       docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-      baseline_run_id:         ${{ inputs.baseline_run_id }}
+      # TEMP: hardcoded baseline run for transformers-uplift testing.
+      # Restore `${{ inputs.baseline_run_id }}` before merging.
+      baseline_run_id:         "28209379088"
     secrets: inherit
 
   perf-benchmark:
-    needs: [setup, build-image, build-ttxla, decide]
+    needs: [setup, build-image, build-ttxla, decide, test-and-fix-full]
     if: always() && needs.decide.outputs.action == 'finalize'
     uses: ./.github/workflows/call-perf-uplift.yml
     secrets: inherit
