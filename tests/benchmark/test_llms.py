@@ -1070,10 +1070,6 @@ def test_ministral_8b(
     )
 
 
-# The n150 perf entry (llama_3_1_8b_instruct) is excluded from the onPR perf filter
-# (still runs in nightly): device hang during uplift
-# (https://github.com/tenstorrent/tt-xla/issues/5282, fix in
-# https://github.com/tenstorrent/tt-metal/pull/47221). The accuracy entry still runs.
 def test_llama_3_1_8b(
     output_file,
     num_layers,
