@@ -2780,3 +2780,39 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# VibeVoice (microsoft/VibeVoice-1.5B) is a multi-speaker TTS model, but its
+# compute-dominant and architecturally standard component is a Qwen2.5-1.5B
+# decoder backbone. The loader exposes that backbone as a stock
+# Qwen2ForCausalLM (input_ids -> backbone -> lm_head -> logits), so we benchmark
+# it through the standard test_llm path. This times the LM backbone only; the
+# VAE codecs / diffusion head used during speech generation are out of scope.
+def test_vibevoice_1_5b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.vibevoice.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.VIBEVOICE_1_5B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

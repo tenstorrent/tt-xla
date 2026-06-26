@@ -84,7 +84,13 @@ def setup_model_and_tokenizer(
             experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
         )
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Most ForgeModel loaders populate a public ``tokenizer`` attribute during
+    # ``load_model``. Some only expose the standard ``_load_tokenizer()`` method
+    # without setting that attribute, so fall back to it when needed (general,
+    # not model-specific).
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
 
     return model, tokenizer
 
