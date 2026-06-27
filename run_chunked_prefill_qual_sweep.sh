@@ -18,7 +18,9 @@ CPU_SAMPLING=0          # device sampling
 KV_CACHE_DTYPE=bfp_bf8  # BFP8 KV (weights BFP8 by default)
 BATCH=32
 PREFILL_CHUNK=2048
-GMU=0.35                # experiment: was 0.15 @ 64K
+GMU=0.15                # known-good (b32 @64K). 0.35/0.325/0.30 OOM llama-3.1-8b: the
+                        # [batch x chunk x intermediate] prefill activation needs free DRAM,
+                        # so KV budget must stay low. 0.15 is the min that still inits 64K KV.
 MAX_NUM_BATCHED_TOKENS=$(( BATCH * PREFILL_CHUNK ))   # = 65536, vs 2M default
 
 MODELS=("llama-3.2-3b" "llama-3.1-8b")
