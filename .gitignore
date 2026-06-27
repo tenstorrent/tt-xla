@@ -53,3 +53,8 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+# transformers-uplift: transient claude-fix artifacts (WIP branch only)
+/failure_context.txt
+/baseline_failures.txt
+/.github/transformers-uplift/fix-summary.md
