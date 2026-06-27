@@ -844,6 +844,11 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "llasa_8b",
+        "pytest": "tests/benchmark/test_llms.py::test_llasa_8b",
+        "runs-on": "p150-perf"
       }
     ]
   }

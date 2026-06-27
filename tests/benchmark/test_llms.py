@@ -2782,3 +2782,38 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Llasa is a LLaMA-3.1-8B causal-LM fine-tuned for text-to-speech: it autoregressively
+# emits XCodec2 speech tokens. The loader exposes only the LlamaForCausalLM backbone
+# (the XCodec2 acoustic decoder that turns speech tokens into a waveform is a separate
+# model and is out of scope), so this benchmarks the speech-token LM forward
+# (prefill + decode) on a single chip via the standard test_llm path.
+def test_llasa_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.llasa.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLASA_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
