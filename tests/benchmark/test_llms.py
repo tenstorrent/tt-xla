@@ -2782,3 +2782,38 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def test_dots_ocr(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    # dots.ocr is a document-OCR VLM (DotsVisionTransformer + Qwen2 decoder).
+    # This benchmarks the text-decoder path only: text-only input_ids skip the
+    # vision tower and run the pure Qwen2ForCausalLM stack. The vision tower has
+    # no perf harness (and its patch-embed Conv2d does not yet lower on device).
+    from third_party.tt_forge_models.dots_ocr.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BASE
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
