@@ -41,6 +41,209 @@ The benchmark uses tracy signposts to mark sections (warmup, token generation). 
 tt-perf-report trace.csv --start-signpost decode_1_start --end-signpost decode_1_end
 ```
 
+### Issue 5009 profiling pipeline
+
+Use `tests/benchmark/scripts/ttxla_profile_pipeline.py` to collect a run manifest, execute bounded benchmark profiles, capture IR and perf artifacts, and render the searchable dashboard and stakeholder HTML report.
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
+  --output-root artifacts/prd-009/ttxla-profile \
+  --timeout-seconds 1800
+```
+
+The bounded override flags are routed by benchmark family. LLM entries receive
+`--batch-size`, `--num-layers`, and `--max-output-tokens`; encoder entries
+receive `--batch-size`, `--num-layers`, and `--input-sequence-length` when the
+sequence length is set to a positive value; JAX entries receive `--batch-size`;
+vision entries run with their benchmark-local settings plus the common
+output/profile flags.
+
+The pipeline passes `--dump-irs-dir` to the benchmark runner and stores raw
+runner IR dumps under the run directory before copying the selected files into
+each profile's `ir/` folder. Put `--output-root` / `--ird-remote-output-root` on
+a large mount when profiling on IRD so `collected_irs` and Tracy artifacts do
+not land under a quota-constrained repository checkout.
+
+Raw Tracy logs can be large enough to fill a shared runner. By default the
+pipeline prunes raw Tracy artifacts larger than 100 MB after each model profile
+returns and records the removed paths in `status.json` under
+`artifacts.pruned_raw_artifacts`. Use `--max-raw-artifact-bytes 0` only when the
+raw files must be retained for debugging.
+
+The pipeline removes the repo-local `modules/` cache before each selected model
+profile. This avoids stale compiled artifacts from a previous model, hardware
+shape, or checkout from being reused by a later profile on shared storage.
+Each profile subprocess also receives a profile-local `HOME`, `XDG_CACHE_HOME`,
+and `MPLCONFIGDIR` under its profile directory so TT-Metal, JAX, Hugging Face,
+and Matplotlib cache writes stay with the run instead of colliding in shared
+`/home` cache state.
+
+Use `--run-budget-seconds` to keep the nested pipeline inside the scheduler
+reservation window. When the budget is exhausted before a selected benchmark
+starts, the pipeline writes a terminal `status.json` with `taxonomy: not_run`.
+Before rendering the final artifacts, the pipeline also writes
+`taxonomy: not_started` statuses for any discovered model that does not yet have
+a `status.json`, so partial runs still produce explicit evidence for every model
+in scope. The `not_started` value follows the existing `BringupStatus.NOT_STARTED`
+terminology used by repository model status reporting.
+
+To profile a NVIDIA/SILICON_PASS cohort from the bringup runner instead of the
+static benchmark directory, pass a cohort JSON with `models[].test_case_id`:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
+  --nvidia-cohort-json artifacts/results-main-latest-silicon-pass-random-1000-2026-04-23-nvidia-runnable775.json \
+  --max-models 25
+```
+
+The pipeline maps each exact `test_case_id` to the TT runner node ID:
+
+```text
+tests/runner/test_models.py::test_all_models_torch[<test_case_id>-single_device-inference]
+```
+
+This reuses the bringup branch cohort key and avoids fuzzy matching against
+Hugging Face model names. The profiling run still executes on TT hardware
+through Tracy; it does not use the CUDA-specific NVIDIA tester. Runner entries
+receive runner-native output flags (`--dump-irs-dir`, `--perf-report-dir`, and
+`--perf-id`) instead of benchmark-only flags such as `--output-file`.
+
+By default, NVIDIA cohort discovery validates those exact runner node IDs with
+`pytest --collect-only -q tests/runner/test_models.py` before profiling. The run
+writes `nvidia-cohort-mapping.json` with candidate rows, collected runner nodes,
+selected rows, and missing rows. Use `--nvidia-skip-collection-validation` only
+for dry mapping/debugging when the runner collection environment is unavailable;
+do not use synthetic-only mapping as proof that a row is runnable.
+
+To run the same pipeline on IRD, use `--target ird`. The default mode uses a
+short-lived `ird run` job so the scheduler owns container teardown:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-docker-image xla \
+  --ird-timeout 45:00 \
+  --ird-cluster tt_aus \
+  --ird-team sw \
+  --ird-machine aus-wh-01 \
+  --ird-num-pcie-chips 1 \
+  --ird-remote-repo-root /work/tt-xla \
+  --ird-remote-output-root /work/tt-xla/artifacts/prd-009/ttxla-profile \
+  --readiness-timeout-seconds 120 \
+  --run-budget-seconds 2400 \
+  --output-root artifacts/prd-009/ttxla-profile \
+  run
+```
+
+The `xla` image alias is expected to select the Ubuntu 24 TT-XLA IRD image. The
+harness emits `ird run wormhole_b0 --docker-image xla ...`; keep
+`--docker-image` after the hardware architecture argument because this IRD CLI
+uses that ordering to select the TT-XLA image. If `--run-budget-seconds` is not
+set for `--target ird`, the harness derives a remote run budget from
+`--ird-timeout` with a 300-second cleanup/finalization buffer when the timeout is
+parseable.
+
+The nested IRD run performs a readiness gate before pytest discovery. It records
+`readiness/*.out`, `readiness/*.err`, `environment.json`, `manifest.json`, and
+`command-trace.jsonl` if `pytest`, Tracy, or `tt-perf-report` cannot start.
+Use `--readiness-timeout-seconds` for IRD runs where tool startup can exceed the
+local 30-second default.
+
+If the selected IRD image does not include those tools, install or expose them
+through `--ird-remote-setup` and pass explicit command forms as needed:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-docker-image xla \
+  --ird-cluster tt_aus \
+  --ird-team sw \
+  --ird-machine aus-wh-01 \
+  --ird-num-pcie-chips 1 \
+  --ird-remote-repo-root /home/$USER/work/tt-xla-issue5009 \
+  --ird-remote-output-root /home/$USER/work/tt-xla-issue5009/artifacts/prd-009/ttxla-profile \
+  --ird-remote-setup 'python3 -m pip install --user pytest /home/$USER/work/tt-perf-report && export PATH=/home/$USER/.local/bin:$PATH' \
+  --tracy-bin 'python3 -m tracy' \
+  --tt-perf-report-bin tt-perf-report \
+  run
+```
+
+For live IRD runs, prefer a run-local `HOME` and cache directory so TT-Metal
+cache state is cleaned before use and can be removed after use. Also avoid broad
+staged library directories in `LD_LIBRARY_PATH`; use only the protobuf-specific
+directory plus the CPython runtime library path needed by the selected wheel:
+
+```bash
+--ird-remote-setup 'export HOME=/home/$USER/work/ttxla-5009/ird-home-<run-id> && mkdir -p $HOME/.cache && rm -rf $HOME/.cache/tt-metal-cache && . /home/$USER/work/ttxla-5009/venv312/bin/activate && export LD_LIBRARY_PATH=/home/$USER/work/ttxla-5009/libs-protobuf:/home/$USER/work/ttxla-5009/uv-python/cpython-3.12.12-linux-x86_64-gnu/lib:${LD_LIBRARY_PATH:-} && export XDG_CACHE_HOME=$HOME/.cache && export HF_HOME=$HOME/.cache/huggingface'
+```
+
+The harness writes `ird/ird-lifecycle.json` and `command-trace.jsonl` in the
+local run directory. Those files record the exact `ird run` command, remote
+pipeline command, scheduler return code, and any configured cleanup commands.
+
+If an explicit reservation is needed instead of `ird run`, use
+`--ird-mode reserve` and provide site-specific cleanup/run/release templates:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-mode reserve \
+  --ird-pre-cleanup-command 'ird release {tag}' \
+  --ird-reserved-run-command 'ird run --reservation-id {reservation_id} -- {remote_command}' \
+  --ird-release-command 'ird release {reservation_id}' \
+  --ird-post-cleanup-command 'ird release {reservation_id}' \
+  run
+```
+
+Template variables include `{run_id}`, `{tag}`, `{reservation_id}`,
+`{target_host}`, `{remote_repo_root}`, `{remote_output_root}`, and
+`{remote_command}`. If `ird` is not available, or a reservation/release command
+fails, the lifecycle artifact records a `pipeline_error`-class blocker with the
+manual cleanup command.
+
+The pipeline writes:
+
+- `manifest.json`
+- `environment.json`
+- `model-manifest.json`
+- `nvidia-cohort-mapping.json` when `--nvidia-cohort-json` is used
+- `requirements.json`
+- `command-trace.jsonl`
+- `ird/ird-lifecycle.json` when `--target ird` is used
+- `profiles/<model-id>/status.json`
+- `profiles/<model-id>/ir/`
+- `profiles/<model-id>/perf-report/`
+- `perf_reports/slow_ops/perf_report_ttxla_slow_op_*_<job-id>.json`
+- `dashboard.html`
+- `claude-report-packet.html`
+- `report.html`
+
+The `dashboard.html` page ranks slow operations globally, by model, and by op type, while `requirements.json`, the HTML source packet, and the final HTML report preserve requirement IDs, evidence paths, and blockers for stakeholder review.
+
+The `perf_reports/slow_ops` JSON files use the same TT-XLA benchmark report
+shape consumed by the shared `workflow-run-collect-data.yml` publication path.
+Each slow-op row is emitted as one benchmark report with `model_type:
+ttxla_slow_op`, `run_type: ttxla_slow_op_profile`, `measurement_name:
+duration_us`, and op metadata in `config`. In GitHub Actions, pass the numeric
+check-run id used by the collector as the trailing report id:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --perf-report-job-id "$JOB_ID" \
+  run
+```
+
+When these files are uploaded in a `perf_reports` artifact for the same job, the
+existing collection workflow can publish them through the normal Superset
+benchmark ingestion path.
+
+The existing benchmark workflow owns CI benchmark execution and shared perf data
+publication. When `skip-device-perf` is false, `call-perf-test.yml` reruns the
+selected benchmark under Tracy in the existing device-perf step and uploads the
+generated `ops_perf_results*.csv` files in the normal `device-perf-<job-id>`
+artifact. This keeps the benchmark workflow and ingestion path unchanged while
+replacing the old inactive `ttrt perf` collection path.
+
 ### Next steps
 
 #### 1. Compare device and e2e times
