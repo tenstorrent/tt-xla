@@ -263,6 +263,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_1_5b"
       },
       {
+        "name": "dots_ocr",
+        "pytest": "tests/benchmark/test_llms.py::test_dots_ocr"
+      },
+      {
         "name": "qwen_2_5_3b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_3b"
       },
