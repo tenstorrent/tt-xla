@@ -19,7 +19,7 @@ def test_llama3_3b_generation():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }

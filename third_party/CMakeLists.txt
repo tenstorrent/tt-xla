@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "70ff200c7d2fa8d8401f316a0a0b35ee88cbfb72")
+    set(TT_MLIR_VERSION "dfc0245321523e69e36a14b82449dc3f2eccf311")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
@@ -86,11 +86,6 @@ else()
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
     endif()
-    set(TT_RUNTIME_DEBUG ${TT_RUNTIME_DEBUG} CACHE BOOL "Enable ttmlir runtime debugging")
-    if(TTXLA_ENABLE_EXPLORER)
-        set(TT_RUNTIME_DEBUG ON)
-    endif()
-
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 
     ExternalProject_Add(
