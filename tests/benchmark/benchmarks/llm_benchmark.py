@@ -374,6 +374,16 @@ def benchmark_llm_torch_xla(
             hf_model_name=hf_model_name_for_accuracy,
         )
 
+    # Some loaders expose a non-HuggingFace tokenizer (e.g. Mistral tekken,
+    # tiktoken) that is not callable with the HF `tokenizer(text, return_tensors=...)`
+    # signature construct_inputs() relies on. In that case, fall back to the
+    # loader's own load_inputs() to obtain pre-tokenized prompt token IDs.
+    input_prompt_tokens = token_accuracy.input_prompt if accuracy_testing else None
+    if input_prompt_tokens is None and not callable(tokenizer):
+        loader_inputs = model_loader.load_inputs()
+        loader_ids = loader_inputs["input_ids"]
+        input_prompt_tokens = loader_ids[0] if loader_ids.dim() > 1 else loader_ids
+
     # Construct inputs, including static cache
     input_args = construct_inputs(
         tokenizer,
@@ -381,7 +391,7 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=input_prompt_tokens,
         use_mla_cache=use_mla_cache,
     )
 
@@ -519,9 +529,7 @@ def benchmark_llm_torch_xla(
             batch_size,
             max_cache_len,
             input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
+            input_prompt_tokens=input_prompt_tokens,
             use_mla_cache=use_mla_cache,
         )
         input_args = transfer_to_device(input_args, device)
@@ -566,7 +574,7 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=input_prompt_tokens,
         use_mla_cache=use_mla_cache,
     )
 
@@ -624,7 +632,7 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=input_prompt_tokens,
         use_mla_cache=use_mla_cache,
     )
 
