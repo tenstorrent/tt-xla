@@ -612,7 +612,11 @@ def test_srpo(output_file, request):
         batch_size=batch_size,
         input_sequence_length=srpo_max_seqlen,
         loop_count=32,
-        optimization_level=0,  # opt>=1 aborts on qb2-blackhole (harvested grid)
+        # Tuning conclusion (model-perf-tuning, qb2-blackhole):
+        #   - opt_level>=1 segfaults (OpModel grid mismatch on harvested grid)
+        #   - trace_enabled=True runs cleanly but gives no speedup (compute-bound denoiser)
+        #   - experimental_weight_dtype="bfp_bf8" segfaults during warmup
+        # Baseline (opt=0, trace=False, no bfp8) remains the best working config.
+        optimization_level=0,
         trace_enabled=False,
-        experimental_weight_dtype="bfp_bf8",
     )
