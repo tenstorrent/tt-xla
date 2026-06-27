@@ -825,11 +825,16 @@ def test_vibevoice_1_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        # Tuned config (model-perf-tuning sweep): opt=0 / trace=False / bfp8.
+        # opt>=1 fusions drop prefill PCC below the 0.94 gate (opt=1->0.85, opt=2->0.89);
+        # trace gives no full-model throughput gain (+0.07%, within noise) and worsens
+        # TTFT; bfp4 weights collapse prefill PCC to 0.50 over 28 layers. bfp8 is
+        # already the test_llm default (experimental_weight_dtype), so the shipped
+        # opt=0/trace=False config is optimal.
         optimization_level=(
             optimization_level if optimization_level is not None else 0
         ),
         trace_enabled=False,
-        weight_dtype_overrides={"default": "bfp_bf4"},
     )
 
 
