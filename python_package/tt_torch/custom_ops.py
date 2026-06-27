@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
@@ -1737,6 +1737,134 @@ def sampling_fake(
 ) -> torch.Tensor:
     batch = input_values.shape[0]
     return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
+
+
+# ---------------------------------------------------------------------------
+# tt::tt_lang_op -- variadic dispatcher for @tt_torch.tt_lang_operation
+# ---------------------------------------------------------------------------
+
+# The op carries the metadata the plugin needs to find the live kernel at
+# runtime; outputs are materialized from the user's pre-allocated "out"
+# operands so post-Shardy shape/dtype/layout is observable.
+
+
+def _validate_tt_lang_op_out_indices(
+    out_indices: Sequence[int], num_tensors: int
+) -> None:
+    if not out_indices:
+        raise ValueError("tt::tt_lang_op requires at least one 'out' operand.")
+    seen: set = set()
+    for idx in out_indices:
+        if not 0 <= idx < num_tensors:
+            raise ValueError(
+                f"out index {idx} is out of range for {num_tensors} operands."
+            )
+        if idx in seen:
+            raise ValueError(f"out index {idx} appears more than once.")
+        seen.add(idx)
+
+
+@torch.library.custom_op("tt::tt_lang_op", mutates_args=[], device_types=["xla"])
+def tt_lang_op(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
+
+    Emits ``stablehlo.custom_call @tt.tt_lang_op`` with
+    ``kernel_id`` / ``arg_roles`` / ``version_tag`` / ``shard_spec`` in
+    ``frontend_attributes``. The custom call's results mirror the
+    ``out``-tagged input tensors in shape and dtype, so the plugin sees
+    the real (post-Shardy) types.
+
+    The op is registered only for the XLA dispatch key; calling it on a
+    CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
+    refuses non-XLA tensors at the wrapper level for the same reason,
+    so this dispatch error should only be reachable via direct calls
+    to ``torch.ops.tt.tt_lang_op``. Fake-tensor / Dynamo tracing goes
+    through ``_tt_lang_op_fake`` below.
+    """
+    if not tensors:
+        raise ValueError("tt::tt_lang_op requires at least one tensor operand.")
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+
+    output_shapes = [list(tensors[i].shape) for i in out_indices]
+    output_dtypes = [tensors[i].dtype for i in out_indices]
+
+    frontend_attributes = {
+        "kernel_id": kernel_id,
+        "arg_roles": arg_roles,
+        "version_tag": version_tag,
+    }
+    if shard_spec:
+        frontend_attributes["shard_spec"] = shard_spec
+
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        list(tensors),
+        "tt.tt_lang_op",
+        output_shapes,
+        output_dtypes,
+        frontend_attributes=frontend_attributes,
+    )
+    if isinstance(result, torch.Tensor):
+        return [result]
+    return list(result)
+
+
+@tt_lang_op.register_fake
+def _tt_lang_op_fake(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+    return [tensors[i].clone() for i in out_indices]
+
+
+@tt_lang_op.register_autograd
+def _tt_lang_op_autograd(ctx, grad_outputs):
+    """Autograd for tt-lang kernels is not yet supported.
+
+    Returning ``None`` per input would silently produce wrong gradients;
+    raising preserves correctness. Wrap the kernel call in ``torch.no_grad``
+    or register an explicit backward kernel as a separate @tt_torch.tt_lang_operation.
+    """
+    raise NotImplementedError(
+        "Autograd for tt-lang custom kernels is not yet supported. Wrap "
+        "the kernel call in torch.no_grad() or register an explicit "
+        "backward kernel."
+    )
+
+
+def tt_lang_op_dispatch(
+    tensors: Sequence[torch.Tensor],
+    *,
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: Sequence[int],
+) -> List[torch.Tensor]:
+    """Keyword-only wrapper around ``torch.ops.tt.tt_lang_op``.
+
+    Lets @tt_torch.tt_lang_operation call sites read cleanly without remembering the
+    positional argument order.
+    """
+    return torch.ops.tt.tt_lang_op(
+        list(tensors),
+        kernel_id,
+        arg_roles,
+        version_tag,
+        shard_spec,
+        list(out_indices),
+    )
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
