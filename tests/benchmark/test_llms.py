@@ -2782,3 +2782,40 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Molmo2-8B is a multimodal model whose text decoder is a Qwen3-based decoder-only
+# transformer. The causal_lm loader runs the text decoder (+ LM head) with a
+# text-only forward pass (pixel_values=None) — the compute-dominant component.
+# Single-chip on p150 (no mesh/shard hooks on the loader). Bringup-safe defaults.
+# FAILED: KeyError: 'default' in the pinned Molmo2 custom remote code
+# (modeling_molmo2.py: ROPE_INIT_FUNCTIONS[self.rope_type]); transformers 5.x
+# removed the 'default' rope key. Model-code vs transformers-version mismatch.
+def test_molmo2_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.molmo2.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MOLMO2_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
