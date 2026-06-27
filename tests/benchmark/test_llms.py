@@ -2810,7 +2810,6 @@ def test_qwen_2_5_0_5b_base(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
-        trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf8"},
+        optimization_level=0,  # opt=2/trace=True gave no throughput gain (+0.005%) and
+        trace_enabled=False,  # regressed TTFT (412ms->1210ms); bfp8 stays on by default
     )
