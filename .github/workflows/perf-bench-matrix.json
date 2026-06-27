@@ -259,6 +259,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b"
       },
       {
+        "name": "qwen_2_5_0_5b_base",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b_base"
+      },
+      {
         "name": "qwen_2_5_1_5b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_1_5b"
       },
@@ -410,6 +414,11 @@
       {
         "name": "qwen_2_5_0_5b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b",
+        "accuracy-testing": true
+      },
+      {
+        "name": "qwen_2_5_0_5b_base_accuracy",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b_base",
         "accuracy-testing": true
       },
       {
