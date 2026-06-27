@@ -844,6 +844,13 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "ltx_2_dit_sharded",
+        "pytest": "tests/benchmark/test_ltx.py::test_ltx_2_dit",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }
