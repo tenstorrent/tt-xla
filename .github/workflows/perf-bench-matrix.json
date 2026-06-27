@@ -121,6 +121,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "voxtral_4b_tts_tp",
+        "pytest": "tests/benchmark/test_llms.py::test_voxtral_4b_tts_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "qwen_2_5_coder_32b_instruct_tp",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
         "runs-on": "n300-llmbox"
