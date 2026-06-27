@@ -92,14 +92,6 @@ def test_imagegen(
             json.dump(results, file, indent=2)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
-        "possibly due to recent uplift — "
-        "https://github.com/tenstorrent/tt-xla/issues/5176"
-    ),
-    strict=False,
-)
 def test_playground_v2_5(output_file, request):
     from benchmarks.playground_v2_5_pipeline import (
         PlaygroundV25Config,
@@ -111,10 +103,13 @@ def test_playground_v2_5(output_file, request):
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
-        # All 4 components on TT. compile_options forwarded into Config so the
-        # VAE-only opt_level switch can merge instead of clobbering.
+        # Text encoders + UNet on TT; VAE on CPU temporarily. Switching opt level
+        # mid-session (UNet opt 0 -> VAE opt 1) trips a device-hash mismatch
+        # (https://github.com/tenstorrent/tt-xla/issues/5176). Fixed in tt-metal
+        # https://github.com/tenstorrent/tt-metal/pull/46959.
+        # Keep the VAE on CPU until the fix is tracked by tt-xla.
         pipeline = PlaygroundV25Pipeline(
-            config=PlaygroundV25Config(compile_options=compile_options)
+            config=PlaygroundV25Config(vae_on_tt=False, compile_options=compile_options)
         )
         pipeline.setup()
 
@@ -139,9 +134,8 @@ def test_playground_v2_5(output_file, request):
         height=height,
         width=width,
         # opt_level=0 for text encoders + UNet (text_encoder 1 hits
-        # "Unsupported buffer type" at opt_level=1). VAE switches to
-        # opt_level=1 inline (and resets after) because GroupNorm
-        # decomposition at opt_level=0 OOMs the VAE.
+        # "Unsupported buffer type" at opt_level=1). VAE runs on CPU so no
+        # opt level switch is needed here.
         optimization_level=0,
         output_image_path="test_playground_v2_5_output.png",
     )
@@ -163,8 +157,9 @@ def test_sdxl_lightning(output_file, request):
         # decomposition at opt_level=0; opt_level=1 enables the composite
         # ttnn.group_norm which lets the VAE pass, but switching opt level
         # (UNet opt 0 -> VAE opt 1) trips a device-hash mismatch
-        # (https://github.com/tenstorrent/tt-xla/issues/5176). So keep the VAE on
-        # CPU until tt-metal https://github.com/tenstorrent/tt-metal/pull/46959 lands.
+        # (https://github.com/tenstorrent/tt-xla/issues/5176).
+        # Fixed in tt-metal https://github.com/tenstorrent/tt-metal/pull/46959.
+        # Keep the VAE on CPU until the fix is tracked by tt-xla.
         pipeline = SDXLLightningPipeline(
             config=SDXLLightningConfig(vae_on_tt=False, compile_options=compile_options)
         )

@@ -374,7 +374,12 @@ def run_playground_v25_pipeline(
     num_inference_steps: int = 50,
 ):
     """Run Playground v2.5 pipeline and save output image."""
-    config = PlaygroundV25Config(device="cpu")
+    # Text encoders + UNet on TT; VAE on CPU temporarily. Switching opt level
+    # mid-session (UNet opt 0 -> VAE opt 1) trips a device-hash mismatch
+    # (https://github.com/tenstorrent/tt-xla/issues/5176).
+    # Fixed in tt-metal https://github.com/tenstorrent/tt-metal/pull/46959.
+    # Keep the VAE on CPU until the fix is tracked by tt-xla.
+    config = PlaygroundV25Config(device="cpu", vae_on_tt=False)
     pipeline = PlaygroundV25Pipeline(config=config)
     pipeline.setup()
 
@@ -390,14 +395,6 @@ def run_playground_v25_pipeline(
     return output_path
 
 
-@pytest.mark.xfail(
-    reason=(
-        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
-        "possibly due to recent uplift — "
-        "https://github.com/tenstorrent/tt-xla/issues/5176"
-    ),
-    strict=False,
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
