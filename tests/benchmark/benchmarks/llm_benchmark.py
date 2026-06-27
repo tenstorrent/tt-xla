@@ -363,6 +363,15 @@ def benchmark_llm_torch_xla(
     )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
+    # Some loaders (e.g. Mistral-native tekken checkpoints) expose a tokenizer that
+    # is not HF-callable, or no tokenizer object at all. In that case fall back to
+    # the loader's own pre-tokenized inputs and feed them through the existing
+    # `input_prompt_tokens` bypass instead of calling `tokenizer(...)`.
+    loader_input_tokens = None
+    if not callable(tokenizer):
+        loader_inputs = model_loader.load_inputs()
+        loader_input_tokens = loader_inputs["input_ids"][0].to(torch.long)
+
     # Initialize accuracy testing if enabled
     token_accuracy = None
     custom_input_prompt = None
@@ -381,7 +390,9 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else loader_input_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 
@@ -520,7 +531,9 @@ def benchmark_llm_torch_xla(
             max_cache_len,
             input_prompt=custom_input_prompt,
             input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
+                token_accuracy.input_prompt
+                if accuracy_testing
+                else loader_input_tokens
             ),
             use_mla_cache=use_mla_cache,
         )
@@ -566,7 +579,9 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else loader_input_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 
@@ -624,7 +639,9 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt if accuracy_testing else loader_input_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 
