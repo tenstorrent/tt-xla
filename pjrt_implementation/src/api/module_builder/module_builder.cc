@@ -299,7 +299,7 @@ ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
     const std::unordered_map<std::string, std::string> &compile_options_map,
-    ClientInstance *client_instance) {
+    ClientInstance *client_instance, size_t target_num_devices) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
@@ -374,7 +374,7 @@ ModuleBuilder::buildModule(
   status = runCompilerStableHLOPipeline(
       mlir_module, result_presharded, output_shardings,
       compile_options.export_path, compile_options.export_model_name,
-      current_mesh_shape);
+      current_mesh_shape, target_num_devices);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -752,24 +752,21 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
-    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape,
+    size_t target_num_devices) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // A graph with no inputs inherits the full device mesh so that a genuinely
-  // distributed result lands on all devices (see #4439). But that is only
-  // correct when something is actually sharded across devices: a no-input graph
-  // that merely produces a replicated value (e.g. gemma's standalone
-  // `sqrt(hidden_size)` scalar normalizer) is executed on a single device, so
-  // stamping it with the full mesh inflates the device count and breaks
-  // execution with a "Device count mismatch" error. Only adopt the full mesh
-  // when a result is genuinely device-sharded; otherwise let it default to a
-  // single device.
+  // A no-input graph adopts the full mesh when its result is device-sharded, or
+  // when the run targets >1 device: a no-input replicated value (e.g. a
+  // const-folded torch.arange) must still replicate across the mesh, else it
+  // defaults to 1x1, collapses the mesh, and breaks sharded buffers.
+  // See https://github.com/tenstorrent/tt-xla/issues/5360
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
       !moduleHasAnyFuncArguments(mlir_module) &&
-      anyShardedAcrossDevices(output_shardings)) {
+      (anyShardedAcrossDevices(output_shardings) || target_num_devices > 1)) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

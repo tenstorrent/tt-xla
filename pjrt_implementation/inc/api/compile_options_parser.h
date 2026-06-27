@@ -58,6 +58,11 @@ public:
       const google::protobuf::UnknownFieldSet &unknown_fields,
       std::optional<std::vector<int64_t>> &out_replica_device_ids);
 
+  // Extracts num_partitions (SPMD partition count) from the compile options.
+  // Returns 1 when absent; >1 indicates a genuine multi-device SPMD compile.
+  static int64_t extractNumPartitions(const char *compile_options_data,
+                                      size_t compile_options_size);
+
   // Helper function to parse a length-delimited protobuf field into an
   // UnknownFieldSet. Returns true if parsing succeeds, false otherwise.
   static bool
