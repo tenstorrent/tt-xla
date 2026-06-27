@@ -2816,8 +2816,7 @@ def test_vibevoice_1_5b(
         decode_only=decode_only,
         optimization_level=(
             optimization_level if optimization_level is not None else 0
-        ),  # tuned: opt=0 (opt>=1 dropped prefill PCC below 0.94)
-        trace_enabled=False,  # tuned: trace gave no throughput gain + worse TTFT
+        ),  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
         experimental_kv_cache_dtype=None,  # mirror same-arch test_qwen_2_5_1_5b
-        experimental_enable_permute_matmul_fusion=True,  # tuned: precision-neutral graph fusion
     )
