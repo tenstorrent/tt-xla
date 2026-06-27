@@ -2815,4 +2815,5 @@ def test_vibevoice_1_5b(
         decode_only=decode_only,
         optimization_level=2,
         trace_enabled=True,
+        fp32_dest_acc_en=True,
     )
