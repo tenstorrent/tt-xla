@@ -351,6 +351,10 @@ test_config:
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.988092303276062. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
+  kokoro/pytorch-hexgrad/Kokoro-82M-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "INCORRECT_RESULT: bf16 waveform-PCC precision wall. Compiles + runs E2E on n150 with trained weights and produces a finite, sane-magnitude waveform, but waveform PCC tops out at ~0.14 (need 0.99). The iSTFTNet vocoder (sine-phase cumsum + STFT/iSTFT over a long 1-D waveform) is catastrophically sensitive to bf16 *tensor storage*: decoder output PCC is already 0.948 and the vocoder collapses it to 0.138. fp32_dest_acc_en+hifi4 is bit-identical (storage-bound, not accumulation-bound). See https://github.com/tenstorrent/tt-xla/issues/5332."
+
   mamba/pytorch-1.4b_HF-single_device-inference:
     status: EXPECTED_PASSING
 
