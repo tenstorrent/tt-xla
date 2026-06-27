@@ -612,7 +612,7 @@ def test_srpo(output_file, request):
         batch_size=batch_size,
         input_sequence_length=srpo_max_seqlen,
         loop_count=32,
-        optimization_level=2,
+        optimization_level=0,  # opt>=1 aborts on qb2-blackhole (harvested grid)
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
     )
