@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""FLUX.2-dev — Flux2Transformer2DModel component test (128x128 latent geometry)."""
+"""FLUX.2-dev — Flux2Transformer2DModel component test (1024x1024 latent geometry)."""
 
 import pytest
 import torch
@@ -16,7 +16,8 @@ from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 
 
 @pytest.mark.skip(
-    reason="~32B transformer — exceeds single-chip DRAM; use test_transformer_sharded on 8+ chips"
+    reason="~32B transformer — exceeds single-chip DRAM; requires a multi-chip mesh "
+    "(use test_transformer_sharded)"
 )
 @pytest.mark.single_device
 @pytest.mark.model_test
@@ -27,7 +28,7 @@ def test_transformer():
 @pytest.mark.tensor_parallel
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_transformer_sharded():
     _run(sharded=True)
 
