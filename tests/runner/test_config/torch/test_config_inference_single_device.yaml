@@ -1573,6 +1573,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1140326400 B DRAM buffer across 12 banks, where each bank needs to store 95027200 B - https://github.com/tenstorrent/tt-xla/issues/1353"
 
+  llasa/causal_lm/pytorch-Llasa-8B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 1587609600 B DRAM buffer across 12 banks, where each bank needs to store 132300800 B, but bank size is 1070773184 B - 8.5B model (~17GB bf16) does not fit on a single 12GB Wormhole; failing alloc is the 193800x4096 bf16 embedding/lm_head weight - https://github.com/tenstorrent/tt-xla/issues/5371"
+
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
