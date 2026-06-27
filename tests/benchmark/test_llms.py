@@ -826,7 +826,7 @@ def test_vibevoice_1_5b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level if optimization_level is not None else 2
+            optimization_level if optimization_level is not None else 1
         ),
         trace_enabled=True,
         weight_dtype_overrides={"default": "bfp_bf8"},
