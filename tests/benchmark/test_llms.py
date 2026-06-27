@@ -2814,7 +2814,6 @@ def test_vibevoice_1_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
-        trace_enabled=True,
-        experimental_weight_dtype="",
+        optimization_level=0,  # opt>=1 breaks prefill PCC (0.84-0.91 < 0.94); see perf-tuning history
+        trace_enabled=False,  # trace gives no decode speedup here and regresses TTFT
     )
