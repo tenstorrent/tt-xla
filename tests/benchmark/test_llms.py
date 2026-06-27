@@ -2816,5 +2816,4 @@ def test_dots_ocr(
         decode_only=decode_only,
         optimization_level=2,
         trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf8"},
     )
