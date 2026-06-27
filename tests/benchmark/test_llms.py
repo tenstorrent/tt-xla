@@ -2814,6 +2814,6 @@ def test_dots_ocr(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=0,
-        trace_enabled=True,
+        optimization_level=0,  # tuning: opt>=1 drops prefill PCC to ~0.92 (<0.94); opt=2/trace=False hits tt-mlir to_layout fatal
+        trace_enabled=False,  # tuning: trace gives only +0.6% decode tps (noise) at full model and regresses ttft 552->1390ms
     )
