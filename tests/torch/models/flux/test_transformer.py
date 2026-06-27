@@ -4,9 +4,10 @@
 
 """FLUX.1-dev — FluxTransformer2DModel component test (1024x1024 latent geometry).
 
-The ~24 GB bf16 transformer no longer fits a single chip after the tt-mlir uplift
-(DRAM OOM), so the single-device test is skipped and the sharded (tensor-parallel)
-variant is the one that runs. See loader.shard_transformer_specs for the scheme.
+The ~24 GB bf16 transformer fits on a single chip with the current tt-mlir/tt-metal
+pin (no DRAM OOM), so the single-device test runs. The margin is thin, so the
+sharded (4-way tensor-parallel) variant is kept as the durable, always-fitting
+coverage. See loader.shard_transformer_specs for the sharding scheme.
 """
 
 import pytest
@@ -18,9 +19,8 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.skip(
-    reason="OOM on single device — FluxTransformer2DModel exceeds single-chip memory; sharded variant runs"
-)
+@pytest.mark.nightly
+@pytest.mark.model_test
 def test_transformer():
     _run(sharded=False)
 
