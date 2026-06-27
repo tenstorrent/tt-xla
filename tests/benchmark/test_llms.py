@@ -2815,8 +2815,8 @@ def test_vibevoice_1_5b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level if optimization_level is not None else 1
-        ),  # tuned: opt=1 (opt=2 dropped prefill PCC to 0.856)
-        trace_enabled=True,  # tuned: trace enabled for perf
+            optimization_level if optimization_level is not None else 0
+        ),  # tuned: opt=0 (opt>=1 dropped prefill PCC below 0.94)
+        trace_enabled=True,  # tuned: trace enabled for perf (accuracy-neutral)
         experimental_kv_cache_dtype=None,  # mirror same-arch test_qwen_2_5_1_5b
     )
