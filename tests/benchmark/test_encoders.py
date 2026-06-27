@@ -614,5 +614,4 @@ def test_srpo(output_file, request):
         loop_count=32,
         optimization_level=0,  # opt>=1 aborts on qb2-blackhole (harvested grid)
         trace_enabled=True,
-        experimental_weight_dtype="bfp_bf8",
     )
