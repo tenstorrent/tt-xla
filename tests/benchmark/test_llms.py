@@ -2815,8 +2815,8 @@ def test_vibevoice_1_5b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level if optimization_level is not None else 0
-        ),  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+            optimization_level if optimization_level is not None else 2
+        ),  # tuned: max optimization level
+        trace_enabled=True,  # tuned: trace enabled for perf
         experimental_kv_cache_dtype=None,  # mirror same-arch test_qwen_2_5_1_5b
     )
