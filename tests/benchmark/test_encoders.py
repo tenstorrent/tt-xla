@@ -550,3 +550,68 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_srpo(output_file, request):
+    """Test the SRPO denoiser (FLUX.1-dev MM-DiT transformer fine-tune, tencent/SRPO,
+    arXiv:2509.06942). SRPO ships only the transformer weights; the rest of the
+    FLUX.1-dev pipeline (CLIP/T5 text encoders, VAE) is reused. This benchmarks the
+    denoiser component (a single denoising step) through the encoder harness, mirroring
+    test_unet_for_conditional_generation (the SDXL UNet denoiser)."""
+    from third_party.tt_forge_models.srpo.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    def inputs_to_device(inputs, device):
+        """Recursively move all tensors in a nested dict to device."""
+        result = {}
+        for key, value in inputs.items():
+            if isinstance(value, torch.Tensor):
+                result[key] = value.to(device)
+            elif isinstance(value, dict):
+                result[key] = inputs_to_device(value, device)
+            else:
+                result[key] = value
+        return result
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+    # FLUX/SRPO native generation resolution; the denoiser fits a single BH chip.
+    height = ModelLoader.NATIVE_HEIGHT
+    width = ModelLoader.NATIVE_WIDTH
+    # T5 max sequence length (metadata only; the model inputs come from load_inputs).
+    srpo_max_seqlen = ModelLoader.NATIVE_MAX_SEQUENCE_LENGTH
+
+    # Load model
+    loader = ModelLoader(variant=ModelVariant.SRPO)
+    model_info_name = loader.get_model_info().name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        batch_size=batch_size,
+        dtype_override=DTYPE_MAP[data_format],
+        height=height,
+        width=width,
+    )
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    output_processor_fn = lambda out, inputs: out.sample
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="srpo",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=srpo_max_seqlen,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; opt_level>=1 aborts on qb2-blackhole (harvested grid)
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
