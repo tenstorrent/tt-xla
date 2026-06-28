@@ -2812,5 +2812,4 @@ def test_smollm2_360m(
         decode_only=decode_only,
         optimization_level=1,
         trace_enabled=False,
-        weight_dtype_overrides={"default": "bfp_bf8"},
     )
