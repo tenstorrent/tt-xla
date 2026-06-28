@@ -844,6 +844,10 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "smollm2_360m",
+        "pytest": "tests/benchmark/test_llms.py::test_smollm2_360m"
       }
     ]
   }
