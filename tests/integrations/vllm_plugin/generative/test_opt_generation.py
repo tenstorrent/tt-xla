@@ -19,7 +19,7 @@ def test_opt_generation():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -31,15 +31,7 @@ def test_opt_generation():
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason="experimental_kv_cache_dtype casts the KV cache to BFP8 but leaves the "
-    "query in bf16, and ttnn.paged_scaled_dot_product_attention_decode requires "
-    "Q/K/V to share an element type. See tt-xla #5006.",
-    strict=False,
-)
 def test_opt_generation_kv_cache_bfp8():
-    # Reproduces the experimental_kv_cache_dtype failure on the vLLM decode
-    # path; remove the xfail once tt-xla #5006 is fixed.
     prompts = [
         "Hello, my name is",
     ]
@@ -51,7 +43,7 @@ def test_opt_generation_kv_cache_bfp8():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
             "experimental_kv_cache_dtype": "bfp_bf8",
         },
@@ -77,7 +69,7 @@ def test_opt_generation_multibatch():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -105,7 +97,7 @@ def test_opt_generation_large_batch(batch_size):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }

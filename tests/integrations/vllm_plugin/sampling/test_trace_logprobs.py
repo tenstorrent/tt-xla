@@ -20,17 +20,23 @@ import vllm
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.xfail(
-    strict=True,
+    strict=False,
     reason=(
-        "tt::sampling + enable_trace=True + optimization_level>=1 "
-        "triggers a tt-mlir compile-time bug (tt-xla #4570) — rejected by "
-        "TTConfig.__post_init__. The combination is exactly what this test "
-        "exercises by design; xfail until the OpModel fix lands and the "
-        "TTConfig guard is removed."
+        "opt-125m + enable_trace + enable_const_eval + optimization_level=1 + "
+        "logprobs fails on Blackhole in two stages (both distinct from the "
+        "now-fixed #4570 layout bug — the Llama-3.2-3B trace variant passes): "
+        "(1) a tt-metal pinned-write command-sequence-size assert "
+        "(dispatch.cpp:989) during the const-eval cache load — tt-xla #5184, "
+        "fixed upstream by tt-metal #46539, pending tt-mlir uplift; and after "
+        "that, (2) a ttnn.sampling output dtype mismatch where the graph "
+        "declares UINT32 but the kernel returns INT32 — tt-xla #5185. Both "
+        "asserts are debug-gated (TT_RUNTIME_DEBUG/TT_ASSERT), so non-strict: a "
+        "release build may pass silently (values are preserved). Remove once "
+        "both land."
     ),
 )
 def test_opt125m_trace_logprobs():
-    """Logprobs + trace at opt_level=1: exercised via CPU fallback."""
+    """Logprobs + trace at opt_level=1 on the device sampler."""
     llm = vllm.LLM(
         model="facebook/opt-125m",
         max_num_batched_tokens=128,

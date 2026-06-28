@@ -168,7 +168,7 @@ python <skill-path>/scripts/fetch_perf_reports.py <RUN_ID> --output-dir /tmp/per
 ```
 
 This produces `summary.json` with extracted metrics for all jobs. Key metrics per model:
-- **Samples/sec** = `total_samples / total_time`
+- **Samples/sec** = `samples_per_sec` measurement if present, else `total_samples / total_time`
 - **TTFT (ms)** = `ttft` value (LLM models only; absent for vision/encoder models)
 - **Device FW duration (s)** = `device_fw_duration` (only when device perf ran)
 - **Device type**: from `device_info.device_type`

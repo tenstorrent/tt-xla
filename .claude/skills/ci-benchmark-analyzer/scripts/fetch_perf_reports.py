@@ -109,7 +109,12 @@ def extract_metrics(report: dict) -> dict:
 
     total_samples = measurements.get("total_samples", 0)
     total_time = measurements.get("total_time", 0)
-    samples_per_sec = total_samples / total_time if total_time > 0 else None
+    if "samples_per_sec" in measurements:
+        samples_per_sec = measurements["samples_per_sec"]
+    elif total_time > 0:
+        samples_per_sec = total_samples / total_time
+    else:
+        samples_per_sec = None
 
     return {
         "model": report.get("model", "unknown"),

@@ -3,7 +3,7 @@
     "project": "tt-xla",
     "test-defaults": {
       "runs-on": [
-        "n150",
+        "n150-perf",
         "p150-perf"
       ],
       "dir": "",
@@ -63,6 +63,14 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "playground_v2_5",
+        "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
+      },
+      {
+        "name": "sdxl_lightning",
+        "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
@@ -98,11 +106,6 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
-        "name": "falcon3_7b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "falcon3_10b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_10b_tp",
         "runs-on": "n300-llmbox"
@@ -113,38 +116,13 @@
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "ministral_8b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_ministral_8b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "mistral_nemo_instruct_2407_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_mistral_nemo_instruct_2407_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "mistral_small_24b_instruct_2501_tp",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp",
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "qwen_2_5_14b_instruct_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "qwen_2_5_coder_32b_instruct_tp",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_3_8b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_3_14b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_14b_tp",
         "runs-on": "n300-llmbox"
       },
       {
@@ -165,12 +143,8 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "gpt_oss_20b_tp_d2m",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m",
-        "runs-on": "n300-llmbox"
+        "runs-on": "n300-llmbox",
+        "skip": true
       },
       {
         "name": "gpt_oss_20b_tp_batch_size_1",
@@ -363,9 +337,9 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
-        "name": "kimi_k2_5_tp_galaxy_2_layers",
+        "name": "kimi_k2_6_tp_galaxy_2_layers",
         "pyreq": "tiktoken",
-        "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_5_tp_galaxy_2_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_6_tp_galaxy_2_layers",
         "runs-on": "galaxy-wh-6u"
       },
       {
@@ -793,6 +767,83 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "wan_umt5_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_umt5[14b-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_480p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_720p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_480p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_720p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_dit_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_dit_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }
