@@ -546,20 +546,22 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
-  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
-  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
-  // Wormhole) have the wrap, so keep their auto-detected fabric.
-  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
-                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
-                          ::tt::target::Arch::Blackhole;
-  if (is_blackhole && m_devices.size() == 32) {
-    LOG_F(WARNING,
-          "Auto-overriding fabric config to FABRIC_1D for the "
-          "32-device Blackhole galaxy (UBB); this is a workaround, not "
-          "expected behaviour.");
-    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
-                                         {}};
+
+  // [Workaround] On the 32-device (4x8) galaxy, computeMeshFabricConfig
+  // auto-detects FABRIC_1D_RING (both torus axes are rings). But the
+  // moe_gpt selective_reduce_combine performs per-ring-position cross-device
+  // scatter writes, and the ring wrap-around (last->first) corrupts those
+  // writes so decode output diverges per batch. The proven-good config uses
+  // plain FABRIC_1D (linear, no wrap), so force it here.
+  {
+    uint32_t num_devices = 1;
+    for (auto dim : mesh_shape) {
+      num_devices *= dim;
+    }
+    if (num_devices == 32) {
+      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                           {}};
+    }
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }
