@@ -19,8 +19,33 @@ def test_opt_generation():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text}")
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_opt_generation_kv_cache_bfp8():
+    prompts = [
+        "Hello, my name is",
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    llm_args = {
+        "model": "facebook/opt-125m",
+        "max_num_batched_tokens": 128,
+        "max_num_seqs": 1,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.001,
+        "additional_config": {
+            "enable_const_eval": True,
+            "min_context_len": 32,
+            "experimental_kv_cache_dtype": "bfp_bf8",
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -44,7 +69,7 @@ def test_opt_generation_multibatch():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -72,7 +97,7 @@ def test_opt_generation_large_batch(batch_size):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }

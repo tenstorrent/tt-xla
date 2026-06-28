@@ -25,3 +25,10 @@ def register():
 
 def register_mla_oot_layer():
     from . import attention_mla  # noqa: F401
+
+
+def register_moe_oot_layer():
+    # OOT-registers TTFusedMoE (CustomOp.register_oot) so Gemma-4's FusedMoE
+    # uses our dense / expert-parallel routing path under XLA SPMD. Mirrors the
+    # MLA backend's register_*_oot_layer + vllm.general_plugins pattern.
+    from .layers.fused_moe import TTFusedMoE  # noqa: F401

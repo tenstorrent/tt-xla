@@ -130,7 +130,11 @@ def vllm_n300_llmbox():
         max_num_seqs=1,
         max_model_len=128,
         gpu_memory_utilization=0.002,
-        additional_config={**_DEVICE_OPTS, "enable_tensor_parallel": True},
+        additional_config={
+            **_DEVICE_OPTS,
+            "enable_tensor_parallel": True,
+            "optimization_level": 0,
+        },
     )
 
 

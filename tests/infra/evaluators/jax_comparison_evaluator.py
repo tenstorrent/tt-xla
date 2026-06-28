@@ -11,7 +11,7 @@ from infra.utilities import Framework, PyTree
 from jax.tree import map as tree_map
 
 from .comparison_evaluator import ComparisonEvaluator
-from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig, RelL2Config
 
 
 class JaxComparisonEvaluator(ComparisonEvaluator):
@@ -67,13 +67,13 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree,
         golden_output: PyTree,
         pcc_config: PccConfig,
-        pcc_mask: PyTree | None = None,
+        real_token_mask: PyTree | None = None,
     ) -> float:
 
-        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for pcc_mask, as done in TorchComparisonEvaluator.
-        if pcc_mask is not None:
+        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for real_token_mask, as done in TorchComparisonEvaluator.
+        if real_token_mask is not None:
             warnings.warn(
-                "pcc_mask was provided to JaxComparisonEvaluator but will be ignored.",
+                "real_token_mask was provided to JaxComparisonEvaluator but will be ignored.",
             )
 
         def compute_pcc(x: jax.Array, y: jax.Array):
@@ -114,3 +114,35 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
         )
         passed = jax.tree.reduce(lambda x, y: x and y, all_close)
         return bool(passed)
+
+    # @override
+    @run_on_cpu(Framework.JAX)
+    def _compare_rel_l2(
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        rel_l2_config: RelL2Config,
+        real_token_mask: PyTree | None = None,
+    ) -> float:
+        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for real_token_mask, as done in TorchComparisonEvaluator.
+        if real_token_mask is not None:
+            warnings.warn(
+                "real_token_mask was provided to JaxComparisonEvaluator but will be ignored.",
+            )
+
+        # Nested so the closure can be passed directly to jax.tree.map as a
+        # binary `(x, y) -> float` function. Same pattern as `_compare_pcc`.
+        def compute_rel_l2(x: jax.Array, y: jax.Array):
+            device_flat = x.astype("float64").flatten()
+            golden_flat = y.astype("float64").flatten()
+            diff_norm = jnp.linalg.norm(device_flat - golden_flat)
+            golden_norm = jnp.linalg.norm(golden_flat)
+            if float(golden_norm) == 0.0:
+                return 0.0 if float(diff_norm) == 0.0 else float("inf")
+            return float(diff_norm / golden_norm)
+
+        leaf_rel_l2s = jax.tree.map(compute_rel_l2, device_output, golden_output)
+        flat_rel_l2s, _ = jax.tree_util.tree_flatten(leaf_rel_l2s)
+        if not flat_rel_l2s:
+            return 0.0
+        return float(max(flat_rel_l2s))

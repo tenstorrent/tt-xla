@@ -505,6 +505,7 @@ def test_input_not_modified_reused_in_another_graph():
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_concurrent_buffer_instance_transfer():
     """
     Test scenario: Input A participates in some graph, and is concurrently copied to host
@@ -544,6 +545,7 @@ def test_concurrent_buffer_instance_transfer():
 
 @pytest.mark.push
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_concurrent_multi_buffer_instance_transfer():
     """
     Test scenario: Inputs A and B participates in some graph, and are concurrently copied to host

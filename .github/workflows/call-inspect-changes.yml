@@ -170,6 +170,21 @@ jobs:
               done
             done
 
+            # Check torch tests without device marker
+            echo "============================="
+            echo "Checking for new tests without device markers..."
+            echo "============================="
+            TEST_WO_DEVICE=$(python .github/scripts/check_pytest_markers.py "(nightly or push) and not (single_device or dual_chip or llmbox or galaxy or bh_galaxy or multi_host_cluster)")
+            if [ -n "$TEST_WO_DEVICE" ]; then
+              while IFS= read -r test_file; do
+                if echo "$CHANGED_FILES" | grep -q "$test_file"; then
+                  echo "Error: New test without device marker detected in $test_file"
+                  exit 9
+                fi
+              done <<< "$TEST_WO_DEVICE"
+            fi
+            echo "Marker check passed."
+
           else
             skip_build_and_test=false
             run_pr_tests=true

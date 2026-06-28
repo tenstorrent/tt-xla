@@ -66,7 +66,7 @@ jobs:
           .github/build-docker-images.sh $tt_mlir_sha "${{inputs.dockbuild}}" --check-only | tee docker.log
           EXIT_CODE=$?
           if [ $EXIT_CODE -eq 0 ]; then
-            DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
+            DOCKER_CI_IMAGE=$(grep '^DOCKER_IMAGE_CI=' docker.log | tail -n1 | cut -d= -f2)
             echo "Docker image already exists: $DOCKER_CI_IMAGE"
             echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
             echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
@@ -110,7 +110,7 @@ jobs:
           # Output the image name
           set pipefail
           .github/build-docker-images.sh "${{needs.check-if-docker-exist.outputs.tt-mlir-sha}}" "${{inputs.dockbuild}}" | tee docker.log
-          DOCKER_CI_IMAGE=$(tail -n 1 docker.log)
+          DOCKER_CI_IMAGE=$(grep '^DOCKER_IMAGE_CI=' docker.log | tail -n1 | cut -d= -f2)
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"

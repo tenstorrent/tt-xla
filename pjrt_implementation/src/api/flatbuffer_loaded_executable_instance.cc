@@ -7,6 +7,7 @@
 
 // tracy includes
 #include "tracy/Tracy.hpp"
+#include "tt/runtime/runtime.h"
 
 // tt-mlir includes
 #include "tt/runtime/types.h"
@@ -70,12 +71,73 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
+  bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
+                        tt::runtime::HostRuntime::Distributed;
+  if (is_distributed) {
+    materializeShellTensors(arg_buffers);
+  }
+
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
   tensor.ensure_layout(runtime_device, expected_layout);
 
   return tensor.runtime_tensor();
+}
+
+void FlatbufferLoadedExecutableInstance::materializeShellTensors(
+    const std::vector<BufferInstance *> &arg_buffers) {
+  // Group arg buffers by their borrowed host base pointer for grouped transfer
+  std::unordered_map<const void *, std::vector<BufferInstance *>>
+      borrowed_host_base_ptr_to_buffers;
+
+  for (BufferInstance *buf : arg_buffers) {
+    // Buffers without a shell have already been materialized
+    const auto &shell = buf->getPjrtTensor()->host_tensor_shell();
+    if (shell.has_value()) {
+      borrowed_host_base_ptr_to_buffers[shell->host_buffer].push_back(buf);
+    }
+  }
+
+  for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
+    const auto &shell = buffers.front()->getPjrtTensor()->host_tensor_shell();
+
+    TT_FATAL(shell.has_value(),
+             "Missing host tensor shell metadata for buffer uid=%lu ptr=%p",
+             buffers.front()->getUID(),
+             static_cast<const void *>(buffers.front()));
+
+    for (size_t i = 1; i < buffers.size(); ++i) {
+      const auto &other = buffers[i]->getPjrtTensor()->host_tensor_shell();
+      TT_FATAL(other.has_value() && *other == *shell,
+               "Shell metadata mismatch for buffers sharing host_buffer %p: "
+               "buffer uid=%lu vs uid=%lu",
+               host_base, buffers[i]->getUID(), buffers.front()->getUID());
+    }
+
+    // First buffer gets a newly-allocated owned host tensor that actually
+    // copies the bytes from the client's host_base pointer. Subsequent
+    // buffers in the group get unsafe-borrowed tensors aliasing that owned
+    // tensor, so we only hold one copy of the data on the worker side.
+    tt::runtime::Tensor owned_tensor = tt::runtime::createOwnedHostTensor(
+        const_cast<void *>(shell->host_buffer), shell->shape, shell->strides,
+        shell->element_size, shell->runtime_data_type);
+
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      BufferInstance *buffer = buffers[i];
+
+      const bool is_first = (i == 0);
+      tt::runtime::Tensor worker_runtime_tensor =
+          is_first ? owned_tensor
+                   : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
+
+      // Inplace replacement: rebuilds the BufferInstance's PjrtTensor around
+      // the new runtime tensor and updates m_pjrt_tensor via setPjrtTensor.
+      // This releases the old (borrowed-from-client) runtime tensor.
+      PjrtTensor::from_runtime_tensor({buffer},
+                                      std::move(worker_runtime_tensor));
+    }
+  }
 }
 
 std::shared_ptr<FlatbufferExecutableImage>

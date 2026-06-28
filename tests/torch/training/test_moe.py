@@ -51,7 +51,6 @@ def load_gpt_oss():
 
 
 @pytest.mark.push
-@pytest.mark.llmbox
 @pytest.mark.training
 def test_gpt_oss_moe_multichip_backward():
 

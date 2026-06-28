@@ -102,5 +102,5 @@ else
 fi
 
 echo "All images built and pushed successfully"
-echo "CI_IMAGE_NAME:"
-echo $CI_IMAGE_NAME:$DOCKER_TAG
+# Labeled output consumed by call-build-docker.yml
+echo "DOCKER_IMAGE_CI=$CI_IMAGE_NAME:$DOCKER_TAG"

@@ -16,7 +16,7 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from tt_torch.transformers_overrides import (
     override_cache_sliding_window_layers,
-    override_olmo3_sliding_window_causal_mask,
+    override_model_sliding_window_causal_mask,
 )
 
 MODEL_NAME = "allenai/Olmo-3-1125-32B"
@@ -98,6 +98,7 @@ def olmo3_1125_32b():
 
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
     model = model.to(device)
 
@@ -129,6 +130,8 @@ def olmo3_1125_32b():
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
+            # keep position_ids in sync with cache_position (see _prepare_inputs)
+            input_args["position_ids"] = host_cache_pos.unsqueeze(0).to(device)
 
     print()
     for i in range(1):
@@ -146,7 +149,7 @@ def olmo3_1125_32b():
 
 def _load_model_and_tokenizer(model_name: str):
     model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.bfloat16)
-    override_olmo3_sliding_window_causal_mask()
+    override_model_sliding_window_causal_mask(model)
     model = model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
@@ -218,11 +221,17 @@ def _prepare_inputs(
     full_attention_mask[:, :prompt_len] = inputs.attention_mask
 
     cache_position = torch.arange(0, seq_len)
+    # Pass position_ids explicitly so olmo3's forward never enters the
+    # "position_ids is None" branch (which calls past_key_values.get_seq_length()
+    # and bakes a per-step Python int into the graph, causing dynamo to
+    # recompile on every decode step).
+    position_ids = cache_position.unsqueeze(0)
 
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
+        "position_ids": position_ids,
         "use_cache": True,
         "attention_mask": full_attention_mask,
     }

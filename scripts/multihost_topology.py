@@ -3,16 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Shared utilities and fixtures for multi-host distributed tests.
+Standalone topology lookup for multi-host distributed tests.
+
+    eval $(python scripts/multihost_topology.py --topology dual_t3k \\
+        --script-dir tests/torch/multi_host/experimental)
+    pytest ...
 """
 
+import argparse
 import os
-from dataclasses import dataclass
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict
-
-import pytest
-from ttxla_tools.logging import logger
 
 
 @dataclass
@@ -65,6 +68,11 @@ class MultihostConfiguration:
             "cnx1" for aus galaxies
             "enp10s0f1np1" for quietboxes
             Leave empty to use the runtime default.
+
+        extra_env_vars: Additional environment variables to export verbatim for this
+            topology. Useful for topology-specific runtime flags that are not part of
+            the generic TT_DISTRIBUTED_* set. For example, the dual_t3k topology sets
+            TT_RUNTIME_USING_DUALT3K=1 so the PJRT plugin takes the dual-T3K code path.
     """
 
     rank_binding: str
@@ -73,6 +81,7 @@ class MultihostConfiguration:
     hosts_list: str = ""
     remote_script_name: str = "remote_docker.sh"
     hosts_file: str = ""
+    extra_env_vars: Dict[str, str] = field(default_factory=dict)
 
 
 # Predefined topology configurations
@@ -99,11 +108,18 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="dual_t3k",
         controller_host_name="f10cs03",
         hosts_file="/etc/mpirun/hostfile",
+        extra_env_vars={"TT_RUNTIME_USING_DUALT3K": "1"},
+    ),
+    "dual_bh_loudbox_1x16": MultihostConfiguration(
+        rank_binding="dual_bh_loudbox_1x16",
+        controller_host_name="bh-lb-12",
+        hosts_list="bh-lb-12,bh-lb-13",
+        tt_distributed_tcp_iface="",
     ),
 }
 
 
-def get_distributed_worker_path():
+def get_distributed_worker_path() -> str:
     """
     Get path to distributed worker binary.
 
@@ -126,16 +142,22 @@ def get_distributed_worker_path():
         ), f"Distributed worker file does not exist at path: {worker_path} as explicitly specified in TT_DISTRIBUTED_WORKER_PATH. Please check that the path is correct."
         return worker_path
 
+    # Auto-discover TT_PJRT_PLUGIN_DIR from pjrt_plugin_tt package if not set
     pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
+    if not pjrt_plugin_dir:
+        try:
+            from pjrt_plugin_tt import setup_tt_pjrt_plugin_dir
+
+            setup_tt_pjrt_plugin_dir()
+            pjrt_plugin_dir = os.environ.get("TT_PJRT_PLUGIN_DIR")
+        except ImportError:
+            pass  # pjrt_plugin_tt not installed, will fall back to TT_MLIR_HOME
+
     if pjrt_plugin_dir:
         worker_path = os.path.join(
             pjrt_plugin_dir, "bin/ttmlir/runtime/distributed/worker"
         )
-        if not os.path.exists(worker_path):
-            logger.info(
-                f"Distributed worker file does not exist at path: {worker_path}, based on TT_PJRT_PLUGIN_DIR. This may happen from a source built tt-xla. Continuing to check path from TT_MLIR_HOME."
-            )
-        else:
+        if os.path.exists(worker_path):
             return worker_path
 
     tt_mlir_home_dir = os.environ.get("TT_MLIR_HOME")
@@ -154,72 +176,93 @@ def get_distributed_worker_path():
     return worker_path
 
 
-@pytest.fixture(scope="session")
-def setup_distributed_env():
+def get_env_vars(topology: str, script_dir: Path) -> Dict[str, str]:
     """
-    Session-scoped fixture to configure distributed runtime environment variables.
+    Return the dict of environment variables required for the given topology.
 
-    This fixture is NOT autouse - test directories must explicitly opt-in by calling it.
-
-    Usage in test directory conftest.py:
-        @pytest.fixture(scope="session", autouse=True)
-        def configure_topology(setup_distributed_env):
-            return setup_distributed_env(topology="quad_galaxy", script_dir=Path(__file__).parent)
+    This is the core logic shared by both the pytest fixture (conftest.py) and
+    the CLI entry point below. Callers are responsible for applying the variables
+    to os.environ if needed.
 
     Args:
-        topology: Name of the topology from TOPOLOGIES dict
-        script_dir: Directory containing the remote_docker.sh script
+        topology: Key into TOPOLOGIES, e.g. "dual_t3k"
+        script_dir: Directory that contains the remote_docker.sh helper script
+
+    Returns:
+        Dict mapping env var names to their string values
+
+    Raises:
+        ValueError: If topology is not in TOPOLOGIES
     """
-    original_values = {}
-
-    def _setup(topology: str, script_dir: Path):
-        """Configure environment for specified topology."""
-        if topology not in TOPOLOGIES:
-            raise ValueError(
-                f"Unknown topology '{topology}'. Available: {list(TOPOLOGIES.keys())}"
-            )
-
-        topo = TOPOLOGIES[topology]
-        # Variables to set
-        env_vars = {
-            "TT_RUNTIME_ENABLE_DISTRIBUTED": "1",
-            "TT_DISTRIBUTED_WORKER_PATH": get_distributed_worker_path(),
-            "TT_DISTRIBUTED_RANK_BINDING": topo.rank_binding,
-            "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
-        }
-
-        if topo.tt_distributed_tcp_iface:
-            env_vars["TT_DISTRIBUTED_TCP_IFACE"] = topo.tt_distributed_tcp_iface
-
-        # hosts_file takes precedence over hosts_list when both are set
-        if topo.hosts_file:
-            env_vars["TT_DISTRIBUTED_HOSTS_FILE"] = topo.hosts_file
-        elif topo.hosts_list:
-            env_vars["TT_DISTRIBUTED_HOSTS_LIST"] = topo.hosts_list
-
-        # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests
-        if topo.remote_script_name:
-            env_vars["TT_DISTRIBUTED_PLM_RSH_AGENT"] = str(
-                script_dir / topo.remote_script_name
-            )
-        # Set environment variables
-        for key, value in env_vars.items():
-            original_values[key] = os.environ.get(key)
-            os.environ[key] = value
-
-        logger.info(
-            "setup_distributed_env: topology={}\n{}",
-            topology,
-            "\n".join([f"{k}={v}" for k, v in env_vars.items()]),
+    if topology not in TOPOLOGIES:
+        raise ValueError(
+            f"Unknown topology '{topology}'. Available: {list(TOPOLOGIES.keys())}"
         )
 
-        return topo
+    topo = TOPOLOGIES[topology]
+    env_vars: Dict[str, str] = {
+        "TT_RUNTIME_ENABLE_DISTRIBUTED": "1",
+        "TT_DISTRIBUTED_WORKER_PATH": get_distributed_worker_path(),
+        "TT_DISTRIBUTED_RANK_BINDING": topo.rank_binding,
+        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
+    }
 
-    yield _setup
+    if topo.tt_distributed_tcp_iface:
+        env_vars["TT_DISTRIBUTED_TCP_IFACE"] = topo.tt_distributed_tcp_iface
 
-    # Cleanup: restore original values or unset
-    for key, original_value in original_values.items():
-        if original_value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = original_value
+    # hosts_file takes precedence over hosts_list when both are set
+    if topo.hosts_file:
+        env_vars["TT_DISTRIBUTED_HOSTS_FILE"] = topo.hosts_file
+    elif topo.hosts_list:
+        env_vars["TT_DISTRIBUTED_HOSTS_LIST"] = topo.hosts_list
+
+    # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests.
+    # MPI's plm_ssh_agent requires an absolute path, so resolve() here regardless
+    # of whether script_dir was passed as relative or absolute.
+    if topo.remote_script_name:
+        env_vars["TT_DISTRIBUTED_PLM_RSH_AGENT"] = str(
+            script_dir.resolve() / topo.remote_script_name
+        )
+
+    # Topology-specific extras (e.g. TT_RUNTIME_USING_DUALT3K for dual_t3k).
+    # Applied last so callers could override via the returned dict if needed.
+    env_vars.update(topo.extra_env_vars)
+
+    return env_vars
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=(
+            "Print shell export statements for a given distributed topology. "
+            "Intended to be eval'd in CI bash steps, e.g. "
+            "eval $(python scripts/multihost_topology.py --topology dual_t3k "
+            "--script-dir tests/torch/multi_host/experimental)"
+        )
+    )
+    parser.add_argument(
+        "--topology",
+        required=True,
+        choices=list(TOPOLOGIES.keys()),
+        help="Topology name to configure",
+    )
+    parser.add_argument(
+        "--script-dir",
+        default=str(Path(__file__).parent / "experimental"),
+        help=(
+            "Directory containing remote_docker.sh "
+            "(default: experimental/ next to this file)"
+        ),
+    )
+    args = parser.parse_args()
+
+    try:
+        env_vars = get_env_vars(args.topology, Path(args.script_dir))
+    except (ValueError, AssertionError) as exc:
+        print(f"echo 'topology.py error: {exc}' >&2", file=sys.stderr)
+        sys.exit(1)
+
+    for key, value in env_vars.items():
+        # Single-quote the value so special chars are safe in the shell
+        escaped = value.replace("'", "'\\''")
+        print(f"export {key}='{escaped}'")

@@ -228,49 +228,6 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
            "getNumOutputs()={}, output_specs.size()={}",
            this->getNumOutputs(), output_specs.size());
 
-  int output_dims_so_far = 0;
-  for (size_t output_index = 0; output_index < getNumOutputs();
-       ++output_index) {
-    // Complex types are lowered by the TT-MLIR compiler to float tensors with
-    // a trailing dimension of 2 (interleaved real/imag pairs), so the
-    // flatbuffer shape will have one extra trailing dimension compared to the
-    // MLIR module shape.
-    std::vector<std::uint32_t> expected_shape =
-        getOutputDimensions()[output_index];
-    if (data_type_utils::isComplexPJRTType(getOutputTypes()[output_index])) {
-      expected_shape.push_back(2);
-    }
-
-    TT_FATAL(expected_shape == output_specs[output_index].shape,
-             "Output shape from flatbuffer binary does not match the one "
-             "collected from the MLIR module: output_index={}",
-             output_index);
-
-    TT_FATAL(getOutputRanks()[output_index] ==
-                 getOutputDimensions()[output_index].size(),
-             "Output rank from flatbuffer binary does not match the one "
-             "collected from the MLIR module: output_index={}, "
-             "getOutputRanks()[output_index]={}, "
-             "getOutputDimensions()[output_index].size()={}",
-             output_index, getOutputRanks()[output_index],
-             getOutputDimensions()[output_index].size());
-
-    for (auto dim_index = 0;
-         dim_index < getOutputDimensions()[output_index].size(); dim_index++) {
-      TT_FATAL(getOutputDimensionsFlat()[output_dims_so_far + dim_index] ==
-                   static_cast<std::int64_t>(
-                       getOutputDimensions()[output_index][dim_index]),
-               "Output flat dimension from flatbuffer binary does not match "
-               "the one collected from the MLIR module: output_index={}, "
-               "dim_index={}, flat_dim={}, mlir_dim={}",
-               output_index, dim_index,
-               getOutputDimensionsFlat()[output_dims_so_far + dim_index],
-               getOutputDimensions()[output_index][dim_index]);
-    }
-
-    output_dims_so_far += getOutputDimensions()[output_index].size();
-  }
-
   // Generate fingerprint after all dependencies are initialized
   m_fingerprint = generateFingerprint();
 }

@@ -176,6 +176,19 @@ private:
       const mlir::OwningOpRef<mlir::ModuleOp> &module,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
+  // Re-collects output shardings from the module-level
+  // `mhlo.spmd_output_sharding` attribute, which is only populated after the
+  // SHLO compiler pipeline runs (Shardy propagation derives output shardings
+  // and `cleanForXlaIngestion` materializes them as this GSPMD tuple string).
+  // `collectOutputShardings` runs before the pipeline and therefore yields
+  // Replicate for Shardy inputs that don't carry per-result shardings yet; this
+  // overrides those with the correct post-propagation shardings. No-op when the
+  // attribute is absent or fails to parse (leaves `output_shardings`
+  // untouched).
+  static tt_pjrt_status recollectOutputShardingsFromModuleAttr(
+      const mlir::OwningOpRef<mlir::ModuleOp> &cleaned_module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
+
   // Collects result presharding status for the StableHLO pipeline.
   // Returns a vector of int64_t (1 = presharded, 0 = unsharded) per result.
   // torch_xla always expects all results to be presharded; JAX only expects
@@ -187,6 +200,8 @@ private:
   tt_pjrt_status runCompilerStableHLOPipeline(
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<int64_t> &result_presharded,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
       const std::optional<std::string> &export_path,
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
@@ -264,46 +279,6 @@ private:
   // Converts a MLIR module into it's textual representation
   static std::string
   getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
-
-  // Collect input sharding if we are using GSPMD.
-  tt_pjrt_status collectInputShardingsGSPMD(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
-
-  // Collect output sharding if we are using GSPMD.
-  tt_pjrt_status collectOutputShardingsGSPMD(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
-
-  // Collect input sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Collect output sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Checks if the StableHLO code is using the Shardy mlir dialect.
-  bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Checks if the StableHLO code is using manual computation ops of the Shardy
-  // mlir dialect.
-  bool isUsingShardyManualComputation(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Takes a vector of string attributes representing GSPMD sharding and fills
-  // the vector of tt_mlir Sharding with the appropriate corresponding values.
-  static mlir::LogicalResult createShardingsFromGSPMD(
-      const std::vector<mlir::StringAttr> &gspmd_attributes,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
-
-  // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
-  // fills the vector of tt_mlir MeshSharding objects with the appropriate
-  // corresponding values.
-  static mlir::LogicalResult createShardingsFromShardy(
-      std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
-      const mlir::sdy::MeshAttr &shardy_mesh,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Collects memory kinds for output buffers.
   static void collectMemoryKinds(size_t num_outputs,

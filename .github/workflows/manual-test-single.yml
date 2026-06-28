@@ -32,6 +32,7 @@ on:
           - 'llmbox-2'
           - 'galaxy-wh-6u'
           - 'qb2-blackhole'
+          - 'cpu'
       shared_runners:
         description: 'Run test on the CIv2 runner'
         required: false

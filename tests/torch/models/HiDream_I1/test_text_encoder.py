@@ -15,6 +15,7 @@ from third_party.tt_forge_models.hidream_i1.pytorch import ModelLoader, ModelVar
 
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.single_device
 def test_text_encoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)

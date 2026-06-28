@@ -24,10 +24,14 @@ from transformers import (
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+
+# Importing this name also imports tt_torch.moe_backend, which registers the
+# "tt_dense"/"tt_moe" HF experts backends via register_tt_moe_backend().
+from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.transformers_overrides import (
     override_cache_sliding_window_layers,
-    override_gpt_oss_sliding_window_causal_mask,
+    override_model_sliding_window_causal_mask,
 )
 
 DEFAULT_PROMPTS = ["Explain quantum mechanics."]
@@ -144,15 +148,23 @@ def setup_model_and_tokenizer(
     Returns:
         Tuple of (model, tokenizer)
     """
+    # Use the static dense experts forward (tt_dense) instead of HF's default
+    # experts path. The default path has data-dependent loops and falls back to
+    # CPU ops (e.g. _grouped_mm) that crash during StableHLO conversion. The
+    # #4988 MoE-backend change removed the GptOss forward monkey-patches, so the
+    # backend must now be selected explicitly here (the benchmark does the same).
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
         attn_implementation="eager",
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = TT_DENSE_EXPERTS_BACKEND_NAME
     # Override the gpt_oss model to use the TT-friendly sliding window causal mask
-    override_gpt_oss_sliding_window_causal_mask()
+    override_model_sliding_window_causal_mask(model)
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -231,6 +243,11 @@ def construct_inputs(
     override_cache_sliding_window_layers(static_cache, max_cache_len, sliding_window)
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+    # Pass position_ids explicitly so gpt_oss's forward never enters the
+    # "position_ids is None" branch (which calls past_key_values.get_seq_length()
+    # and bakes a per-step Python int into the graph, causing dynamo to
+    # recompile on every decode step).
+    position_ids = cache_position.unsqueeze(0)
 
     # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
     # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
@@ -244,6 +261,7 @@ def construct_inputs(
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
+        "position_ids": position_ids,
         "use_cache": True,
         "attention_mask": full_attention_mask,
     }
@@ -282,8 +300,19 @@ def transfer_to_device(
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        # StaticLayer.update builds a fresh `cache_position` each call as
+        # `torch.arange(kv_length, device=self.device) + self.cumulative_length`,
+        # then passes it to `self.keys.index_copy_(2, cache_position, ...)`.
+        # If `self.device` is still "cpu" or `cumulative_length` is a CPU tensor,
+        # the resulting index is CPU and `index_copy_` on an XLA `keys` tensor
+        # raises `Check failed: xtensor: Input tensor is not an XLA tensor`.
+        if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
+            layer.cumulative_length = layer.cumulative_length.to(device)
+        if hasattr(layer, "device"):
+            layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
@@ -398,6 +427,8 @@ def run_generate(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
+            # keep position_ids in sync with cache_position (see construct_inputs)
+            input_args["position_ids"] = host_cache_pos.unsqueeze(0).to(device)
 
     print()
     if not is_interactive:

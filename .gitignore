@@ -48,5 +48,8 @@ tests/benchmark/reference_outputs/*.refpt
 # Perf benchmark generated modules
 /modules/
 
+# Runtime-generated tt-metal debug artifacts
+/generated/
+
 # Tracy profiling files
 /tracy_artifacts/

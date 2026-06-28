@@ -23,6 +23,7 @@ class ComparisonResult(EvaluationResult):
     atol: float | None = None
     allclose: bool | None = None
     equal: bool | None = None
+    rel_l2: float | None = None
 
 
 @dataclass

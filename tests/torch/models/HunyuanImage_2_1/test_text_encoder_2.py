@@ -21,6 +21,7 @@ from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
 )
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.single_device
 def test_text_encoder_2():
     xr.set_device_type("TT")
     torch.manual_seed(42)

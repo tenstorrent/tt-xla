@@ -58,6 +58,11 @@ class CompilerConfig:
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
     experimental_enable_permute_matmul_fusion: bool = True
 
+    # Enables the DRAM space-saving optimization pass (TTNNMemoryManagement) in
+    # the TTNN pipeline. Reduces peak DRAM use by propagating slices through
+    # surrounding ops and rewriting reshape/permute patterns.
+    experimental_enable_dram_space_saving_optimization: bool = False
+
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -75,6 +80,10 @@ class CompilerConfig:
     # Enable D2M subgraph creation pass for d2m elementwise fusion.
     # Only effective when optimization_level >= 1 (optimizer must be enabled)
     enable_create_d2m_subgraphs: bool = False
+
+    # Enable the all_reduce decomposition workaround which breaks all_reduce down
+    # into reduce_scatter + all_gather (or all_gather + local reduce).
+    all_reduce_workaround_enabled: bool = True
 
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
@@ -106,6 +115,9 @@ class CompilerConfig:
         if not self.experimental_enable_permute_matmul_fusion:
             options["experimental_enable_permute_matmul_fusion"] = "false"
 
+        if self.experimental_enable_dram_space_saving_optimization:
+            options["experimental-enable-dram-space-saving-optimization"] = "true"
+
         if self.enable_trace:
             options["enable_trace"] = "true"
 
@@ -125,6 +137,9 @@ class CompilerConfig:
                     f"is enabled, got optimization_level={self.optimization_level}"
                 )
             options["enable_create_d2m_subgraphs"] = "true"
+
+        if not self.all_reduce_workaround_enabled:
+            options["all_reduce_workaround_enabled"] = "false"
 
         return options
 

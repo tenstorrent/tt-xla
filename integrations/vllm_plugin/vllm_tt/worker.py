@@ -214,7 +214,9 @@ class TTWorker:
         kv_cache_spec = self.model_runner.get_kv_cache_spec()
         for layer_name, layer_spec in kv_cache_spec.items():
             if isinstance(layer_spec, AttentionSpec):
-                dtype = layer_spec.dtype
+                # spec dtype may be a 1-byte accounting dtype that isn't
+                # transferable; this placeholder uses the real cache dtype.
+                dtype = self.cache_dtype
 
                 # Use an empty tensor instead of `None`` to force Dynamo to pass
                 # it by reference, rather by specializing on the value ``None``.

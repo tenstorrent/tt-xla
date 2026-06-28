@@ -53,11 +53,15 @@ setup(
     install_requires=[
         "vllm==0.19.1",
         "transformers==5.5.1",
+        "fastapi[standard] >= 0.133.0, < 0.137.0",
     ],
     python_requires=">=3.12, <3.13",
     license="Apache-2.0",
     entry_points={
         "vllm.platform_plugins": ["tt = vllm_tt:register"],
-        "vllm.general_plugins": ["tt_mla = vllm_tt:register_mla_oot_layer"],
+        "vllm.general_plugins": [
+            "tt_mla = vllm_tt:register_mla_oot_layer",
+            "tt_moe = vllm_tt:register_moe_oot_layer",
+        ],
     },
 )

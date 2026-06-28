@@ -91,11 +91,17 @@ def extract_model_metrics(report: dict) -> dict:
     }
     total_samples = measurements.get("total_samples", 0)
     total_time = measurements.get("total_time", 0)
+    if "samples_per_sec" in measurements:
+        samples_per_sec = measurements["samples_per_sec"]
+    elif total_time > 0:
+        samples_per_sec = total_samples / total_time
+    else:
+        samples_per_sec = 0
 
     return {
         "display_name": report.get("config", {}).get("display_name", "unknown"),
         "device_type": report.get("device_info", {}).get("device_type", "unknown"),
-        "samples_per_sec": total_samples / total_time if total_time > 0 else 0,
+        "samples_per_sec": samples_per_sec,
         "ttft_ms": measurements.get("ttft"),
         "device_fw_duration_s": measurements.get("device_fw_duration"),
         "total_samples": total_samples,

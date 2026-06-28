@@ -8,13 +8,14 @@ import collections
 from typing import Any
 
 import torch
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
-from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
+from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
 
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
@@ -147,6 +148,16 @@ class DynamicTorchModelTester(TorchModelTester):
             batch_size=batch_size,
         )
 
+        # Loaders expose `requires_model_rewrites` to request TT-friendly
+        # in-place model rewrites (e.g. sliding-window mask patches). Querying
+        # the loader property keeps the inputs dict free of non-model keys.
+        if getattr(self.dynamic_loader.loader, "requires_model_rewrites", False):
+            from tt_torch.transformers_overrides import (
+                override_model_sliding_window_causal_mask,
+            )
+
+            override_model_sliding_window_causal_mask(self._model)
+
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
             if isinstance(inputs, collections.abc.Mapping):
@@ -254,11 +265,17 @@ class DynamicTorchModelTester(TorchModelTester):
             mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
         if mesh_shape and mesh_names:
-            return get_mesh(mesh_shape, mesh_names)
+            mesh = get_mesh(mesh_shape, mesh_names)
+            xs.set_global_mesh(mesh)
+            return mesh
         return None
 
-    def _get_prefill_pcc_mask(self):
-        """Return boolean token mask for LLM prefill PCC filtering."""
+    def _get_prefill_real_token_mask(self):
+        """Return boolean real-token mask for LLM prefill metric filtering.
+
+        Excludes padded positions from PCC, rel_l2, and any other
+        sequence-aware metric that consumes the mask.
+        """
         if self.run_phase != RunPhase.LLM_PREFILL:
             return None
 
@@ -268,11 +285,11 @@ class DynamicTorchModelTester(TorchModelTester):
         return attention_mask.to(dtype=torch.bool)
 
     def _compare(self, device_out, golden_out):
-        """Compare outputs, masking padded prefill tokens for PCC only."""
+        """Compare outputs, masking padded prefill tokens for mask-aware metrics."""
         return self._evaluator.evaluate(
             device_out,
             golden_out,
-            pcc_mask=self._get_prefill_pcc_mask(),
+            real_token_mask=self._get_prefill_real_token_mask(),
         )
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
@@ -284,17 +301,27 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _inject_custom_moe(self, model):
         """Injects a custom MoE implementation into the model if specified in test metadata."""
-        logger.info(
-            "Custom MoE injection enabled for this test - using sparse_mlp.py implementation in tt_torch"
-        )
         mesh_info = self._workload.mesh.shape()
-        mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        enable_sparse_mlp(model, mesh=mesh_shape)
+
+        logger.info(
+            f"Custom MoE injection enabled for this test - using {TT_MOE_BACKEND_NAME} "
+            "experts backend"
+        )
+        if hasattr(model, "config"):
+            model.config._experts_implementation = TT_MOE_BACKEND_NAME
+        else:
+            logger.warning(
+                "Custom MoE injection requested but %s has no .config attribute; "
+                "%s backend will not be dispatched.",
+                type(model).__name__,
+                TT_MOE_BACKEND_NAME,
+            )
+
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 
             def combined_shard_spec_fn(model, _fn=shard_spec_fn, _names=mesh_names):
-                return get_moe_shard_specs(model, _fn, _names)
+                return get_tt_moe_shard_specs(model, _fn, _names)
 
             self._workload.shard_spec_fn = combined_shard_spec_fn
