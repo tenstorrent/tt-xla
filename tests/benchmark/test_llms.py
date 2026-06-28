@@ -1958,15 +1958,23 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
     # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
-    shard_specs[model.lm_head.weight] = (None, None)
+    shard_specs[model.lm_head.weight] = ("batch", None)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
         shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        # Not in the e2e branch spec, but required by our reconstructed tt-mlir:
+        # host-split the q/k/v/o biases to match the proj-weight output sharding,
+        # otherwise the replicated bias gets an on-device mesh_partition that
+        # fatals slicing the tilized 1D bias.
+        shard_specs[layer.self_attn.q_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.k_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.v_proj.bias] = ("model",)
+        shard_specs[layer.self_attn.o_proj.bias] = (None,)
         shard_specs[layer.self_attn.sinks] = ("model",)
-        shard_specs[layer.mlp.router.weight] = (None, None)
+        shard_specs[layer.mlp.router.weight] = (None, "batch")
         # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
         # Once the MoE module is refactored, this should be changed to EP 32.
         shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
@@ -1975,6 +1983,18 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
         shard_specs[layer.input_layernorm.weight] = (None,)
         shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+        # Fused MoE decode weights (SparseMOEGPT with preprocess_fused_weights=True).
+        # Global shape: (ring_devices*12, mesh_cols, E_per_dev, groups, K+32, 128).
+        # ring_devices is the "batch" axis (rows=4 on 4x8 galaxy) and mesh_cols is
+        # the "model" axis (cols=8). Per-device shape becomes (12, 1, ...), which
+        # matches what MoeGpt kernel expects (dim 0 == num DRAM-bank matmul cores).
+        # The branch stamps these on `mlp`; preprocess_tt_moe_gpt_fused_weights
+        # (our backend) stamps them on `mlp.experts` — handle both.
+        for _moe_obj in (layer.mlp, layer.mlp.experts):
+            if hasattr(_moe_obj, "fused_w0_w1") and hasattr(_moe_obj, "fused_w2"):
+                shard_specs[_moe_obj.fused_w0_w1] = ("batch", "model", None, None, None, None)
+                shard_specs[_moe_obj.fused_w2] = ("batch", "model", None, None, None, None)
 
     return shard_specs
 
@@ -1989,7 +2009,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     decode_only,
     optimization_level,
 ):
-    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME
 
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -2009,12 +2029,18 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         batch_size=128,
         optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,
+        # Brought over from the working e2e branch config
+        # (odjuricic/wip-gpt-oss-e2e-squashed:
+        #  test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128):
+        # throughput shard spec + trace enabled. Branch-only knobs that don't
+        # exist in this test_llm_tp (inject_custom_moe / custom_moe_cluster_axis /
+        # gpt_oss_fused_decode / preprocess_fused_weights / arch / per_user_prompts)
+        # are dropped; the MoE path is enabled via experts_implementation instead.
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=True,
-        experimental_kv_cache_dtype=None,
-        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        trace_enabled=False,
+        experts_implementation=TT_MOE_GPT_BACKEND_NAME,
     )
 
 

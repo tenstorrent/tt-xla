@@ -53,16 +53,37 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.return_logits = return_logits
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
+        # Only pass logits_to_keep if the wrapped model's forward accepts it
+        # (kwarg or **kwargs); virtually all HF *ForCausalLM do.
+        try:
+            import inspect
+
+            params = inspect.signature(model.forward).parameters
+            self._supports_logits_to_keep = "logits_to_keep" in params or any(
+                p.kind == p.VAR_KEYWORD for p in params.values()
+            )
+        except (TypeError, ValueError):
+            self._supports_logits_to_keep = False
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         position_ids = cache_position.unsqueeze(0)
-        output = self.model(
+        model_kwargs = dict(
             input_ids=input_ids,
             past_key_values=past_key_values,
             position_ids=position_ids,
             cache_position=cache_position,
             use_cache=use_cache,
         )
+        # Only the last token's logits are ever consumed (next-token argmax below
+        # and the prefill/decode PCC checks). Ask the model to run the LM head on
+        # just the last position (HF `logits_to_keep=1`). For a long prefill this
+        # avoids materializing [batch, seq, vocab] logits — on a sharded vocab
+        # that full-sequence tensor is all-gathered to the full vocab and can be
+        # gigabytes (e.g. GPT-OSS-120B: 128x544x201088 f32 ~= 1.65GB), which OODs
+        # device DRAM. For decode (seq==1) it is a no-op.
+        if self._supports_logits_to_keep:
+            model_kwargs["logits_to_keep"] = 1
+        output = self.model(**model_kwargs)
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
@@ -81,20 +102,22 @@ class LLMSamplingWrapper(torch.nn.Module):
             )
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
-            logits_out = logits
-            if self.mesh and self.output_sharding_spec:
-                # Ensure logits are replicated for transfer to CPU.
-                # Use tensor rank (not output_sharding_spec length) since logits may be
-                # rank 3 [batch, seq_len, vocab] while output_sharding_spec is rank 2.
-                replicate_spec = tuple(None for _ in range(logits_out.dim()))
-                logits_out = sharding_constraint_tensor(
-                    logits, self.mesh, replicate_spec
-                )
+            # Return the logits VOCAB-SHARDED — never replicate (all_gather) them in
+            # the compiled graph. An in-graph replicate materializes the full
+            # [batch, 1, vocab] (~50MB for GPT-OSS-120B at batch 128) as a graph-output
+            # buffer that tt-mlir's static memory planner reserves for the WHOLE
+            # prefill/decode graph, tipping the gate_up re-tilize into a DRAM-
+            # fragmentation OOM on full-36L galaxy (observed in BOTH the prefill and
+            # the decode PCC-collection passes). The caller moves them to host
+            # (`.to("cpu")`), where torch_xla assembles the vocab shards — verified
+            # PCC-identical to the in-graph replicate path (sharded vs replicated are
+            # the same values; the decode PCC is unaffected, 0.930 -> 0.947 came from
+            # the SPARSE_UNICAST dispatch fix, not this).
             return (
                 next_token_ids,
                 next_token_ids_replicated,
                 next_cache_position,
-                logits_out,
+                logits,
             )
         return next_token_ids, next_token_ids_replicated, next_cache_position
 
@@ -309,12 +332,8 @@ def generate_and_benchmark(
     # device-side indexing that can segfault on the TT backend.
     gt_cpu = None
     if ground_truth_tokens is not None:
-        gt_cpu = (
-            ground_truth_tokens[:max_tokens_to_generate]
-            .view(-1, 1, 1)
-            .expand(-1, batch_size, 1)
-            .contiguous()
-        )
+        _gt1d = ground_truth_tokens[:max_tokens_to_generate]
+        gt_cpu = _gt1d.view(-1, 1, 1).expand(-1, batch_size, 1).contiguous()
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):

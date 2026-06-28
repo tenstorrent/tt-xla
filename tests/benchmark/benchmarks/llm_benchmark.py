@@ -164,6 +164,7 @@ def construct_inputs(
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
+
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
     input_args = {
@@ -183,13 +184,25 @@ def get_mesh(model_loader, mesh_config_fn):
     return Mesh(device_ids, mesh_shape, mesh_name)
 
 
-def transfer_to_device(input_args: dict, device: torch.device) -> dict:
+def transfer_to_device(
+    input_args: dict,
+    device: torch.device,
+    cumulative_length_value: Optional[int] = None,
+) -> dict:
     """
     Transfer inputs to device.
 
     Args:
         input_args: Input arguments dictionary
         device: Target device
+        cumulative_length_value: value to seed each layer's ``cumulative_length``
+            with before moving it to device. ``None`` (default) zeros it, which is
+            correct for the normal path where the cache is fresh and re-filled by
+            the on-device prefill. Decode-only passes the prompt length: the KV
+            cache is pre-populated by the CPU golden prefill (and may have been
+            advanced by a prior device run), so CL must be set back to the
+            post-prefill position — otherwise the device decode attention either
+            ignores the prompt (CL=0) or reads stale decode entries.
 
     Returns:
         input_args on device
@@ -209,8 +222,12 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
             # CL must be on device: StaticLayer.update() does
             # torch.arange(kv_length, device=self.device) + self.cumulative_length,
             # which fails if CL is on CPU and self.device is XLA.
-            # Zero before moving so the fresh cache starts at position 0.
-            layer.cumulative_length.zero_()
+            # Seed CL before moving: 0 for a fresh cache, or the post-prefill
+            # position for decode-only (see docstring).
+            if cumulative_length_value is None:
+                layer.cumulative_length.zero_()
+            else:
+                layer.cumulative_length.fill_(int(cumulative_length_value))
             layer.cumulative_length = layer.cumulative_length.to(device)
             layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
@@ -436,6 +453,25 @@ def benchmark_llm_torch_xla(
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
+    # Preprocess fused MoE decode weights on CPU before device transfer (so the
+    # transform runs on the full expert weights without replicating them
+    # on-device) and before sharding (so the new fused_w0_w1/fused_w2 params can
+    # be sharded by shard_spec_fn). Without these, ttir.moe_gpt_decode binds
+    # zero-filled placeholder weights instead of the real expert weights.
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME, preprocess_tt_moe_gpt_fused_weights
+
+    if is_multichip and experts_implementation == TT_MOE_GPT_BACKEND_NAME:
+        _moe_gpt_mesh_shape, _ = mesh_config_fn(
+            model_loader, xr.global_runtime_device_count()
+        )
+        # In decode-only mode prefill is served by the CPU golden, so the device
+        # dense prefill path is never run; free the unfused expert weights so only
+        # the fused decode weights occupy device DRAM (avoids the full-model OOM).
+        _free_unfused = decode_only
+        preprocess_tt_moe_gpt_fused_weights(
+            model, mesh_shape=_moe_gpt_mesh_shape, free_unfused=_free_unfused
+        )
+
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
@@ -446,12 +482,43 @@ def benchmark_llm_torch_xla(
         mesh = get_mesh(model_loader, mesh_config_fn)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
+                # Skip tensors whose rank no longer matches their spec. The
+                # tt_moe_gpt fused-weight preprocessing frees the original
+                # (unfused) expert weights in place (rank-1 empty stubs); decode
+                # runs on the fused weights, so these stubs must not be sharded.
+                if len(tensor.shape) != len(shard_spec):
+                    continue
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Apply sharding constraint on lm_head output to all_gather logits
+        # Constrain the lm_head output to stay VOCAB-SHARDED on the same axis as
+        # the lm_head weight (("batch", None) -> vocab on the batch/DP axis), i.e.
+        # spec (None, None, "batch") for [batch, seq, vocab]. Replicating it to
+        # full vocab ((None, None, None)) materializes a [128, seq, 201088] logits
+        # tensor (full-vocab all_gather) that is ~1.65GB in prefill and OODs device
+        # DRAM. Kept sharded, each device holds only [128, seq, 50272] (1/4), and
+        # the next-token argmax over the sharded vocab dim lowers to a partitioned
+        # (sharded) argmax. The PCC run (return_logits=True) still gathers the
+        # last-token logits to host for the full-vocab PCC compare.
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, "batch"))
             model.lm_head.register_forward_hook(hook)
+
+    # The tt_moe_gpt experts backend fuses decode (S==1) through the
+    # moe_gpt_decode composite and falls back to the dense path for prefill.
+    # The HF ExpertsInterface forward only sees flattened [T, H] tokens (T=B*S),
+    # so stamp the global batch size + mesh shape as module-level globals (read
+    # by the experts forward under torch.compile, where get_global_mesh() is
+    # None): with S==1 the token count T == batch -> moe_gpt_decode composite.
+    # No forward is replaced, so the HF interface stays intact.
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME, register_tt_moe_gpt_decode_hooks
+
+    if experts_implementation == TT_MOE_GPT_BACKEND_NAME:
+        mesh_shape = (
+            tuple(int(d) for d in mesh.mesh_shape) if mesh is not None else None
+        )
+        register_tt_moe_gpt_decode_hooks(
+            model, batch_size=batch_size, mesh_shape=mesh_shape
+        )
 
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
@@ -552,12 +619,15 @@ def benchmark_llm_torch_xla(
         input_args["past_key_values"] if not decode_only else decode_only_cache
     )
 
-    # Reset cumulative_length to 0 on CPU
-    for layer in existing_cache.layers:
-        if hasattr(layer, "cumulative_length"):
-            if layer.cumulative_length.device.type != "cpu":
-                layer.cumulative_length = layer.cumulative_length.cpu()
-            layer.cumulative_length.zero_()
+    # Reset cumulative_length to 0 on CPU. In decode-only the cache is the
+    # CPU-golden prefill cache and its cumulative_length must be preserved so the
+    # device decode attention sees the prompt context (otherwise PCC collapses).
+    if not decode_only:
+        for layer in existing_cache.layers:
+            if hasattr(layer, "cumulative_length"):
+                if layer.cumulative_length.device.type != "cpu":
+                    layer.cumulative_length = layer.cumulative_length.cpu()
+                layer.cumulative_length.zero_()
 
     input_args = construct_inputs(
         tokenizer,
@@ -575,7 +645,13 @@ def benchmark_llm_torch_xla(
         input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
-    input_args = transfer_to_device(input_args, device)
+    input_args = transfer_to_device(
+        input_args,
+        device,
+        cumulative_length_value=(
+            int(decode_only_cache_position.reshape(-1)[0]) if decode_only else None
+        ),
+    )
     if is_multichip and decode_only:
         _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
@@ -633,7 +709,13 @@ def benchmark_llm_torch_xla(
         input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
-    input_args = transfer_to_device(input_args, device)
+    input_args = transfer_to_device(
+        input_args,
+        device,
+        cumulative_length_value=(
+            int(decode_only_cache_position.reshape(-1)[0]) if decode_only else None
+        ),
+    )
     if is_multichip:
         _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
