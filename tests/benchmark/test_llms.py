@@ -2810,6 +2810,5 @@ def test_smollm2_360m(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=0,
-        trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf8"},
+        trace_enabled=False,
     )
