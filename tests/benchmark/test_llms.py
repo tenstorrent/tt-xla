@@ -2780,3 +2780,61 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def test_gemma_4_26b_a4b_it_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
+    from third_party.tt_forge_models.gemma4.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # google/gemma-4-26B-A4B-it is a sparse-MoE causal LM (26B total / ~4B active,
+    # 128 experts / top-8 per layer) on top of a dense shared MLP. The loader's
+    # built-in get_mesh_config -> (1, num_devices) and load_shard_spec give Megatron
+    # TP (q_proj col / o_proj row, dense MLP gate/up col + down row) on the model
+    # axis — on QB2 that is a (1, 4) mesh, TP-4 (heads 16 % 4 == 0). KV projections
+    # are replicated per the loader's GQA-TP fallback.
+    #
+    # The routed experts (Gemma4TextExperts.gate_up_proj/down_proj) are left
+    # replicated by the loader spec; the tt_dense experts backend evaluates them as
+    # a static dense bmm over all experts (the eager forward is a data-dependent
+    # Python loop over routed experts that cannot be captured into a static graph).
+    # Experts are the bulk of the weights (~22.8B of 26B), so to fit the replicated
+    # copy on each Blackhole chip they are quantized to bfp_bf4 (the rest bfp_bf8) —
+    # the same memory strategy as test_gpt_oss_120b_tp_qb2. The expert tensors are
+    # bare nn.Parameters (not ".weight"), so they are targeted by explicit globs;
+    # the "default" key only covers ".weight" parameters.
+    variant = ModelVariant.GEMMA_4_26B_A4B_IT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size if batch_size is not None else 8,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype=None,
+        weight_dtype_overrides={
+            "default": "bfp_bf8",
+            "*.experts.gate_up_proj": "bfp_bf4",
+            "*.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,  # bfp_bf4 experts; matches the gpt-oss-120b qb2 MoE bar
+    )

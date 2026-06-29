@@ -17,7 +17,12 @@ from typing import Optional
 import torch
 import tracy
 from infra import MLACache
-from transformers.cache_utils import StaticCache
+from transformers.cache_utils import (
+    LinearAttentionLayer,
+    StaticCache,
+    StaticLayer,
+    StaticSlidingWindowLayer,
+)
 from tt_torch.sharding import sharding_constraint_tensor
 
 
@@ -112,6 +117,100 @@ def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> 
         print(f"Dropout modules found: {dropout_count}, any active: {dropout_active}")
 
 
+def _repair_zero_shared_layer_cache(static_cache, text_config, max_cache_len: int):
+    """Work around a transformers ``StaticCache`` bug for ``num_kv_shared_layers == 0``.
+
+    ``StaticCache.__init__`` drops shared-KV layers with
+    ``layer_types = layer_types[: -config.num_kv_shared_layers]``. When a model
+    declares ``num_kv_shared_layers == 0`` (no layers are shared, e.g. Gemma-4),
+    this becomes ``layer_types[:-0] == layer_types[:0] == []`` and silently builds
+    a **zero-layer** cache — every ``past_key_values.update`` then raises
+    ``IndexError`` on the first decoder layer. ``num_kv_shared_layers`` is a strict
+    dataclass field with a class default, so it cannot be unset to skip the branch;
+    instead, repair the layers list here once construction is done.
+
+    General-purpose and version-tolerant: only triggers when the decoder declares
+    exactly zero shared layers and the constructed cache is shorter than its
+    ``layer_types`` (i.e. the upstream slice bug is present); a no-op otherwise.
+    """
+    if getattr(text_config, "num_kv_shared_layers", None) != 0:
+        return
+
+    layer_types = getattr(text_config, "layer_types", None)
+    if layer_types is None:
+        n = text_config.num_hidden_layers
+        if getattr(text_config, "sliding_window", None) is not None:
+            layer_types = ["sliding_attention"] * n
+        elif getattr(text_config, "attention_chunk_size", None) is not None:
+            layer_types = ["chunked_attention"] * n
+        else:
+            layer_types = ["full_attention"] * n
+
+    if len(static_cache.layers) == len(layer_types):
+        return  # already correct (upstream fixed, or no slice applied)
+
+    rebuilt = []
+    for layer_type in layer_types:
+        if layer_type == "sliding_attention":
+            rebuilt.append(
+                StaticSlidingWindowLayer(
+                    max_cache_len=max_cache_len,
+                    sliding_window=text_config.sliding_window,
+                )
+            )
+        elif layer_type == "chunked_attention":
+            rebuilt.append(
+                StaticSlidingWindowLayer(
+                    max_cache_len=max_cache_len,
+                    sliding_window=text_config.attention_chunk_size,
+                )
+            )
+        elif layer_type in ("mamba", "conv", "linear_attention", "moe"):
+            rebuilt.append(LinearAttentionLayer())
+        else:
+            rebuilt.append(StaticLayer(max_cache_len=max_cache_len))
+    static_cache.layers = rebuilt
+
+
+def _resolve_per_layer_kv_geometry(
+    text_config, num_layers: int, default_num_heads: int, default_head_dim: int
+):
+    """Return (num_heads, head_dim) for ``StaticCache.early_initialization``.
+
+    Most decoders use one KV-head count / head_dim for every layer, so this
+    returns the scalar defaults unchanged. Some models (e.g. Gemma-4) interleave
+    attention layer types whose KV cache geometry differs per layer — sliding
+    layers keep ``num_key_value_heads`` / ``head_dim`` while the global layers use
+    ``num_global_key_value_heads`` / ``global_head_dim`` (``attention_k_eq_v``).
+    A single uniform geometry then mismatches the model's ``key_states`` on the
+    global layers (``index_copy_`` shape error in ``StaticCache.update``).
+    ``early_initialization`` accepts per-layer lists, so build them when the
+    config advertises this variation. General and config-driven: collapses back
+    to the scalar path whenever the derived geometry is homogeneous.
+    """
+    layer_types = getattr(text_config, "layer_types", None)
+    global_head_dim = getattr(text_config, "global_head_dim", None)
+    attention_k_eq_v = getattr(text_config, "attention_k_eq_v", False)
+    num_global_kv = getattr(text_config, "num_global_key_value_heads", None)
+    if layer_types is None or (not global_head_dim and not attention_k_eq_v):
+        return default_num_heads, default_head_dim
+
+    num_heads, head_dims = [], []
+    for layer_type in layer_types[:num_layers]:
+        is_sliding = layer_type == "sliding_attention"
+        use_alt = attention_k_eq_v and not is_sliding
+        head_dims.append(
+            global_head_dim if (not is_sliding and global_head_dim) else default_head_dim
+        )
+        num_heads.append(
+            num_global_kv if (use_alt and num_global_kv) else default_num_heads
+        )
+
+    if len(set(num_heads)) == 1 and len(set(head_dims)) == 1:
+        return default_num_heads, default_head_dim
+    return num_heads, head_dims
+
+
 def init_static_cache(
     *,
     config,
@@ -121,13 +220,22 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Composite / multimodal configs (e.g. Gemma4ForConditionalGeneration) keep the
+    # decoder hyperparameters under a nested ``text_config``; resolve it so head_dim /
+    # num_attention_heads / num_key_value_heads read correctly. For plain decoder
+    # configs ``get_text_config()`` returns the config unchanged.
+    attn_config = (
+        config.get_text_config(decoder=True)
+        if hasattr(config, "get_text_config")
+        else config
+    )
+    if hasattr(attn_config, "head_dim") and getattr(attn_config, "head_dim"):
+        head_dim = attn_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = attn_config.hidden_size // attn_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        attn_config, "num_key_value_heads", attn_config.num_attention_heads
     )
 
     static_cache = StaticCache(
@@ -137,10 +245,14 @@ def init_static_cache(
         device=device,
         dtype=dtype,
     )
+    _repair_zero_shared_layer_cache(static_cache, attn_config, max_cache_len)
+    num_heads_arg, head_dim_arg = _resolve_per_layer_kv_geometry(
+        attn_config, len(static_cache.layers), num_key_value_heads, head_dim
+    )
     static_cache.early_initialization(
         batch_size=batch_size,
-        num_heads=num_key_value_heads,
-        head_dim=head_dim,
+        num_heads=num_heads_arg,
+        head_dim=head_dim_arg,
         dtype=dtype,
         device=device,
     )

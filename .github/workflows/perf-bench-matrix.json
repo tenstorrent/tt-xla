@@ -167,6 +167,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "gemma_4_26b_a4b_it_tp_qb2",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_4_26b_a4b_it_tp_qb2",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "falcon3_7b_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp_qb2",
         "runs-on": "qb2-blackhole"
