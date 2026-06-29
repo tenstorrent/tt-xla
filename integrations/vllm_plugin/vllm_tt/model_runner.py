@@ -482,50 +482,45 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_reqs: _alloc_dev((num_reqs,), torch.int32)
             for num_reqs in {self.min_num_reqs, self.max_num_reqs}
         }
-        self._page_table_dev_max = _alloc_dev(
-            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
-            self.block_table_cpu.dtype,
-        )
-        self._page_table_dev_min = _alloc_dev(
-            (self.min_num_reqs, self.max_num_blocks_per_req),
-            self.block_table_cpu.dtype,
-        )
-        self._fill_page_table_dev_max = _alloc_dev(
-            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
-            self.block_table_cpu.dtype,
-        )
-        self._fill_page_table_dev_min = _alloc_dev(
-            (self.min_num_reqs, self.max_num_blocks_per_req),
-            self.block_table_cpu.dtype,
-        )
-        self._cache_position_dev_max = _alloc_dev(
-            (self.num_reqs_max_model_len,), self.seq_lens_cpu.dtype
-        )
-        self._cache_position_dev_min = _alloc_dev(
-            (self.min_num_reqs,), self.seq_lens_cpu.dtype
-        )
+        self._page_table_dev_max = {
+            num_reqs: _alloc_dev(
+                (num_reqs, self.max_num_blocks_per_req),
+                self.block_table_cpu.dtype,
+            )
+            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+        }
+        self._fill_page_table_dev_max = {
+            num_reqs: _alloc_dev(
+                (num_reqs, self.max_num_blocks_per_req),
+                self.block_table_cpu.dtype,
+            )
+            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+        }
+        self._cache_position_dev_max = {
+            num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
+            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+        }
         if self.most_model_len is not None:
             assert self.num_reqs_most_model_len is not None
             assert self.num_blocks_per_most_len_req is not None
-            self._page_table_dev_most = _alloc_dev(
-                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
-                self.block_table_cpu.dtype,
-            )
-            self._page_table_dev_most_min = _alloc_dev(
-                (self.min_num_reqs, self.num_blocks_per_most_len_req),
-                self.block_table_cpu.dtype,
-            )
-            self._fill_page_table_dev_most = _alloc_dev(
-                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
-                self.block_table_cpu.dtype,
-            )
-            self._fill_page_table_dev_most_min = _alloc_dev(
-                (self.min_num_reqs, self.num_blocks_per_most_len_req),
-                self.block_table_cpu.dtype,
-            )
-            self._cache_position_dev_most = _alloc_dev(
-                (self.num_reqs_most_model_len,), self.seq_lens_cpu.dtype
-            )
+            self._page_table_dev_most = {
+                num_reqs: _alloc_dev(
+                    (num_reqs, self.num_blocks_per_most_len_req),
+                    self.block_table_cpu.dtype,
+                )
+                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
+            }
+            self._fill_page_table_dev_most = {
+                num_reqs: _alloc_dev(
+                    (num_reqs, self.num_blocks_per_most_len_req),
+                    self.block_table_cpu.dtype,
+                )
+                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
+            }
+            self._cache_position_dev_most = {
+                num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
+                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
+            }
 
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
@@ -1212,37 +1207,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = page_table
 
         if use_max_model_len:
-            cache_position_dev = (
-                self._cache_position_dev_min
-                if target_num_reqs == self.min_num_reqs
-                else self._cache_position_dev_max
-            )
-            page_table_dev = (
-                self._page_table_dev_min
-                if target_num_reqs == self.min_num_reqs
-                else self._page_table_dev_max
-            )
-            fill_page_table_dev_buf = (
-                self._fill_page_table_dev_min
-                if target_num_reqs == self.min_num_reqs
-                else self._fill_page_table_dev_max
-            )
+            cache_position_dev = self._cache_position_dev_max[target_num_reqs]
+            page_table_dev = self._page_table_dev_max[target_num_reqs]
+            fill_page_table_dev_buf = self._fill_page_table_dev_max[target_num_reqs]
         else:
-            cache_position_dev = (
-                self._cache_position_dev_min
-                if target_num_reqs == self.min_num_reqs
-                else self._cache_position_dev_most
-            )
-            page_table_dev = (
-                self._page_table_dev_most_min
-                if target_num_reqs == self.min_num_reqs
-                else self._page_table_dev_most
-            )
-            fill_page_table_dev_buf = (
-                self._fill_page_table_dev_most_min
-                if target_num_reqs == self.min_num_reqs
-                else self._fill_page_table_dev_most
-            )
+            cache_position_dev = self._cache_position_dev_most[target_num_reqs]
+            page_table_dev = self._page_table_dev_most[target_num_reqs]
+            fill_page_table_dev_buf = self._fill_page_table_dev_most[target_num_reqs]
 
         # Clear unused rows so persistent device buffers don't keep stale
         # block indices from a previous call (would surface as KV bleed).
