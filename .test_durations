@@ -2310,7 +2310,7 @@
     "tests/runner/test_models.py::test_all_models_torch[albert/masked_lm/pytorch-Large_v2-single_device-inference]": 74.026,
     "tests/runner/test_models.py::test_all_models_torch[vgg/pytorch-Torchvision_Vgg11-single_device-inference]": 35.269,
     "tests/runner/test_models.py::test_all_models_torch[siglip/image_text_similarity/pytorch-Base_Patch16_256_Multilingual-single_device-inference]": 78.07,
-    "tests/runner/test_models.py::test_all_models_torch[bloom/pytorch-single_device-inference]": 88.418,
+    "tests/runner/test_models.py::test_all_models_torch[bloom/pytorch-1b1-single_device-inference]": 88.418,
     "tests/runner/test_models.py::test_all_models_torch[resnext/pytorch-50_32x4d-single_device-inference]": 39.583,
     "tests/infra_tests/single_chip/test_result_assertion.py::test_fail_atol_triggers_assertion_by_default[torch]": 0.414,
     "tests/infra_tests/single_chip/test_result_assertion.py::test_fail_atol_triggers_assertion_by_default[jax]": 1.894,

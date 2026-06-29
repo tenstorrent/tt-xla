@@ -63,6 +63,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
@@ -73,17 +74,16 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       # NOTE: these filters intentionally exclude perf benchmarks that hang/fail on PR
       # while keeping them live in the nightly matrix (see perf-bench-matrix.json):
-      #   - llama_3_1_8b_instruct (n150): hang (#5282, fix tt-metal#47221)
       #   - gpt_oss_20b_tp / gpt_oss_20b_tp_batch_size_1 (n300-llmbox): #5151, #5207
       #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
       #   - vllm_llama_3_1_70b_tp (n300-llmbox): temporarily removed from On PR because flaky, tracked in issue #5294
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding"] },
+        { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding","llama_3_1_8b","falcon3-1b","qwen_3_8b"] },
         { "runs-on": "n300-llmbox", "filter": ["test_llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true
-      regression_check: false
+      regression_check: true
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
@@ -115,6 +115,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   test-uplift-extended:
     if: needs.inspect-changes.outputs.detected-uplifts != ''
@@ -126,6 +127,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'manylinux' || 'release' }}
 
   test-tools:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
