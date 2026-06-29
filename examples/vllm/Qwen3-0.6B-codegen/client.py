@@ -21,7 +21,6 @@ def main():
         "messages": [],
         "stream": True,
         "temperature": 0,
-        "max_tokens": 512,
         # enable_thinking=False keeps Qwen3 answering directly (no <think> trace).
         "chat_template_kwargs": {"enable_thinking": False},
     }
