@@ -984,8 +984,18 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 .sum(dim=-1)
             )
             group_idx = torch.topk(group_scores, k=topk_group, dim=-1, sorted=False)[1]
-            group_mask = torch.zeros_like(group_scores)
-            group_mask.scatter_(1, group_idx, 1)
+            # one_hot + sum instead of scatter_: torch scatter_ lowers to a
+            # stablehlo.scatter whose dim-0 row index is a token iota; Shardy
+            # shards that iota WITHOUT the per-shard offset, so the group mask
+            # marks only mesh-row 0's tokens and zeros routing for rows 1-3.
+            group_mask = (
+                (
+                    group_idx.unsqueeze(-1)
+                    == torch.arange(n_group, device=group_idx.device)
+                )
+                .any(dim=1)
+                .to(group_scores.dtype)
+            )
             score_mask = (
                 group_mask.unsqueeze(-1)
                 .expand(-1, n_group, n_routed_experts // n_group)
@@ -997,7 +1007,16 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             topk_indices = torch.topk(scores_for_choice, k=top_k, dim=-1, sorted=False)[
                 1
             ]
-            topk_weights = router_logits.gather(1, topk_indices)
+            # one_hot + einsum instead of gather: torch.gather lowers to
+            # ttir.embedding over the all-gathered [tokens*E] score table with a
+            # flat index token*E+expert computed at fp16-class precision; for
+            # mesh-rows 1-3 the large index rounds off the expert bits -> wrong
+            # weights. einsum keeps the small expert index implicit and exact.
+            _ohw = (
+                topk_indices.unsqueeze(-1)
+                == torch.arange(n_routed_experts, device=topk_indices.device)
+            ).to(router_logits.dtype)
+            topk_weights = torch.einsum("be,bke->bk", router_logits, _ohw)
             if norm_topk_prob:
                 denominator = topk_weights.sum(dim=-1, keepdim=True) + 1e-20
                 topk_weights /= denominator
