@@ -2378,6 +2378,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=page_table,
+            # Carry dp_size so the precompile graph builds the prefill
+            # paged_fill_cache batch_idx per-shard (arange % local_batch),
+            # matching the real path (_prepare_inputs) and _dummy_run. Without
+            # it this warmup path defaults to dp_size=1, builds a different
+            # batch_idx graph, and the real first step recompiles instead of
+            # hitting the warm cache.
+            dp_size=self.dp_size,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
