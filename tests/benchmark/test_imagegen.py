@@ -203,7 +203,12 @@ def test_srpo(output_file, request):
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
-        pipeline = SRPOPipeline(config=SRPOConfig(compile_options=compile_options))
+        pipeline = SRPOPipeline(
+            config=SRPOConfig(
+                compile_options=compile_options,
+                weight_dtype_overrides={"default": "bfp_bf8"},
+            )
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -224,7 +229,7 @@ def test_srpo(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=1,
+        optimization_level=0,
         trace_enabled=False,
         output_image_path="test_srpo_output.png",
     )
