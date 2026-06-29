@@ -1,0 +1,215 @@
+name: Process Dumped IRs
+
+run-name: "Process IRs"
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for processing (e.g., ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest)'
+        required: true
+        type: string
+      dumped_irs_run_id:
+        description: 'Run ID of the workflow that dumped IRs'
+        required: true
+        type: string
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+  check_dumped_irs:
+    runs-on: ubuntu-latest
+    outputs:
+      skip_ir_processing: ${{ steps.check-dumped-irs.outputs.skip_ir_processing }}
+      ir_count: ${{ steps.check-dumped-irs.outputs.ir_count }}
+      ir_jobs: ${{ steps.check-dumped-irs.outputs.ir_jobs }}
+    env:
+      MAX_PARALLEL_JOBS: 5
+    steps:
+      - name: Check for dumped IRs
+        id: check-dumped-irs
+        shell: bash
+        run: |
+          echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
+          # Get artifacts for this run
+          artifacts_json=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts)
+          # Check if any artifacts match the pattern "ir-dumps-*"
+          ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
+          echo "Found $ir_count dumped IR artifacts"
+          if [ "$ir_count" -gt 0 ]; then
+            echo "IR processing workflow will continue"
+            echo "skip_ir_processing=false" >> "$GITHUB_OUTPUT"
+            if [ "$ir_count" -gt ${{ env.MAX_PARALLEL_JOBS }} ]; then
+              echo "Number of irs is larger than max parallel jobs. Limiting to ${{ env.MAX_PARALLEL_JOBS }}."
+              ir_count=${{ env.MAX_PARALLEL_JOBS }}
+            fi
+            echo "ir_count=$ir_count" >> "$GITHUB_OUTPUT"
+            echo "ir_jobs=[$(seq 0 $((ir_count-1)) | tr '\n' ',')]" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No dumped IR artifacts found, skipping IR processing"
+            echo "skip_ir_processing=true" >> "$GITHUB_OUTPUT"
+            echo "ir_count=0" >> "$GITHUB_OUTPUT"
+            echo "ir_jobs=[]" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Make sure explorer wheel is built before processing dumped IRs, since the op-by-op tests require it
+  build_ttxla_explorer:
+    needs: check_dumped_irs
+    if: needs.check_dumped_irs.outputs.skip_ir_processing == 'false'
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ inputs.docker_image }}
+      build_types: explorer
+
+  process_dumped_irs:
+    needs: [ check_dumped_irs, build_ttxla_explorer ]
+    if: needs.check_dumped_irs.outputs.skip_ir_processing == 'false'
+
+    # TODO do we know oll ops can run on n150?
+
+    runs-on: tt-ubuntu-2204-n150-stable
+    strategy:
+      fail-fast: false
+      matrix:
+        job_index: ${{ fromJson(needs.check_dumped_irs.outputs.ir_jobs) }}
+
+    name: "process_dumped_irs (job ${{ matrix.job_index }})"
+
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=xla-whl-explorer${{ needs.build_ttxla_explorer.outputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ needs.build_ttxla_explorer.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download and install tt-xla wheel
+        shell: bash
+        run: |
+          echo "=== Downloading wheel ==="
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          echo "Downloaded wheel files:"
+          ls -la wheels
+
+          echo "=== Installing wheel ==="
+          source venv/activate
+          pip install wheels/*.whl
+
+      # TODO we are splitting the flow in multiple jobs, should each one download all irs dumps or can we do better?
+
+      - name: Download dumped IR artifacts
+        shell: bash
+        run: |
+          echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
+          gh run download ${{ inputs.dumped_irs_run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "ir-dumps-*" \
+            --dir collected_irs
+
+      - name: Verify downloaded IRs
+        shell: bash
+        run: |
+          echo "=== Contents of collected_irs ==="
+          set +o pipefail
+          find collected_irs -type f -name "*.mlir" | head -20
+          set -o pipefail
+
+      # TODO how long does one run take, do we need to split? what if we start processing irs in separate workflow and it can take longer
+
+      - name: Split IRs for parallel processing
+        shell: bash
+        run: |
+          job_index=${{ matrix.job_index }}
+          total_jobs=${{ needs.check_dumped_irs.outputs.ir_count }}
+          echo "=== Splitting IRs for job $job_index of $total_jobs ==="
+
+          # Get all model directories (first-level subdirectories)
+          cd collected_irs
+          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
+          total_models=${#model_dirs[@]}
+
+          echo "Total models found: $total_models"
+          echo "Model directories: ${model_dirs[@]}"
+
+          # Calculate which models this job should process
+          models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
+          start_idx=$((job_index * models_per_job))
+          end_idx=$(((job_index + 1) * models_per_job))
+
+          if [ $end_idx -gt $total_models ]; then
+            end_idx=$total_models
+          fi
+
+          echo "This job will process models from index $start_idx to $((end_idx - 1))"
+
+          # Create a new directory with only this job's models
+          cd ..
+          mkdir -p collected_irs_job_$job_index
+
+          for i in $(seq $start_idx $((end_idx - 1))); do
+            if [ $i -lt $total_models ]; then
+              model="${model_dirs[$i]}"
+              echo "Including model: $model"
+              mv "collected_irs/$model" "collected_irs_job_$job_index/"
+            fi
+          done
+
+          # Replace collected_irs with the filtered version
+          rm -rf collected_irs
+          mv collected_irs_job_$job_index collected_irs
+
+          echo "=== Final IRs for this job ==="
+          ls -la collected_irs/
+
+      - name: Run op-by-op tests
+        shell: bash
+        run: |
+          source venv/activate
+
+          echo "=== Verifying op_by_op_infra is importable ==="
+          python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
+
+          echo "=== Running op-by-op tests ==="
+          python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
+            --folder=collected_irs \
+            --ir-file-prefix="irs/shlo_compiler" \
+            --json-report \
+            --json-report-file=op_by_op_report.json
+
+      - name: Upload op-by-op test report
+        uses: actions/upload-artifact@v6
+        if: success() || failure()
+        with:
+          name: op-by-op-report-${{ matrix.job_index }}-${{ job.check_run_id }}
+          path: op_by_op_report.json
+          if-no-files-found: 'warn'
