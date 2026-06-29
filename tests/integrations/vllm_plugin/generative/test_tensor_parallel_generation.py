@@ -78,6 +78,40 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
+@pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V2-Lite"])
+def test_tensor_parallel_mla_prefill_decode(model_name: str):
+    prompts = [
+        "I like taking walks in the",
+    ]
+    # 1 token from prefill logits + 10 decode steps.
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=11)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.02,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": True,
+            "flat_model_io": True,
+            # TODO - remove this once issues: tt-mlir#8919 and tt-mlir#8920 are
+            # fixed and uplifted
+            "optimization_level": 0,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text!r}")
+    assert_output_coherent(output_text)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
 @pytest.mark.parametrize(
     [
         "model_name",
