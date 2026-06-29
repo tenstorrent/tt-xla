@@ -191,3 +191,41 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_srpo(output_file, request):
+    from benchmarks.srpo_pipeline import SRPOConfig, SRPOPipeline
+
+    # SRPO is a FLUX.1-dev fine-tune. Only the ~11.9B FLUX transformer (denoiser)
+    # runs on TT; CLIP/T5 text encoders and the VAE stay on CPU.
+    prompt = "A cinematic photo of an astronaut riding a horse in a futuristic city"
+    num_inference_steps = 20
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        pipeline = SRPOPipeline(config=SRPOConfig(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="srpo",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # qb2-blackhole's grid is harvested (11-wide); opt_level>=1 aborts in
+        # OpModel, so the bringup-safe default opt_level=0 is also required here.
+        optimization_level=0,
+        output_image_path="test_srpo_output.png",
+    )
