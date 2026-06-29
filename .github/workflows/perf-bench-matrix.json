@@ -227,6 +227,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "olmo_2_0325_32b_instruct_tp_qb2",
+        "pytest": "tests/benchmark/test_llms.py::test_olmo_2_0325_32b_instruct_tp_qb2",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "microsoft_phi-1",
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },
