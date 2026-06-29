@@ -2236,6 +2236,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ]
 
         for config in configs:
+            if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
+                logger.debug(
+                    f"Skipping config={config} because decode path only supports max_num_reqs={self.max_num_reqs}"
+                )
+                continue
+
             logger.info(f"Compiling graph for config={config}")
             (
                 dummy_inputs,
