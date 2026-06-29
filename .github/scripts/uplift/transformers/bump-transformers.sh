@@ -1,11 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
-# Rewrites the `transformers==X.Y.Z` pin in venv/requirements-dev.txt to the
-# given target version. Does not install anything — the caller is responsible
-# for reinstalling the environment after this script runs.
-#
-# Usage:
-#   bump-transformers.sh <new_version>
+# SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
 
