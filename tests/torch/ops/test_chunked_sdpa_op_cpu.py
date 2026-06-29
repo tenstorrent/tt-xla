@@ -1,21 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""CPU reference checks for tt::chunked_scaled_dot_product_attention (tt-xla #4986).
+"""CPU checks for tt::chunked_scaled_dot_product_attention (tt-xla #4986).
 
-The on-device chunked-SDPA op (lowered in tt-mlir #8789) has a CPU reference
-branch in ``tt_torch/custom_ops.py`` that the device equivalence test trusts as
-its oracle: a prefill chunk whose prefix already lives in the paged K/V cache
-attends causally over ``[0, chunk_start_idx + chunk_len)``, with the prefix
-offset and causal mask applied internally.
-
-These tests pin that reference math against an *independent* implementation
-(``torch.nn.functional.scaled_dot_product_attention`` over the dense gathered
-prefix with an explicit offset-causal mask). They are CPU-only and run in
-milliseconds -- no device, no tt-mlir op required -- so they guard the op's
-contract (operand order, scale, GQA broadcast, prefix offset, causal masking)
-on every push.
+Pin the op's CPU reference branch (the device test's oracle) against an
+independent offset-causal SDPA over the dense gathered prefix.
 """
+
 import pytest
 import torch
 import torch.nn.functional as F

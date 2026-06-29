@@ -55,7 +55,7 @@ def _make_scheduler(max_num_batched_tokens: int, max_model_len: int = 512):
     )
     # The TT platform sets this custom (non-vLLM) attribute to gate the
     # AscendScheduler chunked-prefill path; mirror platform.py here.
-    scheduler_config.chunked_prefill_enabled = True
+    scheduler_config.tt_chunked_prefill_enabled = True
 
     cache_config = CacheConfig(
         block_size=_BLOCK_SIZE,

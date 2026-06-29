@@ -62,7 +62,7 @@ def _make_scheduler(chunk: int, max_num_seqs: int, max_model_len: int = 2048):
         is_encoder_decoder=model_config.is_encoder_decoder,
     )
     # TT-internal attributes set by platform.py for the chunked-prefill path.
-    scheduler_config.chunked_prefill_enabled = True
+    scheduler_config.tt_chunked_prefill_enabled = True
     scheduler_config.tt_prefill_chunk_size = chunk
 
     cache_config = CacheConfig(

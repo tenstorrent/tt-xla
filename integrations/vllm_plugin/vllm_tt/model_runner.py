@@ -278,12 +278,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.num_xla_graphs = 0
         self._update_num_xla_graphs("init")
-        # Recompilation warm-up tracking. A real-input graph compiles on first
-        # execution of each distinct input shape. Chunked prefill has several
-        # such shapes (one per chunk-size bucket), first seen across the first
-        # few steps, so warm-up spans multiple steps: accept new graphs until the
-        # set stabilizes, then enforce strict no-recompilation. _recompile_locked
-        # latches once stable.
+        # Warm-up spans several steps (one graph per chunk-size bucket): accept
+        # new graphs until the set stabilizes, then lock to no-recompilation.
         self._recompile_stable_steps = 0
         self._recompile_locked = False
 
@@ -315,7 +311,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.max_model_len = model_config.max_model_len
         # Chunked prefill: the budget need only hold one chunk (+ a decode token
         # per running seq); single-shot still must cover the whole prompt.
-        if getattr(scheduler_config, "chunked_prefill_enabled", False):
+        if getattr(scheduler_config, "tt_chunked_prefill_enabled", False):
             assert scheduler_config.max_num_batched_tokens >= max(
                 self.block_size, scheduler_config.max_num_seqs
             ), (
@@ -344,11 +340,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             self.tt_config.min_context_len = scheduler_config.max_num_batched_tokens
 
-        # Per-SEQUENCE prefill budget: caps the precompile token buckets + prefill
-        # activation instead of max_model_len. Use the per-seq chunk, NOT
-        # max_num_batched_tokens (the batch-wide chunk x max_num_seqs) -- the
-        # latter would size the bucket ladder by chunk x max_num_seqs and blow up
-        # compile/DRAM. KV-cache/page-table buffers below stay at max_model_len.
+        # Per-sequence budget sizing the token buckets/prefill activation. Use the
+        # per-seq chunk, not max_num_batched_tokens (= chunk x max_num_seqs), which
+        # would blow up compile/DRAM. KV/page-table buffers stay at max_model_len.
         self.prefill_chunk_budget = min(
             getattr(
                 scheduler_config,
@@ -358,24 +352,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_model_len,
         )
 
-        # The on-device chunked SDPA op is usable only when (a) chunking can
-        # occur (per-step budget < full context) and (b) num_blocks_per_req % 8
-        # == 0 (the ttnn kernel requires the page-table stick to be 32B-aligned).
-        # Small max_model_len violates (b) and can't chunk anyway -> standard path.
+        # Chunked SDPA op is usable only when chunking can occur and
+        # num_blocks_per_req % 8 == 0 (ttnn page-table stick must be 32B-aligned).
         self._chunked_sdpa_active = self.prefill_chunk_budget < self.max_model_len and (
             self.max_num_blocks_per_req % 8 == 0
         )
 
-        # If chunking would occur but the page-table layout is unsupported
-        # (num_blocks_per_req % 8 != 0), there is no correct cached-prefix path.
-        # Fail loudly: while chunked prefill is opt-in the user asked to chunk, so
-        # an error beats silently degrading. (Realistic power-of-2 max_model_len
-        # always satisfies this; pick a multiple of 8*block_size.)
-        # TODO(default-on): when chunked prefill becomes the default, fall back to
-        # standard single-shot prefill here instead of raising, so configs that
-        # never opted in are not regressed.
+        # Opted into chunking but page-table layout unsupported: no correct
+        # cached-prefix path, so fail loudly rather than silently degrade.
+        # TODO(default-on): fall back to single-shot prefill once chunking is default.
         if (
-            getattr(scheduler_config, "chunked_prefill_enabled", False)
+            getattr(scheduler_config, "tt_chunked_prefill_enabled", False)
             and self.prefill_chunk_budget < self.max_model_len
             and self.max_num_blocks_per_req % 8 != 0
         ):
@@ -688,10 +675,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         curr_cached_graph = xr.get_num_cached_compilation_graph()
 
         if not self._recompile_locked:
-            # Warm-up window: accept new graphs as each distinct input shape is
-            # first executed (chunked prefill has one per chunk-size bucket over
-            # the first few steps). Lock once the set is stable for a couple of
-            # steps -- by then all chunk shapes and the decode shape are seen.
+            # Accept new graphs while chunk-size bucket shapes are still being
+            # seen; lock once the set is stable for a couple of steps.
             if curr_cached_graph > self.num_xla_graphs:
                 self._update_num_xla_graphs(f"{case_str} (warm-up)")
                 self._recompile_stable_steps = 0
@@ -1261,10 +1246,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         chunk_start_idx = None
         if prefix_chunk_step and self._chunked_sdpa_active:
-            # Prefix offset for the chunked SDPA op. All users in a chunked step
-            # share num_computed (same-stage batching), so a single [1] offset is
-            # correct; copy into the persistent buffer (trace-safe). The op masks
-            # causally and applies the offset internally -- no host attn_mask.
+            # Same-stage batching => one shared [1] prefix offset; the op masks
+            # causally and applies it internally (no host attn_mask).
             self._chunk_start_idx_dev.copy_(
                 torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
             )
@@ -2043,8 +2026,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
-            if self._chunked_sdpa_active:
-                chunk_start_idx = self._chunk_start_idx_dev
+            chunk_start_idx = self._chunk_start_idx_dev
 
         attn_metadata = TTMetadata(
             page_table=page_table,

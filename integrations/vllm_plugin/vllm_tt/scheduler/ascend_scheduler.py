@@ -55,7 +55,7 @@ class AscendScheduler(Scheduler):
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
-        # if self.scheduler_config.chunked_prefill_enabled:
+        # if self.scheduler_config.tt_chunked_prefill_enabled:
         #     return super().schedule()
         scheduled_new_reqs: list[Request] = []
         scheduled_resumed_reqs: list[Request] = []
@@ -174,22 +174,16 @@ class AscendScheduler(Scheduler):
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
             else:
-                # P/D: skip prefix-cache check if loaded from remote kvs; also
-                # reached by continued chunked-prefill chunks (prefix already
-                # allocated). Must pass the manager's empty-blocks singleton:
-                # allocate_slots compares it by identity, so a fresh empty
-                # instance would wrongly re-trigger allocate_new_computed_blocks
-                # (which asserts no blocks yet) on later chunks.
+                # Remote-kv or continued chunk: pass the manager's empty-blocks
+                # singleton (allocate_slots compares it by identity).
                 new_computed_blocks = self.kv_cache_manager.empty_kv_cache_blocks
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
 
-            # Only batch same-stage prefills: if one is already scheduled this
-            # step at a different num_computed_tokens, defer this one (re-enqueued
-            # at the head of waiting). Prevents fresh+continuation mixing that
-            # corrupts the fresh request.
+            # Batch only same-stage prefills; defer a different-stage one to avoid
+            # fresh+continuation mixing that corrupts the fresh request.
             if (
-                getattr(self.scheduler_config, "chunked_prefill_enabled", False)
+                getattr(self.scheduler_config, "tt_chunked_prefill_enabled", False)
                 and step_prefill_num_computed is not None
                 and num_computed_tokens != step_prefill_num_computed
             ):
@@ -229,13 +223,10 @@ class AscendScheduler(Scheduler):
                     continue
 
                 chunked_prefill = getattr(
-                    self.scheduler_config, "chunked_prefill_enabled", False
+                    self.scheduler_config, "tt_chunked_prefill_enabled", False
                 )
-                # Cap each request at the PER-SEQUENCE chunk (tt_prefill_chunk_size),
-                # not the batch-wide token_budget (= chunk x max_num_seqs). This
-                # bounds the prefill activation/bucket and leaves budget for other
-                # users' chunks; without it one long prompt eats the whole budget
-                # and re-serializes prefills.
+                # Cap per request at the per-seq chunk, not the batch-wide budget,
+                # so one long prompt can't eat the whole budget and serialize others.
                 if chunked_prefill:
                     chunk_cap = min(
                         token_budget,
@@ -331,10 +322,8 @@ class AscendScheduler(Scheduler):
                 request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
 
-            # A partially-prefilled request must stay in the prefill path and NOT
-            # enter self.running until done: the decode loop requires every
-            # running request to have exactly one uncomputed token. Evaluated
-            # against the pre-advance num_computed_tokens.
+            # A partial prefill stays out of self.running until done (the decode
+            # loop requires each running request to have one uncomputed token).
             fully_prefilled = (
                 num_computed_tokens + num_new_tokens
             ) >= request.num_tokens
@@ -638,7 +627,7 @@ class AscendScheduler(Scheduler):
     def _get_prompt_limit(self, request: Request) -> int:
         # With chunked prefill the prompt is split into chunks, so its length
         # limit is max_model_len alone. Without chunking it must fit one step.
-        if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
+        if getattr(self.scheduler_config, "tt_chunked_prefill_enabled", False):
             prompt_limit = self.max_model_len
         else:
             prompt_limit = min(
@@ -672,8 +661,7 @@ class AscendScheduler(Scheduler):
         """
         if request_ids is None:
             return
-        # Normalize to a concrete list: a str is a single id, and a one-shot
-        # generator would be exhausted before super() could consume it.
+        # Materialize once; super() iterates request_ids again below.
         if isinstance(request_ids, str):
             request_ids = [request_ids]
         else:
