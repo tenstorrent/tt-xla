@@ -4,10 +4,10 @@
 
 """SDXL-Lightning — nightly e2e pipeline test.
 
-Each nn.Module component (text_encoder, text_encoder_2, unet) is moved to
-Tenstorrent via `model.compile(backend="tt") + model.to(xla_device())`. The VAE
-runs on CPU (avoids a TT opt-level switch that trips a device-hash mismatch —
-tt-xla #5176 / tt-metal #46959). Tokenizer and scheduler always stay on CPU.
+Each nn.Module component (text_encoder, text_encoder_2, unet, vae) is moved to
+Tenstorrent via `model.compile(backend="tt") + model.to(xla_device())`. Tokenizer
+and scheduler always stay on CPU. CPU→TT→CPU device switching is done inline at
+the call site of each nn component.
 """
 
 from pathlib import Path
@@ -45,7 +45,7 @@ class SDXLLightningConfig:
         text_encoder_on_tt: bool = True,
         text_encoder_2_on_tt: bool = True,
         unet_on_tt: bool = True,
-        vae_on_tt: bool = False,
+        vae_on_tt: bool = True,
     ):
         self.model_id = MODEL_ID
         self.width = WIDTH

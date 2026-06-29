@@ -390,14 +390,6 @@ def run_playground_v25_pipeline(
     return output_path
 
 
-@pytest.mark.xfail(
-    reason=(
-        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
-        "possibly due to recent uplift — "
-        "https://github.com/tenstorrent/tt-xla/issues/5176"
-    ),
-    strict=False,
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
