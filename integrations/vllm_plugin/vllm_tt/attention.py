@@ -498,12 +498,26 @@ class TTAttentionBackendImpl(AttentionImpl):
                 dtype=torch.int32,
                 device=k_cache.device,
             )
-            # paged_fill_cache expects batch_idx local to each batch shard, but
-            # it's sharded — so % local_batch rebases it to local ids (no-op
-            # when dp_size == 1).
+            # paged_fill_cache expects batch_idx local to each batch shard; under
+            # DP it's sharded, so % local_batch rebases the global iota to local
+            # ids (no-op when dp_size == 1).
             if attn_metadata.dp_size > 1:
                 local_batch = key_for_update.shape[0] // attn_metadata.dp_size
                 batch_idxs = batch_idxs % local_batch
+                # Pin batch_idx SHARDED on the DP ("batch") axis. paged_fill_cache's
+                # rule already DP-partitions it (global 128 -> local 32), but as a
+                # rank-1 TILE constant that partition is const-eval'd into a tilized
+                # slice whose padded height (1) fails tt-metal's tile-alignment check
+                # -> TT_FATAL (tt-metal #48303). This explicit sharding_constraint
+                # acts as a barrier that materializes the partition in the main graph
+                # (where batch_idx is ROW_MAJOR per the op layout workaround) instead
+                # of the const-eval TILE path, sidestepping the rank-1 slice FATAL.
+                # NOTE: the durable cross-config fix is tt-metal #48303 (legal rank-1
+                # tiled mesh_partition / slice); this constraint is the tt-xla unblock.
+                batch_idxs = torch.ops.tt.sharding_constraint(
+                    batch_idxs,
+                    '#sdy.sharding_per_value<[<@mesh, [{"_axis_0"}]>]>',
+                )
             k_cache = torch.ops.tt.paged_fill_cache(
                 k_cache,
                 key_for_update,

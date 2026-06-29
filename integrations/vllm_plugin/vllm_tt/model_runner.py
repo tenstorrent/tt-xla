@@ -1542,7 +1542,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Only DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL split the batch across
         the mesh's "batch" axis. The tensor-parallel-only modes (1D and 2D/FSDP)
         replicate the full batch to every device and shard the model weights
-        instead, so their inputs must stay unsharded here."""
+        instead, so their inputs must stay unsharded here.
+
+        position_ids is pinned here too (not just input_ids/inputs_embeds), at
+        the same point and right before the model call. This is what makes its
+        ("batch") DP mark survive torch_xla tracing to the StableHLO boundary:
+        the equivalent plain xs.mark_sharding(position_ids, ...) issued from the
+        block below does NOT persist, leaving position_ids replicated. With
+        position_ids replicated the rotary path forces an all-gather of the
+        hidden states back to the full batch, so the decode op sees all 128
+        users (not 32/replica) and trips the `128<=120` worker-grid assert.
+        Pinning position_ids here keeps the backbone truly batch-sharded.
+        (page_table/cache_position do NOT need pinning here: the paged-op
+        sharding rules back-propagate the batch sharding onto them at the op
+        once the query/activations are sharded.)"""
         if self.parallel_mode not in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -1552,6 +1565,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(input_ids, self.mesh, ("batch", None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
+        if position_ids is not None:
+            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
     def _prepare_model_call_tensors(
         self,
@@ -2387,6 +2402,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=page_table,
+            # Warmup must carry dp_size so the prefill paged_fill_cache batch_idx
+            # is built per-shard (matches the real path in _prepare_inputs); the
+            # default of 1 would skip the DP rebasing and diverge from execution.
+            dp_size=self.dp_size,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
