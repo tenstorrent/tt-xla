@@ -1,8 +1,8 @@
 # Scratch: emit OR load TTNN Python codegen for the full Qwen3-0.6B via vLLM.
 #
-#   python codegen_qwen.py --emit [dir]   # compile + emit per-graph Python to dir/
-#   python codegen_qwen.py --load [dir]   # skip compile, run saved code from dir/;
-#                                         # then type a prompt per line, Ctrl-D to quit
+#   python qwen.py --emit [dir]   # compile + emit per-graph Python to dir/
+#   python qwen.py --load [dir]   # skip compile, run saved code from dir/;
+#                                 # then type a prompt per line, Ctrl-D to quit
 #   (dir defaults to ./qwen_codegen)
 #
 # --emit sets TTXLA_CODEGEN_EXPORT_DIR: the TT plugin emits generated Python per
