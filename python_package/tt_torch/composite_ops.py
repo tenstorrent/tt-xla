@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import itertools
 from typing import List, Optional, Union
 
 import torch
+import torch._dynamo as torchdynamo
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 from ttxla_tools.logging import logger
@@ -25,6 +27,40 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 anything in model in order to get performance improvement.
 """
 
+################# composite builder #################
+
+# torch_xla's StableHLOCompositeBuilder assigns each builder a random
+# `uuid.uuid4()` id (see mark_pattern_utils._get_uuid). That id becomes part of
+# the composite "boundary key" (name + "__@@__" + id) that torch_xla's
+# BuildStableHLOCompositePass groups output ops by and names the decomposition
+# function from ("<name>.impl"). When a graph contains multiple composites with
+# the same name (e.g. several tenstorrent.topk in the sampler), the pass iterates
+# an std::unordered_map keyed by that boundary key and uniques the colliding
+# function names to ".impl", ".impl_0", ".impl_1", ... in iteration order. Random
+# uuids hash to different buckets each process, so the same graph serializes with
+# those suffixes permuted. That permutation changes the StableHLO text without
+# changing semantics and breaks codegen load-mode matching, which keys on a hash
+# of that text.
+#
+# Replace the random id with a deterministic, monotonic counter. The id only has
+# to be unique per composite instance within a graph (so distinct boundaries are
+# not merged), which a counter satisfies, while being identical across processes
+# that trace the same graphs in the same order. `assume_constant_result` mirrors
+# torch_xla's own _get_uuid so dynamo bakes the value in as a constant.
+_composite_id_counter = itertools.count()
+
+
+@torchdynamo.assume_constant_result
+def _deterministic_composite_id() -> str:
+    return str(next(_composite_id_counter))
+
+
+def _make_composite_builder(name, attr=None):
+    builder = StableHLOCompositeBuilder(name=name, attr=attr)
+    builder.id = _deterministic_composite_id()
+    return builder
+
+
 ################# function replacements #################
 
 
@@ -39,7 +75,7 @@ def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     name = "tenstorrent.gelu" + ("_tanh" if tanh else "")
     attr = {"approximate": "tanh"} if tanh else None
 
-    builder = StableHLOCompositeBuilder(name=name, attr=attr)
+    builder = _make_composite_builder(name=name, attr=attr)
 
     input = builder.mark_inputs(input)
     input = torch.nn.functional.gelu(input, approximate=approximate)
@@ -67,7 +103,7 @@ def composite_rms_norm(
     if eps is not None:
         attr["epsilon"] = eps
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.rms_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.rms_norm", attr=attr)
 
     if weight is not None:
         input, weight = builder.mark_inputs(input, weight)
@@ -108,7 +144,7 @@ def composite_layer_norm(
 
     attr = {"normalized_shape": normalized_shape_list, "epsilon": eps}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.layer_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.layer_norm", attr=attr)
 
     if weight is not None and bias is not None:
         input, weight, bias = builder.mark_inputs(input, weight, bias)
@@ -151,7 +187,7 @@ def composite_group_norm(
     """
     attr = {"num_groups": num_groups, "epsilon": eps, "channel_dim": 1}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.group_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.group_norm", attr=attr)
 
     if weight is not None and bias is not None:
         input, weight, bias = builder.mark_inputs(input, weight, bias)
@@ -184,7 +220,7 @@ def composite_topk(
     """
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk", attr=attrs)
 
     input = builder.mark_inputs(input)
     values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
@@ -203,7 +239,7 @@ def composite_topk_values(
 ) -> Tensor:
     """Composite topk returning only values. Marks a single output at pos=0."""
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk_values", attr=attrs)
     input = builder.mark_inputs(input)
     values, _ = torch.topk(input, k, dim, largest, sorted)
     values = builder.mark_outputs(values)
@@ -221,7 +257,7 @@ def composite_topk_indices(
 ) -> Tensor:
     """Composite topk returning only indices. Marks a single output at pos=0."""
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk_indices", attr=attrs)
     input = builder.mark_inputs(input)
     _, indices = torch.topk(input, k, dim, largest, sorted)
     indices = builder.mark_outputs(indices)
@@ -246,7 +282,7 @@ def composite_scaled_dot_product_attention(
     if scale is not None:
         attr["scale"] = scale
 
-    builder = StableHLOCompositeBuilder(
+    builder = _make_composite_builder(
         name="tenstorrent.scaled_dot_product_attention", attr=attr
     )
 
@@ -297,7 +333,7 @@ def composite_gather(
         out: preallocated output tensor, will be ignored when generating composite op
     """
     attrs = {"dim": dim, "sparse_grad": sparse_grad}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.gather", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.gather", attr=attrs)
     input, index = builder.mark_inputs(input, index)
     output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
     output = builder.mark_outputs(output)

@@ -7,7 +7,7 @@
 
 // c++ standard library includes
 #include <algorithm>
-#include <filesystem>
+#include <cstdlib>
 #include <string>
 #include <unordered_map>
 
@@ -38,13 +38,37 @@ CompileOptions CompileOptions::parse(
               options.experimental_enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(options.backend);
+  options.export_path =
+      internal::parseStringOption(compile_options, "export_path");
+
+  // The codegen emit/load env vars are a surface over the codegen backends:
+  // they let a workflow opt in externally (e.g. flipping emit/load on a running
+  // vLLM server without editing config code). Resolve them here -- right after
+  // the explicit backend/export_path and BEFORE any backend-dependent default
+  // below -- so those defaults all see the final backend. An explicit `backend`
+  // always wins; an explicit export_path is overriden.
+  const char *emit_dir = std::getenv("TTXLA_CODEGEN_EXPORT_DIR");
+  const char *load_dir = std::getenv("TTXLA_CODEGEN_LOAD_DIR");
+  if (!compile_options.count("backend")) {
+    if (load_dir) {
+      options.backend = BackendRuntime::TTNNCodegenLoadPy;
+      options.export_path = load_dir;
+    } else if (emit_dir) {
+      options.backend = BackendRuntime::TTNNCodegenPy;
+      // Emit a runnable forward() entrypoint so the code can be reloaded later.
+      options.target_module = true;
+      options.export_path = emit_dir;
+    }
+  }
+
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
+  // By default, export tensors for codegen paths.
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
-          .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ? false
-                                                                      : true);
+          .value_or(options.backend == BackendRuntime::TTNNCodegenPy ||
+                    options.backend == BackendRuntime::TTNNCodegenCpp);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(options.enable_const_eval);
@@ -84,36 +108,34 @@ CompileOptions CompileOptions::parse(
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")
           .value_or("");
-  options.dry_run =
-      internal::parseBoolOption(compile_options, "dry_run")
-          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer);
-  options.export_path =
-      internal::parseStringOption(compile_options, "export_path");
+  // Default value of dry_run is dependent on backend
+  bool is_default_dry_run = true;
+  if (options.backend == BackendRuntime::TTNNFlatbuffer ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy) {
+    is_default_dry_run = false;
+  }
+  options.dry_run = internal::parseBoolOption(compile_options, "dry_run")
+                        .value_or(is_default_dry_run);
+  options.target_module =
+      internal::parseBoolOption(compile_options, "target_module")
+          .value_or(options.target_module);
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  // Codegen lays out one graph_N directory per graph and matches graphs on load
+  // by hash, so a model label has no role there and would only add a confusing
+  // prefix to the emitted files. Clear it for every codegen backend; only the
+  // IR-export (flatbuffer) path uses export_model_name.
+  if (options.backend == BackendRuntime::TTNNCodegenPy ||
+      options.backend == BackendRuntime::TTNNCodegenCpp ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy) {
+    options.export_model_name = "";
+  }
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
             "'TTNNFlatbuffer'");
-  }
-
-  // Codegen backends write fixed-name files (main.py, ttnn.mlir, tensors/...)
-  // into export_path, so a second compile in the same process would clobber
-  // the first. Give each compile its own subdirectory under the user-provided
-  // export_path. Counter is keyed by the user-provided path so independent
-  // export_paths each start at graph_0; reusing the same path keeps numbering
-  // monotonic and never clobbers an earlier compile in the same process.
-  // Flatbuffer outputs are timestamped and don't collide, so they're skipped.
-  if (options.export_path.has_value() &&
-      (options.backend == BackendRuntime::TTNNCodegenPy ||
-       options.backend == BackendRuntime::TTNNCodegenCpp)) {
-    static std::unordered_map<std::string, int> counters;
-    int graph_index = counters[*options.export_path]++;
-    options.export_path = (std::filesystem::path(*options.export_path) /
-                           ("graph_" + std::to_string(graph_index)))
-                              .string();
   }
 
   return options;
@@ -157,6 +179,8 @@ std::optional<BackendRuntime> parseBackendOption(
       return BackendRuntime::TTNNCodegenCpp;
     } else if (option_value == "codegen_py") {
       return BackendRuntime::TTNNCodegenPy;
+    } else if (option_value == "codegen_load_py") {
+      return BackendRuntime::TTNNCodegenLoadPy;
     }
     ABORT_F("Unknown backend option value: %s for %s", option_value.c_str(),
             option_name.c_str());
