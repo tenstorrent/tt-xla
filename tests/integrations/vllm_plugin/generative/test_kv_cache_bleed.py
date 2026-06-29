@@ -159,7 +159,7 @@ def vllm_server():
         "--chat-template",
         template_path,
         "--additional-config",
-        json.dumps({"enable_const_eval": False, "min_context_len": 32}),
+        json.dumps({"enable_const_eval": True, "min_context_len": 32}),
     ]
 
     proc = None

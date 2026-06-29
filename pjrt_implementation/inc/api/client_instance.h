@@ -271,6 +271,10 @@ onClientDefaultDeviceAssignment(PJRT_Client_DefaultDeviceAssignment_Args *args);
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);
 
+// Implements PJRT_Client_CreateUninitializedBuffer API function.
+PJRT_Error *
+onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt

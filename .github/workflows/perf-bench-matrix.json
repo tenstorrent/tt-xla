@@ -3,7 +3,7 @@
     "project": "tt-xla",
     "test-defaults": {
       "runs-on": [
-        "n150",
+        "n150-perf",
         "p150-perf"
       ],
       "dir": "",
@@ -81,6 +81,10 @@
         "pytest": "tests/benchmark/test_imagegen.py::test_bria_2_3"
       },
       {
+        "name": "sdxl_lightning",
+        "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
@@ -131,6 +135,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "qwen_2_5_coder_32b_instruct_tp",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "qwen_3_32b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp",
         "runs-on": "n300-llmbox"
@@ -148,6 +157,12 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
+        "runs-on": "n300-llmbox",
+        "skip": true
+      },
+      {
+        "name": "gpt_oss_20b_tp_batch_size_1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1",
         "runs-on": "n300-llmbox"
       },
       {
@@ -336,9 +351,9 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
-        "name": "kimi_k2_5_tp_galaxy_2_layers",
+        "name": "kimi_k2_6_tp_galaxy_2_layers",
         "pyreq": "tiktoken",
-        "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_5_tp_galaxy_2_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_6_tp_galaxy_2_layers",
         "runs-on": "galaxy-wh-6u"
       },
       {
@@ -766,6 +781,83 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "wan_umt5_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_umt5[14b-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_480p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_720p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_encoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_480p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_720p_unsharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-unsharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_vae_decoder_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_dit_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_dit_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }

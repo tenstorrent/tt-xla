@@ -21,7 +21,7 @@ from tests.infra.testers.compiler_config import CompilerConfig
 
 from .shared import UMT5Wrapper, load_umt5, shard_umt5_specs, wan22_mesh
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
 )
@@ -51,7 +51,7 @@ def _run(sharded: bool) -> None:
         graph=wrapper,
         inputs=[input_ids, attention_mask],
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
+        compiler_config=COMPILER_CONFIG,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
