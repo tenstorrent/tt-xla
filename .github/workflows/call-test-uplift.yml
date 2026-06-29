@@ -1,4 +1,4 @@
-name: Test + Uplift Fix
+name: Test + Transformers Uplift Fix
 
 permissions:
   contents: write
@@ -27,9 +27,6 @@ on:
         required: false
         default: "default"
         description: 'Extra artifact/commit-message discriminator (e.g. "base" vs "full") when the caller invokes this workflow more than once in the same run with the same scope.'
-      branch:
-        type: string
-        required: true
       iteration:
         type: number
         required: false
@@ -89,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ github.ref_name }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -169,7 +166,7 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ github.ref_name }}
           token: ${{ secrets.GH_TOKEN }}
           submodules: recursive
 
@@ -230,7 +227,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          BRANCH: ${{ inputs.branch }}
+          BRANCH: ${{ github.ref_name }}
           ITER:   ${{ inputs.iteration }}
           SCOPE:  ${{ inputs.scope }}
           TAG:    ${{ inputs.tag }}
@@ -253,11 +250,6 @@ jobs:
             git add -A
             git commit "${COMMIT_FLAG[@]}"
 
-            echo "=== submodule push diagnostic ==="
-            echo "local HEAD                : $(git rev-parse HEAD)"
-            echo "local origin/$BRANCH      : $(git rev-parse "origin/$BRANCH" 2>/dev/null || echo "(missing)")"
-            echo "server tip $BRANCH        : $(git ls-remote origin "$BRANCH" | cut -f1)"
-            echo "================================="
             git push --force origin "$BRANCH"
             popd >/dev/null
           fi
