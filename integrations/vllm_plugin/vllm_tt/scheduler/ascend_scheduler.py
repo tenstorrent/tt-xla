@@ -119,7 +119,6 @@ class AscendScheduler(Scheduler):
             ):
                 break
 
-
             def skip_cur_request(req=request):
                 request_queue.pop_request()
                 step_skipped_waiting.prepend_request(req)
