@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Per-tensor BFP4 sensitivity scores: S(T) = SUM_i [ Fii * (wi - Q(wi))^2 ]
+Per-tensor BFP4 sensitivity scores: S(T) = (1/N) * SUM_i [ Fii * (wi - Q(wi))^2 ]
 
 Stage 1 — GPU machine (compute Fisher):
   python sensitivity_score.py --stage fisher --model <model>
@@ -21,6 +21,8 @@ import threading
 
 import torch
 import torch.nn as nn
+from datasets import load_dataset
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
     import ttnn
@@ -29,29 +31,10 @@ try:
 except ImportError:
     HAS_TTNN = False
 
-from offload_fisher import (
-    NUM_SAMPLES,
-    _make_fisher_hook,
-    fisher_thread_worker,
-    load_model_shell,
-)
+from offload_fisher import NUM_SAMPLES, _make_fisher_hook, fisher_thread_worker
+from utils import collect_weights, get_fii_path, get_scores_path, load_model_shell
 
 SEQ_LEN = 128
-EXPERIMENTS_DIR = "mixed_precision_experiments"
-
-
-def collect_weights(model):
-    """Return [(name, param)] for all quantizable weight tensors."""
-    return [
-        (f"{name}.{pname}" if name else pname, param)
-        for name, module in model.named_modules()
-        for pname, param in module.named_parameters(recurse=False)
-        if param.ndim >= 2
-        and not isinstance(module, nn.Embedding)
-        and "norm" not in name
-        and "router" not in name
-        and pname != "bias"
-    ]
 
 
 def quantize_via_ttnn(tensor, dtype, device):
@@ -110,7 +93,7 @@ def parse_args():
         "--save-path",
         type=str,
         default=None,
-        help="Override output path for fisher results",
+        help="Override path for fisher results",
     )
     parser.add_argument(
         "--accum-device",
@@ -132,24 +115,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_fii_path(model_name):
-    model_short = model_name.split("/")[-1]
-    return os.path.join(EXPERIMENTS_DIR, "fisher", model_short, "fii.pt")
-
-
-def get_scores_path(model_name):
-    model_short = model_name.split("/")[-1]
-    return os.path.join(
-        EXPERIMENTS_DIR,
-        "sensitivity_scores",
-        model_short,
-        f"sensitivity_{model_short}.json",
-    )
-
-
 def load_model_and_tokenizer(model_name, device_map=None):
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
         model_name, dtype=torch.bfloat16, device_map=device_map
@@ -159,8 +125,6 @@ def load_model_and_tokenizer(model_name, device_map=None):
 
 
 def get_calibration_data(tokenizer, num_samples):
-    from datasets import load_dataset
-
     dataset = load_dataset("allenai/c4", "en", split="train", streaming=True)
     samples = []
     for sample in dataset:
@@ -194,13 +158,13 @@ def compute_fisher(
         param.requires_grad_(False)
 
     on_cpu = accum_device == "cpu"
-    acc = {}
+    fisher_accumulator = {}
     handles = []
     for name, param in weight_params:
         param.requires_grad_(True)
         handles.append(
             param.register_post_accumulate_grad_hook(
-                _make_fisher_hook(name, acc, on_cpu=on_cpu)
+                _make_fisher_hook(name, fisher_accumulator, on_cpu=on_cpu)
             )
         )
 
@@ -221,7 +185,7 @@ def compute_fisher(
     for h in handles:
         h.remove()
 
-    return {name: a.div_(num_samples).cpu() for name, a in acc.items()}
+    return {name: a.div_(num_samples).cpu() for name, a in fisher_accumulator.items()}
 
 
 def compute_fisher_offloaded(
@@ -245,6 +209,8 @@ def compute_fisher_offloaded(
 
     weight_map and model_path must come from load_model_shell. out_dir is the output
     directory where chunk_*.pt files are written.
+
+    Requires model.embed_tokens, model.layers, model.norm, lm_head (e.g. Llama, Qwen, GPT-OSS).
     """
     if not torch.cuda.is_available():
         raise RuntimeError("--offload-layers requires at least one CUDA GPU.")
@@ -258,6 +224,7 @@ def compute_fisher_offloaded(
 
     active_gpus = min(num_gpus, len(calibration_data))
     shared_partials = [None] * active_gpus
+    errors = [None] * active_gpus
     barrier = threading.Barrier(active_gpus)
 
     chunk_size = max(1, len(calibration_data) // active_gpus)
@@ -279,6 +246,7 @@ def compute_fisher_offloaded(
                 out_dir,
                 shared_partials,
                 barrier,
+                errors,
             ),
             daemon=True,
         )
@@ -289,11 +257,40 @@ def compute_fisher_offloaded(
     for t in threads:
         t.join()
 
+    for gpu_id, err in enumerate(errors):
+        if err is not None:
+            raise RuntimeError(f"Worker on GPU {gpu_id} failed") from err
+
+
+def _validate_decoder_architecture(model):
+    """Raise early if the model doesn't have the expected decoder-only attributes.
+
+    Avoids silent hangs inside worker threads when an unsupported architecture is used.
+    Validated on: Llama, Qwen, GPT-OSS.
+    """
+    missing = []
+    base = getattr(model, "model", None)
+    if base is None:
+        missing.append("model")
+    else:
+        for attr in ("embed_tokens", "layers", "norm"):
+            if not hasattr(base, attr):
+                missing.append(f"model.{attr}")
+    if not hasattr(model, "lm_head"):
+        missing.append("lm_head")
+    if missing:
+        raise RuntimeError(
+            f"--offload-layers requires model.embed_tokens, model.layers, model.norm, lm_head "
+            f"(supported: Llama, Qwen, GPT-OSS). Missing: {missing}. Got: {type(model).__name__}"
+        )
+
 
 def _run_fisher_offload(args):
     print("Loading model shell for disk-based weight streaming...")
-    model, tokenizer, weight_map, model_path, lm_base, lm_head_base = load_model_shell(args.model)
-    print(f"  Detected paths — lm_base: '{lm_base}', lm_head_base: '{lm_head_base}'")
+    model, tokenizer, weight_map, model_path, lm_base, lm_head_base = load_model_shell(
+        args.model
+    )
+    _validate_decoder_architecture(model)
     weight_params = collect_weights(model)
     calibration_data = get_calibration_data(tokenizer, NUM_SAMPLES)
     fii_path = args.save_path if args.save_path else get_fii_path(args.model)
@@ -354,7 +351,7 @@ def run_scores_stage(args):
     if not HAS_TTNN:
         raise RuntimeError("TTNN not found. Scores stage requires a TT device.")
 
-    fii_path = get_fii_path(args.model)
+    fii_path = args.save_path if args.save_path else get_fii_path(args.model)
     fii_dir = os.path.dirname(fii_path)
 
     has_chunks = os.path.isdir(fii_dir) and any(
