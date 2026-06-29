@@ -1571,7 +1571,7 @@ def test_glm_4_7_tp_galaxy_4_layers(cli, request):
         request,
         default_num_layers=4,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        optimization_level=0,
+        optimization_level=1,
         trace_enabled=False,
         shard_spec_fn=glm_4_7_shard_spec,
         input_output_sharding_spec=("batch", None),
