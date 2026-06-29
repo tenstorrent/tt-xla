@@ -813,9 +813,12 @@ def benchmark_llm_torch_xla(
             ]
         )
     elif decode_only:
-        decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        # Validate the FULL batch (output_logits[0], not [0][0]). [0][0] is batch
+        # element 0, which on a 2D mesh lives on mesh-row 0 only — a model that
+        # silently drops mesh-rows 1-3 would still pass at ~0.99.
+        decode_pcc_value = compute_pcc(output_logits[0], cpu_output_logits[1])
         decode_rel_l2_value = compute_rel_l2(
-            cpu_output_logits[1][0], output_logits[0][0]
+            cpu_output_logits[1], output_logits[0]
         )
         assert (
             decode_pcc_value >= required_pcc
@@ -826,9 +829,9 @@ def benchmark_llm_torch_xla(
             )
         )
     else:
-        # Check PCC for prefill
-        pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
-        rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
+        # Check PCC for prefill (full batch — see decode_only note above)
+        pcc_value = compute_pcc(output_logits[0], cpu_output_logits[0])
+        rel_l2_value = compute_rel_l2(cpu_output_logits[0], output_logits[0])
         assert (
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
@@ -841,9 +844,9 @@ def benchmark_llm_torch_xla(
         assert (
             len(output_logits) > 1 and len(cpu_output_logits) > 1
         ), "Not enough logits to check PCC"
-        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        decode_pcc_value = compute_pcc(output_logits[1], cpu_output_logits[1])
         decode_rel_l2_value = compute_rel_l2(
-            cpu_output_logits[1][0], output_logits[1][0]
+            cpu_output_logits[1], output_logits[1]
         )
         assert (
             decode_pcc_value >= required_pcc
