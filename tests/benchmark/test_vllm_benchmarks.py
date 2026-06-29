@@ -44,7 +44,7 @@ def _config(
     batch_size: int = 32,
     *,
     gpu_memory_utilization: float = 0.05,
-    optimization_level: int = 0,
+    optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
     fp32_dest_acc_en: bool | None = False,
     **additional_config_extra,
@@ -60,10 +60,8 @@ def _config(
         additional["experimental_weight_dtype"] = experimental_weight_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
-    if optimization_level > 0:
+    if optimization_level:
         additional["optimization_level"] = optimization_level
-        # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
-        additional["cpu_sampling"] = True
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     if _BENCH_KV_CACHE_DTYPE:
