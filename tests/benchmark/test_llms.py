@@ -2780,3 +2780,40 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Gemma 4 31B-it is a Gemma4ForConditionalGeneration VLM; this benchmarks the
+# *text-only* causal-LM decode path (the loader keeps pixel_values None). The
+# bringup baseline established 4-chip Megatron TP on qb2-blackhole, so the perf
+# path inherits the loader's get_mesh_config / load_shard_spec hooks via
+# test_llm_tp. Bringup-safe defaults: optimization_level=0 (OpModel aborts at
+# opt>=1 on the harvested qb2 grid), trace disabled.
+def test_gemma_4_31b_it_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gemma4.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_31B_IT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,   # safe default for bringup; model-perf-tuning will ramp
+    )

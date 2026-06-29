@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import time
+from contextlib import contextmanager
 from typing import Optional
 
 import torch
@@ -19,6 +20,40 @@ import tracy
 from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
+
+
+@contextmanager
+def _suppress_zero_num_kv_shared_layers(decoder_config):
+    """Work around a transformers StaticCache layer-count bug.
+
+    ``StaticCache.__init__`` truncates the per-layer cache list with
+    ``layer_types[: -config.num_kv_shared_layers]``. When ``num_kv_shared_layers``
+    is 0 (i.e. "no shared layers", e.g. Gemma4TextConfig) this becomes
+    ``[:0]`` and yields a zero-layer cache, so the model raises
+    ``IndexError: list index out of range`` on the first ``cache.update``.
+
+    The value is often a class-level default on the config, so temporarily hide
+    the attribute everywhere it resolves to 0 (instance dict + owning classes
+    in the MRO) for the duration of cache construction, then restore it. This is
+    a no-op when the attribute is absent or non-zero, so it does not affect
+    models that legitimately share KV layers.
+    """
+    if getattr(decoder_config, "num_kv_shared_layers", None) != 0:
+        yield
+        return
+    owners = []
+    if "num_kv_shared_layers" in decoder_config.__dict__:
+        owners.append(decoder_config)
+        del decoder_config.__dict__["num_kv_shared_layers"]
+    for klass in type(decoder_config).__mro__:
+        if klass.__dict__.get("num_kv_shared_layers", None) == 0:
+            owners.append(klass)
+            delattr(klass, "num_kv_shared_layers")
+    try:
+        yield
+    finally:
+        for owner in owners:
+            owner.num_kv_shared_layers = 0
 
 
 class LLMSamplingWrapper(torch.nn.Module):
@@ -121,25 +156,66 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Multimodal/composite configs (e.g. Gemma4Config) nest the decoder
+    # hyper-parameters under a text sub-config; resolve to it so head_dim /
+    # num_key_value_heads read correctly. get_text_config() returns the config
+    # itself for plain causal-LM configs, so this is a no-op for those.
+    decoder_config = (
+        config.get_text_config() if hasattr(config, "get_text_config") else config
+    )
+    if hasattr(decoder_config, "head_dim") and getattr(decoder_config, "head_dim"):
+        head_dim = decoder_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = (
+            decoder_config.hidden_size // decoder_config.num_attention_heads
+        )
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        decoder_config, "num_key_value_heads", decoder_config.num_attention_heads
     )
 
-    static_cache = StaticCache(
-        config=config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        device=device,
-        dtype=dtype,
+    with _suppress_zero_num_kv_shared_layers(decoder_config):
+        static_cache = StaticCache(
+            config=config,
+            max_batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device=device,
+            dtype=dtype,
+        )
+
+    # Some models use a different KV geometry for their global (full-attention)
+    # layers than for their sliding/local layers (e.g. Gemma4: local layers use
+    # num_key_value_heads/head_dim while full_attention layers use
+    # num_global_key_value_heads/global_head_dim). early_initialization accepts
+    # per-layer lists, so build them when the config declares distinct global
+    # geometry; otherwise pass the scalar (no-op for homogeneous models).
+    layer_types = getattr(decoder_config, "layer_types", None)
+    global_head_dim = getattr(decoder_config, "global_head_dim", None)
+    global_kv_heads = getattr(decoder_config, "num_global_key_value_heads", None)
+    has_distinct_global = layer_types is not None and (
+        (global_head_dim is not None and global_head_dim != head_dim)
+        or (global_kv_heads is not None and global_kv_heads != num_key_value_heads)
     )
+    if has_distinct_global:
+        n_layers = len(static_cache.layers)
+        num_heads = [
+            global_kv_heads
+            if lt == "full_attention" and global_kv_heads is not None
+            else num_key_value_heads
+            for lt in layer_types[:n_layers]
+        ]
+        head_dim = [
+            global_head_dim
+            if lt == "full_attention" and global_head_dim is not None
+            else head_dim
+            for lt in layer_types[:n_layers]
+        ]
+    else:
+        num_heads = num_key_value_heads
+
     static_cache.early_initialization(
         batch_size=batch_size,
-        num_heads=num_key_value_heads,
+        num_heads=num_heads,
         head_dim=head_dim,
         dtype=dtype,
         device=device,
