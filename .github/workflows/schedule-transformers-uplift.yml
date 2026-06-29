@@ -9,13 +9,8 @@ permissions:
   pull-requests: none
 
 on:
-  # Cron disabled during iterative testing — uncomment to re-enable
-  # the nightly auto-detect once the full pipeline is validated.
-  # schedule:
-  #   - cron: '0 4 * * *'   # 04:00 UTC daily
-  push:
-    branches:
-      - jazpur/auto-transformers-uplift
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC daily
   workflow_dispatch: {}
 
 concurrency:
@@ -33,9 +28,8 @@ jobs:
       branch:          ${{ steps.branch-check.outputs.branch }}
     steps:
       - uses: actions/checkout@v6
-        # No `ref:` — use whatever ref triggered the workflow. During
-        # testing, the pipeline scripts live on the feature branch; once
-        # this graduates to main, pin to `ref: main` for consistency.
+        with:
+          ref: main
 
       - name: Detect new transformers release
         id: check
@@ -121,25 +115,9 @@ jobs:
           CUR:      ${{ needs.detect.outputs.current_version }}
           BASELINE: ${{ steps.baseline.outputs.run_id }}
         run: |
-          # TEMP: workflow file isn't on main yet — `gh workflow run <name>`
-          # resolves IDs via the default branch and 404s. Dispatch via the
-          # REST API by numeric workflow ID instead. Swap back to
-          # `gh workflow run` once this lands on main.
-          WORKFLOW_ID=$(gh api \
-            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
-            --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
-          if [[ -z "$WORKFLOW_ID" ]]; then
-            echo "::warning::workflow not found on first page — dumping all registered workflow paths for diagnosis:" >&2
-            gh api "repos/${{ github.repository }}/actions/workflows?per_page=100" \
-              --jq '.total_count as $n | "(total=\($n))", (.workflows[].path)' >&2
-            echo "::error::workflow-transformers-uplift.yml is not registered — push it on any branch first to register it" >&2
-            exit 1
-          fi
-          gh api -X POST \
-            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
-            -f ref="$BRANCH" \
-            -f "inputs[iteration]=1" \
-            -f "inputs[branch]=$BRANCH" \
-            -f "inputs[target_version]=$NEW" \
-            -f "inputs[current_version]=$CUR" \
-            -f "inputs[baseline_run_id]=$BASELINE"
+          gh workflow run workflow-transformers-uplift.yml \
+            --ref "$BRANCH" \
+            -f iteration=1 \
+            -f target_version="$NEW" \
+            -f current_version="$CUR" \
+            -f baseline_run_id="$BASELINE"

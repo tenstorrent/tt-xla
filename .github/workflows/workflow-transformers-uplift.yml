@@ -6,9 +6,6 @@ on:
       iteration:
         type: number
         required: true
-      branch:
-        type: string
-        required: true
       target_version:
         type: string
         required: true
@@ -27,10 +24,6 @@ on:
         type: string
         required: true
         default: "1"
-      branch:
-        description: 'Uplift WIP branch (e.g. transformers-uplift/5.9.0).'
-        type: string
-        required: true
       target_version:
         type: string
         required: true
@@ -53,11 +46,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: transformers-uplift-${{ inputs.branch }}
+  group: transformers-uplift-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
-  MAX_ITERATIONS: 2
+  MAX_ITERATIONS: 5
 
 jobs:
   build-image:
@@ -91,9 +84,6 @@ jobs:
           ITER=$(printf '%d' "${ITER_RAW}")
           echo "iteration=$ITER" >> "$GITHUB_OUTPUT"
 
-  # ---------------------------------------------------------------------------
-  # API check: pytest --collect-only sweep over the model test suite.
-  # ---------------------------------------------------------------------------
   api-check:
     needs: [setup, build-image, build-ttxla]
     runs-on: ubuntu-latest
@@ -106,13 +96,13 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
-  
+
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ github.ref_name }}
           token: ${{ secrets.GH_TOKEN }}
           submodules: recursive
-  
+
       - name: Download tt-xla wheel
         shell: bash
         env:
@@ -125,21 +115,21 @@ jobs:
             --dir wheels \
             --name "$WHEEL_ARTIFACT"
           ls -la wheels
-  
+
       - name: Install wheel
         shell: bash
         run: |
           source venv/activate
           uv pip install wheels/*.whl
           python -c "import transformers; print('transformers', transformers.__version__)"
-  
+
       - name: Install Claude Code CLI
         shell: bash
         run: |
           curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
           npm install -g @anthropic-ai/claude-code
           claude --version
-  
+
       - name: Run api-check with Claude sub-loop
         id: run
         shell: bash
@@ -158,24 +148,24 @@ jobs:
             --max-subloops 5
           # The script exits 0 iff api-check ends green.
           echo "passed=true" >> "$GITHUB_OUTPUT"
-  
+
       - name: Push any Claude-applied fixes
         if: always()
         shell: bash
         env:
-          BRANCH: ${{ inputs.branch }}
+          BRANCH: ${{ github.ref_name }}
           ITER:   ${{ needs.setup.outputs.iteration }}
         run: |
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-  
+
           SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
           if [[ -s "$SUMMARY_FILE" ]]; then
             COMMIT_FLAG=(-F "$SUMMARY_FILE")
           else
             COMMIT_FLAG=(-m "transformers uplift: api-check fixes (iter ${ITER})")
           fi
-  
+
           # tt-forge-models submodule commit
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
@@ -185,15 +175,10 @@ jobs:
             git add -A
             git commit "${COMMIT_FLAG[@]}"
 
-            echo "=== submodule push diagnostic ==="
-            echo "local HEAD                : $(git rev-parse HEAD)"
-            echo "local origin/$BRANCH      : $(git rev-parse "origin/$BRANCH" 2>/dev/null || echo "(missing)")"
-            echo "server tip $BRANCH        : $(git ls-remote origin "$BRANCH" | cut -f1)"
-            echo "================================="
             git push --force origin "$BRANCH"
             popd >/dev/null
           fi
-  
+
           # tt-xla commit
           if ! git diff --quiet || [[ -n "$(git status --porcelain)" ]]; then
             git add -A
@@ -209,16 +194,13 @@ jobs:
       test_suite:              baseline-uplift.json
       scope:                   model-test-uplifts
       tag:                     base
-      branch:                  ${{ inputs.branch }}
       iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
       target_version:          ${{ inputs.target_version }}
       current_version:         ${{ inputs.current_version }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
       docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-      # TEMP: hardcoded baseline run for transformers-uplift testing.
-      # Restore `${{ inputs.baseline_run_id }}` before merging.
-      baseline_run_id:         "28209379088"
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
     secrets: inherit
 
   decide:
@@ -254,25 +236,12 @@ jobs:
         run: |
           NEXT=$((NEXT_ITER + 1))
           echo "Re-dispatching as iteration $NEXT"
-          # TEMP: workflow file isn't on main yet — dispatch via the
-          # REST API by numeric workflow ID. Swap back to
-          # `gh workflow run workflow-transformers-uplift.yml ...` once
-          # this lands on main.
-          WORKFLOW_ID=$(gh api \
-            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
-            --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
-          if [[ -z "$WORKFLOW_ID" ]]; then
-            echo "::error::workflow-transformers-uplift.yml is not registered" >&2
-            exit 1
-          fi
-          gh api -X POST \
-            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
-            -f ref="${{ github.ref_name }}" \
-            -f "inputs[iteration]=$NEXT" \
-            -f "inputs[branch]=${{ inputs.branch }}" \
-            -f "inputs[target_version]=${{ inputs.target_version }}" \
-            -f "inputs[current_version]=${{ inputs.current_version }}" \
-            -f "inputs[baseline_run_id]=${{ inputs.baseline_run_id }}"
+          gh workflow run workflow-transformers-uplift.yml \
+            --ref "${{ github.ref_name }}" \
+            -f iteration="$NEXT" \
+            -f target_version="${{ inputs.target_version }}" \
+            -f current_version="${{ inputs.current_version }}" \
+            -f baseline_run_id="${{ inputs.baseline_run_id }}"
 
       - name: Log finalize handoff
         if: steps.next.outputs.action == 'finalize'
@@ -288,25 +257,21 @@ jobs:
       test_suite:              model-test-passing.json
       scope:                   model-test-uplifts
       tag:                     full
-      branch:                  ${{ inputs.branch }}
       iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
       target_version:          ${{ inputs.target_version }}
       current_version:         ${{ inputs.current_version }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
       docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-      # TEMP: hardcoded baseline run for transformers-uplift testing.
-      # Restore `${{ inputs.baseline_run_id }}` before merging.
-      baseline_run_id:         "28209379088"
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
     secrets: inherit
 
-  perf-benchmark:
+  test-and-fix-perf:
     needs: [setup, build-image, build-ttxla, decide, test-and-fix-full]
     if: always() && needs.decide.outputs.action == 'finalize'
     uses: ./.github/workflows/call-perf-uplift.yml
     secrets: inherit
     with:
-      branch:                  ${{ inputs.branch }}
       iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
       tag:                     perf
       target_version:          ${{ inputs.target_version }}

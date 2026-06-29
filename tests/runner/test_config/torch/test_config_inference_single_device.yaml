@@ -118,6 +118,7 @@ test_config:
     status: EXPECTED_PASSING
 
   falcon/pytorch-3_1B_Base-single_device-inference:
+    status: EXPECTED_PASSING
     markers: [push, baseline_uplift]
     optimization_level: 2
 
@@ -506,6 +507,12 @@ test_config:
     required_pcc: 0.975  # Decreased after https://github.com/tenstorrent/tt-forge-models/pull/87
 
   vit/pytorch-Base-single_device-inference:
+    status: EXPECTED_PASSING
+    filechecks:
+      - concatenate_heads.ttnn.mlir
+      - split_query_key_value_and_split_heads.ttnn.mlir
+      - layer_norm.ttnn.mlir
+    optimization_level: 1
     markers: [push, nightly, baseline_uplift]
 
   vit/pytorch-Large-single_device-inference:
@@ -615,6 +622,7 @@ test_config:
     status: EXPECTED_PASSING
 
   bert/masked_lm/pytorch-Base_Uncased-single_device-inference:
+    status: EXPECTED_PASSING
     markers: [extended, baseline_uplift]
 
   bert/sequence_classification/pytorch-Base_Uncased_Sst_2-single_device-inference:

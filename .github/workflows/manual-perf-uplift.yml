@@ -1,0 +1,123 @@
+name: Manual - Perf + Transformers Uplift Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'Target transformers version (e.g. 5.9.0). Used for SKILL prompt context.'
+        required: true
+        type: string
+      current_version:
+        description: 'Previous transformers version (e.g. 5.8.0). Used for SKILL prompt context.'
+        required: true
+        type: string
+      runs-on-filter:
+        description: "Runner pool to target. 'All' enables every runner the matrix offers."
+        required: false
+        type: choice
+        options:
+          - All
+          - n150-perf
+          - p150-perf
+          - n300-llmbox
+          - galaxy-wh-6u
+          - qb2-blackhole
+        default: n150-perf
+      test_filter:
+        description: "Optional name-substring filter (case-insensitive). e.g. 'resn' or 'resn,mni,yol'."
+        required: false
+        type: string
+      skip-device-perf:
+        description: 'Skip device performance measurement.'
+        required: false
+        type: boolean
+        default: true
+      regression_check:
+        description: 'Enable perf metrics regression testing.'
+        required: false
+        type: boolean
+        default: true
+      check_fusions:
+        description: 'Verify expected fusion ops are present in compiled IR.'
+        required: false
+        type: boolean
+        default: true
+      tag:
+        description: 'Artifact / commit-message discriminator.'
+        required: false
+        type: string
+        default: 'manual'
+      mlir_override:
+        description: 'Optional git SHA of tenstorrent/tt-mlir to override the submodule pointer.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions:  write
+  checks:   write
+  packages: write
+  id-token: write
+  pull-requests: write
+
+run-name: "Perf + Uplift Fix ( branch: ${{ github.ref_name }} | runner: ${{ inputs.runs-on-filter }} | filter: ${{ inputs.test_filter || '(all)' }} )"
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: all
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image:          ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      mlir_override:         ${{ inputs.mlir_override }}
+      build_types:           release
+
+  set-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      filter: ${{ steps.gen.outputs.filter }}
+    steps:
+      - name: Build adv_filter
+        id: gen
+        shell: bash
+        run: |
+          echo "[" > adv_filter.json
+          if [[ "${{ inputs.runs-on-filter }}" == "All" ]]; then
+            echo '{ "skip": false, "accuracy-testing": false }' >> adv_filter.json
+          else
+            echo '{ "runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
+          fi
+          if [[ -n "${{ inputs.test_filter }}" ]]; then
+            echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
+          fi
+          echo "]" >> adv_filter.json
+          filter=$(cat adv_filter.json | jq -r -c '.')
+          echo "filter=$filter" >> "$GITHUB_OUTPUT"
+          echo "### Perf uplift inputs" >> "$GITHUB_STEP_SUMMARY"
+          echo "Branch: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Target version: ${{ inputs.target_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Test filter: ${{ inputs.test_filter || '(none)' }}" >> "$GITHUB_STEP_SUMMARY"
+
+  perf-and-fix:
+    needs: [build-image, build-ttxla, set-filter]
+    if: ${{ !cancelled() && !failure() }}
+    uses: ./.github/workflows/call-perf-uplift.yml
+    secrets: inherit
+    with:
+      iteration:               1
+      tag:                     ${{ inputs.tag }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      adv_filter:              ${{ needs.set-filter.outputs.filter }}

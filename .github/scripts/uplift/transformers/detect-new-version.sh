@@ -1,15 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
-# Detects whether a newer stable release of `transformers` is available on
-# PyPI compared to the pin in venv/requirements-dev.txt.
-#
-# Emits (to $GITHUB_OUTPUT when set, otherwise stdout only):
-#   current_version=<X.Y.Z>
-#   new_version=<X.Y.Z>   (empty when no update)
-#   has_update=<true|false>
-#
-# Exit code is always 0 unless something goes wrong with the lookup itself
-# ("no new version" is not an error).
+# SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
 
@@ -38,24 +30,21 @@ RELEASE_TAGS=$(gh release list --repo huggingface/transformers \
   --limit 100 --json tagName,isPrerelease \
   -q '.[] | select(.isPrerelease == false) | .tagName')
 
-# TEMP: pinned to 5.9.0 for transformers-uplift pipeline testing.
-# Restore the python block below before this change merges.
-LATEST="5.9.0"
-# LATEST=$(python3 - "$CURRENT" <<PY
-# import sys
-# from packaging.version import Version, InvalidVersion
-# cur = Version(sys.argv[1])
-# nexts = []
-# for t in """$RELEASE_TAGS""".split():
-#     try:
-#         v = Version(t.lstrip("v"))
-#     except InvalidVersion:
-#         continue
-#     if v > cur:
-#         nexts.append(v)
-# print(min(nexts) if nexts else "")
-# PY
-# )
+LATEST=$(python3 - "$CURRENT" <<PY
+import sys
+from packaging.version import Version, InvalidVersion
+cur = Version(sys.argv[1])
+nexts = []
+for t in """$RELEASE_TAGS""".split():
+    try:
+        v = Version(t.lstrip("v"))
+    except InvalidVersion:
+        continue
+    if v > cur:
+        nexts.append(v)
+print(min(nexts) if nexts else "")
+PY
+)
 
 HAS_UPDATE="false"
 NEW_VERSION=""

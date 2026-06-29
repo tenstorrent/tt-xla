@@ -1,0 +1,110 @@
+name: Manual - Test + Transformers Uplift Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_version:
+        description: 'Target transformers version (e.g. 5.9.0). Used for SKILL prompt context.'
+        required: true
+        type: string
+      current_version:
+        description: 'Previous transformers version (e.g. 5.8.0). Used for SKILL prompt context.'
+        required: true
+        type: string
+      test_suite:
+        description: 'Test suite preset, or Custom (then supply test_suite_custom below).'
+        required: true
+        type: choice
+        options:
+          - 'basic-test.json'
+          - 'basic-test-nightly.json'
+          - 'basic-test-nightly-experimental.json'
+          - 'model-test-push.json'
+          - 'model-test-full.json'
+          - 'on-pr.json'
+          - 'schedule-nightly.json'
+          - 'model-test-passing.json'
+          - 'model-test-xfail.json'
+          - 'model-test-experimental.json'
+          - 'model-test-training-xfail-weekly.json'
+          - 'model-test-extended.json'
+          - 'full-mlir-uplift-qualification.json'
+          - 'model-test-passing-weekly.json'
+          - 'model-test-weekly.json'
+          - 'vllm-model-tests.json'
+          - 'vllm-model-tests-nightly.json'
+          - 'fusion-tests.json'
+          - 'model-test-lb-blackhole-nightly.json'
+          - 'model-test-lb-blackhole-weekly.json'
+          - 'model-test-emitpy.json'
+          - 'basic-multihost-test.json'
+          - 'Custom'
+        default: 'model-test-passing.json'
+      test_suite_custom:
+        description: 'JSON matrix payload when test_suite="Custom"; ignored otherwise.'
+        required: false
+        type: string
+      baseline_run_id:
+        description: 'Optional On-nightly run ID (on main) to seed the baseline-failures filter. Leave empty to disable.'
+        required: false
+        type: string
+        default: ''
+      tag:
+        description: 'Artifact / commit-message discriminator.'
+        required: false
+        type: string
+        default: 'manual'
+      mlir_override:
+        description: 'Optional git SHA of tenstorrent/tt-mlir to override the submodule pointer.'
+        required: false
+        type: string
+      forge_models_override:
+        description: 'Optional git SHA or branch in tenstorrent/tt-forge-models.'
+        required: false
+        type: string
+
+permissions:
+  contents: write       # claude-fix commits + pushes to the WIP branch
+  actions:  write
+  checks:   write
+  packages: write
+  id-token: write
+  pull-requests: write
+
+run-name: 'Test + Uplift Fix ( branch: ${{ github.ref_name }} | suite: ${{ inputs.test_suite }} )'
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: all
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image:          ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      mlir_override:         ${{ inputs.mlir_override }}
+      build_types:           release
+
+  test-and-fix:
+    needs: [build-image, build-ttxla]
+    if: ${{ !cancelled() && !failure() }}
+    uses: ./.github/workflows/call-test-uplift.yml
+    secrets: inherit
+    with:
+      test_suite:              ${{ inputs.test_suite }}
+      test_suite_custom:       ${{ inputs.test_suite_custom }}
+      scope:                   model-test-uplifts
+      tag:                     ${{ inputs.tag }}
+      iteration:               1
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
