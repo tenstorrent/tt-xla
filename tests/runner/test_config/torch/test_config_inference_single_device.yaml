@@ -2716,8 +2716,8 @@ test_config:
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
     status: EXPECTED_PASSING
-    enable_weight_bfp8_conversion: true
-    assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+    # enable_weight_bfp8_conversion: true
+    # assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
 
 
   gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
