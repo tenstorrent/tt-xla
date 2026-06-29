@@ -2,21 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Layer-wise Fisher computation with CPU offloading for models too large to fit in GPU memory."""
+"""Layer-wise Fisher computation with CPU offloading for models too large to fit in GPU memory.
+
+Requires model.embed_tokens, model.layers, model.norm, lm_head (e.g. Llama, Qwen, GPT-OSS).
+"""
 
 import copy
-import json
 import os
 import threading
 
 import torch
 import torch.nn as nn
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from utils import _compute_position_embeddings, _run_layer, load_tensors_to_layer
 
 NUM_SAMPLES = 100
 
 
-def _make_fisher_hook(n, acc, on_cpu=True):
+def _make_fisher_hook(param_name, fisher_accumulator, on_cpu=True):
     """Return a post-accumulate-grad hook that accumulates squared gradients.
 
     on_cpu=True (default): moves gradient to CPU before accumulating.
@@ -24,177 +26,18 @@ def _make_fisher_hook(n, acc, on_cpu=True):
     """
 
     def hook(p):
-        if p.grad is not None:
-            g2 = p.grad.detach().float().pow_(2)
-            if on_cpu:
-                g2 = g2.cpu()
-            if n in acc:
-                acc[n].add_(g2)
-            else:
-                acc[n] = g2
-            p.grad = None
+        if p.grad is None:
+            return
+        grad_sq = p.grad.detach().float().pow_(2)
+        if on_cpu:
+            grad_sq = grad_sq.cpu()
+        if param_name in fisher_accumulator:
+            fisher_accumulator[param_name].add_(grad_sq)
+        else:
+            fisher_accumulator[param_name] = grad_sq
+        p.grad = None
 
     return hook
-
-
-def _resolve_model_path(model_name_or_path):
-    """Resolve a HF model name or local path to a directory with safetensors files."""
-    if os.path.isdir(model_name_or_path):
-        return model_name_or_path
-    from transformers.utils import cached_file
-
-    try:
-        config_file = cached_file(
-            model_name_or_path, "config.json", local_files_only=True
-        )
-        return os.path.dirname(config_file)
-    except Exception as e:
-        raise RuntimeError(
-            f"Cannot find model at '{model_name_or_path}'. "
-            "Pass a local directory path or ensure the model is in the HF cache."
-        ) from e
-
-
-def _build_weight_map(model_path):
-    """Return {tensor_name: shard_filename} for all tensors in the model."""
-    from safetensors import safe_open
-
-    index_path = os.path.join(model_path, "model.safetensors.index.json")
-    if os.path.exists(index_path):
-        with open(index_path) as f:
-            return json.load(f)["weight_map"]
-
-    single = os.path.join(model_path, "model.safetensors")
-    with safe_open(single, framework="pt") as f:
-        return {k: "model.safetensors" for k in f.keys()}
-
-
-def _detect_weight_paths(weight_map):
-    """Detect the safetensors key prefixes for the LM body and lm_head.
-
-    Returns (lm_base, lm_head_base) where:
-      lm_base      — prefix before 'embed_tokens.' / 'layers.N.' / 'norm.'
-      lm_head_base — prefix before 'lm_head.'
-
-    Examples:
-      Standard decoder-only:  lm_base='model.',       lm_head_base=''
-      LLaVA-style VLM:        lm_base='language_model.model.', lm_head_base='language_model.'
-      Qwen3.6-27B VLM:        lm_base='model.language_model.', lm_head_base='model.language_model.'
-    """
-    lm_base = None
-    lm_head_base = None
-
-    for key in weight_map:
-        if lm_base is None and "embed_tokens.weight" in key:
-            lm_base = key[: key.index("embed_tokens.weight")]
-        if lm_head_base is None and "lm_head.weight" in key:
-            lm_head_base = key[: key.index("lm_head.weight")]
-        if lm_base is not None and lm_head_base is not None:
-            break
-
-    return lm_base or "model.", lm_head_base or ""
-
-
-def _dequantize_mxfp4_inplace(raw, device):
-    """Dequantize MXFP4 *_blocks/*_scales pairs to bf16 in place.
-
-    Some MoE models (e.g. GPT-OSS-120B) store expert weights on disk in MXFP4
-    format where each weight tensor is split into a packed-integer *_blocks
-    tensor and a per-block *_scales tensor. Replace them with a single
-    dequantized bf16 tensor.
-    """
-    from transformers.integrations.mxfp4 import convert_moe_packed_tensors
-
-    for full_name in list(raw):
-        if not full_name.endswith("_blocks"):
-            continue
-        base = full_name[: -len("_blocks")]
-        scales_key = base + "_scales"
-        if scales_key not in raw:
-            continue
-        raw[base] = convert_moe_packed_tensors(
-            raw.pop(full_name).to(device),
-            raw.pop(scales_key).to(device),
-            dtype=torch.bfloat16,
-        )
-
-
-def load_tensors_to_layer(layer, prefix, weight_map, model_path, device):
-    """Load all tensors whose name starts with prefix from safetensors shards to device.
-
-    Tensors go disk → device without staging the full model in CPU RAM.
-    Uses accelerate's set_module_tensor_to_device to convert meta tensors.
-    """
-    from accelerate.utils import set_module_tensor_to_device
-    from safetensors import safe_open
-
-    shards = {}
-    for tensor_name, shard_file in weight_map.items():
-        if tensor_name.startswith(prefix):
-            shards.setdefault(shard_file, []).append(tensor_name)
-
-    raw = {}
-    for shard_file, tensor_names in shards.items():
-        with safe_open(os.path.join(model_path, shard_file), framework="pt") as f:
-            for full_name in tensor_names:
-                raw[full_name] = f.get_tensor(full_name)
-
-    _dequantize_mxfp4_inplace(raw, device)
-
-    for full_name, tensor in raw.items():
-        param_name = full_name[len(prefix) :]
-        set_module_tensor_to_device(layer, param_name, device, value=tensor.to(device))
-
-
-def load_model_shell(model_name_or_path):
-    """Create an empty model shell for disk-based weight streaming.
-
-    Returns (model, tokenizer, weight_map, model_path, lm_base, lm_head_base).
-    The model has meta tensors; no weights are in RAM.
-
-    lm_base      — safetensors key prefix before 'embed_tokens.' / 'layers.N.' / 'norm.'
-    lm_head_base — safetensors key prefix before 'lm_head.'
-    """
-    from accelerate import init_empty_weights
-
-    model_path = _resolve_model_path(model_name_or_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
-    config = AutoConfig.from_pretrained(model_name_or_path, trust_remote_code=True)
-    # VLMs wrap the LM config under text_config; use that for the causal LM shell
-    lm_config = getattr(config, "text_config", config)
-
-    with init_empty_weights():
-        model = AutoModelForCausalLM.from_config(lm_config, dtype=torch.bfloat16, trust_remote_code=True)
-    model.eval()
-
-    weight_map = _build_weight_map(model_path)
-    lm_base, lm_head_base = _detect_weight_paths(weight_map)
-    return model, tokenizer, weight_map, model_path, lm_base, lm_head_base
-
-
-def _run_layer(layer, hidden_states, position_ids, position_embeddings=None):
-    """Run one transformer block, return the hidden_states tensor."""
-    kwargs = {}
-    if position_embeddings is not None:
-        kwargs["position_embeddings"] = position_embeddings
-    try:
-        out = layer(hidden_states, position_ids=position_ids, **kwargs)
-    except TypeError:
-        out = layer(hidden_states, **kwargs)
-    return out[0] if isinstance(out, (tuple, list)) else out
-
-
-def _compute_position_embeddings(base_model, seq_len, position_ids, device):
-    """Compute RoPE cos/sin for models with a model-level rotary_emb."""
-    if not hasattr(base_model, "rotary_emb"):
-        return None
-    rotary_cls = type(base_model.rotary_emb)
-    rotary_emb = rotary_cls(config=base_model.config, device=device)
-    dummy = torch.zeros(1, seq_len, 1, dtype=torch.bfloat16, device=device)
-    with torch.no_grad():
-        position_embeddings = rotary_emb(dummy, position_ids)
-    del rotary_emb, dummy
-    return position_embeddings
 
 
 def _barrier_reduce_and_save(shared_partials, out_dir, filename):
@@ -244,7 +87,9 @@ def _run_forward_sweep(
     boundary_acts = [[] for _ in range(num_s)]
 
     embed = copy.deepcopy(model.model.embed_tokens)
-    load_tensors_to_layer(embed, f"{lm_base}embed_tokens.", weight_map, model_path, device)
+    load_tensors_to_layer(
+        embed, f"{lm_base}embed_tokens.", weight_map, model_path, device
+    )
     with torch.no_grad():
         for s, input_ids in enumerate(samples):
             boundary_acts[s].append(
@@ -293,20 +138,32 @@ def _run_lm_head_pass(
     norm_gpu = copy.deepcopy(model.model.norm)
     load_tensors_to_layer(norm_gpu, f"{lm_base}norm.", weight_map, model_path, device)
     lm_head_gpu = copy.deepcopy(model.lm_head)
-    load_tensors_to_layer(lm_head_gpu, f"{lm_head_base}lm_head.", weight_map, model_path, device)
+
+    # Tied embeddings: lm_head.weight is not stored separately in safetensors.
+    # Load embed_tokens weight instead so the forward pass works, but skip Fisher hooks.
+    lm_head_tied = not any(k.startswith(f"{lm_head_base}lm_head.") for k in weight_map)
+    if lm_head_tied:
+        load_tensors_to_layer(
+            lm_head_gpu, f"{lm_base}embed_tokens.", weight_map, model_path, device
+        )
+    else:
+        load_tensors_to_layer(
+            lm_head_gpu, f"{lm_head_base}lm_head.", weight_map, model_path, device
+        )
     for p in lm_head_gpu.parameters():
         p.requires_grad_(True)
 
     lm_head_acc = {}
     handles = []
-    for pname, param in lm_head_gpu.named_parameters():
-        full_name = f"lm_head.{pname}"
-        if full_name in weight_names_set:
-            handles.append(
-                param.register_post_accumulate_grad_hook(
-                    _make_fisher_hook(full_name, lm_head_acc)
+    if not lm_head_tied:
+        for pname, param in lm_head_gpu.named_parameters():
+            full_name = f"lm_head.{pname}"
+            if full_name in weight_names_set:
+                handles.append(
+                    param.register_post_accumulate_grad_hook(
+                        _make_fisher_hook(full_name, lm_head_acc)
+                    )
                 )
-            )
 
     grad_outs = []
     for s, input_ids in enumerate(samples):
@@ -403,62 +260,70 @@ def fisher_thread_worker(
     out_dir,
     shared_partials,
     barrier,
+    errors,
 ):
     """Full layer-wise Fisher loop for one GPU's samples."""
-    torch.cuda.set_device(gpu_id)
-    device = torch.device(f"cuda:{gpu_id}")
-    layer_list = list(model.model.layers)
+    try:
+        torch.cuda.set_device(gpu_id)
+        device = torch.device(f"cuda:{gpu_id}")
+        layer_list = list(model.model.layers)
 
-    if len(samples) == 0:
-        return
+        if len(samples) == 0:
+            return
 
-    seq_len = samples[0].shape[0] - 1
-    position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
-    position_embeddings = _compute_position_embeddings(
-        model.model, seq_len, position_ids, device
-    )
+        seq_len = samples[0].shape[0] - 1
+        position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
+        position_embeddings = _compute_position_embeddings(
+            model.model, seq_len, position_ids, device
+        )
 
-    boundary_acts = _run_forward_sweep(
-        model,
-        samples,
-        seq_len,
-        layer_list,
-        weight_map,
-        model_path,
-        lm_base,
-        device,
-        position_ids,
-        position_embeddings,
-        gpu_id,
-    )
-    lm_head_acc, grad_outs = _run_lm_head_pass(
-        model,
-        boundary_acts,
-        samples,
-        seq_len,
-        weight_names_set,
-        weight_map,
-        model_path,
-        lm_base,
-        lm_head_base,
-        device,
-    )
-    _sync_reduce_save(
-        shared_partials, barrier, gpu_id, out_dir, "chunk_lmhead.pt", lm_head_acc
-    )
-    _run_backward_sweep(
-        layer_list,
-        boundary_acts,
-        grad_outs,
-        position_ids,
-        position_embeddings,
-        weight_names_set,
-        weight_map,
-        model_path,
-        lm_base,
-        device,
-        shared_partials,
-        barrier,
-        out_dir,
-        gpu_id,
-    )
+        boundary_acts = _run_forward_sweep(
+            model,
+            samples,
+            seq_len,
+            layer_list,
+            weight_map,
+            model_path,
+            lm_base,
+            device,
+            position_ids,
+            position_embeddings,
+            gpu_id,
+        )
+        lm_head_acc, grad_outs = _run_lm_head_pass(
+            model,
+            boundary_acts,
+            samples,
+            seq_len,
+            weight_names_set,
+            weight_map,
+            model_path,
+            lm_base,
+            lm_head_base,
+            device,
+        )
+        _sync_reduce_save(
+            shared_partials, barrier, gpu_id, out_dir, "chunk_lmhead.pt", lm_head_acc
+        )
+        _run_backward_sweep(
+            layer_list,
+            boundary_acts,
+            grad_outs,
+            position_ids,
+            position_embeddings,
+            weight_names_set,
+            weight_map,
+            model_path,
+            lm_base,
+            device,
+            shared_partials,
+            barrier,
+            out_dir,
+            gpu_id,
+        )
+    except Exception as exc:
+        errors[gpu_id] = exc
+        try:
+            barrier.abort()
+        except Exception:
+            pass
