@@ -46,7 +46,6 @@ class SRPOConfig:
         width: int = WIDTH,
         guidance_scale: float = 3.5,
         compile_options: Optional[dict] = None,
-        weight_dtype_overrides: Optional[dict] = None,
     ):
         self.transformer_on_tt = transformer_on_tt
         self.height = height
@@ -55,9 +54,6 @@ class SRPOConfig:
         # Harness-set compile options (kept for parity with the other pipelines;
         # SRPO does not switch options inline since only the transformer is on TT).
         self.compile_options = compile_options or {}
-        # Optional per-tensor weight dtype overrides (e.g. {"default": "bfp_bf8"})
-        # applied to the TT-resident transformer before compile.
-        self.weight_dtype_overrides = weight_dtype_overrides
 
 
 class SRPOPipeline:
@@ -73,14 +69,6 @@ class SRPOPipeline:
         loader = ModelLoader(ModelVariant.BASE)
         self.transformer = loader.load_model(dtype_override=torch.bfloat16)
         self.pipe = loader.pipe  # full FluxPipeline, all components on CPU
-
-        if self.config.weight_dtype_overrides:
-            from tt_torch.weight_dtype import apply_weight_dtype_overrides
-
-            applied = apply_weight_dtype_overrides(
-                self.transformer, self.config.weight_dtype_overrides
-            )
-            logger.info(f"Applied {len(applied)} weight dtype overrides to transformer")
 
         if self.config.transformer_on_tt:
             self.transformer.compile(backend="tt")
