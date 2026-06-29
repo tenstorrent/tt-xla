@@ -44,15 +44,35 @@ def main():
         gpu_memory_utilization=0.02,
         additional_config={"enable_const_eval": False, "min_context_len": 32},
     )
-    params = vllm.SamplingParams(temperature=0, max_tokens=16)
+    params = vllm.SamplingParams(temperature=0, max_tokens=512)
 
     print(">>> load-mode ready (type a prompt, Ctrl-D to quit) <<<", flush=True)
+    # vLLM keeps no conversation state, so we maintain the history ourselves:
+    # each turn appends the user message, sends the WHOLE list, then appends the
+    # reply so the next turn has context. The full history re-prefills each turn
+    # (climbing the 32->...->512 bucket ladder), but with prefix caching on the
+    # shared prefix is reused so only the new suffix actually computes. Type
+    # "reset" to clear the history (and drop back to the small prefill bucket).
+    messages = []
     for line in sys.stdin:
         prompt = line.strip()
         if not prompt:
             continue
-        out = llm.generate([prompt], params)
-        print(f"\n{out[0].outputs[0].text}\n", flush=True)
+        if prompt == "reset":
+            messages = []
+            print("(history cleared)", flush=True)
+            continue
+        messages.append({"role": "user", "content": prompt})
+        # chat() applies Qwen3's chat template so the model answers instead of
+        # just continuing the text; enable_thinking=False keeps it concise.
+        out = llm.chat(
+            messages,
+            params,
+            chat_template_kwargs={"enable_thinking": False},
+        )
+        reply = out[0].outputs[0].text
+        messages.append({"role": "assistant", "content": reply})
+        print(f"\n{reply}\n", flush=True)
 
 
 if __name__ == "__main__":
