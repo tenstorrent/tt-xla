@@ -113,8 +113,7 @@ def pytest_addoption(parser):
         default=False,
         help=(
             "LLMs only: skip warmup and the timed perf loop, run a single PCC "
-            "iteration, and assert both prefill and decode. Falls back to the "
-            "TT_PCC_MODE env var if no --pcc-* flag is given."
+            "iteration, and assert both prefill and decode."
         ),
     )
 

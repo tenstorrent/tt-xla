@@ -26,7 +26,7 @@ pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
 | `--num-layers N` | Override number of model layers (positive integer) |
 | `--max-output-tokens N` | Limit generated tokens (LLMs only) (useful for profiling runs) |
 | `--decode-only` | Run prefill on CPU and only decode on device (only for local testing, cannot be combined with `--accuracy-testing`) |
-| `--pcc-only` | LLMs only: skip warmup and the timed perf loop, run a single PCC iteration, and assert both prefill and decode. Falls back to the `TT_PCC_MODE` env var |
+| `--pcc-only` | LLMs only: skip warmup and the timed perf loop, run a single PCC iteration, and assert both prefill and decode |
 | `--pcc-prefill` / `--pcc-decode` | Like `--pcc-only` but assert only prefill / only decode |
 
 

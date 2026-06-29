@@ -63,8 +63,8 @@ class PccMode:
     CPU-golden post-prefill cache so it does not inherit the device prefill's
     numerical error.
 
-    Resolved from the ``--pcc-mode`` CLI option (see ``conftest.py``), falling
-    back to the ``TT_PCC_MODE`` env var.
+    Resolved from the ``--pcc-only`` / ``--pcc-prefill`` / ``--pcc-decode`` CLI
+    flags (see ``conftest.py``).
     """
 
     pcc_only: bool
@@ -85,10 +85,6 @@ class PccMode:
         )
 
     @classmethod
-    def from_env(cls) -> "PccMode":
-        return cls.from_string(os.environ.get("TT_PCC_MODE", ""))
-
-    @classmethod
     def from_options(
         cls,
         *,
@@ -96,19 +92,20 @@ class PccMode:
         pcc_prefill: bool = False,
         pcc_decode: bool = False,
     ) -> Optional["PccMode"]:
-        """Build from the ``--pcc-only`` / ``--pcc-prefill`` / ``--pcc-decode``
-        CLI flags. Returns None when none are set, so the caller can fall back to
-        the ``TT_PCC_MODE`` env var.
+        """Build from the ``--pcc-only`` / ``--pcc-prefill`` / ``--pcc-decode`` flags.
+
+        Returns None when none are set (PCC-only iteration disabled).
         """
-        if pcc_prefill and pcc_decode:
-            pcc_only = True
-        if pcc_only:
-            return cls.from_string("both")
-        if pcc_prefill:
-            return cls.from_string("prefill")
-        if pcc_decode:
-            return cls.from_string("decode")
-        return None
+        both = pcc_only or (pcc_prefill and pcc_decode)
+        if not (both or pcc_prefill or pcc_decode):
+            return None
+        assert_decode = both or pcc_decode
+        return cls(
+            pcc_only=True,
+            assert_prefill=both or pcc_prefill,
+            assert_decode=assert_decode,
+            isolated=assert_decode,  # decode PCC is always isolated when asserted
+        )
 
 
 @dataclass
@@ -958,7 +955,7 @@ def benchmark_llm_torch_xla(
     - ``compile_config``: compilation options
     - ``sharding_config``: multi-chip mesh / specs (``None`` = single-chip)
     - ``accuracy_config``: token-accuracy testing
-    - ``pcc_mode``: PCC-only iteration (defaults to the ``TT_PCC_MODE`` env var)
+    - ``pcc_mode``: PCC-only iteration (``None`` = disabled)
 
     Notable standalone flags:
     - ``decode_only``: run prefill on CPU and benchmark only the device decode loop
@@ -971,12 +968,10 @@ def benchmark_llm_torch_xla(
     accuracy_config = accuracy_config or AccuracyConfig()
     accuracy_testing = accuracy_config.enabled
 
-    # PCC-only iteration mode.
-    # Defaults to the TT_PCC_MODE env var (a dev iteration knob) but can be
-    # passed explicitly.
+    # PCC-only iteration mode (disabled when no --pcc-* flag is set).
     # Prefill still runs first even for isolated decode: the standalone decode
     # graph crashes when compiled at optimization_level > 0.
-    pcc = pcc_mode if pcc_mode is not None else PccMode.from_env()
+    pcc = pcc_mode if pcc_mode is not None else PccMode.from_string("")
 
     _validate_args(
         data_format=data_format,
