@@ -20,10 +20,13 @@ Single-chip Blackhole memory strategy (peak ≈ max(component), not the sum):
     so the two encoders never coexist on device with the transformer.
   * Stage 2 routes the pipeline's transformer/VAE calls through compiled wrappers
     that move inputs to device and return CPU tensors each call, so the denoise
-    loop keeps only one step's activations resident. The transformer's weights
-    are converted to bfp8 (+ dram-space-saving) so they fit single-chip — bf16
-    weights (~23.8GB) + activations OOM by ~132MB (issue #5251); the VAE is placed
-    lazily at first decode (after the denoise loop).
+    loop keeps only one step's activations resident. The transformer runs in
+    bf16 (~23.8GB) and fits single-chip with the current tt-mlir/tt-metal pin —
+    confirmed by the standalone transformer component test (PCC ≥ 0.99, no OOM);
+    DRAM space-saving is kept on as a harmless safety margin (issue #5251). The
+    transformer is then evicted off device, and the VAE is placed lazily at
+    first decode (after the denoise loop) — so the bf16 transformer and the VAE
+    never coexist on the single chip.
 
 The T5 encoder runs on device with its known bf16 PCC drift (~0.9575, issue
 #5250); this e2e exercises whether the assembled image stays coherent regardless.
@@ -60,19 +63,19 @@ from third_party.tt_forge_models.flux.pytorch.src.model_utils import (
 
 NUM_INFERENCE_STEPS = 50
 
-# The transformer's bf16 weights (~23.8GB) + denoise activations exceed single-
-# chip DRAM (OOMs by ~132MB even with dram-space-saving), so convert its
-# matmul/linear weights to bfp8 (~12GB) and keep dram-space-saving (issue #5251).
+# The transformer's bf16 weights (~23.8GB) + denoise activations fit single-chip
+# DRAM with the current tt-mlir/tt-metal pin (confirmed by the transformer
+# component test: PCC >= 0.99, no OOM). DRAM space-saving is kept on as a
+# harmless headroom margin; no bfp8 weight conversion is needed (issue #5251).
 _TRANSFORMER_OPTIONS = {
     "experimental-enable-dram-space-saving-optimization": "true",
-    "experimental_weight_dtype": "bfp_bf8",
 }
 
 
 class _DeviceDenoiser:
     """Routes FluxPipeline's transformer calls to the compiled model on TT.
 
-    Compiled with bfp8 weights + DRAM space-saving so the transformer fits
+    Compiled with bf16 weights + DRAM space-saving so the transformer fits
     single-chip; exposes the ``config`` / ``dtype`` the pipeline reads
     (guidance_embeds, in_channels).
     """
@@ -82,9 +85,24 @@ class _DeviceDenoiser:
         self.config = transformer.config
         self.dtype = next(transformer.parameters()).dtype
 
-        transformer = transformer.to(self._dev)
+        self._module = transformer.to(self._dev)
         torch_xla.set_custom_compile_options(_TRANSFORMER_OPTIONS)
-        self._compiled = torch.compile(transformer, backend="tt")
+        self._compiled = torch.compile(self._module, backend="tt")
+
+    def evict(self):
+        """Move the bf16 transformer (~24GB) off device and free its DRAM.
+
+        The denoise loop is fully complete before the pipeline calls
+        ``vae.decode`` once, so we evict the transformer here to make room for
+        the VAE decode — otherwise the bf16 transformer + VAE coexist and the
+        VAE OOMs (only the bfp8 transformer was small enough to coexist).
+        """
+        import gc
+
+        self._module = self._module.to("cpu")
+        self._compiled = None
+        gc.collect()
+        torch_xla.sync()
 
     @contextmanager
     def cache_context(self, *args, **kwargs):
@@ -110,17 +128,22 @@ class _DeviceVAEDecoder:
     then calls ``vae.decode(latents, return_dict=False)[0]``.
     """
 
-    def __init__(self, vae):
+    def __init__(self, vae, denoiser=None):
         self._dev = torch_xla.device()
         self.config = vae.config
         self.dtype = next(vae.parameters()).dtype
         self._vae = vae
+        self._denoiser = denoiser
         self._compiled = None
 
     def decode(self, latents, return_dict=False):
         # Lazy device placement: keep the VAE off-device during the denoise loop
         # so it does not inflate the denoiser's peak DRAM; place it only now.
         if self._compiled is None:
+            # Free the bf16 transformer's DRAM first — the denoise loop is done,
+            # and the VAE decode needs the space the transformer would hold.
+            if self._denoiser is not None:
+                self._denoiser.evict()
             # Reset to default opt (drop DRAM space-saving): the VAE passes on
             # default options and is small enough not to need it.
             torch_xla.set_custom_compile_options({})
@@ -187,7 +210,11 @@ class FluxTTPipeline:
         # ── Stage 2: transformer (denoise) + VAE (lazy) → image ─────────────
         logger.info("[STAGE] Transformer + VAE: start")
         self.pipe.transformer = _DeviceDenoiser(self.pipe.transformer)
-        self.pipe.vae = _DeviceVAEDecoder(self.pipe.vae)
+        # Hand the denoiser to the VAE decoder so the first (post-denoise)
+        # decode evicts the bf16 transformer before placing the VAE on device.
+        self.pipe.vae = _DeviceVAEDecoder(
+            self.pipe.vae, denoiser=self.pipe.transformer
+        )
 
         generator = torch.Generator().manual_seed(seed) if seed is not None else None
         result = self.pipe(
