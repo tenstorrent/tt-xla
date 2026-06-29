@@ -224,8 +224,7 @@ def test_srpo(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        # qb2-blackhole's grid is harvested (11-wide); opt_level>=1 aborts in
-        # OpModel, so the bringup-safe default opt_level=0 is also required here.
-        optimization_level=0,
+        optimization_level=2,
+        trace_enabled=True,
         output_image_path="test_srpo_output.png",
     )
