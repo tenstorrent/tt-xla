@@ -56,9 +56,6 @@ class TTConfig:
     # Per-step prefill chunk size (caps max_num_batched_tokens); 0 (default) =
     # opt-out. When set, long prompts split into chunks of this many tokens,
     # bounding compile time + peak prefill DRAM by the chunk, not max_model_len.
-    # KNOWN LIMITATION: at max_num_seqs > 1 output may be inconsistent across
-    # requests (pre-existing batched-prefill precision issue, tt-mlir #8666);
-    # unaffected at max_num_seqs == 1.
     prefill_chunk_size: int = 0
 
     # Flag to enable data parallel execution of a model. It will require

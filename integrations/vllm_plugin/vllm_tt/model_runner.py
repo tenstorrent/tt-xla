@@ -366,15 +366,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_num_blocks_per_req % 8 == 0
         )
 
-        # Prototype (TTXLA_UNIFY_FIRST_CHUNK, default off): route the first/no-prefix
-        # chunk through the chunked op too (chunk_start_idx=0), dropping the separate
-        # standard-prefill graphs (~halves backbone precompile at long context).
-        # Keep off until chunked SDPA at chunk_start_idx=0 is bit-exact-verified
-        # against standard causal SDPA.
-        self._unify_first_chunk = self._chunked_sdpa_active and (
-            os.environ.get("TTXLA_UNIFY_FIRST_CHUNK", "0") == "1"
-        )
-
         # If chunking would occur but the page-table layout is unsupported
         # (num_blocks_per_req % 8 != 0), there is no correct cached-prefix path.
         # Fail loudly: while chunked prefill is opt-in the user asked to chunk, so
@@ -1265,15 +1256,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None).
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        if self._unify_first_chunk:
-            # Unified path: every multi-token chunk (including the first,
-            # num_computed==0) goes through the chunked op -- chunk_start_idx=0 is
-            # standard causal self-attention over the chunk with an empty prefix.
-            prefix_chunk_step = padded_total_num_scheduled_tokens > 1
-        else:
-            prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-                np.any(num_computed_for_reqs > 0)
-            )
+        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
+            np.any(num_computed_for_reqs > 0)
+        )
         chunk_start_idx = None
         if prefix_chunk_step and self._chunked_sdpa_active:
             # Prefix offset for the chunked SDPA op. All users in a chunked step
@@ -2648,16 +2633,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_tokens in self.num_tokens_paddings:
             logger.info("  -- num_tokens: %d", num_tokens)
             # Sync per token count so prefill and decode graphs stay separate.
-            if self._unify_first_chunk and num_tokens > 1:
-                # Unified: the first/no-prefix chunk also uses the chunked op, so
-                # the standard-prefill graph is never needed for num_tokens > 1.
+            _run_backbone_dummies(num_tokens, prefix_chunk=False)
+            # Precompile the cached-prefix graph for prompt chunks
+            # (num_tokens > 1) so it isn't compiled on the first continuation.
+            if chunked and num_tokens > 1:
                 _run_backbone_dummies(num_tokens, prefix_chunk=True)
-            else:
-                _run_backbone_dummies(num_tokens, prefix_chunk=False)
-                # Precompile the cached-prefix graph for prompt chunks
-                # (num_tokens > 1) so it isn't compiled on the first continuation.
-                if chunked and num_tokens > 1:
-                    _run_backbone_dummies(num_tokens, prefix_chunk=True)
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
