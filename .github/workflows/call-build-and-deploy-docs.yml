@@ -24,6 +24,15 @@ jobs:
 
   build-docs:
     runs-on: ubuntu-latest
+    environment: github-pages
+    env:
+      SEARCH_API_BASE: https://csl860x2oj.execute-api.us-east-2.amazonaws.com/prod
+      DOC_CATALOG_SOURCE_ID: docs-tenstorrent
+      DOC_SITE_BASE_URL: https://docs.tenstorrent.com/tt-xla
+      DOCS_ID_NAMESPACE: tt-xla
+      DOCS_INDEX_VERSION: latest
+      DOCS_OUTPUT_DIR: docs/build/html
+      DOCS_SEARCH_INGEST_API_KEY: ${{ secrets.DOCS_SEARCH_INGEST_API_KEY_DOCS_TENSTORRENT }}
 
     container:
       image: ${{ inputs.docker_image }}
@@ -51,6 +60,15 @@ jobs:
       shell: bash
       run: |
         bash docs/build_docs.sh
+
+    - name: Warn if search ingest key is missing
+      if: ${{ env.DOCS_SEARCH_INGEST_API_KEY == '' }}
+      run: echo "::warning::Skipping OpenSearch indexing: DOCS_SEARCH_INGEST_API_KEY_DOCS_TENSTORRENT secret not set."
+
+    - name: Index docs into OpenSearch
+      if: ${{ env.DOCS_SEARCH_INGEST_API_KEY != '' }}
+      continue-on-error: true
+      run: python scripts/index_remote_search.py
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@57f0e8492b437b7818227931fef2faa1a379839b # v4 + upload-artifact@v7 update
