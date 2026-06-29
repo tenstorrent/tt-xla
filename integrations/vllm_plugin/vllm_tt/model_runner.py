@@ -522,6 +522,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
             }
 
+        # Fail fast at startup if any per-step buffer can't be looked up by a
+        # row count _prepare_inputs will request (before SMEM clamping).
+        _reachable_num_reqs = {self.min_num_reqs, self.max_num_reqs}
+        for _name, _keys in {
+            "input_ids": {k[0] for k in self._input_ids_dev},
+            "position_ids": {k[0] for k in self._position_ids_dev},
+            "logits_indices": set(self._logits_indices_dev),
+            "page_table_dev_max": set(self._page_table_dev_max),
+            "cache_position_dev_max": set(self._cache_position_dev_max),
+        }.items():
+            assert _reachable_num_reqs <= _keys, (
+                f"{_name} buffer keyed by {sorted(_keys)} is missing reachable "
+                f"row counts {sorted(_reachable_num_reqs - _keys)}"
+            )
+
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
         # means this layer will perform attention using the keys and values
@@ -1707,6 +1722,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
                     )
 
+            logger.info(f"hidden_states: {hidden_states.shape} {hidden_states}")
+            logger.info(f"logits: {logits.shape} {logits}")
+            logger.info(f"selected_token_ids: {selected_token_ids}")
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
