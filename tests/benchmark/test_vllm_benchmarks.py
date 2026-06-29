@@ -90,6 +90,7 @@ def _tp_config(
     batch_size: int,
     *,
     gpu_memory_utilization: float = 0.1,
+    optimization_level: int = 2,
     **additional_config_extra,
 ):
     tp_defaults = {
@@ -109,6 +110,7 @@ def _tp_config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
+        optimization_level=optimization_level,
         # Keep TP configs as-is: the single-device alignment defaults
         # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
