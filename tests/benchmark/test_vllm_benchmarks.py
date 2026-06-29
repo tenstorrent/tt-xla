@@ -11,7 +11,7 @@ from benchmarks.vllm_benchmark import (
     benchmark_vllm,
     benchmark_vllm_embedding,
 )
-from naming import resolve_display_name, sanitize_model_name
+from naming import resolve_display_name, sanitize_name
 from reporting import write_benchmark_json
 
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
@@ -269,7 +269,7 @@ def _run_vllm_benchmark(config, output_file, request):
     # Dump compiler IR modules.
     config.additional_config.setdefault("export_path", "modules")
     config.additional_config.setdefault(
-        "export_model_name", sanitize_model_name(display_name)
+        "export_model_name", sanitize_name(display_name)
     )
 
     results = benchmark_vllm(config, display_name)

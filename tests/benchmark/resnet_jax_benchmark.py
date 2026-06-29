@@ -4,6 +4,7 @@
 
 import socket
 import time
+from typing import Callable, List, Tuple
 
 import jax
 import numpy as np
@@ -12,7 +13,7 @@ from jax import device_put
 from transformers import FlaxResNetForImageClassification
 from tt_jax import serialize_compiled_artifacts_to_disk
 from accuracy import compute_pcc
-from naming import perf_metrics_filename, sanitize_filename
+from naming import perf_metrics_filename, sanitize_name
 from reporting import (
     create_benchmark_result,
     get_benchmark_metadata,
@@ -24,96 +25,59 @@ from runtime import MODULE_EXPORT_PATH, get_jax_device_arch
 WARMUP_STEPS = 8
 
 
-def execute_and_measure_fps(compiled_model, inputs, params, loop_count):
-    """
-    Benchmark the model for a given number of loop_count.
-
-    Parameters:
-    ----------
-    compiled_model: Callable
-        The compiled JAX model to benchmark.
-    inputs: list of jax.Array
-        The inputs to the model.
-    params: dict
-        Model parameters.
-    loop_count: int
-        Number of batches to process.
-
-    Returns:
-    -------
-    predictions: list of jax.Array
-        The predictions made by the model (on CPU).
-    total_time: float
-        The total time taken to process the inputs in seconds.
-    """
+def execute_and_measure_fps(
+    compiled_model: Callable,
+    inputs: List["jax.Array"],
+    params: dict,
+    loop_count: int,
+) -> Tuple[List["jax.Array"], float]:
+    """Time ``loop_count`` batches; return (predictions on CPU, total_time_seconds)."""
     predictions = []
     start_time = time.perf_counter_ns()
 
     outputs = []
     for i in range(loop_count):
         start_iteration_time = time.perf_counter_ns()
-
-        # Model forward pass
         output = compiled_model(inputs[i], train=False, params=params)
         outputs.append(output.logits)
-
         end_iteration_time = time.perf_counter_ns()
         print(
             f"Iteration {i} took {(end_iteration_time - start_iteration_time) / 1e6:.04} ms"
         )
 
     start_to_cpu_time = time.perf_counter_ns()
-    # Move all outputs to CPU
     predictions = [jax.device_put(out, jax.devices("cpu")[0]) for out in outputs]
     end_to_cpu_time = time.perf_counter_ns()
     print(
         f"Moving all outputs to CPU took {(end_to_cpu_time - start_to_cpu_time) / 1e6:.04} ms"
     )
 
-    end_time = time.perf_counter_ns()
-    total_time = end_time - start_time
-    print(f"Total time: {total_time / 1e9:.04}s for {loop_count} iterations")
-    # Convert to seconds
-    total_time /= 1e9
+    total_time = (time.perf_counter_ns() - start_time) / 1e9  # ns -> s
+    print(f"Total time: {total_time:.04}s for {loop_count} iterations")
     return predictions, total_time
 
 
 def benchmark_resnet_jax(
-    variant,
-    input_size,
-    batch_size,
-    loop_count,
-    data_format,
-    model_name,
-    optimization_level=1,
-    program_cache_enabled=False,
-    trace_enabled=False,
-    experimental_weight_dtype="",
-    required_pcc=0.97,
-):
+    variant: str,
+    input_size: Tuple[int, int, int],
+    batch_size: int,
+    loop_count: int,
+    data_format: str,
+    model_name: str,
+    optimization_level: int = 1,
+    program_cache_enabled: bool = False,
+    trace_enabled: bool = False,
+    experimental_weight_dtype: str = "",
+    required_pcc: float = 0.97,
+) -> dict:
+    """Benchmark a ResNet model with JAX / tt-jax on the Tenstorrent backend.
+
+    Compiles the model, times inference, and validates output via PCC.
+    ``variant`` is a HuggingFace id (e.g. ``"microsoft/resnet-50"``).
+    ``input_size`` is channel-first (channels, height, width).
+
+    Returns the standardized result dict.
     """
-    Benchmark ResNet model using JAX and tt-jax.
-
-    This function compiles a ResNet model with JAX for the Tenstorrent backend,
-    and measures its inference performance.
-
-    Args:
-        variant: HuggingFace model variant (e.g., "microsoft/resnet-50")
-        input_size: Tuple of (channels, height, width) for model inputs
-        batch_size: Batch size for inference
-        loop_count: Number of inference iterations to benchmark
-        data_format: Data format (e.g., "float32")
-        model_name: Model name for identification and reporting
-        optimization_level: tt-mlir optimization level for compilation
-        program_cache_enabled: Whether to enable program cache
-        trace_enabled: Whether to enable tracing
-        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
-        required_pcc: Minimum PCC threshold for output validation
-
-    Returns:
-        Benchmark result containing performance metrics and model information
-    """
-
     tt_device = jax.devices("tt")[0]
     cpu_device = jax.devices("cpu")[0]
 
@@ -162,7 +126,6 @@ def benchmark_resnet_jax(
     # Compile the forward pass
     compiled_fwd = jax.jit(framework_model.__call__, static_argnames=["train"])
 
-    # Warmup
     print("Starting warmup...")
     warmup_loop_count = min(WARMUP_STEPS, loop_count)
     warmup_inputs = inputs[:warmup_loop_count]
@@ -174,7 +137,6 @@ def benchmark_resnet_jax(
     )
     print("Warmup completed.")
 
-    # Benchmark
     print("Starting benchmark...")
     predictions, total_time = execute_and_measure_fps(
         compiled_model=compiled_fwd,
@@ -209,8 +171,7 @@ def benchmark_resnet_jax(
         input_size=input_size,
     )
 
-    # Evaluate PCC
-    # Convert JAX arrays to PyTorch tensors for PCC comparison
+    # Convert JAX arrays to PyTorch tensors for PCC comparison.
     golden_tensor = torch.from_numpy(np.asarray(golden_output))
     prediction_tensor = torch.from_numpy(np.asarray(predictions[0]))
     pcc_value = compute_pcc(golden_tensor, prediction_tensor)
@@ -252,8 +213,7 @@ def test_resnet_jax(output_file):
     data_format = "float32"
     model_name = "resnet_jax"
 
-    # Sanitize model name for safe filesystem usage
-    sanitized_model_name = sanitize_filename(model_name)
+    sanitized_model_name = sanitize_name(model_name)
     ttnn_perf_metrics_output_file = perf_metrics_filename(sanitized_model_name)
 
     print(f"Running JAX benchmark for model: {model_name}")

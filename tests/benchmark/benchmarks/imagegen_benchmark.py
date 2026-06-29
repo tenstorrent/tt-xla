@@ -23,6 +23,7 @@ and emits a standardized benchmark result.
 """
 
 import time
+from typing import Callable, Optional
 
 from model_utils import save_image
 from naming import build_xla_export_name
@@ -37,38 +38,28 @@ init_tt_runtime()
 
 
 def benchmark_imagegen_torch_xla(
-    build_pipeline_fn,
-    model_info_name,
-    prompt,
-    num_inference_steps,
-    height,
-    width,
-    optimization_level,
-    trace_enabled,
-    ttnn_perf_metrics_output_file,
-    display_name=None,
-    output_image_path=None,
-):
+    build_pipeline_fn: Callable,
+    model_info_name: str,
+    prompt: str,
+    num_inference_steps: int,
+    height: int,
+    width: int,
+    optimization_level: int,
+    trace_enabled: bool,
+    ttnn_perf_metrics_output_file: str,
+    display_name: Optional[str] = None,
+    output_image_path: Optional[str] = None,
+) -> dict:
     """Benchmark a text-to-image diffusion pipeline on the TT backend.
 
-    Args:
-        build_pipeline_fn: ``build_pipeline_fn(compile_options) -> (pipeline, generate_fn)``.
-            ``compile_options`` is forwarded so the pipeline can merge instead
-            of overwriting if it needs to switch any option inline.
-            ``generate_fn(prompt, num_inference_steps) -> image tensor (B, 3, H, W)``
-            runs one full text-to-image generation.
-        model_info_name: Model name for identification and reporting.
-        prompt: Text prompt to generate from.
-        num_inference_steps: Number of denoising steps per generation.
-        height, width: Output image dimensions.
-        optimization_level: tt-mlir optimization level for compilation.
-        trace_enabled: Whether to enable tracing.
-        ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
-        display_name: Display name used for export naming / dashboard.
-        output_image_path: If set, the steady-state image is saved here.
+    Per-model hooks:
+    - ``build_pipeline_fn(compile_options) -> (pipeline, generate_fn)`` - receives
+      the compile options to merge (rather than overwrite) any it switches inline
+    - ``generate_fn(prompt, num_inference_steps) -> (B, 3, H, W)`` - runs one full
+      generation
 
-    Returns:
-        Standardized benchmark result dict (see ``create_benchmark_result``).
+    If ``output_image_path`` is set the steady-state image is saved there.
+    Returns the standardized result dict.
     """
     export_model_name = build_xla_export_name(
         model_name=display_name or model_info_name,

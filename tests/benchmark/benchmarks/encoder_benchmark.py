@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
-from typing import List
+from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch_xla
@@ -23,25 +23,17 @@ WARMUP_STEPS = 3  # Number of warmup iterations before benchmarking
 
 
 def run_encoder_model(
-    model,
+    model: Callable,
     raw_inputs: List[str],
-    preprocess_fn,
-    device,
-    output_processor_fn,
+    preprocess_fn: Callable,
+    device: torch.device,
+    output_processor_fn: Callable,
 ) -> torch.Tensor:
-    """Preprocess (tokenize) and encode sentences using the provided output processor.
+    """Tokenize, run, and post-process sentences into [B, H] embeddings.
 
-    Args:
-        model: Encoder model instance
-        raw_inputs: Raw input sentences to encode
-        preprocess_fn: Function to preprocess inputs (tokenization + moving to device).
-            Signature: fn(sentences, device) -> dict with model input kwargs
-        device: Device to run inference on
-        output_processor_fn: Function to process model outputs into embeddings.
-            Signature: fn(outputs, model_inputs) -> embeddings
-
-    Returns:
-        torch.Tensor: Sentence embeddings with shape [batch_size, hidden_size]
+    Per-model hooks:
+    - ``preprocess_fn(sentences, device) -> input kwargs``
+    - ``output_processor_fn(outputs, model_inputs) -> embeddings``
     """
     model_inputs = preprocess_fn(raw_inputs, device)
     outputs = model(**model_inputs)
@@ -55,26 +47,14 @@ def run_encoder_model(
 
 
 def warmup_encoder_model(
-    model, raw_inputs, preprocess_fn, device, output_processor_fn, loop_count
-):
-    """
-    Warmup the encoder model for a given number of iterations.
-
-    Parameters:
-    ----------
-    model: Callable
-        The model to warmup.
-    raw_inputs: List[str]
-        Raw input sentences for the model.
-    preprocess_fn: Callable
-        Function to preprocess inputs (tokenization + device placement).
-    device: torch.device
-        The device to run the warmup on.
-    output_processor_fn: Callable
-        Function to process model outputs into embeddings.
-    loop_count: int
-        The number of iterations to warmup the model.
-    """
+    model: Callable,
+    raw_inputs: List[str],
+    preprocess_fn: Callable,
+    device: torch.device,
+    output_processor_fn: Callable,
+    loop_count: int,
+) -> None:
+    """Run ``loop_count`` warmup iterations of the encoder model."""
     print("Warming up the device...")
 
     with torch.no_grad():
@@ -87,33 +67,14 @@ def warmup_encoder_model(
 
 
 def measure_fps_encoder_model(
-    model, raw_inputs, preprocess_fn, device, output_processor_fn, loop_count
-):
-    """
-    Benchmark the encoder model for a given number of iterations.
-
-    Parameters:
-    ----------
-    model: Callable
-        The model to benchmark.
-    raw_inputs: List[str]
-        Raw input sentences for the model.
-    preprocess_fn: Callable
-        Function to preprocess inputs (tokenization + device placement).
-    device: torch.device
-        The device to run the benchmark on.
-    output_processor_fn: Callable
-        Function to process model outputs into embeddings.
-    loop_count: int
-        Number of iterations to process.
-
-    Returns:
-    -------
-    predictions: list of torch.Tensor
-        The predictions made by the model.
-    total_time: float
-        The total time taken to process the inputs in seconds.
-    """
+    model: Callable,
+    raw_inputs: List[str],
+    preprocess_fn: Callable,
+    device: torch.device,
+    output_processor_fn: Callable,
+    loop_count: int,
+) -> Tuple[List[torch.Tensor], float]:
+    """Time ``loop_count`` iterations; return (predictions, total_time_seconds)."""
     print("Starting benchmark loop...")
 
     predictions = []
@@ -133,72 +94,45 @@ def measure_fps_encoder_model(
                 f"Iteration\t{i+1}/{loop_count}\ttook {iteration_times[-1] / 1e6:.04} ms"
             )
 
-    total_time = sum(iteration_times)
-    # Convert to seconds
-    total_time /= 1e9
-
+    total_time = sum(iteration_times) / 1e9  # ns -> s
     return predictions, total_time
 
 
 def benchmark_encoder_torch_xla(
-    model,
-    model_info_name,
-    optimization_level,
-    trace_enabled,
-    batch_size,
-    input_sequence_length,
-    loop_count,
-    data_format,
-    ttnn_perf_metrics_output_file,
-    load_inputs_fn,
-    preprocess_fn,
-    output_processor_fn,
-    display_name=None,
-    num_layers_override=None,
-    required_pcc=0.97,
-    experimental_weight_dtype="",
-    experimental_enable_permute_matmul_fusion=False,
-):
-    """
-    Benchmark an encoder model using PyTorch and torch-xla.
+    model: torch.nn.Module,
+    model_info_name: str,
+    optimization_level: int,
+    trace_enabled: bool,
+    batch_size: int,
+    input_sequence_length: int,
+    loop_count: int,
+    data_format: str,
+    ttnn_perf_metrics_output_file: str,
+    load_inputs_fn: Callable,
+    preprocess_fn: Callable,
+    output_processor_fn: Callable,
+    display_name: Optional[str] = None,
+    num_layers_override: Optional[int] = None,
+    required_pcc: float = 0.97,
+    experimental_weight_dtype: str = "",
+    experimental_enable_permute_matmul_fusion: bool = False,
+) -> dict:
+    """Benchmark an encoder model with torch-xla on the Tenstorrent backend.
 
-    This function compiles an encoder model with torch-xla for the Tenstorrent backend,
-    and measures its end-to-end inference performance. It performs warmup runs, collects metrics,
-    and validates output correctness via PCC (Pearson Correlation Coefficient).
+    Compiles the model, warms up, times end-to-end inference (tokenization runs
+    per iteration and is included in the timing), and validates output via PCC.
 
-    Preprocessing (tokenization) happens per iteration inside encode_sentences(), so its time
-    is included in benchmark measurements.
+    Per-model hooks:
+    - ``load_inputs_fn(batch_size) -> sentences``
+    - ``preprocess_fn(sentences, device) -> input kwargs``
+    - ``output_processor_fn(outputs, model_inputs) -> embeddings``
 
-    Args:
-        model: Loaded encoder model instance in eval mode
-        model_info_name: Model name for identification and reporting
-        optimization_level: tt-mlir optimization level for compilation
-        trace_enabled: Whether to enable tracing
-        batch_size: Batch size for inference
-        input_sequence_length: Maximum sequence length for tokenization
-        loop_count: Number of inference iterations to benchmark
-        data_format: Data precision format
-        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
-        load_inputs_fn: Function to load raw inputs for the model.
-            Signature: fn(batch_size) -> List[str]
-        preprocess_fn: Function to preprocess inputs (tokenization + device placement).
-            Signature: fn(sentences, device) -> dict with model input kwargs
-        output_processor_fn: Function to process model outputs into embeddings.
-            Signature: fn(outputs, model_inputs) -> embeddings.
-            This function should extract hidden states and apply the appropriate pooling.
-        required_pcc: Minimum PCC threshold for output validation
-        experimental_weight_dtype: Weight dtype for block format conversion ("bfp_bf8", "bfp_bf4", or "" for none)
-        experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
-
-    Returns:
-        Benchmark result containing performance metrics and model information
+    Returns the standardized benchmark-result dict.
     """
     framework_model = model
 
-    # Load raw inputs for all iterations
     raw_inputs = load_inputs_fn(batch_size)
 
-    # Generate golden output for PCC calculation
     print("Generating golden output on CPU...")
     with torch.no_grad():
         golden_output = run_encoder_model(
@@ -212,7 +146,6 @@ def benchmark_encoder_torch_xla(
         input_sequence_length=input_sequence_length,
     )
 
-    # Set XLA compilation options
     set_compile_options(
         optimization_level=optimization_level,
         export_model_name=export_model_name,
@@ -222,14 +155,10 @@ def benchmark_encoder_torch_xla(
         experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
     )
 
-    # Compile model
     framework_model.compile(backend="tt")
-
     device = torch_xla.device()
-
     framework_model = framework_model.to(device)
 
-    # Warmup
     warmup_count = min(WARMUP_STEPS, loop_count)
     warmup_encoder_model(
         model=framework_model,
@@ -240,7 +169,6 @@ def benchmark_encoder_torch_xla(
         loop_count=warmup_count,
     )
 
-    # Benchmark
     predictions, total_time = measure_fps_encoder_model(
         model=framework_model,
         raw_inputs=raw_inputs,
@@ -250,7 +178,6 @@ def benchmark_encoder_torch_xla(
         loop_count=loop_count,
     )
 
-    # Evaluate PCC
     evaluation_score = assert_pcc(predictions[0], golden_output, required_pcc)
 
     total_samples = batch_size * loop_count

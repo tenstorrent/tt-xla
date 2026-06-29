@@ -2,12 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Turning a benchmark run into a standardized, printed, and persisted result.
+"""Turn a benchmark run into a standardized, printed, and persisted result.
 
-Owns the result/measurement schema, the human-readable summary printer, the
-output-file writer, the TTNN perf-metric aggregation, and the shared
-text-generation measurement constructors (used by both the llm and vllm
-benchmarks). Pure and device-free.
+Owns:
+- the result / measurement schema
+- the human-readable summary printer
+- the output-file writer
+- the TTNN perf-metric aggregation
+- the shared text-generation measurement constructors (llm + vllm)
+
+Pure and device-free.
 """
 
 import json
@@ -18,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 
 def get_benchmark_metadata() -> Dict[str, str]:
-    """Get common benchmark metadata."""
+    """Common benchmark metadata (date + machine name)."""
     return {
         "date": datetime.now().strftime("%d-%m-%Y"),
         "machine_name": socket.gethostname(),
@@ -28,8 +32,8 @@ def get_benchmark_metadata() -> Dict[str, str]:
 def ttft_measurement(ttft_ms: float) -> Dict[str, Any]:
     """Custom-measurement entry for time-to-first-token (milliseconds).
 
-    Shared vocabulary between the llm and vllm text-generation benchmarks: each
-    computes ``ttft_ms`` its own way (on-device iteration timings vs. vLLM
+    Shared vocabulary between the llm and vllm text-generation benchmarks.
+    Each computes ``ttft_ms`` its own way (on-device iteration timings vs. vLLM
     engine metrics) but agrees here on the measurement shape.
     """
     return {"measurement_name": "ttft", "value": ttft_ms, "target": -1}
@@ -45,59 +49,43 @@ def throughput_measurement(samples_per_sec: float) -> Dict[str, Any]:
 
 
 def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
-    """
-    Aggregate TTNN performance metrics from multiple graph files and update results.
-
-    Parameters:
-    ----------
-    ttnn_perf_metrics_output_file: str
-        Base name for the perf metrics files to aggregate.
-    results: dict
-        Results dictionary to update with aggregated metrics. Modified in place.
-    """
-    # If the perf_metrics report files exist, load and aggregate results from all graphs
+    """Sum the per-graph TTNN perf metrics into ``results["config"]`` (in place)."""
     base_name = os.path.basename(ttnn_perf_metrics_output_file)
     perf_files = [
         f for f in os.listdir(".") if f.startswith(base_name) and f.endswith(".json")
     ]
+    if not perf_files:
+        return
 
-    if perf_files:
-        # Initialize aggregated metrics
-        total_ops = 0
-        total_shardable_ops = 0
-        effectively_sharded_ops = 0
-        system_memory_ops = 0
-        num_graphs_with_metrics = 0
+    total_ops = 0
+    total_shardable_ops = 0
+    effectively_sharded_ops = 0
+    system_memory_ops = 0
+    num_graphs_with_metrics = 0
 
-        for perf_file in sorted(perf_files):
-            with open(perf_file, "r") as f:
-                perf_metrics_data = json.load(f)
+    for perf_file in sorted(perf_files):
+        with open(perf_file, "r") as f:
+            perf_metrics_data = json.load(f)
 
-            if "summary" in perf_metrics_data and isinstance(
-                perf_metrics_data["summary"], dict
-            ):
-                summary = perf_metrics_data["summary"]
-                total_ops += summary.get("total_ops", 0)
-                total_shardable_ops += summary.get("total_shardable_ops", 0)
-                effectively_sharded_ops += summary.get("effectively_sharded_ops", 0)
-                system_memory_ops += summary.get("system_memory_ops", 0)
-                num_graphs_with_metrics += 1
+        summary = perf_metrics_data.get("summary")
+        if isinstance(summary, dict):
+            total_ops += summary.get("total_ops", 0)
+            total_shardable_ops += summary.get("total_shardable_ops", 0)
+            effectively_sharded_ops += summary.get("effectively_sharded_ops", 0)
+            system_memory_ops += summary.get("system_memory_ops", 0)
+            num_graphs_with_metrics += 1
 
-        if num_graphs_with_metrics > 0:
-            results["config"]["ttnn_total_ops"] = total_ops
-            results["config"]["ttnn_total_shardable_ops"] = total_shardable_ops
-            results["config"]["ttnn_effectively_sharded_ops"] = effectively_sharded_ops
-            results["config"]["ttnn_system_memory_ops"] = system_memory_ops
-
-            # Calculate aggregated percentage
-            if total_shardable_ops > 0:
-                results["config"]["ttnn_effectively_sharded_percentage"] = (
-                    effectively_sharded_ops / total_shardable_ops
-                ) * 100
-            else:
-                results["config"]["ttnn_effectively_sharded_percentage"] = 0.0
-
-            results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
+    if num_graphs_with_metrics > 0:
+        results["config"]["ttnn_total_ops"] = total_ops
+        results["config"]["ttnn_total_shardable_ops"] = total_shardable_ops
+        results["config"]["ttnn_effectively_sharded_ops"] = effectively_sharded_ops
+        results["config"]["ttnn_system_memory_ops"] = system_memory_ops
+        results["config"]["ttnn_effectively_sharded_percentage"] = (
+            (effectively_sharded_ops / total_shardable_ops) * 100
+            if total_shardable_ops > 0
+            else 0.0
+        )
+        results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
 
 
 def aggregate_llm_decode_perf(ttnn_perf_metrics_output_file, results) -> None:
@@ -106,15 +94,10 @@ def aggregate_llm_decode_perf(ttnn_perf_metrics_output_file, results) -> None:
     Unlike :func:`aggregate_ttnn_perf_metrics` (which sums every graph), an LLM
     run emits exactly two perf-metric files - prefill (graph ``0``) and decode
     (graph ``1``) - and only the decode graph drives steady-state throughput, so
-    we report that one alone. If the expected two files are not present we record
-    how many were found and skip the metrics rather than guessing.
+    we report that one alone.
 
-    Parameters
-    ----------
-    ttnn_perf_metrics_output_file: str
-        Base name for the perf-metric files to look up.
-    results: dict
-        Result dictionary to update in place (``results["config"]``).
+    If the expected two files are not present we record how many were found and
+    skip the metrics rather than guessing.
     """
     base_name = os.path.basename(ttnn_perf_metrics_output_file)
     perf_files = sorted(
@@ -210,7 +193,6 @@ def print_benchmark_results(
 
     print("====================================================================")
 
-    # Print validation results (Token Accuracy or PCC)
     if top1_accuracy is not None and top5_accuracy is not None:
         print("\n=== Token Accuracy Results ===")
         print(f"TOP1 Accuracy: {top1_accuracy * 100:.2f}%")
@@ -273,27 +255,20 @@ def create_benchmark_result(
 ) -> Dict[str, Any]:
     """Create a standardized benchmark result dictionary.
 
-    Args:
-        custom_measurements: List of additional measurement dictionaries to include.
-                           Each measurement should have keys: measurement_name, value, and optionally
-                           iteration, step_name, step_warm_up_num_iterations, target, device_power, device_temperature
+    ``custom_measurements`` entries must carry ``measurement_name`` and ``value``.
+    The other measurement fields are filled with defaults when absent.
     """
-    # Create standard measurements
     measurements = [
         create_measurement("total_samples", total_samples, full_model_name),
         create_measurement("total_time", total_time, full_model_name),
     ]
-
-    # Add evaluation score if provided
     if evaluation_score is not None:
         measurements.append(
             create_measurement("evaluation_score", evaluation_score, full_model_name)
         )
 
-    # Add custom measurements if provided
     if custom_measurements:
         for custom_measurement in custom_measurements:
-            # Ensure required fields are present
             if (
                 "measurement_name" not in custom_measurement
                 or "value" not in custom_measurement
@@ -302,7 +277,6 @@ def create_benchmark_result(
                     "Custom measurements must include 'measurement_name' and 'value' fields"
                 )
 
-            # Fill in default values for missing fields
             measurement = {
                 "iteration": custom_measurement.get("iteration", 1),
                 "step_name": custom_measurement.get("step_name", full_model_name),
@@ -340,7 +314,7 @@ def create_benchmark_result(
     image_dimension = ""
     if input_is_image:
         # input_size is (channels, height, width)
-        image_dimension = f"{input_size[0]}x{input_size[1]}x{input_size[2]}"
+        image_dimension = "x".join(str(d) for d in input_size)
 
     run_type = f"{'_'.join(full_model_name.split())}_{batch_size}_{'_'.join([str(dim) for dim in input_size])}_{num_layers}_{loop_count}"
     if vllm:
@@ -386,10 +360,10 @@ def write_benchmark_json(
     here.
 
     If ``ttnn_perf_metrics_file`` is given, the per-graph TTNN perf metrics are
-    aggregated into ``results["config"]`` before writing (the vision / encoder /
-    imagegen / resnet drivers share this step). Other domain-specific
-    post-processing (e.g. the LLM decode-graph perf aggregation) should mutate
-    ``results`` *before* calling this.
+    aggregated into ``results["config"]`` before writing (shared by the vision /
+    encoder / imagegen / resnet drivers).
+    Other domain-specific post-processing (e.g. the LLM decode-graph perf
+    aggregation) should mutate ``results`` *before* calling this.
     """
     results["project"] = project
     results["model_rawname"] = model_rawname

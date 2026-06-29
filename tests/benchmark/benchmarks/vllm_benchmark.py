@@ -104,11 +104,8 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
 def _extract_metrics(
     outputs: List[vllm.RequestOutput],
 ) -> Tuple[float, List[int], float, float]:
-    """
-    Extract per-request metrics and return aggregated per-user values.
-
-    Returns:
-        (avg_ttft_ms, tokens_per_user, avg_decode_time_s, avg_tokens_per_sec)
+    """Aggregate per-request metrics into per-user values:
+    ``(avg_ttft_ms, tokens_per_user, avg_decode_time_s, avg_tokens_per_sec)``.
     """
     ttft_values = []
 
@@ -167,14 +164,11 @@ def _extract_metrics(
 def _get_device_info(
     config: VLLMBenchmarkConfig,
 ) -> Tuple[str, int, Optional[Tuple[int, int]]]:
-    """
-    Derive device info from config.
+    """Derive ``(arch, device_count, mesh_shape)`` from config.
 
-    This is a workaround as these info are needed for the benchmark schema, but
-    vLLM abstracts the device layer. Mesh shape follows the plugin convention (num_devices, 1).
-
-    Returns:
-        (arch, device_count, mesh_shape)
+    A workaround: the benchmark schema needs this device info but vLLM abstracts
+    the device layer.
+    Mesh shape follows the plugin convention ``(num_devices, 1)``.
     """
     if config.additional_config.get("enable_tensor_parallel", False):
         return "wormhole_llmbox", 8, (8, 1)

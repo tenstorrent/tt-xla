@@ -7,9 +7,10 @@ and reading device properties.
 
 This is the shared benchmark module that talks to the live runtime (it selects
 the torch-xla runtime, registers custom compile options, and queries device
-arch / count). Everything here has side effects on global state or depends on a
-running device — keep pure, device-free helpers in the other modules
-(``reporting``, ``accuracy``, ``naming``, ``model_utils``).
+arch / count).
+Everything here has side effects on global state or depends on a running device
+- keep pure, device-free helpers in the other modules (``reporting``,
+``accuracy``, ``naming``, ``model_utils``).
 
 ``torch_xla`` / ``jax`` are imported lazily inside the functions that need them
 so that, e.g., the JAX resnet benchmark can pull ``get_jax_device_arch`` without
@@ -85,10 +86,11 @@ def build_compile_options(
 ) -> dict:
     """Assemble the torch-xla custom compile-options dict.
 
-    The base keys are always present. The ``experimental_*`` weight-dtype and
-    permute-fusion keys are only emitted when explicitly passed (drivers that
-    don't expose them omit them entirely). The remaining optionals follow the
-    historical "include only when meaningfully set" rule.
+    The base keys are always present.
+    The ``experimental_*`` weight-dtype and permute-fusion keys are only emitted
+    when explicitly passed (drivers that don't expose them omit them entirely).
+    The remaining optionals follow the historical "include only when meaningfully
+    set" rule.
     """
     options = {
         "optimization_level": optimization_level,

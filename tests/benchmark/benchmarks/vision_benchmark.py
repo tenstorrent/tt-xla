@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Built-in modules
 import time
+from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,30 +23,18 @@ WARMUP_STEPS = 32
 
 
 def execute_and_measure_fps(
-    model, inputs, device, loop_count, extract_output_tensor_fn
-):
-    """
-    Benchmark the model for a given number of loop_count.
+    model: Callable,
+    inputs: List[torch.Tensor],
+    device: torch.device,
+    loop_count: int,
+    extract_output_tensor_fn: Callable,
+) -> Tuple[List[torch.Tensor], float]:
+    """Time ``loop_count`` batches; return (predictions on CPU, total_time_seconds).
 
-    Parameters:
-    ----------
-    model: Callable
-        The model to benchmark.
-    inputs: list of torch.Tensor
-        The inputs to the model.
-    device: torch.device
-        The device to run the benchmark on.
-    loop_count: int
-        Number of batches to process.
-    extract_output_tensor_fn: Callable
-        Function to extract tensor from model output (e.g. get .logits from HF output).
-
-    Returns:
-    -------
-    predictions: list of torch.Tensor
-        The predictions made by the model (on CPU).
-    total_time: float
-        The total time taken to process the inputs in seconds.
+    ``extract_output_tensor_fn`` pulls the tensor out of the model output
+    (e.g. ``.logits`` from a HF output).
+    Outputs are kept on device through the timed loop and moved to CPU together
+    at the end to avoid per-step syncs.
     """
     predictions = []
     start_time = time.perf_counter_ns()
@@ -54,13 +42,8 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
             device_input = inputs[i].to(device)
-
-            # Model forward, non blocking
             output = model(device_input)
-
-            # Extract output tensor
             output = extract_output_tensor_fn(output)
             outputs.append(output)
             end_iteration_time = time.perf_counter_ns()
@@ -69,68 +52,48 @@ def execute_and_measure_fps(
             )
 
         start_to_cpu_time = time.perf_counter_ns()
-        # Move all outputs to CPU
         predictions = [out.to("cpu") for out in outputs]
         end_to_cpu_time = time.perf_counter_ns()
         print(
             f"Moving all outputs to CPU took {(end_to_cpu_time - start_to_cpu_time) / 1e6:.04} ms"
         )
 
-    end_time = time.perf_counter_ns()
-    total_time = end_time - start_time
-    print(f"Total time: {total_time / 1e9:.04}s for {loop_count} iterations")
-    # Convert to seconds
-    total_time /= 1e9
+    total_time = (time.perf_counter_ns() - start_time) / 1e9
+    print(f"Total time: {total_time:.04}s for {loop_count} iterations")
     return predictions, total_time
 
 
 def benchmark_vision_torch_xla(
-    model,
-    model_info_name,
-    optimization_level,
-    trace_enabled,
-    batch_size,
-    loop_count,
-    input_size,
-    data_format,
-    ttnn_perf_metrics_output_file,
-    load_inputs_fn,
-    extract_output_tensor_fn,
-    display_name=None,
-    required_pcc=0.97,
-):
+    model: torch.nn.Module,
+    model_info_name: str,
+    optimization_level: int,
+    trace_enabled: bool,
+    batch_size: int,
+    loop_count: int,
+    input_size: Tuple[int, int, int],
+    data_format: torch.dtype,
+    ttnn_perf_metrics_output_file: str,
+    load_inputs_fn: Callable,
+    extract_output_tensor_fn: Callable,
+    display_name: Optional[str] = None,
+    required_pcc: float = 0.97,
+) -> dict:
+    """Benchmark a vision model with torch-xla on the Tenstorrent backend.
+
+    Compiles the model, warms up, times inference, and validates output via PCC.
+    ``input_size`` is channel-first (channels, height, width).
+
+    Per-model hooks:
+    - ``load_inputs_fn(batch_size, dtype) -> batch``
+    - ``extract_output_tensor_fn(output) -> tensor`` (e.g. ``.logits``)
+
+    Returns the standardized benchmark-result dict.
     """
-    Benchmark a vision model using PyTorch and torch-xla.
-
-    This function compiles a vision model with torch-xla for the Tenstorrent backend,
-    and measures its inference performance. It performs warmup runs, collects inference metrics,
-    and validates output correctness via PCC (Pearson Correlation Coefficient).
-
-    Args:
-        model: Loaded model instance in eval mode
-        model_info_name: Model name for identification and reporting
-        optimization_level: tt-mlir optimization level for compilation
-        trace_enabled: Whether to enable tracing
-        batch_size: Batch size for inference
-        loop_count: Number of inference iterations to benchmark
-        input_size: Tuple of (channels, height, width) for model inputs (channel-first format)
-        data_format: torch.dtype for model precision (e.g., torch.bfloat16, torch.float32)
-        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
-        load_inputs_fn: Function to load a single batch of preprocessed inputs.
-            Signature: fn(batch_size, dtype: torch.dtype) -> Tensor
-        extract_output_tensor_fn: Function to extract tensor from model outputs (e.g. get .logits).
-        required_pcc: Minimum PCC threshold for output validation
-
-    Returns:
-        Benchmark result containing performance metrics and model information
-    """
-
     framework_model = model
 
-    # Generate_inputs
     inputs = [load_inputs_fn(batch_size, data_format) for _ in range(loop_count)]
 
-    # Generate golden output for PCC calculation (run on CPU)
+    # CPU golden for the PCC check.
     golden_input = inputs[0]
     with torch.no_grad():
         golden_output = framework_model(golden_input)
@@ -143,7 +106,6 @@ def benchmark_vision_torch_xla(
         input_sequence_length=None,
     )
 
-    # Set XLA compilation options
     set_compile_options(
         optimization_level=optimization_level,
         export_model_name=export_model_name,
@@ -151,9 +113,7 @@ def benchmark_vision_torch_xla(
         enable_trace=trace_enabled,
     )
 
-    # Compile model
     framework_model.compile(backend="tt")
-
     device = torch_xla.device()
 
     # Clear num_batches_tracked on BatchNorm layers to avoid creating an extra
@@ -166,7 +126,6 @@ def benchmark_vision_torch_xla(
 
     framework_model = framework_model.to(device, dtype=data_format)
 
-    # Warmup
     print("Starting warmup...")
     warmup_loop_count = min(WARMUP_STEPS, loop_count)
     warmup_inputs = inputs[:warmup_loop_count]
@@ -179,7 +138,6 @@ def benchmark_vision_torch_xla(
     )
     print("Warmup completed.")
 
-    # Benchmark
     print("Starting benchmark...")
     predictions, total_time = execute_and_measure_fps(
         model=framework_model,
@@ -200,7 +158,6 @@ def benchmark_vision_torch_xla(
     dataset_name = "Random Data"
     num_layers = -1
 
-    # Convert dtype to string for reporting
     if data_format == torch.bfloat16:
         data_format_str = "bfloat16"
     elif data_format == torch.float32:
@@ -225,7 +182,6 @@ def benchmark_vision_torch_xla(
         input_size=input_size,
     )
 
-    # Evaluate PCC
     assert_pcc(predictions[0], golden_output, required_pcc)
 
     result = create_benchmark_result(

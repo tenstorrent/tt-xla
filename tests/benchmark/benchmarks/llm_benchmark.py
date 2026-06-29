@@ -167,17 +167,7 @@ class AccuracyConfig:
 def setup_model_and_tokenizer(
     model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
-    """
-    Instantiate model and tokenizer.
-
-    Args:
-        model_loader: Loader of the HuggingFace model.
-        model_variant: Specific variant of the model.
-        expert_implementation: Expert implementation type
-
-    Returns:
-        Tuple of (model, tokenizer)
-    """
+    """Instantiate the (eval-mode) model and its tokenizer."""
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
     model_kwargs = {}
@@ -208,20 +198,11 @@ def construct_inputs(
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
 ) -> dict:
-    """
-    Construct inputs including static cache.
+    """Build the input dict (input_ids, past_key_values, cache_position, use_cache).
 
-    Args:
-        tokenizer: Tokenizer instance
-        model_config: Model configuration
-        batch_size: Batch size
-        max_cache_len: Maximum cache length
-        input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
-        input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
-        use_mla_cache: Whether to use MLA cache
-
-    Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+    ``input_prompt_tokens`` overrides ``input_prompt`` (which defaults to
+    ``DEFAULT_INPUT_PROMPT``).
+    ``use_mla_cache`` selects the MLA cache.
     """
     if input_prompt_tokens is not None:
         if input_prompt_tokens.ndim != 1:
@@ -293,16 +274,7 @@ def get_mesh(model_loader, mesh_config_fn):
 
 
 def transfer_to_device(input_args: dict, device: torch.device) -> dict:
-    """
-    Transfer inputs to device.
-
-    Args:
-        input_args: Input arguments dictionary
-        device: Target device
-
-    Returns:
-        input_args on device
-    """
+    """Move the input args (and their KV-cache layers) onto ``device`` in place."""
     for layer in input_args["past_key_values"].layers:
         if isinstance(layer, MLAStaticLayer):
             layer.compressed_kv = layer.compressed_kv.to(device)
@@ -953,73 +925,57 @@ def run_logits_phase(ctx: DeviceRunContext, *, max_output_tokens):
 
 def benchmark_llm_torch_xla(
     model_loader,
-    model_variant,
-    display_name,
-    batch_size,
-    loop_count,
-    task,
-    data_format,
-    input_sequence_length,
-    ttnn_perf_metrics_output_file,
-    read_logits_fn,
-    required_pcc,
+    model_variant: str,
+    display_name: str,
+    batch_size: int,
+    loop_count: int,
+    task: str,
+    data_format: str,
+    input_sequence_length: int,
+    ttnn_perf_metrics_output_file: str,
+    read_logits_fn: Callable,
+    required_pcc: float,
     compile_config: CompileConfig,
     sharding_config: Optional[ShardingConfig] = None,
     accuracy_config: Optional[AccuracyConfig] = None,
     pcc_mode: Optional[PccMode] = None,
-    max_output_tokens=None,
+    max_output_tokens: Optional[int] = None,
     decode_only: bool = False,
-    weight_dtype_overrides: dict = None,
+    weight_dtype_overrides: Optional[dict] = None,
     use_mla_cache: bool = False,
-    expected_ops: list = None,
+    expected_ops: Optional[list] = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
     experts_implementation: Optional[str] = None,
-):
-    """
-    Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
+) -> dict:
+    """Benchmark an LLM with torch-xla on the Tenstorrent backend.
 
-    This function loads an LLM, compiles it with torch-xla for the Tenstorrent backend,
-    and measures its text generation performance. It performs warmup runs, collects token
-    generation metrics, and validates output correctness via PCC (Pearson Correlation Coefficient)
-    or token accuracy (TOP1/TOP5) when accuracy_testing is enabled.
-    The benchmark measures tokens per second on the device backends.
+    Loads and compiles the model, warms up, measures decode tokens/sec, and
+    validates correctness via PCC (or TOP1/TOP5 token accuracy when
+    ``accuracy_config`` is enabled).
 
-    Args:
-        model_loader: Model loader instance for loading the LLM
-        model_variant: Specific variant/version of the model to benchmark
-        display_name: Human-readable model name (used for export/report naming)
-        batch_size: Batch size for text generation
-        loop_count: Number of inference iterations
-        task: Task type
-        data_format: Data precision format
-        input_sequence_length: Length of input sequence for generation context
-        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
-        read_logits_fn: Callback function to extract logits from model output
-        required_pcc: Required PCC threshold for validation
-        compile_config: tt-mlir / torch-xla compilation knobs (CompileConfig)
-        sharding_config: Multi-chip mesh and sharding specs (ShardingConfig);
-            None means single-chip
-        accuracy_config: Token-accuracy testing settings (AccuracyConfig);
-            when enabled, validates TOP1/TOP5 against reference data instead of PCC
-        pcc_mode: PCC-only iteration mode; defaults to the TT_PCC_MODE env var
-        max_output_tokens: Max tokens to generate (defaults to fill the cache)
-        decode_only: Run prefill on CPU and only benchmark decode on device
-        weight_dtype_overrides: Optional per-module weight dtype overrides
-        use_mla_cache / use_indexer_cache: Cache variants for MLA / indexer models
-        expected_ops / check_fusions_enabled: Op-fusion verification settings
-        experts_implementation: Expert implementation type
-    Returns:
-        Benchmark result containing token generation performance metrics and model information
+    The grouped config objects carry the less common knobs:
+    - ``compile_config``: compilation options
+    - ``sharding_config``: multi-chip mesh / specs (``None`` = single-chip)
+    - ``accuracy_config``: token-accuracy testing
+    - ``pcc_mode``: PCC-only iteration (defaults to the ``TT_PCC_MODE`` env var)
+
+    Notable standalone flags:
+    - ``decode_only``: run prefill on CPU and benchmark only the device decode loop
+    - ``use_mla_cache`` / ``use_indexer_cache``: select the MLA / indexer KV-cache variant
+    - ``expected_ops`` + ``check_fusions_enabled``: enable op-fusion verification
+
+    Returns the standardized benchmark-result dict.
     """
     sharding_config = sharding_config or ShardingConfig()
     accuracy_config = accuracy_config or AccuracyConfig()
     accuracy_testing = accuracy_config.enabled
 
-    # PCC-only iteration mode. Defaults to the TT_PCC_MODE env var (a dev
-    # iteration knob) but can be passed explicitly. Prefill still runs first
-    # even for isolated decode: the standalone decode graph crashes when
-    # compiled at optimization_level > 0.
+    # PCC-only iteration mode.
+    # Defaults to the TT_PCC_MODE env var (a dev iteration knob) but can be
+    # passed explicitly.
+    # Prefill still runs first even for isolated decode: the standalone decode
+    # graph crashes when compiled at optimization_level > 0.
     pcc = pcc_mode if pcc_mode is not None else PccMode.from_env()
 
     _validate_args(

@@ -34,15 +34,7 @@ def create_model_loader(ModelLoader, num_layers: Optional[int] = None, *args, **
 def apply_mean_pooling(
     hidden_states: torch.Tensor, attention_mask: torch.Tensor
 ) -> torch.Tensor:
-    """Apply mean pooling over hidden states.
-
-    Args:
-        hidden_states: Token embeddings with shape [batch_size, seq_len, hidden_size]
-        attention_mask: Attention mask with shape [batch_size, seq_len]
-
-    Returns:
-        Sentence embeddings with shape [batch_size, hidden_size]
-    """
+    """Mean-pool token embeddings [B, S, H] over masked positions -> [B, H]."""
     input_mask_expanded = (
         attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
     )
@@ -55,16 +47,8 @@ def apply_mean_pooling(
 def apply_last_token_pooling(
     hidden_states: torch.Tensor, attention_mask: torch.Tensor
 ) -> torch.Tensor:
-    """Apply last token pooling over hidden states.
-
-    Args:
-        hidden_states: Token embeddings with shape [batch_size, seq_len, hidden_size]
-        attention_mask: Attention mask with shape [batch_size, seq_len]
-
-    Returns:
-        Sentence embeddings with shape [batch_size, hidden_size]
-    """
-    # Check if left padding was used (all sequences end with non-padding tokens)
+    """Pool the last non-padding token of each sequence ([B, S, H] -> [B, H])."""
+    # Left padding => last column is the real final token for every sequence.
     left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0]).item()
     if left_padding:
         return hidden_states[:, -1]
@@ -83,10 +67,10 @@ def move_to_cpu(data):
     """
     if isinstance(data, torch.Tensor):
         return data.cpu()
-    # Check for HuggingFace ModelOutput BEFORE dict (ModelOutput inherits from OrderedDict)
-    # ModelOutput has to_tuple() method which plain dicts don't have
+    # HF ModelOutput (an OrderedDict subclass) must be checked before plain dict
+    # and mutated in place to preserve its type.
+    # to_tuple() is what distinguishes it from a plain dict.
     elif hasattr(data, "to_tuple") and hasattr(data, "keys"):
-        # HuggingFace ModelOutput - modify in-place to preserve the object type
         for key in list(data.keys()):
             value = data[key]
             if isinstance(value, torch.Tensor):
@@ -95,7 +79,6 @@ def move_to_cpu(data):
                 data[key] = move_to_cpu(value)
         return data
     elif isinstance(data, dict):
-        # Plain dicts - recursively move values
         return {k: move_to_cpu(v) for k, v in data.items()}
     elif isinstance(data, (list, tuple)):
         moved = [move_to_cpu(item) for item in data]
