@@ -340,7 +340,12 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
-    safe_mark_sharding(layer.weight, mesh, (None, batch_axis))
+    # weight is [vocab, hidden]. Shard hidden on the "model" (TP) axis so 1D-TP
+    # (e.g. qwen3-32b-qb2-tp, a (1, N) mesh) splits the ~150k x hidden embedding
+    # across the N devices instead of replicating it. The batch axis adds an
+    # extra FSDP shard on the vocab dim only when shard_weights_on_batch_axis is
+    # set (DP+TP); on a size-1 batch axis safe_mark_sharding leaves it replicated.
+    safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)

@@ -1261,10 +1261,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            xs.mark_sharding(page_table, self.mesh, ("batch", None))
-            xs.mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
             if fill_page_table is not page_table:
-                xs.mark_sharding(fill_page_table, self.mesh, ("batch", None))
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1397,9 +1397,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the masked_scatter in `_merge_multimodal_embeddings`. The padded
         # width is derived from the max per-request scheduled tokens, matching
         # how `_prepare_inputs` sizes `input_ids`.
+        # In the DP modes _update_states keeps descheduled requests in
+        # input_batch, so a req_id may have no entry in num_scheduled_tokens
+        # this step. Treat those as 0 tokens (default=0 guards an all-skipped
+        # batch from raising on an empty max()).
         max_num_scheduled_tokens = max(
-            scheduler_output.num_scheduled_tokens[rid]
-            for rid in self.input_batch.req_ids
+            (
+                scheduler_output.num_scheduled_tokens.get(rid, 0)
+                for rid in self.input_batch.req_ids
+            ),
+            default=0,
         )
         padded_width = _get_padded_token_len(
             self.num_tokens_paddings, max_num_scheduled_tokens
@@ -1413,7 +1420,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_embeds = list[torch.Tensor]()
 
         for req_idx, req_id in enumerate(self.input_batch.req_ids):
-            num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            num_scheduled_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            # Descheduled this step (kept in input_batch by the DP _update_states
+            # skip): no tokens to gather embeddings for.
+            if num_scheduled_tokens == 0:
+                continue
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
 
@@ -1559,6 +1570,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(input_ids, self.mesh, ("batch", None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
+        # position_ids is normally [num_reqs, num_tokens]; under M-RoPE it is
+        # [3, num_reqs, num_tokens]. Shard whichever axis carries the batch so
+        # the warmup and execution graphs agree (callers pass either shape).
+        if position_ids is not None and position_ids.dim() == 3:
+            safe_mark_sharding(position_ids, self.mesh, (None, "batch", None))
+        elif position_ids is not None:
+            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1667,16 +1685,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_ids, mm_embed_inputs
             )
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
-            if self.parallel_mode in (
-                ParallelismMode.DATA_PARALLEL_ONLY,
-                ParallelismMode.DATA_TENSOR_PARALLEL,
-            ):
-                # _pin_input_shardings already batch-shards input_ids /
-                # inputs_embeds for the DP modes (and leaves TP-only inputs
-                # replicated). position_ids is the one model input it does not
-                # cover, so shard it here on the "batch" (DP) axis before the
-                # fused _model_* forward call.
-                safe_mark_sharding(self.position_ids, self.mesh, ("batch", None))
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -2042,13 +2050,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, num_tokens), dtype=torch.int32
         ).to(self.device)
 
-        if self.parallel_mode in (
-            ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PARALLEL,
-        ):
-            if input_ids is not None:
-                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+        # input_ids / position_ids are sharded by _pin_input_shardings below
+        # (called before the model forward), matching the execution path — no
+        # need to mark them here.
 
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
@@ -2063,8 +2067,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            xs.mark_sharding(page_table, self.mesh, ("batch", None))
-            xs.mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
 
         attn_metadata = TTMetadata(
             page_table=page_table,
