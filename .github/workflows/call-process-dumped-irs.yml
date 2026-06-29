@@ -13,6 +13,11 @@ on:
         description: 'Run ID of the workflow that dumped IRs'
         required: true
         type: string
+      shared-runners:
+        description: 'Use shared runners'
+        required: false
+        type: boolean
+        default: false
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -73,7 +78,7 @@ jobs:
 
     # TODO do we know oll ops can run on n150?
 
-    runs-on: tt-ubuntu-2204-n150-stable
+    runs-on: ${{ !inputs.shared-runners && 'n150' || 'tt-ubuntu-2204-n150-stable' }}
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +87,7 @@ jobs:
     name: "process_dumped_irs (job ${{ matrix.job_index }})"
 
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ !inputs.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages

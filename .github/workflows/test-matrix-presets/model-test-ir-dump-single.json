@@ -5,6 +5,6 @@
     "dir": "./tests/runner/test_models.py::test_all_models_torch",
     "test-mark": "n150 and expected_passing",
     "args": "--dump-irs",
-    "contains": "wide_resnet50_2"
+    "contains": "pytorch-ResNet50-single_device-inference"
   }
 ]
