@@ -2811,5 +2811,6 @@ def test_olmo_2_0325_32b_instruct_tp_qb2(
         optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
         trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
         experimental_weight_dtype="",  # bfp_bf8 weights collapse first-decode PCC (0.21<0.94); use bf16 weights
+        fp32_dest_acc_en=True,  # max numerical precision; attempt to recover structural decode-PCC collapse
         experimental_kv_cache_dtype=None,  # OLMo-2 QK-norm is precision-sensitive; bfp_bf8 KV cache breaks decode
     )
