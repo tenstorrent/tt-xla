@@ -1051,14 +1051,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else self.max_num_reqs
             )
 
-        # Respect backend row limits for the selected KV path.
-        if use_max_model_len:
-            assert self.num_reqs_max_model_len is not None
-            target_num_reqs = min(target_num_reqs, self.num_reqs_max_model_len)
-        else:
-            assert self.num_reqs_most_model_len is not None
-            target_num_reqs = min(target_num_reqs, self.num_reqs_most_model_len)
-
         # Compute the padded total number of scheduled tokens so that all requests
         # in the batch share a common, hardware-compatible sequence length.
         padded_total_num_scheduled_tokens = _get_padded_token_len(
