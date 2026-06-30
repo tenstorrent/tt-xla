@@ -56,7 +56,7 @@ def _reference(query, key, value, page_table, chunk_start, scale):
 
 
 @pytest.mark.push
-@pytest.mark.cpu
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     "n_heads,n_kv", [(8, 8), (8, 2), (32, 8)], ids=["mha", "gqa-4x", "gqa-4x-32h"]
 )
@@ -93,7 +93,7 @@ def test_chunked_sdpa_cpu_matches_reference(n_heads, n_kv, chunk_start):
 
 
 @pytest.mark.push
-@pytest.mark.cpu
+@pytest.mark.single_device
 def test_chunked_sdpa_cpu_single_token_remainder():
     """A 1-token chunk attending over a large cached prefix must be correct.
 
@@ -124,7 +124,7 @@ def test_chunked_sdpa_cpu_single_token_remainder():
 
 
 @pytest.mark.push
-@pytest.mark.cpu
+@pytest.mark.single_device
 def test_chunked_sdpa_cpu_start0_is_plain_causal():
     """At chunk_start=0 the op must equal standard causal SDPA over the chunk."""
     torch.manual_seed(0)
