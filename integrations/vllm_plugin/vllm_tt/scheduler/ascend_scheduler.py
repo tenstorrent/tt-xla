@@ -52,6 +52,11 @@ class AscendScheduler(Scheduler):
         )
         self.scheduled_req_ids: set[str] = set()
         self.running: list[Request] = []
+        # b1-prefill knobs, resolved once (additional_config is
+        # immutable after engine construction). See TTConfig.prefill_batch_threshold.
+        add_cfg = vllm_config.additional_config or {}
+        self.prefill_batch_threshold = int(add_cfg.get("prefill_batch_threshold") or 0)
+        self.b1_min_num_seqs = int(add_cfg.get("min_num_seqs") or 0)
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
@@ -91,6 +96,16 @@ class AscendScheduler(Scheduler):
         # and put back at the head of the waiting queue later
         step_skipped_waiting = create_request_queue(self.policy)
 
+        # b1-prefill cap: when few prefills are pending, admit only
+        # min_num_seqs fresh ones this step so they route to the small (b1) graph
+        # instead of one wasted-row b32 batch. Above the threshold, prefills batch
+        # as usual. See TTConfig.prefill_batch_threshold.
+        fresh_prefill_cap = None
+        if self.prefill_batch_threshold > 0 and self.b1_min_num_seqs > 0:
+            num_pending = len(self.waiting) + len(self.skipped_waiting)
+            if num_pending <= self.prefill_batch_threshold:
+                fresh_prefill_cap = self.b1_min_num_seqs
+
         # Schedule prefill requests first (unless decode is forced).
         req_index = 0
         while (self.waiting or self.skipped_waiting) and token_budget > 0:
@@ -110,6 +125,16 @@ class AscendScheduler(Scheduler):
                 request_queue.pop_request()
                 self.scheduled_req_ids.discard(request.request_id)
                 continue
+
+            # b1-prefill cap: stop admitting fresh prefills once the cap is
+            # hit; continuation chunks (num_computed>0) are never capped.
+            if (
+                fresh_prefill_cap is not None
+                and request.num_computed_tokens == 0
+                and len(scheduled_new_reqs) + len(scheduled_resumed_reqs)
+                >= fresh_prefill_cap
+            ):
+                break
 
             def skip_cur_request(req=request):
                 request_queue.pop_request()

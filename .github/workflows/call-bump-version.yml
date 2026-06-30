@@ -1,0 +1,69 @@
+name: Bump .version for next release (call)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-version:
+    name: "Bump .version and open PR"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tt-xla
+        uses: actions/checkout@v6
+
+      - name: Compute next version and update .version
+        id: bump
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source .version
+          old_version="$MAJOR.$MINOR.$PATCH"
+
+          # Rule: 1.4.0 -> 1.5.0 -> ... -> 1.9.0 -> 2.0.0 -> 2.1.0
+          if [ "$MINOR" -ge 9 ]; then
+            new_major=$((MAJOR + 1))
+            new_minor=0
+          else
+            new_major=$MAJOR
+            new_minor=$((MINOR + 1))
+          fi
+          new_patch=0
+          new_version="$new_major.$new_minor.$new_patch"
+
+          echo "Bumping .version: $old_version -> $new_version"
+
+          sed -i -E "s/^MAJOR=.*/MAJOR=$new_major/" .version
+          sed -i -E "s/^MINOR=.*/MINOR=$new_minor/" .version
+          sed -i -E "s/^PATCH=.*/PATCH=$new_patch/" .version
+
+          echo "Updated .version:"
+          cat .version
+
+          echo "old_version=$old_version" >> "$GITHUB_OUTPUT"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Create version bump PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: bump-version-${{ steps.bump.outputs.new_version }}
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          base: main
+          add-paths: .version
+          commit-message: "Bump .version to ${{ steps.bump.outputs.new_version }} after ${{ steps.bump.outputs.old_version }} release"
+          title: "Bump .version to ${{ steps.bump.outputs.new_version }} for next release"
+          body: |
+            ### What's changed
+
+            The `${{ steps.bump.outputs.old_version }}` stable release has been published, so this PR bumps `.version` to `${{ steps.bump.outputs.new_version }}` for the next release cycle.
+
+            - **Version change:** `${{ steps.bump.outputs.old_version }}` -> `${{ steps.bump.outputs.new_version }}`
+
+            _Opened automatically by the `Stable version release` workflow._
+          delete-branch: true
+          token: ${{ secrets.GH_TOKEN }}
