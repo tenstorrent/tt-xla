@@ -1722,9 +1722,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
                     )
 
-            logger.info(f"hidden_states: {hidden_states.shape} {hidden_states}")
-            logger.info(f"logits: {logits.shape} {logits}")
-            logger.info(f"selected_token_ids: {selected_token_ids}")
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
