@@ -36,6 +36,7 @@ class SearchConfig:
     log_dir: str
     test: str
     threshold: float
+    save_logs: bool = False
 
 
 EXPERIMENTS_DIR = "mixed_precision_experiments"
@@ -91,6 +92,9 @@ def parse_args():
         help="Minimum TOP1 p5 accuracy percentage",
     )
     parser.add_argument("--results", default=None, help="Output markdown results file")
+    parser.add_argument(
+        "--save-logs", action="store_true", help="Save pytest output logs per iteration"
+    )
     return parser.parse_args()
 
 
@@ -108,16 +112,17 @@ def write_config(config_path, override_weights):
         json.dump(config, f, indent=2)
 
 
-def run_test(test, log_file):
-    os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
+def run_test(test, log_file=None):
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.join(os.getcwd(), "tests")
     cmd = [sys.executable, "-m", "pytest", test, "--accuracy-testing", "-s"]
-    with open(log_file, "w") as log:
-        result = subprocess.run(
-            cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        log.write(result.stdout)
+    result = subprocess.run(
+        cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    if log_file is not None:
+        os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
+        with open(log_file, "w") as f:
+            f.write(result.stdout)
     return parse_top1_p5(result.stdout)
 
 
@@ -181,8 +186,10 @@ def run_baselines(weights, mlp_weights, n, config):
     last_top1 = None
     for label, bw in baselines:
         write_config(config.output_file, bw)
-        log_file = os.path.join(
-            config.log_dir, f"baseline_{label.replace(' ', '_')}.log"
+        log_file = (
+            os.path.join(config.log_dir, f"baseline_{label.replace(' ', '_')}.log")
+            if config.save_logs
+            else None
         )
         top1_p5 = run_test(config.test, log_file)
         top1_str = f"{top1_p5:.2f}%" if top1_p5 is not None else "N/A"
@@ -204,7 +211,11 @@ def binary_search(weights, sizes, n, total_numel, config, threshold):
         k = (lo + hi) // 2
 
         write_config(config.output_file, weights[-k:] if k > 0 else [])
-        log_file = os.path.join(config.log_dir, f"iter_{iteration:03d}_k{k}.log")
+        log_file = (
+            os.path.join(config.log_dir, f"iter_{iteration:03d}_k{k}.log")
+            if config.save_logs
+            else None
+        )
         top1_p5 = run_test(config.test, log_file)
 
         if top1_p5 is None:
@@ -273,6 +284,7 @@ def main():
         log_dir=log_dir,
         test=args.test,
         threshold=args.threshold,
+        save_logs=args.save_logs,
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(results_file)), exist_ok=True)
