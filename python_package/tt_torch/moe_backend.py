@@ -492,8 +492,17 @@ _original_validator: Optional[Callable] = None
 
 
 def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
-    """Register tt_moe and tt_dense backends. Idempotent."""
-    global _original_validator
+    """Register tt_moe and tt_dense backends. Idempotent and re-entrant:
+    re-resolves transformers each call so it survives a version swap."""
+    global _original_validator, ALL_EXPERTS_FUNCTIONS, ExpertsInterface
+    global PreTrainedModel
+
+    import transformers.integrations.moe as _moe
+    import transformers.modeling_utils as _mu
+
+    ALL_EXPERTS_FUNCTIONS = _moe.ALL_EXPERTS_FUNCTIONS
+    ExpertsInterface = _moe.ExpertsInterface
+    PreTrainedModel = _mu.PreTrainedModel
 
     _config["cluster_axis"] = cluster_axis
     ExpertsInterface.register(TT_MOE_BACKEND_NAME, tt_experts_forward)
@@ -503,11 +512,13 @@ def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
     if TT_DENSE_EXPERTS_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_DENSE_EXPERTS_BACKEND_NAME} registration failed")
 
-    if _original_validator is not None:
-        return  # already patched
-
-    _original_validator = PreTrainedModel.get_correct_experts_implementation
-    original_validator = _original_validator
+    # Re-patch the live PreTrainedModel; a version swap brings a fresh class.
+    if getattr(
+        PreTrainedModel.get_correct_experts_implementation, "_tt_patched", False
+    ):
+        return
+    original_validator = PreTrainedModel.get_correct_experts_implementation
+    _original_validator = original_validator
 
     def patched_validator(self, requested_experts):
         if (
@@ -517,6 +528,7 @@ def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
             return requested_experts
         return original_validator(self, requested_experts)
 
+    patched_validator._tt_patched = True
     PreTrainedModel.get_correct_experts_implementation = patched_validator
 
 
