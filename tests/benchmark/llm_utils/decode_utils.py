@@ -121,13 +121,17 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Unified/multimodal models (e.g. Gemma4UnifiedForConditionalGeneration) expose
+    # the decoder dims on a nested text sub-config; get_text_config returns the
+    # config itself for plain causal-LM configs, so this is a no-op for them.
+    text_config = config.get_text_config(decoder=True)
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        default_head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        default_head_dim = text_config.hidden_size // text_config.num_attention_heads
 
-    num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+    default_kv_heads = getattr(
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
     static_cache = StaticCache(
@@ -137,10 +141,76 @@ def init_static_cache(
         device=device,
         dtype=dtype,
     )
+
+    # Work around a transformers StaticCache edge case: it builds per-layer caches
+    # from `layer_types[: -config.num_kv_shared_layers]`. When a config sets
+    # `num_kv_shared_layers` explicitly to 0 (e.g. Gemma4TextConfig), the slice
+    # becomes `[: -0] == [:0]` and yields an EMPTY cache, so the model's first
+    # `past_key_values.update(..., layer_idx)` raises IndexError. Rebuild the
+    # per-layer list from `layer_types` when this happens. No-op for every config
+    # that doesn't trip the slice (the common case).
+    num_hidden_layers = getattr(text_config, "num_hidden_layers", 0)
+    if len(static_cache.layers) < num_hidden_layers and (
+        getattr(text_config, "num_kv_shared_layers", None) == 0
+    ):
+        from transformers.cache_utils import (
+            LinearAttentionLayer,
+            StaticLayer,
+            StaticSlidingWindowLayer,
+        )
+
+        layer_types = getattr(text_config, "layer_types", None) or [
+            "full_attention"
+        ] * num_hidden_layers
+        rebuilt = []
+        for layer_type in layer_types:
+            if layer_type == "sliding_attention":
+                rebuilt.append(
+                    StaticSlidingWindowLayer(
+                        max_cache_len=max_cache_len,
+                        sliding_window=text_config.sliding_window,
+                    )
+                )
+            elif layer_type == "chunked_attention":
+                rebuilt.append(
+                    StaticSlidingWindowLayer(
+                        max_cache_len=max_cache_len,
+                        sliding_window=text_config.attention_chunk_size,
+                    )
+                )
+            elif layer_type in ("mamba", "conv", "linear_attention", "moe"):
+                rebuilt.append(LinearAttentionLayer())
+            else:
+                rebuilt.append(StaticLayer(max_cache_len=max_cache_len))
+        static_cache.layers = rebuilt
+
+    # Build per-layer KV-head / head-dim lists. Hybrid-attention models interleave
+    # layer types with different cache geometry: e.g. Gemma4 global (full_attention)
+    # layers reuse K as V (attention_k_eq_v) with `num_global_key_value_heads` and
+    # `global_head_dim`, while sliding layers use the defaults. early_initialization
+    # accepts per-layer lists for exactly this. For uniform models (no layer_types /
+    # no global overrides) every entry collapses to the defaults.
+    layer_types = getattr(text_config, "layer_types", None)
+    attention_k_eq_v = getattr(text_config, "attention_k_eq_v", False)
+    global_kv_heads = getattr(text_config, "num_global_key_value_heads", None)
+    global_head_dim = getattr(text_config, "global_head_dim", None)
+
+    num_heads_per_layer = []
+    head_dim_per_layer = []
+    for layer_idx in range(len(static_cache.layers)):
+        is_sliding = bool(layer_types) and layer_types[layer_idx] == "sliding_attention"
+        use_global_kv = attention_k_eq_v and not is_sliding
+        num_heads_per_layer.append(
+            global_kv_heads if (use_global_kv and global_kv_heads) else default_kv_heads
+        )
+        head_dim_per_layer.append(
+            global_head_dim if (not is_sliding and global_head_dim) else default_head_dim
+        )
+
     static_cache.early_initialization(
         batch_size=batch_size,
-        num_heads=num_key_value_heads,
-        head_dim=head_dim,
+        num_heads=num_heads_per_layer,
+        head_dim=head_dim_per_layer,
         dtype=dtype,
         device=device,
     )

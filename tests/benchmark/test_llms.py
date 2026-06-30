@@ -2780,3 +2780,73 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# FAILED (not in perf-bench-matrix.json — would SIGABRT the CI worker): Gemma 4
+# 26B-A4B-it is a sparse MoE causal LM (128 experts, top-8, ~4B active of 26B
+# total). The expert weights are ~23B of the 26B, so they must be sharded across
+# the qb2 (1,4) Blackhole mesh to fit a 32 GB chip; replicating them OOMs (this is
+# what the HW model-bringup failed on). The data-dependent eager dispatch
+# (one_hot -> nonzero -> per-expert loop -> index_add_) is swapped for the
+# dense-experts backend (tt_dense), matching the gpt-oss qb2 MoE recipe.
+#
+# Every model-axis sharding of the dense-experts weights — expert-parallel
+# (shard the 128-expert axis), gate_up column-parallel, and down row-parallel were
+# all tried — aborts in tt-mlir's Shardy sharding-propagation pass:
+#   sharding_projection.cc:174 Assertion `dimMapping.isMinorMost(factorIndex) ||
+#   factorSize % shardedSize == 0 && "non-minor-most factor must be divisible by
+#   axis sizes"' failed.
+# Attention/MLP are left replicated here (the ~3B non-expert params are cheap to
+# replicate; Gemma4's global layers carry only 2 KV heads, which separately can't
+# absorb a 4-way q_proj/o_proj shard). The blocker is a tt-mlir/Shardy compiler
+# limitation in the dense-experts sharding path — debugging the compiler is out of
+# scope for perf bringup, so this is filed as FAILED for the compiler team.
+def _gemma4_26b_a4b_qb2_shard_spec_fn(model_loader, model):
+    shard_specs = {}
+    for layer in model.model.language_model.layers:
+        # MoE experts — Megatron tensor-parallel *within* each expert (not expert-
+        # parallel): gate_up column-parallel on the intermediate axis, down row-
+        # parallel. gate_up_proj: [E, 2*moe_inter, hidden] -> shard 2*moe_inter
+        # (1408/4=352); down_proj: [E, hidden, moe_inter] -> shard moe_inter
+        # (704/4=176). Expert-parallel (sharding the 128-expert axis) tripped a
+        # Shardy propagation assertion under the dense-experts backend.
+        if getattr(layer, "enable_moe_block", False):
+            shard_specs[layer.experts.gate_up_proj] = (None, "model", None)
+            shard_specs[layer.experts.down_proj] = (None, None, "model")
+    return shard_specs
+
+
+def test_gemma_4_26b_a4b_it_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
+    from third_party.tt_forge_models.gemma4.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_26B_A4B_IT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        # 128 dense experts per layer; batch 8 mirrors the gpt-oss qb2 MoE entries.
+        batch_size=batch_size if batch_size is not None else 8,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        shard_spec_fn=_gemma4_26b_a4b_qb2_shard_spec_fn,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

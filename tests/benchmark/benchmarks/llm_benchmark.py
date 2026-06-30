@@ -728,10 +728,13 @@ def benchmark_llm_torch_xla(
         "Tale of Two Cities (Reference Data)" if accuracy_testing else "Random Data"
     )
 
-    # Extract number of layers from model config if available
+    # Extract number of layers from model config if available. Unified/multimodal
+    # configs expose num_hidden_layers on the nested text sub-config; get_text_config
+    # returns the config itself for plain causal-LM configs.
+    layer_count_config = model.config.get_text_config(decoder=True)
     num_layers = (
-        model.config.num_hidden_layers
-        if hasattr(model.config, "num_hidden_layers")
+        layer_count_config.num_hidden_layers
+        if hasattr(layer_count_config, "num_hidden_layers")
         else -1
     )
 
