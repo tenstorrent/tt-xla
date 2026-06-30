@@ -32,6 +32,12 @@ model_auto_discovery_tests
 :maxdepth: 2
 
 fusing_and_composite_ops
+```
+
+```{toctree}
+:caption: TT-Lang Integration
+:maxdepth: 2
+
 tt_lang_integration
 ```
 
