@@ -984,10 +984,8 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 .sum(dim=-1)
             )
             group_idx = torch.topk(group_scores, k=topk_group, dim=-1, sorted=False)[1]
-            # one_hot + sum instead of scatter_: torch scatter_ lowers to a
-            # stablehlo.scatter whose dim-0 row index is a token iota; Shardy
-            # shards that iota WITHOUT the per-shard offset, so the group mask
-            # marks only mesh-row 0's tokens and zeros routing for rows 1-3.
+            # one_hot + sum instead of scatter_: scatter_'s token-iota row index
+            # isn't offset per shard under Shardy, zeroing routing for mesh-rows 1-3.
             group_mask = (
                 (
                     group_idx.unsqueeze(-1)
@@ -1007,11 +1005,8 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             topk_indices = torch.topk(scores_for_choice, k=top_k, dim=-1, sorted=False)[
                 1
             ]
-            # one_hot + einsum instead of gather: torch.gather lowers to
-            # ttir.embedding over the all-gathered [tokens*E] score table with a
-            # flat index token*E+expert computed at fp16-class precision; for
-            # mesh-rows 1-3 the large index rounds off the expert bits -> wrong
-            # weights. einsum keeps the small expert index implicit and exact.
+            # one_hot + einsum instead of gather: gather's flat token*E+expert
+            # index rounds off at fp16 for mesh-rows 1-3, picking wrong weights.
             _ohw = (
                 topk_indices.unsqueeze(-1)
                 == torch.arange(n_routed_experts, device=topk_indices.device)
