@@ -1,4 +1,4 @@
-# Scratch: emit OR load TTNN Python codegen for the full Qwen3-0.6B via vLLM.
+# Emit OR load TTNN Python codegen for the full Qwen3-0.6B via vLLM.
 #
 #   python qwen.py --emit [dir]   # compile + emit per-graph Python to dir/
 #   python qwen.py --load [dir]   # skip compile, run saved code from dir/;
@@ -58,13 +58,15 @@ import vllm
 def build_llm():
     # This config MUST be identical between emit and load so the StableHLO (and
     # thus each graph's hash) matches; unifying both modes here enforces that.
+    #
+    # Additionally, must match params in service.sh
     return vllm.LLM(
         model="Qwen/Qwen3-0.6B",
-        max_model_len=512,
-        max_num_batched_tokens=512,
+        max_model_len=4096,
+        max_num_batched_tokens=4096,
         max_num_seqs=1,
         gpu_memory_utilization=0.02,
-        additional_config={"enable_const_eval": False, "min_context_len": 32},
+        additional_config={"enable_const_eval": False, "min_context_len": 256},
     )
 
 

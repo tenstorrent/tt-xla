@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Chat client for the Qwen3-0.6B codegen-load server (see service.sh).
+# Chat client for the Qwen3-0.6B codegen-load server (see service.sh for usage).
 #
 # vLLM keeps no conversation state, so we maintain the history client-side: each
 # turn appends the user message, sends the WHOLE list, and appends the streamed
