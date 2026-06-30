@@ -1,36 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Combined data-parallel + tensor-parallel (DP+TP) inference tests for
-pooling/embedding models.
+"""Data-parallel + tensor-parallel (DP+TP) inference tests for pooling models.
 
-Background
-----------
-With both `enable_data_parallel=True` and `enable_tensor_parallel=True` the
-runner builds an SPMD mesh of shape ``(dp_size, tp_size)``:
-
-  * On an 8-chip llmbox: ``(2, 4)`` — 2 DP replicas, each running 4-way TP.
-  * On a 4-chip box:     ``(2, 2)`` — 2 DP replicas, each running 2-way TP.
-
-Weight sharding depends on ``shard_weights_on_batch_axis``:
-  * ``False`` (classic DP+TP): weights are sharded only along the ``"model"``
-    (TP) axis; DP replicas hold identical weight slices and never communicate.
-  * ``True`` (FSDP-style): weights are additionally sharded along the
-    ``"batch"`` (DP) axis, trading extra collectives for lower per-device
-    weight memory.
-The input batch is always sharded along the ``"batch"`` (DP) axis, so each
-replica sees a disjoint subset of the input sentences.
-
-What this test checks
----------------------
-1. The engine builds, the model loads, and ``shard_model()`` runs without
-   crashing under the new ``(dp_size, tp_size)`` mesh.
-2. Embeddings round-trip through DP+TP execution and match the single-chip
-   baseline within PCC ≥ 0.99 (the same threshold used by the DP-only and
-   TP-only tests).
-3. The runtime ``_prepare_inputs`` row-padding logic uses ``dp_size`` (not
-   ``num_devices``) so a batch of 4 sentences fits in 1 step on mesh
-   ``(2, 4)`` (4 % 2 == 0, no padding rows added).
+DP+TP builds an SPMD mesh (dp_size, tp_size). The input batch is sharded on the
+"batch" (DP) axis; weights are sharded on the "model" (TP) axis, plus the
+"batch" axis when shard_weights_on_batch_axis=True (FSDP-style). Embeddings are
+checked against the single-chip baseline at PCC >= 0.99.
 """
 import pytest
 
@@ -53,12 +29,8 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
 @pytest.mark.parametrize(
     "max_num_reqs, max_num_batched_tokens",
     [
-        # Tight fit: with 8 chips → mesh (2, 4), dp_size=2, so max_num_reqs=2
-        # means each DP replica handles 1 sentence per step.
-        (2, 64),
-        # Wider batch: each replica handles 2 sentences per step. Exercises
-        # the per-replica batching path in addition to plain shard-split.
-        (4, 128),
+        (2, 64),  # tight: 1 sentence per replica
+        (4, 128),  # wider: 2 sentences per replica
     ],
 )
 @pytest.mark.parametrize("shard_weights_on_batch_axis", [True, False])
@@ -89,9 +61,8 @@ def test_data_tensor_parallel_inference_push(
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
-        # BGE-M3 intentionally not covered here — small enough that DP-only
-        # is sufficient (see test_data_parallel_inference.py); model-axis
-        # sharding offers no benefit at this size.
+        # BGE-M3 omitted: small enough that DP-only suffices (see
+        # test_data_parallel_inference.py).
         pytest.param(
             "Qwen/Qwen3-Embedding-4B",
             "baseline/qwen3_embedding_4B_baseline.pt",

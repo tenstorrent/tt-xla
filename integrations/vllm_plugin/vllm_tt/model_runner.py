@@ -787,12 +787,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
             ):
-                # KV cache is replicated across devices, but each device only
-                # writes its own slot's KV. Removing a request and re-adding
-                # it at a different slot later breaks request -> device
-                # affinity and corrupts decode output. Keep the request at
-                # its current slot; downstream consumers must tolerate a
-                # missing num_scheduled_tokens entry for it.
+                # Each device writes only its own slot's KV; re-adding a request
+                # at a different slot breaks request -> device affinity and
+                # corrupts decode. Keep it at its current slot (downstream must
+                # tolerate a missing num_scheduled_tokens entry).
                 continue
             req_index = self.input_batch.remove_request(req_id)
             assert req_index is not None
@@ -1314,10 +1312,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # paged_update_cache requires its update-index (cache_position) and
-            # page_table to have the same per-device leading dim as the K/V
-            # input. Since inputs are sharded ("batch", None), we shard these
-            # along batch too.
+            # page_table / cache_position must share the K/V input's per-device
+            # leading dim, so shard them on "batch" to match the sharded inputs.
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             if fill_page_table is not page_table:
@@ -1456,10 +1452,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the masked_scatter in `_merge_multimodal_embeddings`. The padded
         # width is derived from the max per-request scheduled tokens, matching
         # how `_prepare_inputs` sizes `input_ids`.
-        # In the DP modes _update_states keeps descheduled requests in
-        # input_batch, so a req_id may have no entry in num_scheduled_tokens
-        # this step. Treat those as 0 tokens (default=0 guards an all-skipped
-        # batch from raising on an empty max()).
+        # DP keeps descheduled requests in input_batch, so a req_id may be
+        # absent from num_scheduled_tokens; treat as 0 (default=0 guards max()).
         max_num_scheduled_tokens = max(
             (
                 scheduler_output.num_scheduled_tokens.get(rid, 0)
@@ -2019,12 +2013,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
-                    # shard_weights_on_batch_axis (FSDP-style extra weight
-                    # sharding on the "batch" axis) is a DP+TP-only knob. In the
-                    # pure-TP modes the "batch" axis is a TP axis (TP-2D shards
-                    # across both mesh axes; TP-1D has a size-1 batch axis), so
-                    # weights must always be sharded on it there — force it on
-                    # unless we are in DATA_TENSOR_PARALLEL.
+                    # shard_weights_on_batch_axis (FSDP-style) is a DP+TP-only
+                    # knob; in pure-TP the "batch" axis is itself a TP axis, so
+                    # weights must always be sharded on it there.
                     shard_on_batch_axis = (
                         self.tt_config.shard_weights_on_batch_axis
                         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
@@ -2123,10 +2114,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # paged_update_cache requires its update-index (cache_position) and
-            # page_table to have the same per-device leading dim as the K/V
-            # input. Since inputs are sharded ("batch", None), we shard these
-            # along batch too.
+            # page_table / cache_position must share the K/V input's per-device
+            # leading dim, so shard them on "batch" to match the sharded inputs.
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
 
@@ -3141,15 +3130,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave the KV cache un-annotated, same as the DP-only
-            # path. Under SPMD an un-annotated tensor is replicated; each
-            # device writes its own K/V slice via paged_update_cache without
-            # cross-device sync. The TP-only spec
-            # `(None, "batch", None, None)` is unsafe here because under a
-            # (dp, tp) mesh it puts `block_size` on the DP axis and fails
-            # `ttir.paged_update_cache` with a shape mismatch. Sharding
-            # `num_kv_heads` along "model" is also blocked when `num_blocks`
-            # is not divisible by `dp_size`. Tracked as a follow-up.
+            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
+            # each device writes its own K/V slice via paged_update_cache. The
+            # TP-only spec puts block_size on the DP axis and fails
+            # ttir.paged_update_cache. Tracked as a follow-up.
             pass
         elif self.enable_tensor_parallel:
             for kv_pair in self.kv_caches:

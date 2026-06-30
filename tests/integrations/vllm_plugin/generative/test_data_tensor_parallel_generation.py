@@ -3,30 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Combined data-parallel + tensor-parallel (DP+TP) generation tests.
 
-Background
-----------
-With both `enable_data_parallel=True` and `enable_tensor_parallel=True` the
-runner builds an SPMD mesh of shape ``(dp_size, tp_size)``:
-
-  * On an 8-chip llmbox: ``(2, 4)`` — 2 DP replicas, each running 4-way TP.
-
-The model weights are sharded only along the ``"model"`` (TP) axis, so the
-DP replicas hold identical weight slices and never communicate. The input
-batch (input_ids, position_ids, page_table, cache_position) is sharded along
-the ``"batch"`` (DP) axis, so each replica sees a disjoint subset of the
-input sentences.
-
-What this test checks
----------------------
-1. The engine builds, the model loads, ``shard_model()`` runs, and the
-   backbone compiles under the new ``(dp_size, tp_size)`` mesh.
-2. ``_dummy_run`` and ``execute_model`` agree on per-device shapes for
-   ``input_ids`` / ``position_ids`` / ``page_table`` / ``cache_position``
-   (this is what blocked the original DP-only test before the fix).
-3. The generated text passes ``assert_output_coherent`` — i.e. the model
-   produces natural English, not token soup. This is a check on numerical
-   correctness, not just compile success.
-4. Host RSS stays within the expected envelope for the model.
+enable_data_parallel=True / enable_tensor_parallel=True builds an SPMD mesh
+(dp_size, tp_size) — e.g. (2, 4) on an 8-chip llmbox. Weights are sharded on
+the "model" (TP) axis only (DP replicas hold identical slices); the input
+batch is sharded on the "batch" (DP) axis.
 """
 import pytest
 import vllm
@@ -39,12 +19,8 @@ from conftest import assert_output_coherent, check_host_memory
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
 def test_data_tensor_parallel_generation_push(model_name: str):
-    """Smoke test: 2 prompts, max_num_seqs == dp_size (one sentence per replica).
-
-    With 8 chips → mesh (2, 4), `max_num_seqs=2` means each DP replica handles
-    exactly 1 sentence per step. This is the tightest DP+TP shape we expect
-    to hit and exercises the per-device first-dim == 1 path (same as DP-only).
-    """
+    """Smoke test: max_num_seqs == dp_size, one sentence per replica (per-device
+    first-dim == 1)."""
     prompts = [
         "Continue in English: I like taking walks in the",
         "Continue in English: The weather today is",
@@ -80,17 +56,11 @@ def test_data_tensor_parallel_generation_push(model_name: str):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
 def test_data_tensor_parallel_generation_wider_batch(model_name: str):
-    """Wider batch: 4 prompts, max_num_seqs=4 (2 sentences per DP replica).
+    """Wider batch: per-replica batch == 2 (per-device first-dim > 1).
 
-    Exercises the per-replica batching path: per-device first-dim is now
-    `max_num_seqs / dp_size == 2` rather than 1, which is a different SPMD
-    shape than the tight-fit case above.
-
-    NOTE: forces `cpu_sampling=True` because DP+TP uses a 2D mesh and the
-    on-device sampler produces token-soup garbage under 2D meshes when
-    multiple samples are drawn per device. See issue #4440. The tight-fit
-    test above happens to escape this because per-replica batch == 1
-    means only one sample is drawn per device per step.
+    Forces cpu_sampling=True: the on-device sampler produces garbage under the
+    2D mesh when >1 sample is drawn per device (issue #4440). The tight-fit
+    test escapes it (batch == 1).
     """
     prompts = [
         "Continue in English: I like taking walks in the",
@@ -130,14 +100,11 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-8B"])
 def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
-    """Nightly: larger model via DP+TP on llmbox (8 chips -> mesh (2, 4)).
+    """Larger model (8B) via DP+TP on llmbox.
 
-    Retargeted from a pure-DP test: an 8B model cannot fit per DP replica on a
-    single n300 chip (~16GB weights > 12.85GB DRAM, OOM at KV-cache init), so we
-    shard the weights across the TP axis (DP+TP) where they fit. Forces
-    cpu_sampling=True because DP+TP uses a 2D mesh and the on-device sampler
-    produces token-soup under 2D meshes when multiple samples are drawn per
-    device (see issue #4440 / test_data_tensor_parallel_generation_wider_batch).
+    An 8B model OOMs per DP replica on a single n300 (~16GB > 12.85GB DRAM), so
+    weights are sharded across the TP axis. cpu_sampling=True for the 2D-mesh
+    sampler issue (#4440).
     """
     prompts = [
         "Continue in English: I like taking walks in the",

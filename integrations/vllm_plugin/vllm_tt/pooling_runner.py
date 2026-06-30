@@ -306,9 +306,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         # Setup for parallel execution.
-        # dp_size = size of the mesh's "batch" axis (= replicas processing
-        # different sentences). For pure-TP or DISABLED it is 1, so the
-        # divisibility checks below become no-ops.
+        # dp_size = size of the mesh's "batch" axis; 1 for pure-TP/DISABLED,
+        # which makes the divisibility checks below no-ops.
         self.dp_size = 1
         if self.parallel_mode != ParallelismMode.DISABLED:
             # An explicit tt_config.mesh_shape overrides the mode-derived shape.
@@ -945,10 +944,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
             arange = torch.cat([arange, padding], dim=1)
 
-        # Add additional rows to make batch divisible by dp_size so inputs
-        # can be divided equally between DP replicas. In DP+TP, dp_size is
-        # the DP axis only — TP partners within a replica share the same
-        # input rows, so we do NOT pad to num_devices.
+        # Pad the batch to a multiple of dp_size (the DP axis only, not
+        # num_devices) so it divides equally across DP replicas.
         if self.enable_data_parallel:
             remainder = self.input_ids_cpu.shape[0] % self.dp_size
             if remainder > 0:
@@ -1417,12 +1414,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
-                    # shard_weights_on_batch_axis (FSDP-style extra weight
-                    # sharding on the "batch" axis) is a DP+TP-only knob. In the
-                    # pure-TP modes the "batch" axis is a TP axis (TP-2D shards
-                    # across both mesh axes; TP-1D has a size-1 batch axis), so
-                    # weights must always be sharded on it there — force it on
-                    # unless we are in DATA_TENSOR_PARALLEL.
+                    # shard_weights_on_batch_axis (FSDP-style) is a DP+TP-only
+                    # knob; in pure-TP the "batch" axis is itself a TP axis, so
+                    # weights must always be sharded on it there.
                     shard_on_batch_axis = (
                         self.tt_config.shard_weights_on_batch_axis
                         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
@@ -1548,9 +1542,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_precompile_all
             else [self.max_num_reqs]
         )
-        # Keep only batch sizes divisible by dp_size for data-parallel model
-        # execution. dp_size == num_devices in DP-only and dp_size < num_devices
-        # in DP+TP (the remainder of chips are TP partners, not DP slots).
+        # Keep only batch sizes divisible by dp_size (the DP axis; TP partners
+        # within a replica are not DP slots).
         if self.enable_data_parallel:
             num_req_variants = [
                 reqs for reqs in num_req_variants if reqs % self.dp_size == 0
