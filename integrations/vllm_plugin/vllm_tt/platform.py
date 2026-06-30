@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
 import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
@@ -64,6 +65,20 @@ class TTConfig:
     # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
     # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
     prefill_batch_threshold: int = 0
+
+    # KV-cache high-watermark for *fresh* prefill admission, as a fraction of
+    # the block pool (tt-xla: large-context concurrency thrash). AscendScheduler
+    # stops admitting NEW prefills once doing so would leave less than this
+    # fraction of the pool free, reserving headroom for in-flight requests to
+    # finish decoding instead of evicting (preempting) them and re-prefilling.
+    # Continuation chunks of already-started prefills and decode are NOT gated
+    # (decode may use the pool to 100%). A forward-progress guard always admits
+    # at least one prefill when nothing is running, so a single large prompt is
+    # never starved. 0.0 = off (legacy 1% watermark for all prefills).
+    # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
+    # Override at runtime with env var TT_PREFILL_KV_WATERMARK_percent (a
+    # percent, e.g. 25), which takes precedence over additional_config.
+    prefill_kv_watermark: float = 0.25
 
     batch_size: int = 1
     enable_precompile_all: bool = True
@@ -308,6 +323,24 @@ class TTPlatform(Platform):
             raise ValueError(
                 "additional_config['prefill_batch_threshold'] must be >= 0."
             )
+
+        # KV-cache high-watermark for fresh-prefill admission. Resolve default
+        # (0.25), apply the TT_PREFILL_KV_WATERMARK_percent env override (a
+        # percent, e.g. 25 -> 0.25), and persist a concrete fraction so the
+        # AscendScheduler reads it directly; validate it is in [0, 1).
+        if additional_config.get("prefill_kv_watermark") is None:
+            additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
+        env_wm = os.environ.get("TT_PREFILL_KV_WATERMARK_percent")
+        if env_wm is not None:
+            additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
+        wm = float(additional_config["prefill_kv_watermark"])
+        if not (0.0 <= wm < 1.0):
+            raise ValueError(
+                "prefill_kv_watermark (TT_PREFILL_KV_WATERMARK_percent / 100) "
+                f"must be in [0, 1); got {wm}."
+            )
+        additional_config["prefill_kv_watermark"] = wm
+
         vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
