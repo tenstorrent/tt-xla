@@ -287,6 +287,28 @@ TP_CONFIGS = [
         ),
         id="devstral-123b-galaxy-tp",
     ),
+    # Qwen3-32B DP+TP on the 8x4 BH galaxy (DP=8, TP=4), batch 256 -> 32
+    # sequences/replica (same per-replica load as devstral 128/4). Classic DP+TP
+    # (shard_weights_on_batch_axis=False: weights replicated across the 8 DP
+    # replicas, TP-sharded on the size-4 model axis); bf16 checkpoint stored as
+    # bfp8 (no fp8 dequant hook). GMU 0.45: scaled from the validated batch-32
+    # 8x4 config (0.0625 @ 4 seq/replica) -> ~0.43 @ 32 seq/replica; matches the
+    # devstral-derived KV model (Qwen3 per-device KV ~1.45x: TP=4 keeps 2
+    # kv-heads/device vs devstral's 1, over 64 vs 88 layers).
+    # Run with TT_RUNTIME_USING_BH_GALAXY=1.
+    pytest.param(
+        _tp_config(
+            "Qwen/Qwen3-32B",
+            256,
+            mesh_shape=[8, 4],
+            experimental_weight_dtype="bfp_bf8",
+            gpu_memory_utilization=0.45,
+            enable_const_eval=True,
+            enable_data_parallel=True,
+            shard_weights_on_batch_axis=False,
+        ),
+        id="qwen3-32b-galaxy-tp",
+    ),
 ]
 
 
