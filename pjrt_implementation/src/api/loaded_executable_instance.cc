@@ -483,6 +483,12 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   LoadedExecutableInstance *instance =
       LoadedExecutableInstance::unwrap(args->executable);
 
+  const std::shared_ptr<ExecutableImage> &executable_image =
+      instance->getSharedExecutableImage();
+  LOG_F(INFO, "LoadedExecutableInstance::execute: name=%s, graph_hash=%s",
+        executable_image->getExecutableName().c_str(),
+        executable_image->getFingerprint().c_str());
+
   if (instance->isCompileOnly()) {
     LOG_F(INFO, "Compile-only mode: returning default output buffers "
                 "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
