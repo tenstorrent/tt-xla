@@ -127,6 +127,154 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
 @pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
+@pytest.mark.parametrize(
+    ["enable_const_eval", "experimental_weight_dtype"],
+    [
+        pytest.param(True, "bfp_bf8"),
+    ],
+)
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        pytest.param([4, 8], marks=pytest.mark.bh_galaxy),
+    ],
+)
+def test_data_tensor_parallel_generation_devstral_123b(
+    mesh_shape: list[int],
+    enable_const_eval: bool,
+    experimental_weight_dtype: str,
+):
+    """Devstral-2-123B DP+TP on the BH galaxy, mesh (4, 8) — 4 DP replicas of
+    8-way TP. Eight distinct prompts -> 2 sentences per replica, so this
+    exercises real per-replica batching (not the 1-per-replica tight fit).
+
+    Weights are TP-sharded (shard_weights_on_batch_axis=False) and replicated
+    across the 4 DP replicas; the input batch is DP-sharded. cpu_sampling=True
+    because the on-device sampler produces token-soup on a 2D mesh when >1
+    sample is drawn per device (issue #4440).
+    """
+    model_name = "mistralai/Devstral-2-123B-Instruct-2512"
+
+    prompts = [
+        "Describe what a hash map is in one sentence.",
+        "Explain what recursion is in one sentence.",
+        "What does the git rebase command do, in one sentence?",
+        "Summarize what a REST API is in one sentence.",
+        "Explain what a unit test is in one sentence.",
+        "What is a race condition, in one sentence?",
+        "Describe what a linked list is in one sentence.",
+        "Explain what Big-O notation means in one sentence.",
+    ]
+    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 2048,
+        "max_num_seqs": 8,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": False,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "enable_const_eval": enable_const_eval,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.chat(messages, sampling_params)
+    assert len(outputs) == len(messages)
+    for prompt, out in zip(prompts, outputs):
+        output_text = out.outputs[0].text
+        print(f"prompt: {prompt}, output: {output_text}")
+        assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.parametrize(
+    ["enable_const_eval", "experimental_weight_dtype"],
+    [
+        pytest.param(True, "bfp_bf8"),
+    ],
+)
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+    ],
+)
+def test_data_tensor_parallel_generation_qwen3_32b(
+    mesh_shape: list[int],
+    enable_const_eval: bool,
+    experimental_weight_dtype: str,
+):
+    """Qwen3-32B DP+TP on the BH galaxy, mesh (8, 4) — 8 DP replicas of 4-way
+    TP. Sixteen distinct prompts -> 2 sentences per replica (real per-replica
+    batching). Same DP+TP scheme as the devstral 4x8 case; cpu_sampling=True
+    for coherent multi-sample output on a 2D mesh (issue #4440).
+    """
+    model_name = "Qwen/Qwen3-32B"
+
+    prompts = [
+        "Describe Tenstorrent in one sentence.",
+        "Explain what a neural network is in one sentence.",
+        "What is the capital of France?",
+        "Write one sentence about the ocean.",
+        "Summarize the theory of relativity in one sentence.",
+        "Give me a one-sentence description of photosynthesis.",
+        "What is machine learning, in one sentence?",
+        "Describe the sun in one sentence.",
+        "Explain gravity in one sentence.",
+        "Write a single sentence about mountains.",
+        "What does a CPU do, in one sentence?",
+        "Describe the internet in one sentence.",
+        "Summarize the water cycle in one sentence.",
+        "What is a black hole, in one sentence?",
+        "Give a one-sentence description of a rainforest.",
+        "Explain how a battery works in one sentence.",
+    ]
+    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 2048,
+        "max_num_seqs": 16,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": False,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "enable_const_eval": enable_const_eval,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.chat(messages, sampling_params)
+    assert len(outputs) == len(messages)
+    for prompt, out in zip(prompts, outputs):
+        output_text = out.outputs[0].text
+        print(f"prompt: {prompt}, output: {output_text}")
+        assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-8B"])
 def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
