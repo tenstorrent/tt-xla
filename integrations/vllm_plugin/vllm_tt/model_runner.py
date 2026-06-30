@@ -1261,10 +1261,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            xs.mark_sharding(page_table, self.mesh, ("batch", None))
-            xs.mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
             if fill_page_table is not page_table:
-                xs.mark_sharding(fill_page_table, self.mesh, ("batch", None))
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -2058,8 +2058,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             if input_ids is not None:
-                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+                safe_mark_sharding(input_ids, self.mesh, ("batch", None))
+            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
@@ -2074,8 +2074,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            xs.mark_sharding(page_table, self.mesh, ("batch", None))
-            xs.mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
 
         attn_metadata = TTMetadata(
             page_table=page_table,
