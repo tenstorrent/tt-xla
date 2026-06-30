@@ -191,3 +191,45 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_infinity_2b(output_file, request):
+    from benchmarks.infinity_pipeline import InfinityConfig, InfinityPipeline
+
+    # Infinity 2B: autoregressive next-scale prediction (not diffusion). The
+    # "steps" are the fixed scale schedule (13 scales at 1M), so
+    # num_inference_steps is nominal (reporting only) and ignored by generate().
+    # Transformer 8-way tensor-parallel sharded on TT; T5 text encoder, sampling
+    # and BSQ-VAE decode stay on CPU. The pipeline's ``_perf`` maps onto the shared
+    # harness's te1/unet_steps/vae fields (te1=T5 encode, unet_steps=per-scale
+    # transformer forwards, vae=BSQ-VAE decode; te2 is unused).
+    prompt = "A fantasy landscape with mountains and rivers"
+    num_inference_steps = 13
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        pipeline = InfinityPipeline(
+            config=InfinityConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            # steps is ignored: the scale schedule is fixed by the resolution preset.
+            return pipeline.generate(prompt=prompt, seed=DEFAULT_SEED)
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="infinity-2b",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=0 (matches the nightly's default and SDXL): opt_level=1
+        # recompiles the sharded transformer differently and fails in CI.
+        optimization_level=0,
+        output_image_path="test_infinity_2b_output.png",
+    )
