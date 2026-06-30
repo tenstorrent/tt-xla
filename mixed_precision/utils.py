@@ -151,12 +151,26 @@ def load_model_shell(model_name_or_path, trust_remote_code=False):
 
 
 def _run_layer(layer, hidden_states, position_ids, position_embeddings=None):
+    seq_len = hidden_states.shape[1]
+    causal_mask = torch.triu(
+        torch.full(
+            (seq_len, seq_len),
+            float("-inf"),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        ),
+        diagonal=1,
+    )
+
     kwargs = {}
     params = inspect.signature(layer.forward).parameters
     if "position_ids" in params:
         kwargs["position_ids"] = position_ids
     if position_embeddings is not None and "position_embeddings" in params:
         kwargs["position_embeddings"] = position_embeddings
+    if "attention_mask" in params:
+        kwargs["attention_mask"] = causal_mask
+
     out = layer(hidden_states, **kwargs)
     return out[0] if isinstance(out, (tuple, list)) else out
 
