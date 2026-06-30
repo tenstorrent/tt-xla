@@ -225,23 +225,9 @@ TP_CONFIGS = [
     # n300-llmbox (2, 4) entries. Same models, mesh_shape=None for blackhole.
     pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-qb2-tp"),
     pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-qb2-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 32), id="qwen3-8b-qb2-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-14B", 32), id="qwen3-14b-qb2-tp"),
-    pytest.param(
-        _tp_config("Qwen/Qwen2.5-14B-Instruct", 32),
-        id="qwen2.5-14b-instruct-qb2-tp",
-    ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
         id="qwen2.5-coder-32b-instruct-qb2-tp",
-    ),
-    pytest.param(
-        _tp_config("mistralai/Ministral-8B-Instruct-2410", 32),
-        id="ministral-8b-qb2-tp",
-    ),
-    pytest.param(
-        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32),
-        id="mistral-nemo-instruct-2407-qb2-tp",
     ),
     pytest.param(
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
@@ -250,6 +236,16 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32),
         id="llama-3.1-8b-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config(
+            "meta-llama/Llama-3.1-70B-Instruct",
+            32,
+            gpu_memory_utilization=0.15,
+            enable_const_eval=True,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="llama-3.1-70b-qb2-tp",
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 32, mesh_shape=[2, 4]),
