@@ -84,7 +84,10 @@ BufferInstance::BufferInstance(PJRT_Buffer_Type data_type,
       m_dimensions(dims, dims + num_dims), m_device(device),
       m_device_id(std::nullopt), m_memory(memory), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {}
+      m_data_deleted(false) {
+  LOG_F(INFO, "BufferInstance constructed: uid=%lu, shape=%s", m_uid,
+        toShapeStr().c_str());
+}
 
 BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
                                DeviceInstance *device, MemoryInstance *memory,
@@ -94,9 +97,16 @@ BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
       m_dimensions(dimensions.begin(), dimensions.end()), m_device(device),
       m_device_id(device_id), m_memory(memory), m_data_ready(false),
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
-      m_data_deleted(false) {}
+      m_data_deleted(false) {
+  LOG_F(INFO, "BufferInstance constructed: uid=%lu, shape=%s", m_uid,
+        toShapeStr().c_str());
+}
 
-BufferInstance::~BufferInstance() { deleteData(); }
+BufferInstance::~BufferInstance() {
+  LOG_F(INFO, "BufferInstance destroyed: uid=%lu, shape=%s", m_uid,
+        toShapeStr().c_str());
+  deleteData();
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;
