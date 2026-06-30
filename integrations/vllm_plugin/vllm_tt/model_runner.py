@@ -256,7 +256,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
-        self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+        self.max_num_reqs = scheduler_config.max_num_seqs
         if self.enable_tensor_parallel and self.num_devices == 1:
             logger.warning(
                 "Tensor parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
