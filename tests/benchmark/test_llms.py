@@ -2822,5 +2822,5 @@ def test_acestep_audio_lm_1_7b(
         read_logits_fn=lambda output: output[0],
         optimization_level=2,  # perf-tuning: max optimization
         trace_enabled=True,  # perf-tuning: enable trace
-        experimental_kv_cache_dtype=None,
+        experimental_kv_cache_dtype="bfp_bf8",  # perf-tuning: bfp8 KV cache
     )
