@@ -37,6 +37,7 @@ class SearchConfig:
     test: str
     threshold: float
     save_logs: bool = False
+    skip_baselines: bool = False
 
 
 EXPERIMENTS_DIR = "mixed_precision_experiments"
@@ -94,6 +95,9 @@ def parse_args():
     parser.add_argument("--results", default=None, help="Output markdown results file")
     parser.add_argument(
         "--save-logs", action="store_true", help="Save pytest output logs per iteration"
+    )
+    parser.add_argument(
+        "--skip-baselines", action="store_true", help="Skip baseline runs and go straight to binary search"
     )
     return parser.parse_args()
 
@@ -261,17 +265,16 @@ def load_weights(scores_file, model_name):
 
 
 def run(weights, sizes, mlp_weights, n, total_numel, config):
-    all_bfp4_top1 = run_baselines(weights, mlp_weights, n, config)
-    threshold = config.threshold
+    if not config.skip_baselines:
+        all_bfp4_top1 = run_baselines(weights, mlp_weights, n, config)
+        if all_bfp4_top1 is not None and all_bfp4_top1 >= config.threshold:
+            print(
+                f"\nAll-bfp_bf4 passed ({all_bfp4_top1:.2f}% ≥ {config.threshold}%). Skipping search."
+            )
+            write_final(config.results_file, n, n, all_bfp4_top1, total_numel, total_numel)
+            return
 
-    if all_bfp4_top1 is not None and all_bfp4_top1 >= config.threshold:
-        print(
-            f"\nAll-bfp_bf4 passed ({all_bfp4_top1:.2f}% ≥ {config.threshold}%). Skipping search."
-        )
-        write_final(config.results_file, n, n, all_bfp4_top1, total_numel, total_numel)
-        return
-
-    binary_search(weights, sizes, n, total_numel, config, threshold)
+    binary_search(weights, sizes, n, total_numel, config, config.threshold)
 
 
 def main():
@@ -285,6 +288,7 @@ def main():
         test=args.test,
         threshold=args.threshold,
         save_logs=args.save_logs,
+        skip_baselines=args.skip_baselines,
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(results_file)), exist_ok=True)
