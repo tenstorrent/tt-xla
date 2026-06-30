@@ -133,6 +133,8 @@ def _gemma4_tp_config(model: str, batch_size: int):
         model,
         batch_size,
         gpu_memory_utilization=0.2,
+        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
+        optimization_level=1,
         enable_tensor_parallel=True,
         min_context_len=32,
         enable_const_eval=True,
@@ -193,11 +195,16 @@ TP_CONFIGS = [
             "tiiuae/Falcon3-7B-Base",
             32,
             mesh_shape=[2, 4],
+            # opt-level 2 fails with an L1/circular-buffer clash; see #5438.
+            optimization_level=1,
         ),
         id="falcon3-7b-tp",
     ),
     pytest.param(
-        _tp_config("tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4]),
+        # opt-level 2 fails with an L1/circular-buffer clash; see #5439.
+        _tp_config(
+            "tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4], optimization_level=1
+        ),
         id="falcon3-10b-tp",
     ),
     pytest.param(_tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]), id="qwen3-8b-tp"),
