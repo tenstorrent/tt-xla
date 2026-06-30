@@ -19,7 +19,7 @@ def test_opt_generation():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -43,7 +43,7 @@ def test_opt_generation_kv_cache_bfp8():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
             "experimental_kv_cache_dtype": "bfp_bf8",
         },
@@ -69,7 +69,7 @@ def test_opt_generation_multibatch():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -97,7 +97,7 @@ def test_opt_generation_large_batch(batch_size):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
-            "enable_const_eval": False,
+            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }

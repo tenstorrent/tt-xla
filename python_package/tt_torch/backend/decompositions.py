@@ -408,6 +408,27 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
+def histc(input, bins=100, min=0, max=0):
+    """Decomposition for aten.histc via one_hot + sum."""
+    # torch.histc: equal bounds (min == max, including the 0/0 default) mean "use the
+    # tensor's own range"; if that range is degenerate (constant input), widen by 1
+    # on each side -- matching aten's reference kernel:
+    # https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/SummaryOps.cu#L331
+    if min == max:
+        lo, hi = input.min(), input.max()
+        same = (lo == hi).to(input.dtype)
+        lo, hi = lo - same, hi + same
+    else:
+        lo, hi = min, max
+    x = input.flatten()
+    # bin index of each value; clamp pulls v == hi into the last bin.
+    idx = torch.floor((x - lo) / (hi - lo) * bins).to(torch.long).clamp(0, bins - 1)
+    # values outside [lo, hi] and NaN (compares False) are not counted.
+    valid = (x >= lo) & (x <= hi)
+    onehot = torch.nn.functional.one_hot(idx, bins).to(input.dtype)
+    return (onehot * valid.unsqueeze(-1).to(input.dtype)).sum(dim=0)
+
+
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
@@ -445,6 +466,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
         aten.sum.dim_IntList: sum_dim_IntList,
+        aten.histc.default: histc,
     }
 
 
