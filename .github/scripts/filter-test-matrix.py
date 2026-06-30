@@ -113,17 +113,18 @@ def filter_matrix_adv(matrix, adv_filter):
 
 
 def update_runners(matrix, sh_runner):
-    """Update runner names based on shared runner flag."""
-    runner_map = (
-        {"p150": "p150b", "p150-perf": "p150b"} if sh_runner else {"n150": "n150-perf"}
-    )
+    """Resolve each test's final ``runs-on`` label and shared-runner flag."""
+    no_shared_runner = ("galaxy-wh-6u", "qb2-blackhole")
+    civ2_name_map = {"n150-perf": "n150", "p150-perf": "p150b"}
 
     for item in matrix:
-        item["runs-on-original"] = item.get("runs-on")
-        if item.get("runs-on") in runner_map:
-            item["runs-on"] = runner_map[item["runs-on"]]
-
-    return matrix
+        runs_on = item.get("runs-on")
+        item["runs-on-original"] = runs_on
+        item["shared-runners"] = sh_runner and runs_on not in no_shared_runner
+        if item["shared-runners"]:
+            item["runs-on"] = (
+                f"tt-ubuntu-2204-{civ2_name_map.get(runs_on, runs_on)}-stable"
+            )
 
 
 def main():

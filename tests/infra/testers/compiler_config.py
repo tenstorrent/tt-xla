@@ -81,6 +81,10 @@ class CompilerConfig:
     # Only effective when optimization_level >= 1 (optimizer must be enabled)
     enable_create_d2m_subgraphs: bool = False
 
+    # Enable the all_reduce decomposition workaround which breaks all_reduce down
+    # into reduce_scatter + all_gather (or all_gather + local reduce).
+    all_reduce_workaround_enabled: bool = True
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -133,6 +137,9 @@ class CompilerConfig:
                     f"is enabled, got optimization_level={self.optimization_level}"
                 )
             options["enable_create_d2m_subgraphs"] = "true"
+
+        if not self.all_reduce_workaround_enabled:
+            options["all_reduce_workaround_enabled"] = "false"
 
         return options
 

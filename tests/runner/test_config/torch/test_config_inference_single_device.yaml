@@ -65,7 +65,7 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
-  bloom/pytorch-single_device-inference:
+  bloom/pytorch-1b1-single_device-inference:
     status: EXPECTED_PASSING
 
   xglm/pytorch-564M-single_device-inference:
@@ -2114,11 +2114,8 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9793780977131366. Required: pcc=0.99."
 
   transfuser/pytorch-single_device-inference:
-    arch_overrides:
-        n150:
-          status: EXPECTED_PASSING
-        p150:
-          status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2272,7 +2269,8 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ValueError: Error code: 13 - https://github.com/tenstorrent/tt-xla/issues/5338"
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING

@@ -779,3 +779,49 @@ def test_patched_sdpa(
         framework=Framework.TORCH,
         torch_options=options,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "q_shape, kv_shape, mask_shape, scale",
+    [
+        ((1, 28, 5224, 128), (1, 28, 5224, 128), (1, 1, 5224, 5224), None),
+        ((1, 1, 32, 32), (1, 1, 32, 32), (1, 1, 32, 32), 0.125),
+        ((1, 8, 64, 64), (1, 8, 64, 64), (1, 1, 64, 64), 0.5),
+        ((1, 8, 64, 64), (1, 8, 64, 64), (1, 8, 64, 64), None),
+        ((1, 4, 64, 32), (1, 4, 128, 32), (1, 1, 64, 128), 0.25),
+    ],
+)
+def test_sdpa_bool_mask(q_shape, kv_shape, mask_shape, scale):
+    class SDPAModel(torch.nn.Module):
+        def __init__(self, scale):
+            super().__init__()
+            self.scale = scale
+
+        def forward(self, query, key, value, attn_mask):
+            return F.scaled_dot_product_attention(
+                query=query,
+                key=key,
+                value=value,
+                attn_mask=attn_mask,
+                dropout_p=0.0,
+                is_causal=False,
+                scale=self.scale,
+                enable_gqa=False,
+            )
+
+    query = torch.randn(*q_shape, dtype=torch.bfloat16)
+    key = torch.randn(*kv_shape, dtype=torch.bfloat16)
+    value = torch.randn(*kv_shape, dtype=torch.bfloat16)
+    attn_mask = torch.ones(*mask_shape, dtype=torch.bool).tril()
+
+    model = SDPAModel(scale)
+    inputs = [query, key, value, attn_mask]
+
+    run_graph_test(
+        model,
+        inputs,
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+    )
