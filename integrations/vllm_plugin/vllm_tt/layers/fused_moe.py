@@ -15,7 +15,7 @@ TT-friendly expert dispatch delegated to ``tt_torch.moe_backend``:
 
 Routing uses the model's own ``custom_routing_function`` when present, else
 standard softmax / top_k / renormalize. Registered at import time via
-``@CustomOp.register_oot``; the import is fired from ``register_moe_oot_layer``
+``@CustomOp.register_oot``; the import is fired from ``register_oot_layer``
 (the ``vllm.general_plugins`` entry point), mirroring the MLA backend.
 """
 
