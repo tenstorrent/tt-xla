@@ -50,6 +50,18 @@ class TTConfig:
     enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
+
+    # Minimum request-batch size to preallocate and precompile for. This is
+    # used as the lower bound for request-count shape warmup.
+    # If unset, it resolves to scheduler_config.max_num_seqs.
+    min_num_seqs: Optional[int] = None
+
+    # b1-prefill batch threshold. When <= this many prefills are
+    # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
+    # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
+    # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
+    prefill_batch_threshold: int = 0
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -278,12 +290,39 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
-        additional_config = vllm_config.additional_config or {}
+        if vllm_config.additional_config is None:
+            vllm_config.additional_config = {}
+        additional_config = vllm_config.additional_config
+        tt_config = TTConfig(**additional_config)
         if "batch_size" in additional_config:
             logger.warning(
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = (
+                vllm_config.scheduler_config.max_num_seqs
+            )
+            tt_config.min_num_seqs = additional_config["min_num_seqs"]
+        elif tt_config.min_num_seqs < 1:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
+            )
+        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # b1-prefill batch threshold: resolve default (0 = off)
+        # and persist so the AscendScheduler sees a concrete value; validate >= 0.
+        if additional_config.get("prefill_batch_threshold") is None:
+            additional_config["prefill_batch_threshold"] = 0
+        elif int(additional_config["prefill_batch_threshold"]) < 0:
+            raise ValueError(
+                "additional_config['prefill_batch_threshold'] must be >= 0."
+            )
+        vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
