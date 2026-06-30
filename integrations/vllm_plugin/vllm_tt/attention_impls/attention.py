@@ -181,6 +181,9 @@ class TTMetadata:
     # across users by same-stage batching). Set only on a cached-prefix chunk;
     # consumed by the chunked_scaled_dot_product_attention op.
     chunk_start_idx: torch.Tensor
+    batch_idx: Optional[torch.Tensor] = None
+    num_users: Optional[int] = None
+    num_tokens: Optional[int] = None
 
     def __init__(
         self,
@@ -190,6 +193,9 @@ class TTMetadata:
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
         chunk_start_idx: torch.Tensor | None = None,
+        batch_idx: torch.Tensor | None = None,
+        num_users: Optional[int] = None,
+        num_tokens: Optional[int] = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -199,6 +205,11 @@ class TTMetadata:
             fill_page_table if fill_page_table is not None else page_table
         )
         self.chunk_start_idx = chunk_start_idx
+        assert num_users is not None, "num_users must be provided."
+        assert num_tokens is not None, "num_tokens must be provided."
+        self.num_users = num_users
+        self.num_tokens = num_tokens
+        self.batch_idx = batch_idx
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -284,7 +295,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-
+        assert attn_metadata is not None, "TT attention requires metadata."
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
@@ -324,14 +335,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Prepare and reshape input tensors for attention computation."""
         from collections import namedtuple
 
-        # Extract common metadata
-        # Handle case when cache_position is None (e.g., during profiling)
-        if attn_metadata is not None and attn_metadata.cache_position is not None:
-            num_users = attn_metadata.cache_position.shape[0]  # logical batch size
-        else:
-            # Fallback: infer from query shape
-            num_users = query.shape[0] if query.ndim > 2 else 1
-
+        num_users = attn_metadata.num_users
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 
@@ -493,13 +497,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
-            # TODO(#5154): hoist to a setup-time metadata input built on CPU
-            # instead of an in-graph device constructor rebuilt per call.
-            batch_idxs = torch.arange(
-                key_for_update.shape[0],
-                dtype=torch.int32,
-                device=k_cache.device,
-            )
+            batch_idxs = attn_metadata.batch_idx
+            assert batch_idxs is not None, "batch_idx must be provided for prefill."
+
             k_cache = torch.ops.tt.paged_fill_cache(
                 k_cache,
                 key_for_update,

@@ -636,6 +636,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         )
 
+        self.batch_idx_min_reqs = torch.arange(
+            self.min_num_reqs, dtype=torch.int32, device="cpu"
+        ).to(self.device)
+        self.batch_idx_max_reqs = torch.arange(
+            self.max_num_reqs, dtype=torch.int32, device="cpu"
+        ).to(self.device)
+
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
         if self._original_num_layers is None or self._target_num_layers is None:
@@ -1323,6 +1330,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
+            batch_idx=(
+                self.batch_idx_min_reqs
+                if target_num_reqs == self.min_num_reqs
+                else self.batch_idx_max_reqs
+            ),
+            num_users=target_num_reqs,
+            num_tokens=padded_total_num_scheduled_tokens,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -2090,6 +2104,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
+            batch_idx=(
+                self.batch_idx_min_reqs
+                if num_reqs == self.min_num_reqs
+                else self.batch_idx_max_reqs
+            ),
+            num_users=num_reqs,
+            num_tokens=num_tokens,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2442,6 +2463,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
+            fill_page_table=page_table,
+            batch_idx=(
+                self.batch_idx_min_reqs
+                if num_reqs == self.min_num_reqs
+                else self.batch_idx_max_reqs
+            ),
+            num_users=num_reqs,
+            num_tokens=num_tokens,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
