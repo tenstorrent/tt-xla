@@ -1304,6 +1304,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=attn_mask is None,
             attn_mask=attn_mask,
             fill_page_table=fill_page_table,
+            mesh=self.mesh if self.enable_tensor_parallel else None,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -2062,6 +2063,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # graph regardless of has_paged_cache.
             is_causal=attn_mask is None,
             attn_mask=attn_mask,
+            mesh=self.mesh if self.enable_tensor_parallel else None,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2382,6 +2384,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=attn_mask is None,
             attn_mask=attn_mask,
             fill_page_table=page_table,
+            mesh=self.mesh if self.enable_tensor_parallel else None,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata

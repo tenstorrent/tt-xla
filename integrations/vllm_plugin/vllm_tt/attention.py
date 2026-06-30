@@ -181,6 +181,7 @@ class TTMetadata:
     # the pattern from attn_mask instead — that branch passes is_causal=False
     # so the mask is the single source of truth.
     is_causal: bool
+    
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
@@ -192,6 +193,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        mesh: object | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -200,6 +202,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.mesh = mesh
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -558,6 +561,15 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[1], attn_metadata.page_table
             )
+            query_for_sdpa = inputs.query.transpose(-3, -2)
+            if attn_metadata.mesh is not None:
+                from .vllm_distributed_utils import safe_mark_sharding
+                # gather/reshape drops the cache's head-dim sharding; re-assert it
+                # so K/V heads match query heads per shard (GQA divisibility).
+                safe_mark_sharding(key_for_sdpa, attn_metadata.mesh,
+                                   (None, "model", None, None))
+                safe_mark_sharding(value_for_sdpa, attn_metadata.mesh,
+                                   (None, "model", None, None))
             query_for_sdpa = inputs.query.transpose(-3, -2)
             sdpa_kwargs = {
                 "is_causal": False,
