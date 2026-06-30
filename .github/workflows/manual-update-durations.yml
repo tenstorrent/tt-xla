@@ -8,66 +8,105 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
+  issues: write
   pull-requests: write
 
 jobs:
-  bump-version:
-    name: "Bump .version and open PR"
+  update_test_durations:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout tt-xla
-        uses: actions/checkout@v6
-
-      - name: Compute next version and update .version
-        id: bump
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          source .version
-          old_version="$MAJOR.$MINOR.$PATCH"
-
-          # Rule: 1.4.0 -> 1.5.0 -> ... -> 1.9.0 -> 2.0.0 -> 2.1.0
-          if [ "$MINOR" -ge 9 ]; then
-            new_major=$((MAJOR + 1))
-            new_minor=0
-          else
-            new_major=$MAJOR
-            new_minor=$((MINOR + 1))
-          fi
-          new_patch=0
-          new_version="$new_major.$new_minor.$new_patch"
-
-          echo "Bumping .version: $old_version -> $new_version"
-
-          sed -i -E "s/^MAJOR=.*/MAJOR=$new_major/" .version
-          sed -i -E "s/^MINOR=.*/MINOR=$new_minor/" .version
-          sed -i -E "s/^PATCH=.*/PATCH=$new_patch/" .version
-
-          echo "Updated .version:"
-          cat .version
-
-          echo "old_version=$old_version" >> "$GITHUB_OUTPUT"
-          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
-
-      - name: Create version bump PR
-        uses: peter-evans/create-pull-request@v8
+      - uses: actions/checkout@v6
         with:
-          branch: bump-version-${{ steps.bump.outputs.new_version }}
+          fetch-depth: 0
+          # ref: main
+      - uses: actions/setup-python@v6
+      - name: Process test durations from latest workflows
+        id: get-test-durations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="tenstorrent/tt-xla"
+
+          get_test_results_from_wf() {
+            local wf_name="$1"
+            local conclusions="$2"
+            local num=5
+
+            # get json of the last $num workflow runs
+            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+
+            counter=0
+            while true; do
+              # Check the status of 'conclusion'
+              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+
+              if echo "$conclusions" | grep -q -w "$conclusion"; then
+                break
+              else
+                ((++counter))
+
+                # Exit if the counter reaches $num
+                if [ $counter -ge $num ]; then
+                  echo "ERROR: Did not found good workflow within last $num. Exiting."
+                  exit 1
+                fi
+              fi
+            done
+            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
+            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
+            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
+            rm -f runs.json
+
+            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
+          }
+
+          # get test results from the last nightly that was success or failure
+          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
+
+          # get test results from the last successful push
+          get_test_results_from_wf "push-main.yml" "success" "push"
+
+          # get test results from the last weekly that was success or failure
+          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
+
+          # get test results from the last weekly training that was success or failure
+          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
+
+          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
+          echo "" >> .test_durations
+          echo "----- NEW DURATIONS"
+          cat .test_durations
+
+          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8
+        id: create-pr
+        with:
+          branch: test-durations-update
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           base: main
-          add-paths: .version
-          commit-message: "Bump .version to ${{ steps.bump.outputs.new_version }} after ${{ steps.bump.outputs.old_version }} release"
-          title: "Bump .version to ${{ steps.bump.outputs.new_version }} for next release"
-          body: |
-            ## Description
-
-            The `${{ steps.bump.outputs.old_version }}` stable release has been published, so this PR bumps `.version` to `${{ steps.bump.outputs.new_version }}` for the next release cycle.
-
-            - **Version change:** `${{ steps.bump.outputs.old_version }}` -> `${{ steps.bump.outputs.new_version }}`
-
-            _Opened automatically by the `Stable version release` workflow._
+          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          labels: tooling
           delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ github.token }}
+
+      - name: Enable Pull Request Automerge
+        if: ${{ steps.create-pr.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate Summary
+        run: |
+          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
+          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
