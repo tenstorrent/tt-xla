@@ -91,13 +91,13 @@ from vllm.v1.worker.utils import (
     sanity_check_mm_encoder_outputs,
 )
 
-from .attention import (
+from .attention_impls.attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
     get_page_size_bytes,
 )
-from .attention_mla import TTMLAAttentionBackend
+from .attention_impls.attention_mla import TTMLAAttentionBackend
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata

@@ -116,8 +116,8 @@ def _run_impl(device, params, inputs, mesh=None):
     """
     from types import SimpleNamespace
 
-    from vllm_tt.attention import TTMetadata
-    from vllm_tt.attention_mla import TTMLAAttentionBackendImpl
+    from vllm_tt.attention_impls.attention import TTMetadata
+    from vllm_tt.attention_impls.attention_mla import TTMLAAttentionBackendImpl
 
     cfg = params["cfg"]
     L = cfg["kv_lora_rank"]

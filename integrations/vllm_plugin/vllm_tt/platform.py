@@ -335,7 +335,7 @@ class TTPlatform(Platform):
             )
             model_config.dtype = torch.bfloat16
 
-        from .attention import TTAttentionBackend
+        from .attention_impls.attention import TTAttentionBackend
 
         cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config

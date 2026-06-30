@@ -14,8 +14,8 @@ from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper
 from vllm.v1.attention.backend import AttentionBackend, AttentionLayer, MLAAttentionImpl
 
+from ..logger import tt_init_logger
 from .attention import TTAttentionMetadataBuilder, TTMetadata
-from .logger import tt_init_logger
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
@@ -276,6 +276,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             key=k_for_kernel,
             head_dim_v=self.kv_lora_rank,
             value=None,
+            attn_mask=attn_metadata.attn_mask if attn_metadata is not None else None,
             is_causal=attn_metadata.is_causal if attn_metadata is not None else True,
             scale=self.scale,
         )  # [b, N, S, L]

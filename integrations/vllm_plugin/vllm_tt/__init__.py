@@ -9,11 +9,11 @@ from vllm.v1.attention.backends.registry import AttentionBackendEnum, register_b
 # Register TT attention backends at module import time
 register_backend(
     backend=AttentionBackendEnum.CUSTOM,
-    class_path="vllm_tt.attention.TTAttentionBackend",
+    class_path="vllm_tt.attention_impls.attention.TTAttentionBackend",
 )
 register_backend(
     backend=AttentionBackendEnum.FLASH_ATTN_MLA,
-    class_path="vllm_tt.attention_mla.TTMLAAttentionBackend",
+    class_path="vllm_tt.attention_impls.attention_mla.TTMLAAttentionBackend",
 )
 
 
@@ -23,12 +23,7 @@ def register():
     return "vllm_tt.platform.TTPlatform"
 
 
-def register_mla_oot_layer():
-    from . import attention_mla  # noqa: F401
-
-
-def register_moe_oot_layer():
-    # OOT-registers TTFusedMoE (CustomOp.register_oot) so Gemma-4's FusedMoE
-    # uses our dense / expert-parallel routing path under XLA SPMD. Mirrors the
-    # MLA backend's register_*_oot_layer + vllm.general_plugins pattern.
+def register_oot_layers():
+    # Registers all OOT backends
+    from .attention_impls import attention_mla  # noqa: F401
     from .layers.fused_moe import TTFusedMoE, TTSharedFusedMoE  # noqa: F401

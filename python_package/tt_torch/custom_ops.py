@@ -310,6 +310,8 @@ def flash_mla_prefill(
         assert (
             attn_mask.shape[0] == query.shape[0]
         ), "attention mask batch size must match query batch size."
+    else:
+        assert is_causal == True, "is_causal must be True if attn_mask is not provided"
 
     output_shape = torch.Size(
         [query.shape[0], query.shape[1], query.shape[2], head_dim_v]
@@ -475,6 +477,8 @@ def paged_flash_mla_decode(
         ), "cur_pos_tensor must be provided when is_causal is True."
     if attn_mask is not None:
         assert not is_causal, "attn_mask requires is_causal to be False."
+    else:
+        assert is_causal, "is_causal must be True when attn_mask is not provided"
 
     if cur_pos_tensor is not None:
         assert (
