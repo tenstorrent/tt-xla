@@ -171,9 +171,17 @@ def fill_cache_workaround(
 class TTMetadata:
     # Used in the TTAttentionBackendImpl
     cache_position: torch.Tensor
+    # Prefill SDPA mask. Shape: [num_users, 1, suffix_len, num_blocks*block_size],
+    # dtype matches Q (typically bfloat16). 0 where Q[i] should attend to K/V[j],
+    # -inf otherwise. Encodes the per-user causal pattern including any cached
+    # prefix offset (num_computed_tokens). None during decode.
     attn_mask: torch.Tensor
     page_table: torch.Tensor
+    # Only consumed by the decode kernel. SDPA prefill ignores this and reads
+    # the pattern from attn_mask instead — that branch passes is_causal=False
+    # so the mask is the single source of truth.
     is_causal: bool
+    
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
@@ -185,6 +193,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        mesh: object | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +202,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.mesh = mesh
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -517,45 +527,65 @@ class TTAttentionBackendImpl(AttentionImpl):
         kv_cache,
         attn_metadata: TTMetadata,
     ) -> torch.Tensor:
-        """Compute full attention using scaled dot-product attention (non-paged).
+        """Compute full attention during the prefill phase.
 
-        This method is used in two scenarios:
-        1. Generative models: During the prefill phase when processing initial
-           prompt tokens before decode iterations begin.
-        2. Pooling models: For the entire attention computation, as these models
-           process all tokens in a single pass without a decode phase or KV cache.
+        For generative models with paged KV cache (including KV-sharing
+        layers): gathers the full per-user K/V slab from the paged cache (no
+        trim — shape is fixed at ``num_blocks_per_user * block_size``) and
+        runs SDPA with an explicit ``attn_mask`` built in model_runner.
+
+        The mask is the single source of truth for the causal/cached pattern:
+        ``is_causal`` is hard-coded to ``False`` so the trace never depends on
+        a Python branch and the same graph services cold prefill
+        (``num_computed_tokens=0``) and cached prefill identically.
+
+        For pooling models or profiling (no paged cache): falls back to
+        standard SDPA with inputs.key/value directly and the metadata's
+        ``is_causal``/``attn_mask`` settings.
         """
-        shared_kv_mode = (
-            self.kv_sharing_target_layer_name is not None
-            and isinstance(kv_cache, (list, tuple))
+        has_paged_cache = (
+            isinstance(kv_cache, (list, tuple))
             and len(kv_cache) >= 2
             and kv_cache[0].numel() > 0
+            and attn_metadata.page_table is not None
         )
 
-        if shared_kv_mode:
-            # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
-            # from the target layer's paged cache (kv_cache is already the
-            # target's tensor via vLLM's alias).
+        if has_paged_cache:
+            # Full gather (no trim): shape stays constant across cold/cached
+            # prefill so the traced graph is reusable. The mask -inf's out
+            # both the causal upper-triangle and any K/V slots past the
+            # user's logical sequence end.
             key_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[0], attn_metadata.page_table, inputs.kv_num_tokens
+                kv_cache[0], attn_metadata.page_table
             )
             value_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[1], attn_metadata.page_table, inputs.kv_num_tokens
+                kv_cache[1], attn_metadata.page_table
             )
-            # SDPA expects [users, num_heads, tokens, head]. The gather helper
-            # already returns that layout, only Q needs the transpose.
             query_for_sdpa = inputs.query.transpose(-3, -2)
+            if attn_metadata.mesh is not None:
+                from .vllm_distributed_utils import safe_mark_sharding
+                # gather/reshape drops the cache's head-dim sharding; re-assert it
+                # so K/V heads match query heads per shard (GQA divisibility).
+                safe_mark_sharding(key_for_sdpa, attn_metadata.mesh,
+                                   (None, "model", None, None))
+                safe_mark_sharding(value_for_sdpa, attn_metadata.mesh,
+                                   (None, "model", None, None))
+            query_for_sdpa = inputs.query.transpose(-3, -2)
+            sdpa_kwargs = {
+                "is_causal": False,
+                "attn_mask": attn_metadata.attn_mask,
+                "scale": self.scale,
+            }
         else:
-            # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
             query_for_sdpa = inputs.query.transpose(-3, -2)
             key_for_sdpa = inputs.key.transpose(-3, -2)
             value_for_sdpa = inputs.value.transpose(-3, -2)
+            sdpa_kwargs = {
+                "is_causal": attn_metadata.is_causal,
+                "attn_mask": attn_metadata.attn_mask,
+                "scale": self.scale,
+            }
 
-        sdpa_kwargs = {
-            "is_causal": attn_metadata.is_causal,
-            "attn_mask": attn_metadata.attn_mask,
-            "scale": self.scale,
-        }
         if self.sliding_window is not None:
             sdpa_kwargs["sliding_window_size"] = self.sliding_window
 
@@ -574,16 +604,21 @@ class TTAttentionBackendImpl(AttentionImpl):
         self,
         cache: torch.Tensor,
         page_table: torch.Tensor,
-        num_tokens: int,
     ) -> torch.Tensor:
         """Gather a dense K/V tensor from a paged cache buffer.
 
         Paged layout is ``[num_blocks, num_kv_heads, block_size, head_size]``
         as declared by ``TTAttentionBackend.get_kv_cache_shape``. The
         ``page_table`` gives the block ids per user. We index the blocks,
-        re-order dims so the token axis is flattened across blocks, and trim
-        to the logical prompt length so downstream SDPA sees a dense tensor
-        matching the self-K/V path's shape.
+        re-order dims so the token axis is flattened across blocks, and
+        return the full slab ``[users, num_kv_heads, num_blocks * block_size,
+        head_size]``. We intentionally do NOT trim to a logical prompt
+        length: keeping a constant shape per bucket lets warmup and runtime
+        share a single traced graph, and the prefill ``attn_mask`` -inf's
+        out positions past the user's actual sequence end.
+
+        Uses torch.gather (supported by TT backend) instead of index_select
+        (which lowers to ttir.embedding and breaks trace mode).
         """
         num_blocks_per_user = page_table.shape[1]
         num_kv_heads = cache.shape[1]
@@ -591,8 +626,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         head_size = cache.shape[3]
         users = page_table.shape[0]
 
-        flat_indices = page_table.reshape(-1)
-        gathered = torch.index_select(cache, 0, flat_indices)
+        flat_indices = page_table.reshape(-1).to(torch.int64)
+        # Use torch.gather on dim 0 instead of index_select.
+        # Expand indices to match cache shape for gather semantics.
+        expanded_indices = flat_indices.view(-1, 1, 1, 1).expand(
+            -1, num_kv_heads, block_size, head_size
+        )
+        gathered = torch.gather(cache, 0, expanded_indices)
         # [users * num_blocks_per_user, num_kv_heads, block_size, head_size]
         gathered = gathered.view(
             users, num_blocks_per_user, num_kv_heads, block_size, head_size
@@ -600,9 +640,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         # [users, num_kv_heads, num_blocks_per_user, block_size, head_size]
         gathered = gathered.permute(0, 2, 1, 3, 4).contiguous()
         # [users, num_kv_heads, num_blocks_per_user * block_size, head_size]
-        gathered = gathered.reshape(users, num_kv_heads, -1, head_size)
-        # Trim padding past the logical prompt length.
-        return gathered[:, :, :num_tokens, :]
+        return gathered.reshape(users, num_kv_heads, -1, head_size)
 
     def _compute_decode_attention(
         self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
