@@ -56,7 +56,7 @@ def test_cpu_sampling_greedy():
 
 
 @pytest.mark.single_device
-@pytest.mark.nightly
+@pytest.mark.push
 def test_cpu_sampling_temperature():
     """Non-greedy temperature sampling produces coherent output."""
     params = vllm.SamplingParams(temperature=0.6, max_tokens=32)

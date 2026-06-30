@@ -31,12 +31,11 @@ from .shared import (
     wan22_mesh,
 )
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
-    export_path="model",
-    export_model_name="vae_decoder",
     enable_trace=True,
+    all_reduce_workaround_enabled=False,
 )
 
 
@@ -97,7 +96,7 @@ def _run(resolution: str, sharded: bool) -> None:
             graph=model,
             inputs=[z],
             framework=Framework.TORCH,
-            compiler_config=_COMPILER_CONFIG,
+            compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
             comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),

@@ -37,6 +37,60 @@ def _unflatten_to_shape(
     )
 
 
+def _to_pair(value: int | tuple[int, int] | list[int]) -> tuple[int, int]:
+    return (value, value) if isinstance(value, int) else tuple(value)
+
+
+def _unfold_via_gather(
+    inp: torch.Tensor,
+    kernel_size,
+    dilation=1,
+    padding=0,
+    stride=1,
+) -> torch.Tensor:
+    """Pure-torch reimplementation of ``torch.nn.functional.unfold`` for 4D
+    ``(N, C, H, W)`` inputs.
+
+    The native op lowers to im2col / ``Tensor.unfold`` HLO ops that are not
+    supported on the XLA/TT backend, so we instead build the sliding-window
+    index grids and gather. The output is guaranteed to match
+    ``torch.nn.functional.unfold`` element-for-element (see
+    ``tests/torch/ops/test_unfold.py``), with column ``l = oh * out_W + ow`` and
+    channel-kernel index ``c * kH * kW + kh * kW + kw``.
+    """
+    kH, kW = _to_pair(kernel_size)
+    dH, dW = _to_pair(dilation)
+    pH, pW = _to_pair(padding)
+    sH, sW = _to_pair(stride)
+
+    N, C, H, W = inp.shape
+
+    if pH > 0 or pW > 0:
+        inp = torch.nn.functional.pad(inp, (pW, pW, pH, pH))
+        _, _, H, W = inp.shape
+
+    eff_kH = dH * (kH - 1) + 1
+    eff_kW = dW * (kW - 1) + 1
+    out_H = (H - eff_kH) // sH + 1
+    out_W = (W - eff_kW) // sW + 1
+
+    # Per-output-position kernel offsets: row/col index for every (out, k) pair.
+    ri = (
+        torch.arange(out_H, device=inp.device).view(-1, 1) * sH
+        + torch.arange(kH, device=inp.device).view(1, -1) * dH
+    )
+    ci = (
+        torch.arange(out_W, device=inp.device).view(-1, 1) * sW
+        + torch.arange(kW, device=inp.device).view(1, -1) * dW
+    )
+
+    # Gather rows then cols: (N, C, out_H*kH, out_W*kW)
+    x = inp[:, :, ri.reshape(-1), :][:, :, :, ci.reshape(-1)]
+    x = x.view(N, C, out_H, kH, out_W, kW)
+    x = x.permute(0, 1, 3, 5, 2, 4).contiguous()
+    return x.view(N, C * kH * kW, out_H * out_W)
+
+
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
         kwargs = kwargs or {}
@@ -63,6 +117,21 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
+        if (
+            func is torch.nn.functional.unfold
+            and not torch.compiler.is_compiling()
+            and args
+            and isinstance(args[0], torch.Tensor)
+            and args[0].device.type == "xla"
+        ):
+            kw = kwargs or {}
+            return _unfold_via_gather(
+                args[0],
+                kernel_size=args[1] if len(args) > 1 else kw["kernel_size"],
+                dilation=args[2] if len(args) > 2 else kw.get("dilation", 1),
+                padding=args[3] if len(args) > 3 else kw.get("padding", 0),
+                stride=args[4] if len(args) > 4 else kw.get("stride", 1),
+            )
         return func(*args, **(kwargs or {}))
 
 

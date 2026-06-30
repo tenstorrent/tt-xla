@@ -166,9 +166,12 @@ def transformer_shard_spec(model: mdo.Transformer):
 @pytest.mark.bh_galaxy
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("num_iterations", [10])
+@pytest.mark.parametrize("num_layers", [10])
 @pytest.mark.parametrize("use_cpu_decode_inputs", [True])
 @torch.inference_mode()
-def test_prefill_and_decode_pcc_e2e(model_name, num_iterations, use_cpu_decode_inputs):
+def test_prefill_and_decode_pcc_e2e(
+    model_name, num_iterations, num_layers, use_cpu_decode_inputs
+):
     enable_spmd()
     xr.set_device_type("TT")
 
@@ -178,6 +181,12 @@ def test_prefill_and_decode_pcc_e2e(model_name, num_iterations, use_cpu_decode_i
     assert bsz == 32, "Batch size must be 32 (restriction comes from enable_sparse_mlp)"
 
     args = weight_loader.load_config_args(model_name, False)
+
+    # Run only the first `num_layers` blocks. The full 43-layer model takes
+    # ~4.5hr on BH Galaxy CI, blowing past the job timeout; the reduced depth
+    # keeps wall time under an hour while still exercising the e2e path.
+    # Revert to the full layer count once BH Galaxy CI is stabilized.
+    args.n_layers = num_layers
 
     args.n_mtp_layers = 0  # Disable multi-token prediction
     args.max_batch_size = bsz

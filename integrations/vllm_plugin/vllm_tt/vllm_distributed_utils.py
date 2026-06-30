@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
-from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sharding import _partition_spec_to_sdy_sharding, sharding_constraint_hook
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
@@ -38,12 +38,25 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
     else:
         axis_sizes = mesh.shape()
 
+    def _axis_size(axis):
+        # Compound axis (tuple of names) shards a single tensor dim across
+        # multiple mesh axes; its effective size is the product.
+        if isinstance(axis, (tuple, list)):
+            size = 1
+            for a in axis:
+                s = axis_sizes.get(a)
+                if s is None:
+                    return None
+                size *= s
+            return size
+        return axis_sizes.get(axis)
+
     safe_spec = []
     for i, axis in enumerate(partition_spec):
         if axis is None or i >= tensor.ndim:
             safe_spec.append(None)
             continue
-        mesh_axis_size = axis_sizes.get(axis)
+        mesh_axis_size = _axis_size(axis)
         if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "
@@ -273,6 +286,15 @@ def partition_row_parallel_linear(
     return layer
 
 
+def partition_linear(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+    assert isinstance(layer, nn.Linear)
+    safe_mark_sharding(layer.weight, mesh, (None, "model"))
+    if layer.bias is not None:
+        safe_mark_sharding(layer.bias, mesh, (None,))
+    logger.debug("Applied row-parallel sharding to nn.Linear %s", layer)
+    return layer
+
+
 def partition_parallel_lm_head(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
@@ -287,10 +309,43 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
-    # Apply sharding constraint to the output of the layer.
-    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
-    layer.register_forward_hook(hook_forward)
+    # Apply sharding constraint to the output. The output rank matches input
+    # rank + 1: 2D input_ids (batch, seq) → 3D output; 1D input_ids (seq,) →
+    # 2D output (e.g., during mm-encoder precompilation). Pre-compute both
+    # sharding strings to avoid per-call overhead and dispatch dynamically.
+    sdy_sharding_3d = _partition_spec_to_sdy_sharding(mesh, (None, None, None))
+    sdy_sharding_2d = _partition_spec_to_sdy_sharding(mesh, (None, None))
+
+    def rank_aware_hook(mod, input, output):
+        sdy = sdy_sharding_3d if output.dim() == 3 else sdy_sharding_2d
+        return torch.ops.tt.sharding_constraint(output, sdy)
+
+    layer.register_forward_hook(rank_aware_hook)
     logger.debug("Applied parallel sharding to %s", layer)
+    return layer
+
+
+def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+    """Fully shard FusedMoE expert weights along the expert dimension (dim 0).
+
+    vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
+    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
+    path on a genuine 2D mesh (both axes > 1), where experts are distributed
+    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
+    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
+    the dense bmm path, which needs the full expert set on every device, so
+    leave the expert weights replicated (mirrors the is_2d guard in
+    layers/fused_moe.py)."""
+    mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
+    if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
+        logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
+        return layer
+    expert_axis = tuple(mesh.axis_names)
+    for name in ("w13_weight", "w2_weight"):
+        w = getattr(layer, name, None)
+        if w is not None:
+            safe_mark_sharding(w, mesh, (expert_axis, None, None))
+    logger.debug("Applied compound expert-dim sharding to %s", layer)
     return layer
 
 
@@ -302,6 +357,11 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        # Catch-all for plain nn.Linear layers (e.g. vision encoder projections
+        # that are not wrapped in vLLM's parallel linear types). Must come last
+        # so the more specific vLLM types above always take priority.
+        ("Linear", partition_linear),
+        ("TTFusedMoE", partition_fused_moe),
     ]
 )
 
