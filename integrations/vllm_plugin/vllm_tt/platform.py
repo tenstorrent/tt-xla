@@ -76,6 +76,7 @@ class TTConfig:
     # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
     # Override at runtime with env var TT_XLA_PREFILL_KV_WATERMARK_PERCENT (a
     # percent, e.g. 25), which takes precedence over additional_config.
+    # Resolved/validated in TTPlatform.check_and_update_config.
     prefill_kv_watermark: float = 0.25
 
     batch_size: int = 1
@@ -331,10 +332,9 @@ class TTPlatform(Platform):
                 "additional_config['prefill_batch_threshold'] must be >= 0."
             )
 
-        # KV-cache high-watermark for fresh-prefill admission. Resolve default
-        # (0.25), apply the TT_XLA_PREFILL_KV_WATERMARK_PERCENT env override (a
-        # percent, e.g. 25 -> 0.25), and persist a concrete fraction so the
-        # AscendScheduler reads it directly; validate it is in [0, 1).
+        # Resolve prefill_kv_watermark to a concrete fraction the scheduler can
+        # read directly: default, then env override (percent), then validate.
+        # See TTConfig.prefill_kv_watermark.
         if additional_config.get("prefill_kv_watermark") is None:
             additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
         env_wm = os.environ.get("TT_XLA_PREFILL_KV_WATERMARK_PERCENT")
