@@ -156,17 +156,16 @@ def test_data_tensor_parallel_generation_devstral_123b(
     model_name = "mistralai/Devstral-2-123B-Instruct-2512"
 
     prompts = [
-        "Describe what a hash map is in one sentence.",
-        "Explain what recursion is in one sentence.",
-        "What does the git rebase command do, in one sentence?",
-        "Summarize what a REST API is in one sentence.",
-        "Explain what a unit test is in one sentence.",
-        "What is a race condition, in one sentence?",
-        "Describe what a linked list is in one sentence.",
-        "Explain what Big-O notation means in one sentence.",
+        "Continue in English: The three rules of clean code I follow are",
+        "Continue in English: A good way to debug a tricky program is to",
+        "Continue in English: The main benefit of writing unit tests is",
+        "Continue in English: When I design a new API, the first thing I do is",
+        "Continue in English: The difference between a stack and a queue is",
+        "Continue in English: To make a slow function faster, you can",
+        "Continue in English: The reason developers use version control is",
+        "Continue in English: A common cause of bugs in concurrent code is",
     ]
-    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
-    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
     llm_args = {
         "model": model_name,
         "max_num_batched_tokens": 2048,
@@ -186,8 +185,8 @@ def test_data_tensor_parallel_generation_devstral_123b(
     }
     llm = vllm.LLM(**llm_args)
 
-    outputs = llm.chat(messages, sampling_params)
-    assert len(outputs) == len(messages)
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
     for prompt, out in zip(prompts, outputs):
         output_text = out.outputs[0].text
         print(f"prompt: {prompt}, output: {output_text}")
@@ -224,25 +223,24 @@ def test_data_tensor_parallel_generation_qwen3_32b(
     model_name = "Qwen/Qwen3-32B"
 
     prompts = [
-        "Describe Tenstorrent in one sentence.",
-        "Explain what a neural network is in one sentence.",
-        "What is the capital of France?",
-        "Write one sentence about the ocean.",
-        "Summarize the theory of relativity in one sentence.",
-        "Give me a one-sentence description of photosynthesis.",
-        "What is machine learning, in one sentence?",
-        "Describe the sun in one sentence.",
-        "Explain gravity in one sentence.",
-        "Write a single sentence about mountains.",
-        "What does a CPU do, in one sentence?",
-        "Describe the internet in one sentence.",
-        "Summarize the water cycle in one sentence.",
-        "What is a black hole, in one sentence?",
-        "Give a one-sentence description of a rainforest.",
-        "Explain how a battery works in one sentence.",
+        "Continue in English: I like taking walks in the",
+        "Continue in English: The weather today is",
+        "Continue in English: My favourite season is",
+        "Continue in English: The best book I have read is",
+        "Continue in English: The most interesting place I visited is",
+        "Continue in English: My favourite food is",
+        "Continue in English: The thing I enjoy most about weekends is",
+        "Continue in English: The future of technology will",
+        "Continue in English: The ocean is full of",
+        "Continue in English: In the morning I usually",
+        "Continue in English: The best way to learn a new language is",
+        "Continue in English: On a rainy day I like to",
+        "Continue in English: My favourite kind of music is",
+        "Continue in English: The city I would most like to visit is",
+        "Continue in English: A healthy breakfast usually includes",
+        "Continue in English: The stars in the night sky",
     ]
-    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
-    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
     llm_args = {
         "model": model_name,
         "max_num_batched_tokens": 2048,
@@ -262,8 +260,8 @@ def test_data_tensor_parallel_generation_qwen3_32b(
     }
     llm = vllm.LLM(**llm_args)
 
-    outputs = llm.chat(messages, sampling_params)
-    assert len(outputs) == len(messages)
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
     for prompt, out in zip(prompts, outputs):
         output_text = out.outputs[0].text
         print(f"prompt: {prompt}, output: {output_text}")
