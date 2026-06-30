@@ -1253,12 +1253,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
-        # NOTE: page_table / cache_position are intentionally NOT mark_sharding'd
-        # here. Under DP the paged-op custom sharding rules (paged_update_cache /
-        # paged_scaled_dot_product_attention_decode) back-propagate the ("batch")
-        # sharding onto these index operands at the op once the activations are
-        # sharded, so an explicit mark is redundant (and didn't survive tracing).
-
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -1530,6 +1524,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         input_ids: torch.Tensor | None,
         position_ids: torch.Tensor,
         inputs_embeds: torch.Tensor | None,
+        page_table: torch.Tensor | None = None,
+        cache_position: torch.Tensor | None = None,
+        fill_page_table: torch.Tensor | None = None,
     ) -> None:
         """Pin the model input shardings (batch dim across the mesh) for the
         data-parallel modes. Applied in BOTH the warmup (_dummy_run) and
@@ -1565,6 +1562,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
         if position_ids is not None:
             safe_mark_sharding(position_ids, self.mesh, ("batch", None))
+        # Pin the paged index tensors (page_table / cache_position / fill_page_table)
+        # here too — boundary-presharded on the "batch" (DP) axis so they don't get
+        # DP-split by an in-graph mesh_partition (whose i32 row-major output would
+        # create a no-op to_layout into paged_update_cache that tt-mlir rejects).
+        if page_table is not None:
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+        if cache_position is not None:
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+        if fill_page_table is not None and fill_page_table is not page_table:
+            safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1672,7 +1679,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
-            self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
+            _am = next(iter(attn_metadata.values()))
+            self._pin_input_shardings(
+                input_ids,
+                self.position_ids,
+                inputs_embeds,
+                page_table=_am.page_table,
+                cache_position=_am.cache_position,
+                fill_page_table=getattr(_am, "fill_page_table", None),
+            )
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -2048,8 +2063,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # input_ids / position_ids are batch-sharded later via
         # _pin_input_shardings (called before the model forward), matching the
-        # execution path. page_table / cache_position are left unmarked: the
-        # paged-op sharding rules back-propagate the ("batch") sharding onto them.
+        # execution path.
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
@@ -2078,7 +2092,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 input_ids, mm_embed_inputs=None
             )
-            self._pin_input_shardings(input_ids, position_ids, inputs_embeds)
+            self._pin_input_shardings(
+                input_ids,
+                position_ids,
+                inputs_embeds,
+                page_table=page_table,
+                cache_position=cache_position,
+            )
             (
                 model_input_ids,
                 model_positions,
@@ -2393,7 +2413,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_inputs, dummy_inputs_embeds = self._get_model_inputs(
             dummy_inputs, mm_embed_inputs=None
         )
-        self._pin_input_shardings(dummy_inputs, dummy_positions, dummy_inputs_embeds)
+        self._pin_input_shardings(
+            dummy_inputs,
+            dummy_positions,
+            dummy_inputs_embeds,
+            page_table=page_table,
+            cache_position=cache_position,
+        )
 
         dummy_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
             self.device
