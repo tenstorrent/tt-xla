@@ -245,24 +245,28 @@ def load_test_vectors(
 
 # --- Input generators -----------------------------------------------------
 
-def _mixture_normal(shape, sigma, outlier_factor=10.0, outlier_prob=0.01):
+def _mixture_normal(shape, sigma, outlier_factor=10.0, outlier_prob=0.01, dtype=torch.float32):
     """99% N(0, sigma) + 1% N(0, sigma*outlier_factor) (Dettmers LLM.int8 regime)."""
     base = torch.randn(shape) * sigma
     boost = torch.randn(shape) * (sigma * outlier_factor)
     is_outlier = torch.rand(shape) < outlier_prob
-    return torch.where(is_outlier, boost, base)
+    return torch.where(is_outlier, boost, base).to(dtype)
 
 
-def _uniform_signed(shape):
-    """Uniform [-1, 1] on fp32 — matches sweeps ``ValueRanges.SMALL``."""
-    return torch.empty(shape, dtype=torch.float32).uniform_(-1.0, 1.0)
+def _uniform_signed(shape, dtype=torch.float32):
+    """Uniform [-1, 1] -- matches sweeps ``ValueRanges.SMALL``."""
+    return torch.empty(shape, dtype=torch.float32).uniform_(-1.0, 1.0).to(dtype)
 
 
 _INPUT_PROFILE = os.environ.get("MINISWEEPS_PROFILE", "mixture")
 
 
-def generate_inputs(shape_pair):
+def generate_inputs(shape_pair, input_dtype: torch.dtype = torch.float32):
     """Return (lhs, rhs) tensors for ``shape_pair`` using the active profile.
+
+    ``input_dtype`` controls the input dtype (default ``torch.float32``).
+    Pass ``torch.bfloat16`` to exercise the CPU bf16 path (reproducing
+    FINDINGS' AVX-512_BF16-vs-AVX2 scalar fallback gap).
 
     Assumes a matmul-style 2-tensor signature: LHS uses sigma=1, RHS uses
     Kaiming scaling (1/sqrt(K)) where K is the reduction dim. Op tests
@@ -273,11 +277,11 @@ def generate_inputs(shape_pair):
     if _INPUT_PROFILE == "mixture":
         sigma_rhs = 1.0 / math.sqrt(rhs_shape[0])
         return (
-            _mixture_normal(lhs_shape, sigma=1.0),
-            _mixture_normal(rhs_shape, sigma=sigma_rhs),
+            _mixture_normal(lhs_shape, sigma=1.0, dtype=input_dtype),
+            _mixture_normal(rhs_shape, sigma=sigma_rhs, dtype=input_dtype),
         )
     if _INPUT_PROFILE == "uniform":
-        return _uniform_signed(lhs_shape), _uniform_signed(rhs_shape)
+        return _uniform_signed(lhs_shape, dtype=input_dtype), _uniform_signed(rhs_shape, dtype=input_dtype)
     raise ValueError(
         f"Unknown MINISWEEPS_PROFILE: {_INPUT_PROFILE!r} "
         "(expected 'mixture' or 'uniform')"
@@ -286,11 +290,22 @@ def generate_inputs(shape_pair):
 
 # --- Verify ---------------------------------------------------------------
 
-def verify(model, shape_pair, compiler_config, *, required_pcc: float = 0.99) -> None:
-    """Generate inputs, run on TT and CPU, assert PCC."""
+def verify(
+    model,
+    shape_pair,
+    compiler_config,
+    *,
+    required_pcc: float = 0.99,
+    input_dtype: torch.dtype = torch.float32,
+) -> None:
+    """Generate inputs, run on TT and CPU, assert PCC.
+
+    ``input_dtype`` controls the CPU/TT input dtype (default ``torch.float32``);
+    pass ``torch.bfloat16`` to test the bf16 CPU path.
+    """
     comparison_config = ComparisonConfig()
     comparison_config.pcc = PccConfig(required_pcc=required_pcc)
-    lhs, rhs = generate_inputs(shape_pair)
+    lhs, rhs = generate_inputs(shape_pair, input_dtype=input_dtype)
     run_op_test(
         model,
         [lhs, rhs],
