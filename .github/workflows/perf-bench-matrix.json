@@ -109,6 +109,11 @@
         "skip-device-perf": true
       },
       {
+        "name": "infinity_2b",
+        "pytest": "tests/benchmark/test_imagegen.py::test_infinity_2b",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "vllm_bge_m3_encode_batch32",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch32]",
         "vllm": true,
