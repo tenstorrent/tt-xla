@@ -187,8 +187,9 @@ SINGLE_DEVICE_CONFIGS = [
 ]
 
 
-# The _tp_config benchmarks below use a (2, 4) 2D mesh (8 devices). The
-# qb2-blackhole config (qwen3-32b-qb2) uses a 1D mesh (mesh_shape=None).
+# The _tp_config benchmarks below default to a (2, 4) 2D mesh (8 devices).
+# The qb2-blackhole configs (ids ending in -qb2-tp) use a 1D mesh
+# (mesh_shape=None, auto-sized to the machine's device count).
 TP_CONFIGS = [
     pytest.param(
         _tp_config(
@@ -220,6 +221,36 @@ TP_CONFIGS = [
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
+    # qb2-blackhole TP configs (1D mesh): transferred from the retired
+    # n300-llmbox (2, 4) entries. Same models, mesh_shape=None for blackhole.
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-qb2-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-qb2-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-8B", 32), id="qwen3-8b-qb2-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-14B", 32), id="qwen3-14b-qb2-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen2.5-14B-Instruct", 32),
+        id="qwen2.5-14b-instruct-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
+        id="qwen2.5-coder-32b-instruct-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Ministral-8B-Instruct-2410", 32),
+        id="ministral-8b-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32),
+        id="mistral-nemo-instruct-2407-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
+        id="mistral-small-24b-instruct-2501-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32),
+        id="llama-3.1-8b-qb2-tp",
+    ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 32, mesh_shape=[2, 4]),
         id="qwen2.5-14b-instruct-tp",
