@@ -187,8 +187,8 @@ SINGLE_DEVICE_CONFIGS = [
 ]
 
 
-# All _tp_config benchmarks below run on n300-llmbox (8 devices): a (2, 4) 2D
-# mesh. The qb2-blackhole config (qwen3-32b-qb2) uses a 1D mesh (mesh_shape=None).
+# The _tp_config benchmarks below use a (2, 4) 2D mesh (8 devices). The
+# qb2-blackhole config (qwen3-32b-qb2) uses a 1D mesh (mesh_shape=None).
 TP_CONFIGS = [
     pytest.param(
         _tp_config(

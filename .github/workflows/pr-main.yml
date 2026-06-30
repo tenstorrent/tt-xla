@@ -74,31 +74,10 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       # NOTE: these filters intentionally exclude perf benchmarks that hang/fail on PR
       # while keeping them live in the nightly matrix (see perf-bench-matrix.json):
-      #   - gpt_oss_20b_tp / gpt_oss_20b_tp_batch_size_1 (n300-llmbox): #5151, #5207
       #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
-      #   - vllm_llama_3_1_70b_tp (n300-llmbox): temporarily removed from On PR because flaky, tracked in issue #5294
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding","llama_3_1_8b","falcon3-1b","qwen_3_8b"] },
-        { "runs-on": "n300-llmbox", "filter": ["test_llama_3_1_70b_tp"] } ]'
-      sh-runner: false
-      skip-device-perf: true
-      regression_check: true
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-
-  perf-benchmark-accuracy:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
-    needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      # NOTE: galaxy-wh-6u accuracy is excluded on PR (only entry is the failing
-      # llama_3_1_70b_tp_galaxy, fabric pinning #5210); still runs in nightly.
-      adv_filter: '[
-        { "accuracy-testing": true },
-        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
+        { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding","llama_3_1_8b","falcon3-1b","qwen_3_8b"] } ]'
       sh-runner: false
       skip-device-perf: true
       regression_check: true
@@ -159,12 +138,11 @@ jobs:
       - test-uplift-extended
       - test-tools
       - perf-benchmark
-      - perf-benchmark-accuracy
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, perf-benchmark-accuracy, build-docs
+        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, build-docs
         jobs: ${{ toJSON(needs) }}
