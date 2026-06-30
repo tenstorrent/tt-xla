@@ -47,6 +47,86 @@ class _MatmulFromHost(torch.nn.Module):
         return torch.matmul(x, y)
 
 
+class _MatmulFromParameterWeight(torch.nn.Module):
+    """Weight stored as ``nn.Parameter`` (like real ``nn.Linear``).
+
+    On first call, the second input ``y`` is captured into ``self.weight``.
+    Subsequent calls ignore the passed-in ``y`` and use the registered
+    parameter. Exists to isolate whether PyTorch's CPU matmul dispatch
+    path differs when the right operand is a registered Parameter (the
+    real-model case via ``F.linear`` / ``addmm``) vs a runtime intermediate
+    tensor (the FROM_HOST / FROM_ANOTHER_OP case via ``torch.matmul``).
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.weight = None
+
+    def forward(self, x, y):
+        if self.weight is None:
+            self.weight = torch.nn.Parameter(y.detach().clone(), requires_grad=False)
+        return torch.matmul(x, self.weight)
+
+
+class _MatmulFromMatmulNkLayout(torch.nn.Module):
+    """``torch.matmul(x, weight.T)`` where ``weight`` is stored as
+    ``(N, K)`` row-major (K = contraction dim contiguous).
+
+    Same weight layout as FROM_LINEAR (and real ``nn.Linear``) but invokes
+    ``torch.matmul`` instead of ``F.linear``. The ``.T`` is a view, not a
+    copy, so the underlying memory layout remains ``(N, K)``.
+
+    Isolates whether the FROM_LINEAR speedup on Zen 2 is purely a memory-
+    layout effect (K-contiguous → L1-friendly scalar loop) or whether
+    ``F.linear`` also takes a different dispatch path than ``torch.matmul``
+    beyond just layout. If THIS variant is fast like FROM_LINEAR: layout
+    alone explains it. If THIS variant is slow like FROM_HOST: F.linear's
+    addmm dispatch matters too.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.weight_nk = None
+
+    def forward(self, x, y):
+        if self.weight_nk is None:
+            # y arrives as (K, N); store as (N, K) Parameter so K is the
+            # inner dim AND so the tensor moves with the module to the TT
+            # device on the second-pass (XLA) run.
+            self.weight_nk = torch.nn.Parameter(
+                y.T.contiguous().detach().clone(), requires_grad=False
+            )
+        # .T is a stride-flip view; weight_nk.T is logically (K, N) but
+        # physical reads along K hit consecutive bytes.
+        return torch.matmul(x, self.weight_nk.T)
+
+
+class _MatmulFromLinear(torch.nn.Module):
+    """Real ``nn.Linear`` path: ``F.linear(x, w)`` where ``w`` is stored as
+    ``(N, K)`` row-major (contiguous along K, the contraction dim).
+
+    The second input ``y`` from generate_inputs has shape ``(K, N)``; this
+    model captures it as ``y.T.contiguous()`` (shape ``(N, K)``) into an
+    ``nn.Parameter``, then calls ``F.linear(x, weight)`` -- which is what
+    ``nn.Linear`` and HuggingFace LlamaMLP do. Compared to FROM_HOST /
+    FROM_PARAMETER_WEIGHT (which use ``torch.matmul(x, y)`` with ``y``
+    shape ``(K, N)``), the weight layout has the contraction dim
+    contiguous, which is L1-cache-friendly on the bf16 ATen scalar path
+    -- the hypothesised reason real LLaMA forward avoids the catastrophic
+    Zen 2 regime that bare ``torch.matmul`` falls into.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.weight = None
+
+    def forward(self, x, y):
+        if self.weight is None:
+            # y is (K, N); nn.Linear weight is (N, K).
+            self.weight = torch.nn.Parameter(y.T.contiguous().detach().clone(), requires_grad=False)
+        return torch.nn.functional.linear(x, self.weight)
+
+
 # --- MatmulMP namespace ---------------------------------------------------
 
 class MatmulMP:
@@ -59,12 +139,15 @@ class MatmulMP:
     """
 
     OPERATOR = "matmul_mp"
-    DEFAULT_IDS_FILE = "test_matmul_mp_grid.conf"
+    DEFAULT_IDS_FILE = "test_matmul_mp_dispatch_compare.conf"
     BASE_DIR = os.path.dirname(__file__)
 
     MODELS = {
         "FROM_ANOTHER_OP": _MatmulFromAnotherOp,
         "FROM_HOST": _MatmulFromHost,
+        "FROM_PARAMETER_WEIGHT": _MatmulFromParameterWeight,
+        "FROM_MATMUL_NK_LAYOUT": _MatmulFromMatmulNkLayout,
+        "FROM_LINEAR": _MatmulFromLinear,
     }
 
     # Sweeps `weight_dtype` token -> tt-xla `experimental_weight_dtype`.
@@ -156,13 +239,19 @@ class MatmulMP:
         ]
 
     @staticmethod
-    def verify(vec):
-        """Run one matmul_mp test vector end-to-end on TT vs CPU."""
+    def verify(vec, *, input_dtype: torch.dtype = torch.float32):
+        """Run one matmul_mp test vector end-to-end on TT vs CPU.
+
+        ``input_dtype`` controls the CPU/TT input dtype (default
+        ``torch.float32``). Pass ``torch.bfloat16`` to exercise the bf16
+        CPU path -- catastrophic on AVX2-only hosts (no ``avx512_bf16``)
+        for the ``(K, N)`` weight layout, fast on AVX-512 baseline.
+        """
         model = MatmulMP.MODELS[vec.input_source]()
         compiler_config = MatmulMP.parse_compiler_config(
             vec.kwargs["compiler_config"]
         )
-        minisweeps.verify(model, vec.shape, compiler_config)
+        minisweeps.verify(model, vec.shape, compiler_config, input_dtype=input_dtype)
 
     @staticmethod
     def load_test_vectors(default_file=None, marks_for=None):
@@ -193,3 +282,18 @@ class MatmulMP:
 @pytest.mark.parametrize("test_vector", MatmulMP.load_test_vectors())
 def test_matmul_mp(test_vector):
     MatmulMP.verify(test_vector)
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+@pytest.mark.parametrize("test_vector", MatmulMP.load_test_vectors())
+def test_matmul_mp_bf16(test_vector):
+    """matmul_mp with CPU golden inputs forced to bfloat16.
+
+    Same parametrization as :func:`test_matmul_mp` but exercises the bf16
+    ATen path -- catastrophic on Zen 2 (no avx512_bf16) for the (K, N)
+    weight layout, fast on Ice Lake-SP (avx512f baseline).
+    """
+    MatmulMP.verify(test_vector, input_dtype=torch.bfloat16)
