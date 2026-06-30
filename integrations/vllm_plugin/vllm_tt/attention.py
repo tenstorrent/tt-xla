@@ -192,6 +192,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        mesh: object | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -200,6 +201,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.mesh = mesh
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -558,6 +560,22 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[1], attn_metadata.page_table
             )
+            if attn_metadata.mesh is not None:
+                from tt_torch.sharding import sharding_constraint_tensor
+
+                # The paged gather (gather/view/permute/reshape) drops the
+                # head-dim sharding the KV cache carries, so under TP the
+                # gathered K/V keep full heads while Q stays sharded -> SDPA
+                # "Query num heads must be divisible by key/value num heads".
+                # Re-assert the head-axis sharding with a graph-emitted
+                # sharding_constraint (torch.compile-safe; eager mark_sharding
+                # can't be traced inside the fused-prefill fullgraph region).
+                key_for_sdpa = sharding_constraint_tensor(
+                    key_for_sdpa, attn_metadata.mesh, (None, "model", None, None)
+                )
+                value_for_sdpa = sharding_constraint_tensor(
+                    value_for_sdpa, attn_metadata.mesh, (None, "model", None, None)
+                )
             query_for_sdpa = inputs.query.transpose(-3, -2)
             sdpa_kwargs = {
                 "is_causal": False,
