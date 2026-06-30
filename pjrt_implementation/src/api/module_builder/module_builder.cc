@@ -41,6 +41,7 @@
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
@@ -82,20 +83,25 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
-// Returns true if the public entry point of the module has at least one
-// argument.
+// Returns true if the module contains a sharding-constraint placeholder
+// (`stablehlo.custom_call @tt.sharding_constraint` or `@Sharding`). These are
+// emitted by `sharding_constraint_tensor` / GSPMD and signal that the graph
+// genuinely needs a multi-device mesh. A purely replicated computation that
+// merely has input arguments (e.g. a single-device argmax) has none, so it must
+// not be forced onto the full physical mesh.
 static bool
-moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
-  std::vector<mlir::func::FuncOp> public_func_ops;
-  m.get().walk([&](mlir::func::FuncOp funcOp) {
-    if (funcOp.isPublic()) {
-      public_func_ops.push_back(funcOp);
+moduleHasShardingConstraints(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  bool found = false;
+  m.get().walk([&](mlir::stablehlo::CustomCallOp customCallOp) {
+    llvm::StringRef target = customCallOp.getCallTargetName();
+    if (target == mlir::tt::sharding_utils::kTTShardingConstraintTargetName ||
+        target == mlir::tt::gspmd_utils::kShardingCustomCallTargetName) {
+      found = true;
+      return mlir::WalkResult::interrupt();
     }
+    return mlir::WalkResult::advance();
   });
-  TT_FATAL(public_func_ops.size() == 1,
-           "Expected exactly one public function in module, got {}",
-           public_func_ops.size());
-  return public_func_ops[0].getNumArguments() > 0;
+  return found;
 }
 
 // Returns true if any sharding genuinely partitions a tensor across devices
@@ -750,7 +756,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      (moduleHasAnyFuncArguments(mlir_module) ||
+      (moduleHasShardingConstraints(mlir_module) ||
        anyShardedAcrossDevices(output_shardings))) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
