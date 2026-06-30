@@ -2,58 +2,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""E2E tests for codegen emit/load: TTXLA_CODEGEN_EXPORT_DIR emits and executes
-generated Python per graph; TTXLA_CODEGEN_LOAD_DIR runs the saved (possibly
-user-edited) code instead of compiling. Emit and load run in separate
-processes since torch_xla caches compiled graphs in-process."""
+"""E2E tests for codegen emit/load: TTXLA_CODEGEN_EXPORT_DIR emits generated
+Python per graph as a dry run (the device returns zero-filled buffers, so
+correctness is not checked in emit mode); TTXLA_CODEGEN_LOAD_DIR runs the saved
+(possibly user-edited) code instead of compiling, returning real tensors. Emit
+and load run in separate processes since torch_xla caches compiled graphs
+in-process."""
 
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 
-# Runs num_graphs forwards with distinct batch sizes (so each compiles a
-# separate graph) and verifies outputs against CPU.
-MLP_SCRIPT = textwrap.dedent(
-    """
-    import sys
-    import torch
-    import torch.nn as nn
-    import torch_xla
-    import torch_xla.runtime as xr
-
-    num_graphs = int(sys.argv[1])
-
-    xr.set_device_type("TT")
-    device = torch_xla.device()
-
-    torch.manual_seed(0)
-    model = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 10)).to(
-        torch.bfloat16
-    )
-    inputs = [
-        torch.randn(4 * 2**i, 64, dtype=torch.bfloat16) for i in range(num_graphs)
-    ]
-    goldens = [model(x) for x in inputs]
-
-    xla_model = model.to(device)
-    for x, golden in zip(inputs, goldens):
-        out = xla_model(x.to(device))
-        torch_xla.sync()
-        ok = torch.allclose(out.cpu().float(), golden.float(), atol=0.1)
-        print(f"batch {x.shape[0]} match: {ok}")
-        assert ok
-    """
-)
+MLP_HELPER = Path(__file__).parent / "codegen_emit_load_helper.py"
 
 
 def run_mlp(env_extra, num_graphs=1):
     env = {**os.environ, **env_extra}
     return subprocess.run(
-        [sys.executable, "-c", MLP_SCRIPT, str(num_graphs)],
+        [sys.executable, str(MLP_HELPER), str(num_graphs)],
         env=env,
         capture_output=True,
         text=True,
