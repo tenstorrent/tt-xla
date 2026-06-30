@@ -15,7 +15,11 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
-from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
+from tt_torch.moe_backend import (
+    TT_MOE_BACKEND_NAME,
+    get_tt_moe_shard_specs,
+    register_tt_moe_backend,
+)
 
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
@@ -308,6 +312,9 @@ class DynamicTorchModelTester(TorchModelTester):
             f"Custom MoE injection enabled for this test - using {TT_MOE_BACKEND_NAME} "
             "experts backend"
         )
+        # Re-register against the live transformers (a per-model version swap
+        # wipes moe_backend's import-time registration).
+        register_tt_moe_backend()
         if hasattr(model, "config"):
             model.config._experts_implementation = TT_MOE_BACKEND_NAME
         else:
