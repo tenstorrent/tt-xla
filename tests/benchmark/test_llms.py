@@ -1750,8 +1750,6 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
 
 
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
-# The n300-llmbox perf entry (gpt_oss_20b_tp) is excluded from the onPR perf filter
-# (still runs in nightly): hangs on n300-llmbox (https://github.com/tenstorrent/tt-xla/issues/5151).
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
