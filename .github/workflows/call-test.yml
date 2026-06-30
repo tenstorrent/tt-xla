@@ -371,7 +371,12 @@ jobs:
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
-        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        COLLECTED_TESTS=$(grep "::" collected_tests.txt | tr '\n' ' ' || true)
+        if [[ -n "$COLLECTED_TESTS" ]]; then
+          NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $COLLECTED_TESTS 2>/dev/null | grep -c "::" || true)
+        else
+          NOTIMEOUT_COUNT=0
+        fi
         if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
           echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
           ESTIMATED_DURATION=240
