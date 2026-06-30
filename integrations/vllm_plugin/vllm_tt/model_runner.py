@@ -1570,6 +1570,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(input_ids, self.mesh, ("batch", None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
+        safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1678,16 +1679,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_ids, mm_embed_inputs
             )
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
-            if self.parallel_mode in (
-                ParallelismMode.DATA_PARALLEL_ONLY,
-                ParallelismMode.DATA_TENSOR_PARALLEL,
-            ):
-                # _pin_input_shardings already batch-shards input_ids /
-                # inputs_embeds for the DP modes (and leaves TP-only inputs
-                # replicated). position_ids is the one model input it does not
-                # cover, so shard it here on the "batch" (DP) axis before the
-                # fused _model_* forward call.
-                safe_mark_sharding(self.position_ids, self.mesh, ("batch", None))
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -2394,12 +2385,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.num_reqs_max_model_len,), dtype=torch.int32
         ).to(self.device)
 
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
             fill_page_table=page_table,
+            dp_size=self.dp_size,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
