@@ -479,8 +479,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
         )
+        # These two are per-request scratch buffers (indexed by request count,
+        # up to max_num_reqs) but were sized by max_num_tokens (a per-sequence
+        # token width). That holds the implicit invariant tokens >= requests,
+        # which breaks once batch_size > max_model_len (e.g. Qwen3 batch 256,
+        # max_model_len 128): seq_lens_cpu[:num_reqs_*_model_len] would truncate
+        # to max_num_tokens rows and mismatch the (num_reqs,)-sized device
+        # buffers. Size to cover both so up-to-max_num_reqs requests fit.
+        self._max_per_req_or_tok = max(self.max_num_tokens, self.max_num_reqs)
+
         self.query_start_loc_cpu = torch.zeros(
-            self.max_num_tokens + 1,
+            self._max_per_req_or_tok + 1,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
@@ -488,7 +497,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np = self.query_start_loc_cpu.numpy()
 
         self.seq_lens_cpu = torch.zeros(
-            self.max_num_tokens,
+            self._max_per_req_or_tok,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
