@@ -54,9 +54,7 @@ def main():
                     if token:
                         print(token, end="", flush=True)
                         full_response += token
-                data["messages"].append(
-                    {"role": "assistant", "content": full_response}
-                )
+                data["messages"].append({"role": "assistant", "content": full_response})
         except Exception as e:
             if isinstance(e, requests.exceptions.ConnectionError):
                 print(

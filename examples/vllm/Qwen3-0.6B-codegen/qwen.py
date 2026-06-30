@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 # Emit OR load TTNN Python codegen for the full Qwen3-0.6B via vLLM.
 #
 #   python qwen.py --emit [dir]   # compile + emit per-graph Python to dir/
@@ -39,7 +42,10 @@ if _EMIT_DIR is None and _LOAD_DIR is None:
         "--load", action="store_true", help="run previously emitted code from DIR"
     )
     parser.add_argument(
-        "dir", nargs="?", default="qwen_codegen", help="codegen dir (default: ./qwen_codegen)"
+        "dir",
+        nargs="?",
+        default="qwen_codegen",
+        help="codegen dir (default: ./qwen_codegen)",
     )
     args = parser.parse_args()
     resolved = str(Path(args.dir).resolve())

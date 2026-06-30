@@ -132,7 +132,8 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     std::string lang =
         options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
     std::cout << lang << " codegen successful. Check "
-              << options.export_path.value() << " for the results." << std::endl;
+              << options.export_path.value() << " for the results."
+              << std::endl;
   }
 
   if (options.dry_run || !is_python_codegen) {
