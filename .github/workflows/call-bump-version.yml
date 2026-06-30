@@ -58,7 +58,7 @@ jobs:
           commit-message: "Bump .version to ${{ steps.bump.outputs.new_version }} after ${{ steps.bump.outputs.old_version }} release"
           title: "Bump .version to ${{ steps.bump.outputs.new_version }} for next release"
           body: |
-            ## Description
+            ### What's changed
 
             The `${{ steps.bump.outputs.old_version }}` stable release has been published, so this PR bumps `.version` to `${{ steps.bump.outputs.new_version }}` for the next release cycle.
 
