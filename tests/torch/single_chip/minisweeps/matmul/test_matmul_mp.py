@@ -139,7 +139,7 @@ class MatmulMP:
     """
 
     OPERATOR = "matmul_mp"
-    DEFAULT_IDS_FILE = "test_matmul_mp_dispatch_compare.conf"
+    DEFAULT_IDS_FILE = "tests.conf"
     BASE_DIR = os.path.dirname(__file__)
 
     MODELS = {
