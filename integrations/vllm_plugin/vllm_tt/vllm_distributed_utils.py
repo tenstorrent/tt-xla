@@ -350,7 +350,9 @@ def partition_vocab_parallel_embedding(
     else:
         axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
     batch_size = axis_sizes.get("batch", 1)
-    hidden_axis = "batch" if (shard_weights_on_batch_axis and batch_size > 1) else "model"
+    hidden_axis = (
+        "batch" if (shard_weights_on_batch_axis and batch_size > 1) else "model"
+    )
     safe_mark_sharding(layer.weight, mesh, (None, hidden_axis))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
