@@ -70,7 +70,7 @@ path. Resolution order is **absolute → existing CWD-relative →
 `base_dir`-relative**.
 
 ```python
-generate_inputs(shape_pair) -> (Tensor, Tensor)
+generate_inputs(shape_pair, input_dtype: torch.dtype = torch.float32) -> (Tensor, Tensor)
 ```
 Two-tensor input generator for matmul-style ops. `shape_pair` is
 `((lhs_shape), (rhs_shape))`. Distribution is chosen via
@@ -79,19 +79,23 @@ Two-tensor input generator for matmul-style ops. `shape_pair` is
 * `mixture` (default) — 99% `N(0, σ)` + 1% `N(0, 10σ)`. LHS uses
   `σ = 1`, RHS uses `σ = 1/√K` (Kaiming-style scaling on the reduction
   dim).
-* `uniform` — `U(-1, 1)` on both operands, fp32. Matches sweeps'
+* `uniform` — `U(-1, 1)` on both operands. Matches sweeps'
   `ValueRanges.SMALL` literally.
 
-Both are fp32 (matches sweeps' dtype handling when the test_vector has
-`dev_data_format=None`). Op tests with a different shape signature
-(unary, ternary, conv) should call `_mixture_normal` / `_uniform_signed`
-directly or extend `minisweeps` with a new profile hook.
+`input_dtype` defaults to `torch.float32` (matches sweeps' implicit
+fp32 dtype). Pass `torch.bfloat16` to exercise the bf16 CPU path
+(reproducing FINDINGS' AVX-512_BF16-vs-AVX2 scalar fallback gap). Op
+tests with a different shape signature (unary, ternary, conv) should
+call `_mixture_normal` / `_uniform_signed` directly or extend
+`minisweeps` with a new profile hook.
 
 ```python
-verify(model, shape_pair, compiler_config, *, required_pcc=0.99) -> None
+verify(model, shape_pair, compiler_config,
+       *, required_pcc=0.99, input_dtype: torch.dtype = torch.float32) -> None
 ```
 Generate inputs via `generate_inputs`, run `model` on TT and CPU via
-`infra.run_op_test`, assert PCC ≥ `required_pcc`. Comparison is
+`infra.run_op_test`, assert PCC ≥ `required_pcc`. `input_dtype` is
+passed through to `generate_inputs` (default fp32). Comparison is
 PCC-only on purpose — sweeps' `AutomaticValueChecker` effectively
 reduces to PCC ranges too (its `check_pcc_error_level` classifies
 failures by PCC range and ignores allclose for xfail decisions).
@@ -119,11 +123,23 @@ that interoperate both ways.
 
 ## Writing a new op test
 
-Pack all operator-specific logic — models, kwargs parser, known-failure
-predicate, xfail marks, end-to-end `verify`, and the
-`load_test_vectors` factory — into a namespace class with only static
-methods and class-level constants. No instances, no state. This shape
-lets later tests mix operators in a single parametrize.
+Each operator lives in its own subdirectory next to `minisweeps.py`
+(`matmul/`, your op's name, …). The subdirectory holds the test file
+plus its `.conf` files. Pack all operator-specific logic — models,
+kwargs parser, known-failure predicate, xfail marks, end-to-end
+`verify`, and the `load_test_vectors` factory — into a namespace class
+with only static methods and class-level constants. No instances, no
+state. This shape lets later tests mix operators in a single parametrize.
+
+Layout per operator:
+
+```
+tests/torch/single_chip/minisweeps/
+├── minisweeps.py
+└── my_op/
+    ├── test_my_op.py
+    └── tests.conf            ← default conf, plus any extra .conf files
+```
 
 ```python
 import os
@@ -146,7 +162,7 @@ class MyOp:
     """Self-contained my_op operator definition."""
 
     OPERATOR = "my_op"
-    DEFAULT_IDS_FILE = "test_my_op.conf"   # next to the test file
+    DEFAULT_IDS_FILE = "tests.conf"   # next to the test file
     BASE_DIR = os.path.dirname(__file__)
 
     MODELS = {"FROM_HOST": _MyOpHost}
@@ -164,10 +180,10 @@ class MyOp:
         return []
 
     @staticmethod
-    def verify(vec):
+    def verify(vec, *, input_dtype: torch.dtype = torch.float32):
         model = MyOp.MODELS[vec.input_source]()
         compiler_config = MyOp.parse_compiler_config(vec.kwargs["compiler_config"])
-        minisweeps.verify(model, vec.shape, compiler_config)
+        minisweeps.verify(model, vec.shape, compiler_config, input_dtype=input_dtype)
 
     @staticmethod
     def load_test_vectors(default_file=None, marks_for=None):
@@ -185,9 +201,17 @@ class MyOp:
 @pytest.mark.parametrize("test_vector", MyOp.load_test_vectors())
 def test_my_op(test_vector):
     MyOp.verify(test_vector)
+
+
+# Optional: a parallel bf16 entry that reuses the same parametrization.
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+@pytest.mark.parametrize("test_vector", MyOp.load_test_vectors())
+def test_my_op_bf16(test_vector):
+    MyOp.verify(test_vector, input_dtype=torch.bfloat16)
 ```
 
-Plus a `test_my_op.conf` next to the test, containing the sweeps-format
+Plus a `tests.conf` next to the test, containing the sweeps-format
 test_ids you want to run by default. Generate it however you like —
 collect from a sweeps log, write by hand, dump from a one-off Python
 script. Pre-baked, file-driven, no grid generation in the test file.

@@ -22,18 +22,17 @@ export PYTHONPATH="$PWD:$PWD/tests:$PWD/tests/torch/single_chip/minisweeps:$PYTH
 
 ### Default run
 
-Loads the test's own conf file (`test_matmul_mp_grid.conf` next to the
-test):
+Loads the test's own conf file (`tests.conf` next to the test):
 
 ```bash
-pytest tests/torch/single_chip/minisweeps/test_matmul_mp.py
+pytest tests/torch/single_chip/minisweeps/matmul/test_matmul_mp.py
 ```
 
 ### Single test_id
 
 ```bash
 TEST_ID="matmul_mp-FROM_ANOTHER_OP-{'compiler_config': 'mp_opt2_bf16_fp32accfalse_hifi2'}-((32, 128, 1024), (1024, 2048))-None-None" \
-    pytest tests/torch/single_chip/minisweeps/test_matmul_mp.py -sv
+    pytest tests/torch/single_chip/minisweeps/matmul/test_matmul_mp.py -sv
 ```
 
 ### Custom conf file
@@ -41,11 +40,11 @@ TEST_ID="matmul_mp-FROM_ANOTHER_OP-{'compiler_config': 'mp_opt2_bf16_fp32accfals
 ```bash
 # bare name resolves next to the test
 ID_FILES=test_matmul_mp_pcc.conf \
-    pytest tests/torch/single_chip/minisweeps/test_matmul_mp.py
+    pytest tests/torch/single_chip/minisweeps/matmul/test_matmul_mp.py
 
 # absolute or repo-relative paths work too; comma-separates several files
-ID_FILES=tests/torch/single_chip/minisweeps/test_matmul_mp_pcc.conf,/tmp/scratch.conf \
-    pytest tests/torch/single_chip/minisweeps/test_matmul_mp.py
+ID_FILES=tests/torch/single_chip/minisweeps/matmul/test_matmul_mp_pcc.conf,/tmp/scratch.conf \
+    pytest tests/torch/single_chip/minisweeps/matmul/test_matmul_mp.py
 ```
 
 ### Input regime
@@ -53,6 +52,16 @@ ID_FILES=tests/torch/single_chip/minisweeps/test_matmul_mp_pcc.conf,/tmp/scratch
 ```bash
 MINISWEEPS_PROFILE=uniform pytest ...   # matches sweeps' ValueRanges.SMALL
 MINISWEEPS_PROFILE=mixture pytest ...   # default; LLM-style with outliers
+```
+
+### bf16 CPU golden
+
+There's a separate pytest entry `test_matmul_mp_bf16` that runs the same
+parametrization with `input_dtype=torch.bfloat16` so the CPU golden goes
+through PyTorch's bf16 path. Select it with `-k`:
+
+```bash
+pytest tests/torch/single_chip/minisweeps/matmul/test_matmul_mp.py -k test_matmul_mp_bf16
 ```
 
 ## Layout
@@ -63,7 +72,10 @@ tests/torch/single_chip/minisweeps/
 ├── development.md               ← API surface, internals, "writing a new op"
 ├── minisweeps.py                ← TestVector, load_test_vectors, verify
 ├── conftest.py                  ← cache-clear fixture (replaces --forked)
-├── test_matmul_mp.py            ← matmul_mp operator + pytest entry
-├── test_matmul_mp_grid.conf     ← default test_ids for matmul_mp
-└── test_matmul_mp_pcc.conf      ← legacy sweeps-failure ids (for replay)
+└── matmul/                      ← matmul operator suite
+    ├── test_matmul_mp.py        ← matmul_mp operator + pytest entry
+    ├── tests.conf               ← default test_ids
+    ├── test_matmul_mp_grid.conf ← op-by-shape grid (CPU path comparison)
+    ├── test_matmul_mp_pcc.conf  ← legacy sweeps-failure ids (for replay)
+    └── ...                      ← other conf files (batch_sweep, etc.)
 ```
