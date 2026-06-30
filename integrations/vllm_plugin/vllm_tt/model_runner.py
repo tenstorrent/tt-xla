@@ -2080,7 +2080,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
-            chunk_start_idx = self._chunk_start_idx_dev
+            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -2308,24 +2308,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
 
+        # Compile the cached-prefix (chunked SDPA op) graph in addition to the
+        # standard one, but only when the op is usable; otherwise the first
+        # continuation chunk would compile mid-serving (or hit the ttnn
+        # page-table-stick assert on unsupported layouts).
+        prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
+
         configs = [
             {
                 "num_tokens": num_tokens,
                 "num_reqs": num_reqs,
                 "all_greedy": all_greedy,
                 "apply_grammar": apply_grammar,
+                "prefix_chunk": prefix_chunk,
             }
             for (
                 num_reqs,
                 num_tokens,
                 all_greedy,
                 apply_grammar,
+                prefix_chunk,
             ) in product(
                 num_reqs_options,
                 num_tokens_paddings,
                 all_greedy_options,
                 apply_grammar_options,
+                prefix_chunk_options,
             )
+            # The cached-prefix variant only applies to prefill buckets; the
+            # decode bucket (num_tokens == 1) always takes the standard path.
+            if not (prefix_chunk and num_tokens == 1)
         ]
 
         for config in configs:
@@ -2392,6 +2404,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = config["num_reqs"]
         all_greedy = config["all_greedy"]
         apply_grammar = config["apply_grammar"]
+        prefix_chunk = config.get("prefix_chunk", False)
         hsize = self.model_config.get_hidden_size()
 
         dummy_inputs = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
@@ -2409,12 +2422,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
+        # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
+        # attention through the chunked op, and a distinct fill_page_table tensor
+        # keeps the traced input arity matching runtime.
+        fill_page_table = page_table
+        chunk_start_idx = None
+        if prefix_chunk:
+            fill_page_table = torch.zeros(
+                (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
+            ).to(self.device)
+            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
-            fill_page_table=page_table,
+            fill_page_table=fill_page_table,
+            chunk_start_idx=chunk_start_idx,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
