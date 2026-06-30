@@ -1602,18 +1602,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids: torch.Tensor,
         inputs_embeds: torch.Tensor | None,
     ) -> None:
-        """Pin the model input shardings (batch dim across the mesh) for the
-        data-parallel modes. Applied in BOTH the warmup (_dummy_run) and
-        execution (sample_tokens) paths so their graphs match; otherwise warmup
-        shards these inputs while execution leaves them replicated, and the
-        backbone recompiles at the first real step for any shardable batch. Also
-        keeps large prefill traces from splitting into a secondary sync that
-        drops mhlo.spmd_output_sharding (which trips shlo_clean_for_xla_ingestion).
-
-        Only DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL split the batch across
-        the mesh's "batch" axis. The tensor-parallel-only modes (1D and 2D/FSDP)
-        replicate the full batch to every device and shard the model weights
-        instead, so their inputs must stay unsharded here."""
+        """Pin model input shardings (batch dimension across the mesh) in
+        DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL during both warmup and
+         inference so both paths produce identical graphs and avoid recompilation."""
         if self.parallel_mode not in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
