@@ -280,7 +280,14 @@ def composite_scaled_dot_product_attention(
 
     attr = {"is_causal": is_causal}
     if scale is not None:
-        attr["scale"] = scale
+        # float() is load-bearing: StableHLOCompositeBuilder types the composite
+        # attribute from the Python value, so an integral `scale` (e.g. the
+        # `self.scale = 1` of a cosine-attention block) would serialize as
+        # `scale = 1 : i64`. tt-mlir reads it with `getAs<FloatAttr>("scale")`,
+        # which returns null for an IntegerAttr, so the attribute is silently
+        # dropped and ttnn falls back to its 1/sqrt(head_dim) default -- a
+        # wrong, silent softmax temperature.
+        attr["scale"] = float(scale)
 
     builder = _make_composite_builder(
         name="tenstorrent.scaled_dot_product_attention", attr=attr
