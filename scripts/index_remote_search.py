@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Crawl the built docs in output/ and push them to the OpenSearch-backed
 docs search service so the in-page search modal has something to query.
 
