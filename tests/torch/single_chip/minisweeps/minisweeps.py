@@ -44,10 +44,9 @@ from typing import Iterable, Iterator, Optional
 
 import pytest
 import torch
-
 from infra import Framework, run_op_test
-from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 
+from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 
 # --- TestVector -----------------------------------------------------------
 
@@ -115,6 +114,7 @@ class TestVector:
 
 
 # --- TEST_ID env-var filter -----------------------------------------------
+
 
 def _load_ids_list(
     id_files=None, test_id: Optional[str] = None, base_dir: Optional[str] = None
@@ -222,14 +222,10 @@ def load_test_vectors(
     of the ID file sources resolve next to the test. Resolution order
     is absolute → existing CWD-relative → ``base_dir``-relative.
     """
-    active = _load_ids_list(
-        id_files=id_files, test_id=test_id, base_dir=base_dir
-    )
+    active = _load_ids_list(id_files=id_files, test_id=test_id, base_dir=base_dir)
     if active is None:
         if default_file is None:
-            raise ValueError(
-                "no TEST_ID/ID_FILES set and no default_file provided"
-            )
+            raise ValueError("no TEST_ID/ID_FILES set and no default_file provided")
         active = list(_read_ids_file(_resolve_id_file(default_file, base_dir)))
     seen_count: dict[str, int] = {}
     for tid in active:
@@ -245,7 +241,10 @@ def load_test_vectors(
 
 # --- Input generators -----------------------------------------------------
 
-def _mixture_normal(shape, sigma, outlier_factor=10.0, outlier_prob=0.01, dtype=torch.float32):
+
+def _mixture_normal(
+    shape, sigma, outlier_factor=10.0, outlier_prob=0.01, dtype=torch.float32
+):
     """99% N(0, sigma) + 1% N(0, sigma*outlier_factor) (Dettmers LLM.int8 regime)."""
     base = torch.randn(shape) * sigma
     boost = torch.randn(shape) * (sigma * outlier_factor)
@@ -281,7 +280,9 @@ def generate_inputs(shape_pair, input_dtype: torch.dtype = torch.float32):
             _mixture_normal(rhs_shape, sigma=sigma_rhs, dtype=input_dtype),
         )
     if _INPUT_PROFILE == "uniform":
-        return _uniform_signed(lhs_shape, dtype=input_dtype), _uniform_signed(rhs_shape, dtype=input_dtype)
+        return _uniform_signed(lhs_shape, dtype=input_dtype), _uniform_signed(
+            rhs_shape, dtype=input_dtype
+        )
     raise ValueError(
         f"Unknown MINISWEEPS_PROFILE: {_INPUT_PROFILE!r} "
         "(expected 'mixture' or 'uniform')"
@@ -289,6 +290,7 @@ def generate_inputs(shape_pair, input_dtype: torch.dtype = torch.float32):
 
 
 # --- Verify ---------------------------------------------------------------
+
 
 def verify(
     model,

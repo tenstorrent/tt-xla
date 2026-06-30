@@ -22,16 +22,15 @@ and dispatch with ``OPERATORS[vec.operator].verify(vec)``.
 
 import os
 
+import minisweeps
 import pytest
 import torch
 from utils import Category
 
-import minisweeps
-
 from tests.infra.testers.compiler_config import CompilerConfig
 
-
 # --- Models ---------------------------------------------------------------
+
 
 class _MatmulFromAnotherOp(torch.nn.Module):
     """Matches sweeps ``ModelFromAnotherOp``: add(x,x); add(y,y); matmul."""
@@ -123,11 +122,14 @@ class _MatmulFromLinear(torch.nn.Module):
     def forward(self, x, y):
         if self.weight is None:
             # y is (K, N); nn.Linear weight is (N, K).
-            self.weight = torch.nn.Parameter(y.T.contiguous().detach().clone(), requires_grad=False)
+            self.weight = torch.nn.Parameter(
+                y.T.contiguous().detach().clone(), requires_grad=False
+            )
         return torch.nn.functional.linear(x, self.weight)
 
 
 # --- MatmulMP namespace ---------------------------------------------------
+
 
 class MatmulMP:
     """Self-contained matmul_mp operator definition.
@@ -248,9 +250,7 @@ class MatmulMP:
         for the ``(K, N)`` weight layout, fast on AVX-512 baseline.
         """
         model = MatmulMP.MODELS[vec.input_source]()
-        compiler_config = MatmulMP.parse_compiler_config(
-            vec.kwargs["compiler_config"]
-        )
+        compiler_config = MatmulMP.parse_compiler_config(vec.kwargs["compiler_config"])
         minisweeps.verify(model, vec.shape, compiler_config, input_dtype=input_dtype)
 
     @staticmethod
@@ -274,6 +274,7 @@ class MatmulMP:
 
 
 # --- pytest entry ---------------------------------------------------------
+
 
 @pytest.mark.push
 @pytest.mark.nightly
