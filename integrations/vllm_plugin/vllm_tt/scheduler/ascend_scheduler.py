@@ -57,6 +57,15 @@ class AscendScheduler(Scheduler):
         add_cfg = vllm_config.additional_config or {}
         self.prefill_batch_threshold = int(add_cfg.get("prefill_batch_threshold") or 0)
         self.b1_min_num_seqs = int(add_cfg.get("min_num_seqs") or 0)
+        # KV-cache high-watermark for *fresh* prefill admission, as a fraction
+        # of the block pool. Once admitting a new prefill would leave less than
+        # this fraction free, stop admitting fresh prefills and let the running
+        # batch drain (decode is never gated and may use the pool to 100%). This
+        # reserves headroom so in-flight requests finish decoding instead of
+        # being preempted and re-prefilled (large-context concurrency thrash).
+        # 0.0 falls back to the base per-request watermark for all prefills.
+        # Resolved/validated/env-overridden in TTPlatform.check_and_update_config.
+        self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
@@ -295,7 +304,29 @@ class AscendScheduler(Scheduler):
                 assert num_new_tokens > 0
                 blocks = new_computed_blocks.blocks[0]
 
-            watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            base_watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            # KV-cache high-watermark admission gate. Gate only FRESH prefills
+            # (num_computed_tokens == 0): once admitting one would leave less
+            # than prefill_kv_watermark of the pool free, stop admitting new
+            # prefills so the running batch can finish decoding (decode is never
+            # gated) instead of being preempted and re-prefilled. Continuation
+            # chunks of an already-started prefill keep the base watermark so an
+            # in-flight prefill is never stranded. Forward-progress guard: when
+            # nothing is running and nothing has been scheduled yet this step,
+            # fall back to the base watermark so a single large prompt that
+            # exceeds the reserve is still admitted (otherwise it deadlocks).
+            nothing_scheduled_yet = not (
+                scheduled_new_reqs or scheduled_resumed_reqs or scheduled_running_reqs
+            )
+            force_progress = not self.running and nothing_scheduled_yet
+            if (
+                self.prefill_kv_watermark > 0.0
+                and request.num_computed_tokens == 0
+                and not force_progress
+            ):
+                watermark = self.prefill_kv_watermark
+            else:
+                watermark = base_watermark
             if not self._check_watermark_for_prefill(
                 request, num_new_tokens, blocks, watermark
             ):
