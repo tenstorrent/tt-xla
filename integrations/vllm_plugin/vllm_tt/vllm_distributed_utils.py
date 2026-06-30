@@ -339,13 +339,19 @@ def partition_vocab_parallel_embedding(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
-    batch_axis = "batch" if shard_weights_on_batch_axis else None
-    # weight is [vocab, hidden]. Shard hidden on the "model" (TP) axis so 1D-TP
-    # (e.g. qwen3-32b-qb2-tp, a (1, N) mesh) splits the ~150k x hidden embedding
-    # across the N devices instead of replicating it. The batch axis adds an
-    # extra FSDP shard on the vocab dim only when shard_weights_on_batch_axis is
-    # set (DP+TP); on a size-1 batch axis safe_mark_sharding leaves it replicated.
-    safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
+    # weight is [vocab, hidden]. Shard only the hidden dim so the embedding is
+    # split, never replicated; keep vocab un-sharded — sharding vocab makes the
+    # embedding gather need a CollectivePermute that tt-mlir can't lower yet
+    # (tt-mlir #3370). Use the "batch" (FSDP) axis when it is actually >1
+    # (DP+TP / 2D-TP); on a pure 1D-TP mesh "batch" is size 1, which would
+    # replicate the ~vocab x hidden table, so fall back to "model".
+    if hasattr(mesh, "shape"):
+        axis_sizes = mesh.shape()
+    else:
+        axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
+    batch_size = axis_sizes.get("batch", 1)
+    hidden_axis = "batch" if (shard_weights_on_batch_axis and batch_size > 1) else "model"
+    safe_mark_sharding(layer.weight, mesh, (None, hidden_axis))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
