@@ -38,6 +38,7 @@ DEFAULT_REQUIRED_PCC = 0.94
 PREFILL_SWEEP = [
     pytest.param(1, 1024, 0, id="bs1_sl1024_opt0"),
     pytest.param(1, 1024, 1, id="bs1_sl1024_opt1"),
+    pytest.param(1, 1024, 2, id="bs1_sl1024_opt2"),
     pytest.param(32, 1024, 0, id="bs32_sl1024_opt0"),
     pytest.param(32, 1024, 1, id="bs32_sl1024_opt1"),
     pytest.param(8, 512, 0, id="bs8_sl512_opt0"),
