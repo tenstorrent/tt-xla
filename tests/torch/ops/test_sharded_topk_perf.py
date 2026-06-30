@@ -135,6 +135,7 @@ def _candidate_comparator(device_output, golden_output, args, kwargs):
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
     torch_op_name="torch.topk",
@@ -154,9 +155,13 @@ def test_sharded_topk_candidates_perf(path):
     # 16032-wide shards). Default (1, num_devices): on lb (8 chips) this is (1,8),
     # which already gives 8-way / 16032-wide shards == galaxy [4,8] per-shard width.
     env_mesh = os.environ.get("MESH_SHAPE")
-    mesh_shape = tuple(int(x) for x in env_mesh.split(",")) if env_mesh else (1, num_devices)
+    mesh_shape = (
+        tuple(int(x) for x in env_mesh.split(",")) if env_mesh else (1, num_devices)
+    )
     model_axis = mesh_shape[1]
-    assert vocab % model_axis == 0, f"vocab {vocab} not divisible by model axis {model_axis}"
+    assert (
+        vocab % model_axis == 0
+    ), f"vocab {vocab} not divisible by model axis {model_axis}"
     mesh = Mesh(list(range(num_devices)), mesh_shape, ("batch", "model"))
 
     module = _CandidateBuilder(

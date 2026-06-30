@@ -20,9 +20,7 @@ from collections import Counter
 def main():
     path = sys.argv[1]
     rows = [
-        r
-        for r in csv.DictReader(open(path))
-        if r["OP CODE"] == "TopKDeviceOperation"
+        r for r in csv.DictReader(open(path)) if r["OP CODE"] == "TopKDeviceOperation"
     ]
     c = Counter(
         (r["CORE COUNT"], round(float(r["DEVICE FW DURATION [ns]"]) / 1000))

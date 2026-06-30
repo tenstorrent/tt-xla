@@ -3146,9 +3146,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_generators
         ):
             if self.is_sharded_compute_logits:
-                out_tokens = composite_argmax(
-                    logits, dim=-1, keepdim=True
-                )
+                out_tokens = composite_argmax(logits, dim=-1, keepdim=True)
             else:
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
