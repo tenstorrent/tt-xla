@@ -275,6 +275,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b"
       },
       {
+        "name": "acestep_audio_lm_1_7b",
+        "pytest": "tests/benchmark/test_llms.py::test_acestep_audio_lm_1_7b"
+      },
+      {
         "name": "qwen_3_4b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
       },

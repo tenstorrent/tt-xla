@@ -2780,3 +2780,47 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def test_acestep_audio_lm_1_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    # ACE-Step 1.5 semantic audio LM (acestep-5Hz-lm-1.7B): the Qwen3 decoder
+    # sub-network of the ACE-Step/Ace-Step1.5 text-to-music pipeline. This benches
+    # the LM decode path only; the diffusion denoiser / VAE / text-encoder stages of
+    # the pipeline have no perf harness. The loader returns a base ``Qwen3Model``
+    # (no LM head), so logits/PCC are read from ``last_hidden_state`` (output[0]).
+    from third_party.tt_forge_models.acestep.audio_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # The benchmark harness reads ``model_loader.tokenizer``; this loader only
+    # exposes ``_load_tokenizer()`` / ``_tokenizer``. Bridge it with a public
+    # ``tokenizer`` property without editing the (off-limits) loader source.
+    if not isinstance(getattr(ModelLoader, "tokenizer", None), property):
+        ModelLoader.tokenizer = property(lambda self: self._load_tokenizer())
+
+    variant = ModelVariant.LM_5HZ_1_7B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        read_logits_fn=lambda output: output[0],
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        experimental_kv_cache_dtype=None,
+    )
