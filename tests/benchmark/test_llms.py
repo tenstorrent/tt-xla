@@ -1789,6 +1789,64 @@ def test_gpt_oss_20b_tp(
     )
 
 
+# Exercises the tt_moe_fused experts backend end-to-end: prefill routes to the
+# dense bmm (tt_dense_experts_forward) and the single-token-per-sequence decode
+# step emits the tt.moe_decode composite, which tt-mlir lowers to the fused
+# all_to_all_dispatch + moe_compute decode kernel (experts EP-sharded along the
+# "model" axis). GPT-OSS packs its fused gate_up weight interleaved and uses the
+# clamped SwiGLU, so use_interleaved=True + activation "swiglu" are required.
+def test_gpt_oss_20b_tp_moe_fused(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_MOE_FUSED_BACKEND_NAME, register_tt_moe_backend
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Decode feeds the experts one token per sequence, so its flattened token
+    # count is the batch size; pin the prefill/decode threshold to it so prefill
+    # (batch * seq) stays on the dense path while decode emits tt.moe_decode.
+    bs = batch_size if batch_size is not None else DEFAULT_BATCH_SIZE
+    register_tt_moe_backend(
+        use_interleaved=True,
+        moe_decode_activation="swiglu",
+        moe_decode_token_threshold=bs,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=num_layers,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+            shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+            trace_enabled=False,
+            optimization_level=1,
+            experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
+            required_pcc=0.94,
+        )
+    finally:
+        # Restore default experts config so the global flags don't leak into
+        # other tests that share this process.
+        register_tt_moe_backend()
+
+
 # Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
 # FAILED: SIGSEGV in TTNNRowMajorLayoutPropagation (https://github.com/tenstorrent/tt-xla/issues/5121)
 def test_gpt_oss_20b_tp_d2m(

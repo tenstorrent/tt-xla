@@ -152,6 +152,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "gpt_oss_20b_tp_moe_fused",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_moe_fused",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "runs-on": "galaxy-wh-6u"

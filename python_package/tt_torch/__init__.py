@@ -38,10 +38,12 @@ from .weight_dtype import (
 _HF_BACKEND_EXPORTS = {
     "TT_MOE_BACKEND_NAME": "moe_backend",
     "TT_DENSE_EXPERTS_BACKEND_NAME": "moe_backend",
+    "TT_MOE_FUSED_BACKEND_NAME": "moe_backend",
     "get_tt_moe_shard_specs": "moe_backend",
     "register_tt_moe_backend": "moe_backend",
     "tt_experts_forward": "moe_backend",
     "tt_dense_experts_forward": "moe_backend",
+    "tt_moe_fused_forward": "moe_backend",
 }
 
 

@@ -1700,6 +1700,165 @@ def moe_expert_token_remap_fake(
     return mapping, reduced
 
 
+@torch.library.custom_op("tt::moe_decode", mutates_args=[], device_types=["xla", "cpu"])
+def moe_decode(
+    tokens: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    w0: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    bias0: torch.Tensor = None,
+    bias1: torch.Tensor = None,
+    bias2: torch.Tensor = None,
+    cluster_axis: int = 0,
+    layer_id: int = 0,
+    output_height_shard_dim: int = 0,
+    intermediate_size: int = 0,
+    activation_function: str = "silu",
+    bh_ring_size: int = None,
+) -> torch.Tensor:
+    """Fused MoE decode block, lowered by tt-mlir to ``ttcore.composite "moe_decode"``.
+
+    Emits a ``stablehlo.custom_call @tt.moe_decode`` whose operands and attributes
+    match the contract that ``third_party/tt-mlir`` expects (the
+    ``StableHLOToTTCoreMoeDecodeOpConversionPattern`` + ``getMoeDecodeShardingRule``
+    + ``TTNNResolveComposites`` "moe_decode" entry). tt-mlir synthesizes the
+    ``expert_mapping`` from the module mesh, so the frontend stays mesh-agnostic and
+    does NOT pass it.
+
+    Operands (6 without bias, 9 with bias):
+        tokens         [1, 1, M, H]   per-token activations (M tokens, hidden H)
+        expert_indices [1, 1, M, K]   selected expert ids per token (top-K)
+        expert_scores  [1, 1, M, K]   routing weights (carried for the fused
+                                       kernel; the GLU/select does not consume them)
+        w0 (gate)      [1, E, H, N]   gate projection (input H, output N)
+        w1 (up)        [1, E, H, N]   up projection
+        w2 (down)      [1, E, N, H]   down projection (input N, output H)
+        bias0          [1, E, N]      gate bias (optional)
+        bias1          [1, E, N]      up bias   (optional)
+        bias2          [1, E, H]      down bias (optional)
+    where E is the per-device expert count (EP-sharded along ``cluster_axis``).
+
+    Returns the per-top-k expert outputs ``[K, M, H]`` — NOT routing-weighted and
+    NOT summed over K. The caller weights by ``expert_scores`` and reduces.
+
+    Attributes (string-encoded frontend_attributes; tt-mlir's ``readReqInt``
+    parses them): required ``cluster_axis``, ``layer_id``,
+    ``output_height_shard_dim``, ``intermediate_size``; optional
+    ``activation_function`` ("silu" or "swiglu", default silu) and ``bh_ring_size``.
+    """
+    assert tokens.dim() == 4, "tokens must be 4D: [1, 1, M, H]."
+    assert expert_indices.dim() == 4, "expert_indices must be 4D: [1, 1, M, K]."
+    assert expert_scores.dim() == 4, "expert_scores must be 4D: [1, 1, M, K]."
+    assert w0.dim() == 4 and w1.dim() == 4 and w2.dim() == 4, "w0/w1/w2 must be 4D."
+
+    has_bias = bias0 is not None
+    assert (bias1 is not None) == has_bias and (bias2 is not None) == has_bias, (
+        "moe_decode bias is all-or-none: provide bias0/bias1/bias2 together or "
+        "none of them."
+    )
+    assert activation_function in (
+        "silu",
+        "swiglu",
+    ), f"activation_function must be 'silu' or 'swiglu', got {activation_function!r}."
+
+    M = tokens.shape[-2]
+    H = tokens.shape[-1]
+    K = expert_indices.shape[-1]
+
+    device = tokens.device
+    if device.type == "xla":
+        inputs = [tokens, expert_indices, expert_scores, w0, w1, w2]
+        if has_bias:
+            inputs += [bias0, bias1, bias2]
+
+        frontend_attributes = {
+            "cluster_axis": str(cluster_axis),
+            "layer_id": str(layer_id),
+            "output_height_shard_dim": str(output_height_shard_dim),
+            "intermediate_size": str(intermediate_size),
+            "activation_function": activation_function,
+        }
+        if bh_ring_size is not None:
+            frontend_attributes["bh_ring_size"] = str(bh_ring_size)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.moe_decode",
+            [[K, M, H]],
+            [tokens.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # Reference matching the tt-mlir decomposition: compute every expert
+        # (all_gather makes ownership irrelevant), GLU-activate, then one-hot
+        # select each token's top-k experts. Output is [K, M, H], unweighted.
+        E = w0.shape[1]
+        N = w0.shape[-1]
+        orig_dtype = tokens.dtype
+
+        x = tokens.reshape(M, H).float()  # [M, H]
+        W0 = w0.reshape(E, H, N).float()  # [E, H, N]
+        W1 = w1.reshape(E, H, N).float()
+        W2 = w2.reshape(E, N, H).float()  # [E, N, H]
+
+        gate = torch.einsum("mh,ehn->emn", x, W0)  # [E, M, N]
+        up = torch.einsum("mh,ehn->emn", x, W1)
+        if has_bias:
+            gate = gate + bias0.reshape(E, 1, N).float()
+            up = up + bias1.reshape(E, 1, N).float()
+
+        if activation_function == "swiglu":
+            # GPT-OSS-style clamped SwiGLU (mirrors the tt-mlir SwiGLU branch):
+            # (clamp(up,-7,7) + 1) * clamp(gate,_,7) * sigmoid(1.702 * gate_c).
+            gate_c = gate.clamp(max=7.0)
+            up_c = up.clamp(-7.0, 7.0)
+            inter = (up_c + 1.0) * gate_c * torch.sigmoid(1.702 * gate_c)
+        else:
+            inter = (gate * torch.sigmoid(gate)) * up  # silu(gate) * up
+
+        down = torch.einsum("emn,enh->emh", inter, W2)  # [E, M, H]
+        if has_bias:
+            down = down + bias2.reshape(E, 1, H).float()
+
+        idx = expert_indices.reshape(M, K).long()  # [M, K]
+        down_mt = down.permute(1, 0, 2)  # [M, E, H]
+        m_range = torch.arange(M, device=device).unsqueeze(1)  # [M, 1]
+        sel = down_mt[m_range, idx]  # [M, K, H]
+        out = sel.permute(1, 0, 2).contiguous()  # [K, M, H]
+        return out.to(orig_dtype)
+
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@moe_decode.register_fake
+def moe_decode_fake(
+    tokens: torch.Tensor,
+    expert_indices: torch.Tensor,
+    expert_scores: torch.Tensor,
+    w0: torch.Tensor,
+    w1: torch.Tensor,
+    w2: torch.Tensor,
+    bias0: torch.Tensor = None,
+    bias1: torch.Tensor = None,
+    bias2: torch.Tensor = None,
+    cluster_axis: int = 0,
+    layer_id: int = 0,
+    output_height_shard_dim: int = 0,
+    intermediate_size: int = 0,
+    activation_function: str = "silu",
+    bh_ring_size: int = None,
+) -> torch.Tensor:
+    """FakeTensor implementation of moe_decode for torch dynamo tracing."""
+    M = tokens.shape[-2]
+    H = tokens.shape[-1]
+    K = expert_indices.shape[-1]
+    return torch.zeros([K, M, H], dtype=tokens.dtype, device=tokens.device)
+
+
 @torch.library.custom_op("tt::sampling", mutates_args=[], device_types=["xla", "cpu"])
 def sampling(
     input_values: torch.Tensor,

@@ -4,11 +4,12 @@
 """
 Tenstorrent MoE experts backend for HuggingFace transformers.
 
-Registers two ``ExpertsInterface`` backends selectable via
+Registers three ``ExpertsInterface`` backends selectable via
 ``experts_implementation=`` at ``from_pretrained`` time:
 
-  - ``tt_moe``   — multi-chip EP via all_to_all_dispatch / sparse_matmul / all_to_all_combine.
-  - ``tt_dense`` — dense bmm across all experts, single-device-friendly.
+  - ``tt_moe``       — multi-chip EP via all_to_all_dispatch / sparse_matmul / all_to_all_combine.
+  - ``tt_dense``     — dense bmm across all experts, single-device-friendly.
+  - ``tt_moe_fused`` — dense bmm during prefill, tt.moe_decode composite during decode.
 
 Works with any ``@use_experts_implementation`` Experts module that exposes
 ``gate_up_proj``, ``down_proj``, and ``_apply_gate``.
@@ -29,13 +30,25 @@ from . import custom_ops  # noqa: F401
 
 TT_MOE_BACKEND_NAME = "tt_moe"
 TT_DENSE_EXPERTS_BACKEND_NAME = "tt_dense"
+TT_MOE_FUSED_BACKEND_NAME = "tt_moe_fused"
 REDUCTION_SIZE = 32
+
+# Default flattened-token count at/below which tt_moe_fused treats a call as
+# decode (emit tt.moe_decode) rather than prefill (tt_dense_experts_forward).
+# One tile: decode runs with one token per sequence, so the token count equals
+# the batch size; configurable via register_tt_moe_backend().
+DEFAULT_MOE_DECODE_TOKEN_THRESHOLD = 32
 
 # HF built-in backend keys — patched validator falls through for these.
 _HF_BUILTIN_EXPERTS_KEYS = frozenset({"eager", "grouped_mm", "batched_mm", "deepgemm"})
 
 # Module-level EP config; set by register_tt_moe_backend().
-_config: dict = {"cluster_axis": None}
+_config: dict = {
+    "cluster_axis": None,
+    "moe_decode_activation": "silu",
+    "moe_decode_token_threshold": DEFAULT_MOE_DECODE_TOKEN_THRESHOLD,
+    "moe_use_interleaved_gate_up": False,
+}
 
 
 def _resolve_cluster_axis(mesh: Any) -> int:
@@ -488,20 +501,220 @@ def tt_dense_experts_forward(
     return weighted.sum(dim=0).to(dtype)
 
 
+def _moe_decode_params(
+    experts: _ExpertAdapter,
+    use_interleaved: bool = False,
+) -> Tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    Optional[torch.Tensor],
+    Optional[torch.Tensor],
+    Optional[torch.Tensor],
+]:
+    """Build the tt.moe_decode weights/biases from an expert adapter.
+
+    Returns ``(w0, w1, w2, bias0, bias1, bias2)`` where:
+        w0 (gate) [1, E, H, N]   w1 (up) [1, E, H, N]   w2 (down) [1, E, N, H]
+        bias0 [1, E, N]  bias1 [1, E, N]  bias2 [1, E, H]  (or all None)
+
+    The adapters already return weights in sparse_matmul ``[1, E, in, out]``
+    orientation, which is exactly what the composite expects. A fused ``gate_up``
+    weight packs gate and up into the trailing ``2N`` dimension; ``use_interleaved``
+    selects how it is de-packed into the separate ``w0``/``w1`` the op expects:
+
+      - ``False`` (default): concat packing ``[gate | up]`` — gate is the first
+        ``N`` columns, up the second (the ``chunk(2)`` convention used by most
+        models, e.g. Llama4 / DeepSeek / GLM).
+      - ``True``: interleaved packing ``[g0, u0, g1, u1, ...]`` — gate is the even
+        columns, up the odd (e.g. GPT-OSS, which also wants
+        ``activation_function="swiglu"``).
+
+    Separate gate/up weights are already de-packed, so the flag is a no-op there.
+    The caller is responsible for setting ``use_interleaved`` to match the model.
+
+    tt.moe_decode is all-or-none on bias: if any of gate/up/down bias is present,
+    the missing ones are zero-filled to satisfy the 9-operand contract.
+    """
+    if experts.has_fused_gate_up:
+        gate_up = experts.gate_up_weight()  # [1, E, H, 2N]
+        gate_up_bias = experts.gate_up_bias()  # [E, 2N] | None
+        if use_interleaved:
+            # Gate = even output columns, up = odd. The strided gathers are
+            # non-contiguous, so materialize before handing them to the op.
+            w0 = gate_up[..., 0::2].contiguous()  # [1, E, H, N]
+            w1 = gate_up[..., 1::2].contiguous()
+            gate_bias = None if gate_up_bias is None else gate_up_bias[..., 0::2]
+            up_bias = None if gate_up_bias is None else gate_up_bias[..., 1::2]
+        else:
+            # Gate = first half, up = second half.
+            n = gate_up.shape[-1] // 2
+            w0 = gate_up[..., :n].contiguous()  # [1, E, H, N]
+            w1 = gate_up[..., n:].contiguous()
+            gate_bias = None if gate_up_bias is None else gate_up_bias[..., :n]
+            up_bias = None if gate_up_bias is None else gate_up_bias[..., n:]
+    else:
+        w0 = experts.gate_weight()  # [1, E, H, N]
+        w1 = experts.up_weight()
+        gate_bias = experts.gate_bias()  # [E, N] | None
+        up_bias = experts.up_bias()
+    w2 = experts.down_weight()  # [1, E, N, H]
+    down_bias = experts.down_bias()  # [E, H] | None
+
+    _, E, H, N = w0.shape
+
+    if gate_bias is None and up_bias is None and down_bias is None:
+        return w0, w1, w2, None, None, None
+
+    def _bias_or_zeros(bias: Optional[torch.Tensor], feat: int) -> torch.Tensor:
+        if bias is None:
+            return torch.zeros(1, E, feat, dtype=w0.dtype, device=w0.device)
+        return bias.reshape(1, E, feat)
+
+    return (
+        w0,
+        w1,
+        w2,
+        _bias_or_zeros(gate_bias, N),
+        _bias_or_zeros(up_bias, N),
+        _bias_or_zeros(down_bias, H),
+    )
+
+
+def _tt_moe_decode_forward(
+    self: torch.nn.Module,
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Decode forward: emit tt.moe_decode, then routing-weight and sum its
+    per-top-k outputs back into ``[T, H]``."""
+    hidden_states, top_k_index, top_k_weights, original_token_count = _pad_moe_inputs(
+        hidden_states, top_k_index, top_k_weights
+    )
+
+    experts = _get_expert_adapter(self)
+    M, H = hidden_states.shape
+    K = top_k_index.shape[-1]
+    dtype = hidden_states.dtype
+
+    w0, w1, w2, bias0, bias1, bias2 = _moe_decode_params(
+        experts, use_interleaved=_config["moe_use_interleaved_gate_up"]
+    )
+    intermediate_size = w0.shape[-1]
+
+    tokens = hidden_states.view(1, 1, M, H)
+    indices = top_k_index.view(1, 1, M, K)
+    scores = top_k_weights.to(dtype).view(1, 1, M, K)
+
+    _, _, _, cluster_axis = _mesh_info()
+    # layer_id disambiguates per-layer persistent-mode buffers in tt-mlir; use
+    # the module's layer index when it exposes one, else 0.
+    layer_id = int(getattr(self, "layer_idx", 0) or 0)
+
+    combined = torch.ops.tt.moe_decode(
+        tokens,
+        indices,
+        scores,
+        w0,
+        w1,
+        w2,
+        bias0=bias0,
+        bias1=bias1,
+        bias2=bias2,
+        cluster_axis=cluster_axis,
+        layer_id=layer_id,
+        output_height_shard_dim=0,
+        intermediate_size=intermediate_size,
+        activation_function=_config["moe_decode_activation"],
+    )  # [K, M, H]
+
+    weights_k = top_k_weights.permute(1, 0).view(K, M, 1).to(combined.dtype)
+    output = (combined * weights_k).sum(dim=0).view(M, H)  # [M, H]
+    output = output[:original_token_count]
+    return output.to(dtype)
+
+
+def tt_moe_fused_forward(
+    self: torch.nn.Module,
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Fused MoE forward: dense bmm during prefill, tt.moe_decode during decode.
+
+    The call is treated as decode when the flattened token count is at/below
+    ``_config["moe_decode_token_threshold"]`` (decode runs one token per
+    sequence, so the token count is the batch size); otherwise it is prefill and
+    routes to ``tt_dense_experts_forward``. CPU tensors fall back to HF
+    ``batched_mm``.
+
+    tt.moe_decode is an expert-parallel decode kernel: tt-mlir synthesizes its
+    expert_mapping from the module mesh and shards experts along the cluster
+    axis, so it only lowers on a multi-chip mesh. On a single chip (or a
+    degenerate mesh whose resolved cluster axis is size 1) the decode path falls
+    back to the dense bmm as well, since there is no usable EP mesh to lower onto.
+    """
+    if hidden_states.device.type == "cpu":
+        return ALL_EXPERTS_FUNCTIONS["batched_mm"](
+            self, hidden_states, top_k_index, top_k_weights
+        )
+
+    _, dispatch_devices, _, _ = _mesh_info()
+    is_decode = (
+        dispatch_devices > 1
+        and hidden_states.shape[0] <= _config["moe_decode_token_threshold"]
+    )
+    if not is_decode:
+        return tt_dense_experts_forward(self, hidden_states, top_k_index, top_k_weights)
+
+    return _tt_moe_decode_forward(self, hidden_states, top_k_index, top_k_weights)
+
+
 _original_validator: Optional[Callable] = None
 
 
-def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
-    """Register tt_moe and tt_dense backends. Idempotent."""
+def register_tt_moe_backend(
+    cluster_axis: Optional[int] = None,
+    moe_decode_activation: str = "silu",
+    moe_decode_token_threshold: int = DEFAULT_MOE_DECODE_TOKEN_THRESHOLD,
+    use_interleaved: bool = False,
+) -> None:
+    """Register tt_moe, tt_dense and tt_moe_fused backends. Idempotent.
+
+    Args:
+        cluster_axis: EP/dispatch mesh axis; ``None`` auto-resolves the first
+            mesh axis larger than 1.
+        moe_decode_activation: GLU activation tt_moe_fused stamps onto the
+            emitted tt.moe_decode op ("silu" or "swiglu").
+        moe_decode_token_threshold: flattened-token count at/below which
+            tt_moe_fused treats a call as decode.
+        use_interleaved: how tt_moe_fused de-packs a fused ``gate_up`` weight for
+            tt.moe_decode — ``False`` for concat ``[gate | up]`` packing
+            (default), ``True`` for interleaved ``[g0, u0, g1, u1, ...]`` packing
+            (e.g. GPT-OSS). The caller sets this to match the model under test.
+    """
     global _original_validator
 
+    if moe_decode_activation not in ("silu", "swiglu"):
+        raise ValueError(
+            f"moe_decode_activation must be 'silu' or 'swiglu', got "
+            f"{moe_decode_activation!r}"
+        )
+
     _config["cluster_axis"] = cluster_axis
+    _config["moe_decode_activation"] = moe_decode_activation
+    _config["moe_decode_token_threshold"] = moe_decode_token_threshold
+    _config["moe_use_interleaved_gate_up"] = use_interleaved
     ExpertsInterface.register(TT_MOE_BACKEND_NAME, tt_experts_forward)
     if TT_MOE_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_MOE_BACKEND_NAME} registration failed")
     ExpertsInterface.register(TT_DENSE_EXPERTS_BACKEND_NAME, tt_dense_experts_forward)
     if TT_DENSE_EXPERTS_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_DENSE_EXPERTS_BACKEND_NAME} registration failed")
+    ExpertsInterface.register(TT_MOE_FUSED_BACKEND_NAME, tt_moe_fused_forward)
+    if TT_MOE_FUSED_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
+        raise RuntimeError(f"{TT_MOE_FUSED_BACKEND_NAME} registration failed")
 
     if _original_validator is not None:
         return  # already patched
