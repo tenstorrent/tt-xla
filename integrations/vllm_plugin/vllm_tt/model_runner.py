@@ -535,35 +535,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (self.num_reqs_most_model_len,), self.seq_lens_cpu.dtype
             )
 
-        # Prefill SDPA mask buffers — one per prefill bucket (num_tokens > 1).
-        # Shape per bucket: [num_reqs, 1, num_tokens, num_blocks * block_size].
-        # Constant shape lets warmup and runtime share a single traced graph.
-        self._prefill_attn_mask_dev_max: dict[int, torch.Tensor] = {}
-        self._prefill_attn_mask_dev_most: dict[int, torch.Tensor] = {}
-        for _nt in self.num_tokens_paddings:
-            if _nt <= 1:
-                continue
-            self._prefill_attn_mask_dev_max[_nt] = _alloc_dev(
-                (
-                    self.num_reqs_max_model_len,
-                    1,
-                    _nt,
-                    self.max_num_blocks_per_req * self.block_size,
-                ),
-                self.dtype,
+        # Per-user cached-prefix lengths (int32, shape [num_reqs]) for the
+        # prefill SDPA mask. The mask itself is built IN-GRAPH in the attention
+        # op from this runtime input (see TTAttentionBackendImpl), so it is
+        # never a const-folded bf16 ttnn.constant (which crashes tt-mlir
+        # const-eval with "Invalid data size") and the per-step cache offset is
+        # actually honored. Plumbed via a persistent buffer like page_table so
+        # it is a real metal-trace input.
+        self._num_computed_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len,), torch.int32
+        )
+        self._num_computed_dev_most = None
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            self._num_computed_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len,), torch.int32
             )
-            if self.most_model_len is not None:
-                assert self.num_reqs_most_model_len is not None
-                assert self.num_blocks_per_most_len_req is not None
-                self._prefill_attn_mask_dev_most[_nt] = _alloc_dev(
-                    (
-                        self.num_reqs_most_model_len,
-                        1,
-                        _nt,
-                        self.num_blocks_per_most_len_req * self.block_size,
-                    ),
-                    self.dtype,
-                )
 
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
@@ -1262,47 +1249,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # Build the prefill SDPA attention mask. The mask encodes per-user
-        # ``num_computed_tokens`` so the same compiled graph services both
-        # cold prefill (zeros) and cached prefill — torch.compile with
-        # NoGuards bakes Python branches at trace time, so we cannot switch
-        # on a runtime flag. Skipped for the decode bucket (suffix=1) where
-        # attn_mask stays ``None`` and the decode kernel handles the pattern
-        # via ``cache_position``.
-        attn_mask: torch.Tensor | None = None
+        # Per-user cached-prefix length for the prefill SDPA mask. The mask is
+        # built IN-GRAPH from this int input (TTAttentionBackendImpl), so the
+        # same compiled graph services cold prefill (zeros) and cached prefill,
+        # and the mask is never a const-folded constant. Skipped for the decode
+        # bucket (suffix=1), which uses ``cache_position`` instead.
+        num_computed_dev: torch.Tensor | None = None
         if padded_total_num_scheduled_tokens > 1:
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
             if use_max_model_len:
                 num_users_bucket = self.num_reqs_max_model_len
-                kv_len = self.max_num_blocks_per_req * self.block_size
-                attn_mask_dev_buf = self._prefill_attn_mask_dev_max[
-                    padded_total_num_scheduled_tokens
-                ]
+                num_computed_dev_buf = self._num_computed_dev_max
             else:
                 num_users_bucket = self.num_reqs_most_model_len
-                kv_len = self.num_blocks_per_most_len_req * self.block_size
-                attn_mask_dev_buf = self._prefill_attn_mask_dev_most[
-                    padded_total_num_scheduled_tokens
-                ]
-            attn_mask_cpu = _build_prefill_attn_mask(
-                num_computed=num_computed,
-                suffix_len=padded_total_num_scheduled_tokens,
-                kv_len=kv_len,
-                num_users=num_users_bucket,
-                dtype=self.dtype,
+                num_computed_dev_buf = self._num_computed_dev_most
+            num_computed_cpu = torch.zeros(num_users_bucket, dtype=torch.int32)
+            num_computed_cpu[:num_reqs] = torch.as_tensor(
+                num_computed, dtype=torch.int32
             )
-            attn_mask_dev_buf.copy_(attn_mask_cpu)
-            attn_mask = attn_mask_dev_buf
+            num_computed_dev_buf.copy_(num_computed_cpu)
+            num_computed_dev = num_computed_dev_buf
 
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            # Prefill carries an explicit mask (single source of truth — the
-            # SDPA op asserts is_causal=False when a mask is provided);
-            # decode leaves the mask None and the decode kernel handles
-            # causality via cache_position.
-            is_causal=attn_mask is None,
-            attn_mask=attn_mask,
+            # Prefill builds its SDPA mask in-graph from num_computed
+            # (is_causal=False); decode leaves both None and the decode kernel
+            # handles causality via cache_position.
+            is_causal=num_computed_dev is None,
+            attn_mask=None,
+            num_computed=num_computed_dev,
             fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -2041,27 +2017,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
-        # Match runtime: prefill buckets carry a constant-shape attn_mask so
-        # the traced graph picks up the SDPA-with-mask code path; decode
-        # bucket (num_tokens=1) leaves mask=None and uses the decode kernel.
-        attn_mask = None
+        # Match runtime: prefill buckets carry num_computed (a fresh device int
+        # tensor) so the traced graph builds the SDPA mask in-graph; decode
+        # bucket (num_tokens=1) leaves it None and uses the decode kernel.
+        num_computed_dev = None
         if num_tokens > 1:
-            attn_mask = _build_prefill_attn_mask(
-                num_computed=np.zeros(num_reqs, dtype=np.int32),
-                suffix_len=num_tokens,
-                kv_len=num_blocks * self.block_size,
-                num_users=num_reqs,
-                dtype=self.dtype,
-            ).to(self.device)
+            num_computed_dev = torch.zeros(num_reqs, dtype=torch.int32).to(
+                self.device
+            )
 
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            # Match _prepare_inputs: mask present ⇒ is_causal=False (the
-            # SDPA op asserts this) so warmup and runtime trace the same
-            # graph regardless of has_paged_cache.
-            is_causal=attn_mask is None,
-            attn_mask=attn_mask,
+            # Match _prepare_inputs: prefill builds the mask in-graph from
+            # num_computed (is_causal=False) so warmup and runtime trace the
+            # same graph regardless of has_paged_cache.
+            is_causal=num_computed_dev is None,
+            attn_mask=None,
+            num_computed=num_computed_dev,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2372,15 +2345,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.num_reqs_max_model_len,), dtype=torch.int32
         ).to(self.device)
 
-        attn_mask = None
+        # Match runtime: prefill buckets carry num_computed (a fresh device int
+        # tensor, like page_table) and build the SDPA mask in-graph; decode
+        # leaves it None and uses the decode kernel.
+        num_computed_dev = None
         if num_tokens > 1:
-            attn_mask = self._prefill_attn_mask_dev_max[num_tokens]
+            num_computed_dev = torch.zeros(
+                self.num_reqs_max_model_len, dtype=torch.int32
+            ).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=attn_mask is None,
-            attn_mask=attn_mask,
+            is_causal=num_computed_dev is None,
+            attn_mask=None,
+            num_computed=num_computed_dev,
             fill_page_table=page_table,
         )
         per_layer_attn_metadata = dict.fromkeys(

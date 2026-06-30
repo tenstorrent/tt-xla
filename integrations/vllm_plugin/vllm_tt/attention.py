@@ -184,6 +184,13 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Per-user cached-prefix length (int32, shape [num_users]). Used by the
+    # paged-prefill SDPA path to build the causal mask IN-GRAPH so the mask
+    # depends on this runtime input instead of being a const-folded constant
+    # (a baked bf16 mask splat crashes tt-mlir const-eval with "Invalid data
+    # size", and a baked mask also ignores the per-step cache offset). Plumbed
+    # like page_table so it is a real metal-trace input.
+    num_computed: torch.Tensor
 
     def __init__(
         self,
@@ -192,6 +199,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        num_computed: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -200,6 +208,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.num_computed = num_computed
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -559,9 +568,18 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache[1], attn_metadata.page_table
             )
             query_for_sdpa = inputs.query.transpose(-3, -2)
+            # Build the causal mask IN-GRAPH from the runtime num_computed
+            # input. Building it here (rather than passing a precomputed mask
+            # tensor) keeps the mask data-dependent on a metal-trace input, so
+            # const-eval never folds it into a baked bf16 ttnn.constant (which
+            # crashes the runtime with "Invalid data size") and the per-step
+            # cache offset is actually honored (fixes cache-hit degeneration).
+            attn_mask = self._build_prefill_mask(
+                attn_metadata.num_computed, query_for_sdpa, key_for_sdpa
+            )
             sdpa_kwargs = {
                 "is_causal": False,
-                "attn_mask": attn_metadata.attn_mask,
+                "attn_mask": attn_mask,
                 "scale": self.scale,
             }
         else:
@@ -587,6 +605,33 @@ class TTAttentionBackendImpl(AttentionImpl):
         )  # Back to [users, tokens, num_heads, head_size]
 
         return output
+
+    def _build_prefill_mask(self, num_computed, query_for_sdpa, key_for_sdpa):
+        """Build the per-user prefill causal SDPA mask IN-GRAPH.
+
+        ``mask[u, 0, i, j]`` is ``0`` when query token ``i`` of user ``u``
+        (absolute sequence position ``num_computed[u] + i``) may attend to K/V
+        slot ``j`` (``j <= num_computed[u] + i``), and ``-inf`` otherwise —
+        which also masks the stale K/V slots past the user's sequence end.
+
+        Every tensor here derives from the runtime ``num_computed`` input, so
+        the mask is data-dependent on a metal-trace input and is never folded
+        into a baked ``ttnn.constant``. Shape ``[num_users, 1, suffix_len,
+        kv_len]`` (broadcasts over heads), matching the SDPA mask contract.
+        """
+        suffix_len = query_for_sdpa.shape[-2]
+        kv_len = key_for_sdpa.shape[-2]
+        device = query_for_sdpa.device
+        dtype = query_for_sdpa.dtype
+        i_range = torch.arange(suffix_len, device=device, dtype=torch.int32)
+        j_range = torch.arange(kv_len, device=device, dtype=torch.int32)
+        # abs_pos[u, i] = num_computed[u] + i  -> [num_users, suffix_len]
+        abs_pos = num_computed.to(torch.int32).reshape(-1, 1) + i_range.reshape(1, -1)
+        # invalid[u, i, j] = j > abs_pos[u, i]  -> [num_users, suffix_len, kv_len]
+        invalid = j_range.reshape(1, 1, -1) > abs_pos.unsqueeze(-1)
+        neg = torch.full((), float("-inf"), device=device, dtype=dtype)
+        zero = torch.zeros((), device=device, dtype=dtype)
+        return torch.where(invalid.unsqueeze(1), neg, zero)
 
     def _gather_paged_to_dense(
         self,
