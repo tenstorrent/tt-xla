@@ -13,20 +13,38 @@ coverage. See loader.shard_transformer_specs for the sharding scheme.
 import pytest
 import torch
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, RunMode, run_graph_test
 from infra.utilities.torch_multichip_utils import get_mesh
+from utils import BringupStatus, Category
 
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
+@pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_info=ModelLoader.get_model_info(ModelVariant.TRANSFORMER),
+    parallelism=Parallelism.SINGLE_DEVICE,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
 def test_transformer():
     _run(sharded=False)
 
 
+@pytest.mark.bh_galaxy
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_info=ModelLoader.get_model_info(ModelVariant.TRANSFORMER),
+    parallelism=Parallelism.TENSOR_PARALLEL,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
 def test_transformer_sharded():
     _run(sharded=True)
 

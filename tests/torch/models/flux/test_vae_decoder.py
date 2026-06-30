@@ -7,7 +7,8 @@
 import pytest
 import torch
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, RunMode, run_graph_test
+from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
@@ -15,6 +16,12 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 @pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_info=ModelLoader.get_model_info(ModelVariant.VAE),
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)
