@@ -1261,10 +1261,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
-            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            xs.mark_sharding(page_table, self.mesh, ("batch", None))
+            xs.mark_sharding(cache_position, self.mesh, ("batch",))
             if fill_page_table is not page_table:
-                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+                xs.mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1570,13 +1570,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(input_ids, self.mesh, ("batch", None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
-        # position_ids is normally [num_reqs, num_tokens]; under M-RoPE it is
-        # [3, num_reqs, num_tokens]. Shard whichever axis carries the batch so
-        # the warmup and execution graphs agree (callers pass either shape).
-        if position_ids is not None and position_ids.dim() == 3:
-            safe_mark_sharding(position_ids, self.mesh, (None, "batch", None))
-        elif position_ids is not None:
-            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1685,6 +1678,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_ids, mm_embed_inputs
             )
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                # _pin_input_shardings already batch-shards input_ids /
+                # inputs_embeds for the DP modes (and leaves TP-only inputs
+                # replicated). position_ids is the one model input it does not
+                # cover, so shard it here on the "batch" (DP) axis before the
+                # fused _model_* forward call.
+                safe_mark_sharding(self.position_ids, self.mesh, ("batch", None))
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -2050,9 +2053,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, num_tokens), dtype=torch.int32
         ).to(self.device)
 
-        # input_ids / position_ids are sharded by _pin_input_shardings below
-        # (called before the model forward), matching the execution path — no
-        # need to mark them here.
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            if input_ids is not None:
+                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
+            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
 
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
@@ -2067,8 +2074,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # page_table to have the same per-device leading dim as the K/V
             # input. Since inputs are sharded ("batch", None), we shard these
             # along batch too.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
-            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            xs.mark_sharding(page_table, self.mesh, ("batch", None))
+            xs.mark_sharding(cache_position, self.mesh, ("batch",))
 
         attn_metadata = TTMetadata(
             page_table=page_table,
