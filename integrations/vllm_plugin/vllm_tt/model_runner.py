@@ -20,6 +20,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from tt_torch.composite_ops import composite_argmax, composite_topk
 from tt_torch.sharding import sharding_constraint_tensor
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
@@ -2456,7 +2457,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
 
-        return hidden_states, logits, selected_token_ids
+        # Only return the full-vocab logits when logprobs are requested. On a
+        # vocab-sharded graph the logits leave compute_logits split across the
+        # "model" axis; returning them as a graph output forces a full-vocab
+        # all_gather every step (and, on the sampling path, an extra all_to_all
+        # reslice around the sharded topk). They are dead downstream unless
+        # logprobs are requested (execute_model sets logprobs=None otherwise),
+        # so hand back a tiny placeholder and let DCE drop the gather.
+        logits_out = (
+            logits
+            if sampling_metadata.logprobs
+            else logits.new_zeros((logits.shape[0], 1))
+        )
+        return hidden_states, logits_out, selected_token_ids
 
     def _model_prefill(
         self,
@@ -2559,7 +2572,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
 
         selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
-        return logits, selected_token_ids
+        # See _model_decode_compiled: drop the dead full-vocab logits output
+        # (and its all_gather) unless logprobs are requested.
+        logits_out = (
+            logits
+            if sampling_metadata.logprobs
+            else logits.new_zeros((logits.shape[0], 1))
+        )
+        return logits_out, selected_token_ids
 
     def _precompile_backbone(self) -> None:
         logger.info("Compiling the model with different input shapes.")
@@ -2702,6 +2722,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (self.max_num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
+            if self.is_sharded_compute_logits:
+                safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -2741,6 +2763,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dtype=self._hidden_states_dtype,
         )
         dummy_logits = dummy_logits.to(self.device)
+        if self.is_sharded_compute_logits:
+            safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
         dummy_tokens = torch.zeros((self.max_num_reqs, 1), dtype=torch.int64).to(
             self.device
         )
@@ -3076,12 +3100,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
-        # (quant_method.apply bypasses __call__) and all_gather is a
-        # no-op (world_size=1). Must be inside the compiled graph —
-        # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        # Logits leave this graph vocab-sharded (ParallelLMHead output). The
+        # downstream sampler runs sharding-aware topk via composite_topk and
+        # only all_gathers the tiny [batch, k] candidates, avoiding a
+        # full-vocab all_gather every decode step.
         return logits
 
     def sample_from_logits(
@@ -3091,6 +3113,51 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
+        # Re-annotate vocab-sharding at the entry of this separately-compiled
+        # graph: sharding does not carry across the compiled-graph boundary
+        # from compute_logits.
+        if self.is_sharded_compute_logits:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
+            # On 1D mesh, Shardy has a single axis and may assign it to batch
+            # dims of metadata tensors (since batch is typically divisible by
+            # mesh size). This axis-swap with the vocab-sharded logits triggers
+            # unimplemented collective_permute (tt-mlir#3370). Explicitly anchor
+            # [batch, vocab] metadata to (None, "model") so Shardy propagates
+            # only vocab-sharding, and the replicated→sharded transition uses
+            # the implemented all_slice path.
+            if not sampling_metadata.no_penalties:
+                sampling_metadata.output_token_counts = sharding_constraint_tensor(
+                    sampling_metadata.output_token_counts,
+                    self.mesh,
+                    (None, "model"),
+                )
+                sampling_metadata.prompt_token_mask = sharding_constraint_tensor(
+                    sampling_metadata.prompt_token_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_logit_bias:
+                sampling_metadata.logit_bias_tensor = sharding_constraint_tensor(
+                    sampling_metadata.logit_bias_tensor,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_bad_words:
+                sampling_metadata.bad_words_mask = sharding_constraint_tensor(
+                    sampling_metadata.bad_words_mask, self.mesh, (None, "model")
+                )
+            if not sampling_metadata.no_allowed_token_ids:
+                sampling_metadata.allowed_token_ids_mask = sharding_constraint_tensor(
+                    sampling_metadata.allowed_token_ids_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_min_tokens:
+                sampling_metadata.min_tokens_mask = sharding_constraint_tensor(
+                    sampling_metadata.min_tokens_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
         if (
             sampling_metadata.all_greedy
             and sampling_metadata.no_penalties
@@ -3100,9 +3167,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
+            if self.is_sharded_compute_logits:
+                out_tokens = composite_argmax(logits, dim=-1, keepdim=True)
+            else:
+                out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
-            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+            vocab_sharded = self.is_sharded_compute_logits
+            out_tokens = self.sampler(
+                logits, sampling_metadata, vocab_sharded=vocab_sharded
+            ).sampled_token_ids
         return out_tokens
 
     def sample_from_logits_cpu(
@@ -3216,11 +3289,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         of logprobs as an alternative to having multiple pre-compiled graphs.
         Select the number of logprobs actually demanded by each request on CPU.
         """
+        # logits enter vocab-sharded from compute_logits; replicate here so
+        # logsoftmax sees the full vocab. Only paid when logprobs are requested.
+        #
+        # Single constraint: just the (None, None) all-gather request. The
+        # vocab-sharded function-arg annotation already declares the input
+        # layout to Shardy — adding our own redundant (None, "model")
+        # constraint at function entry is a trap: torch_xla canonicalizes
+        # the input via a no-op reshape pair ([1,V] → [1,1,V] → [1,V]), and
+        # the inner reshape gives Shardy freedom to pick *any* sharding on
+        # the squeezed result. Whenever it picks something other than
+        # (None, "model"), reconciling to our explicit (None, "model")
+        # constraint requires a collective_permute (tt-mlir#3370). Removing
+        # the redundant constraint lets Shardy all-gather from whatever
+        # layout it chose, which is always implementable.
+        if self.is_sharded_compute_logits:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
             self.model_config.max_logprobs,
-            token_ids=sampled_tokens.squeeze(-1),
+            token_ids=sampled_tokens,
         )
 
         return LogprobsTensors(
@@ -3370,11 +3459,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         bitmasks: torch.Tensor,
     ) -> torch.Tensor:
-        return torch.where(
+        # Grammar masking operates over the full vocab via a packed bitmask laid
+        # out as (vocab/32, 32); vocab/32 is not divisible by the model-axis
+        # mesh size, so the mask cannot be vocab-sharded. Gather the (possibly
+        # vocab-sharded) lm_head logits to replicated first. No-op when not
+        # tensor-parallel; only paid on the grammar path, which needs full vocab.
+        if self.enable_tensor_parallel:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        masked = torch.where(
             require_struct_decoding,
             self.apply_grammar_bitmask(logits, grammar_bitmask, bitmasks),
             logits,
         )
+        if self.enable_tensor_parallel:
+            # Anchor the result replicated so a downstream vocab-sharding
+            # constraint (sample_from_logits) does not back-propagate into the
+            # unshardable grammar-mask reshape.
+            masked = sharding_constraint_tensor(masked, self.mesh, (None, None))
+        return masked
 
     def apply_grammar_bitmask(
         self,

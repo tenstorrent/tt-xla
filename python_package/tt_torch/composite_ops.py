@@ -28,6 +28,22 @@ anything in model in order to get performance improvement.
 ################# function replacements #################
 
 
+def _normalize_dim(dim: int, rank: int) -> int:
+    """Normalize a (possibly negative) reduction dim to a non-negative index.
+
+    The ``dim`` value recorded in a composite's attributes is consumed verbatim
+    by tt-mlir. tt-mlir's ``ttnn.argmax`` declares ``dim`` as a signless
+    ``I32Attr``, so its ``getDim()`` accessor returns ``uint32_t``: a negative
+    dim (e.g. -1) is read back as a huge positive value, defeating the
+    ``if (dim < 0) dim += rank`` normalization in ArgMaxOpDimRewritePattern and
+    causing an out-of-bounds SmallVector access (SIGABRT) during compilation on
+    the non-sharded / degenerate-mesh path. Emitting a non-negative dim avoids
+    the negative-dim path entirely; the sharded custom_call path normalizes
+    independently, so positive dims are correct for both. See tt-xla #4494.
+    """
+    return dim + rank if dim < 0 else dim
+
+
 def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     """
     Creates composite gelu operation for torch xla using StableHLOCompositeBuilder.
@@ -182,6 +198,7 @@ def composite_topk(
     Creates composite topk operation for torch-xla using StableHLOCompositeBuilder.
     Returns a (values, indices) tuple.
     """
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
 
     builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
@@ -202,6 +219,7 @@ def composite_topk_values(
     out: tuple[Tensor, ...] | list[Tensor] | None = None,
 ) -> Tensor:
     """Composite topk returning only values. Marks a single output at pos=0."""
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
     builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
     input = builder.mark_inputs(input)
@@ -220,12 +238,33 @@ def composite_topk_indices(
     out: tuple[Tensor, ...] | list[Tensor] | None = None,
 ) -> Tensor:
     """Composite topk returning only indices. Marks a single output at pos=0."""
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
     builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
     input = builder.mark_inputs(input)
     _, indices = torch.topk(input, k, dim, largest, sorted)
     indices = builder.mark_outputs(indices)
     return indices
+
+
+def composite_argmax(
+    input: Tensor,
+    dim: int = -1,
+    keepdim: bool = False,
+) -> Tensor:
+    """Composite argmax with custom sharding rule for distributed argmax.
+
+    Uses ttnn.argmax (fast O(n) max reduction) instead of ttnn.topk
+    (O(n log²n) bitonic sort), yielding significant speedup for greedy
+    decoding on vocab-sharded tensors.
+    """
+    dim = _normalize_dim(dim, input.dim())
+    attrs = {"dim": dim, "keepdim": keepdim}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.argmax", attr=attrs)
+    input = builder.mark_inputs(input)
+    output = torch.argmax(input, dim=dim, keepdim=keepdim)
+    output = builder.mark_outputs(output)
+    return output
 
 
 def composite_scaled_dot_product_attention(
@@ -531,6 +570,7 @@ replacements = {
         frozenset({0}): composite_topk_values,
         frozenset({1}): composite_topk_indices,
     },
+    torch.argmax: composite_argmax,
     torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
