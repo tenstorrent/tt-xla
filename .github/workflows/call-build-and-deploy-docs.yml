@@ -63,7 +63,8 @@ jobs:
 
     - name: Warn if search ingest key is missing
       if: ${{ env.DOCS_SEARCH_INGEST_API_KEY == '' }}
-      run: echo "::warning::Skipping OpenSearch indexing: DOCS_SEARCH_INGEST_API_KEY_DOCS_TENSTORRENT secret not set."
+      run: |
+        echo "::warning::Skipping OpenSearch indexing: DOCS_SEARCH_INGEST_API_KEY_DOCS_TENSTORRENT secret not set."
 
     - name: Index docs into OpenSearch
       if: ${{ env.DOCS_SEARCH_INGEST_API_KEY != '' }}

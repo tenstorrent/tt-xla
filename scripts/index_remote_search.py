@@ -21,7 +21,6 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-
 # Keep batches small: the indexer Lambda fans each batch out to an OpenSearch
 # _bulk call, and API Gateway caps the request at ~29s. 200 docs in one POST
 # times out (HTTP 504) on the larger catalogs; 50 stays comfortably under it.
@@ -31,8 +30,12 @@ TIMEOUT_SECONDS = 30
 
 def _strip_html_to_text(content: str) -> str:
     # Remove script/style blocks first so they do not pollute search text.
-    content = re.sub(r"<script\b[^>]*>.*?</script>", " ", content, flags=re.IGNORECASE | re.DOTALL)
-    content = re.sub(r"<style\b[^>]*>.*?</style>", " ", content, flags=re.IGNORECASE | re.DOTALL)
+    content = re.sub(
+        r"<script\b[^>]*>.*?</script>", " ", content, flags=re.IGNORECASE | re.DOTALL
+    )
+    content = re.sub(
+        r"<style\b[^>]*>.*?</style>", " ", content, flags=re.IGNORECASE | re.DOTALL
+    )
     # Strip tags.
     content = re.sub(r"<[^>]+>", " ", content)
     # Decode entities and normalize whitespace.
@@ -42,7 +45,9 @@ def _strip_html_to_text(content: str) -> str:
 
 
 def _extract_title(content: str, fallback: str) -> str:
-    match = re.search(r"<title[^>]*>(.*?)</title>", content, flags=re.IGNORECASE | re.DOTALL)
+    match = re.search(
+        r"<title[^>]*>(.*?)</title>", content, flags=re.IGNORECASE | re.DOTALL
+    )
     if not match:
         return fallback
     return _strip_html_to_text(match.group(1)) or fallback
@@ -62,7 +67,9 @@ def _iter_html_files(output_root: Path) -> Iterable[Path]:
         yield path
 
 
-def _build_documents(output_root: Path, site_base_url: str, catalog: str, version: str, id_namespace: str) -> list[dict]:
+def _build_documents(
+    output_root: Path, site_base_url: str, catalog: str, version: str, id_namespace: str
+) -> list[dict]:
     site_base_url = site_base_url.rstrip("/")
     docs: list[dict] = []
 
