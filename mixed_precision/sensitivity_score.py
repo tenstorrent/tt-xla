@@ -9,7 +9,7 @@ Stage 1 — GPU machine (compute Fisher):
   --accum-device cpu   keep fp32 accumulators in host RAM
   --offload-layers     stream weights from disk one layer at a time (large models)
 
-Stage 2 — TT machine (compute scores):
+Stage 2 — compute scores (host-side quantization, needs ttnn installed but no TT device):
   python sensitivity_score.py --stage scores --model <model>
   Auto-detects fii.pt or per-layer chunk_*.pt directory from stage 1.
 """
@@ -24,6 +24,9 @@ import torch.nn as nn
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+# ttnn is only used by the scores stage (host-side typecast for BFP4 quantization).
+# The fisher stage doesn't import it, so the module must still load where ttnn is
+# absent; run_scores_stage raises a clear error if invoked without it.
 try:
     import ttnn
 
@@ -32,19 +35,23 @@ except ImportError:
     HAS_TTNN = False
 
 from offload_fisher import NUM_SAMPLES, _make_fisher_hook, fisher_thread_worker
-from utils import collect_weights, get_fii_path, get_scores_path, load_model_shell
+from utils import collect_weights, get_fisher_path, get_scores_path, load_model_shell
 
 SEQ_LEN = 128
 
 
-def quantize_via_ttnn(tensor, dtype, device):
-    """Roundtrip tensor through TT device at target dtype to get quantized values."""
+def quantize_via_ttnn(tensor, dtype):
+    """Quantize `tensor` to `dtype` and back to bf16 via host-side ttnn.typecast.
+
+    Runs entirely on host (no TT device): host typecast is more accurate for BFP4
+    conversion than the on-device path, and keeping it host-side lets the scores stage
+    run on the same GPU machine as the fisher stage, avoiding a GPU->TT transfer of the
+    large squared-gradient tensors.
+    """
     orig_shape = tensor.shape
     if tensor.ndim > 2:
         tensor = tensor.reshape(-1, tensor.shape[-1])
-    tt = ttnn.from_torch(
-        tensor, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT, device=device
-    )
+    tt = ttnn.from_torch(tensor, dtype=ttnn.bfloat16, layout=ttnn.TILE_LAYOUT)
     tt = ttnn.typecast(tt, dtype)
     tt = ttnn.typecast(tt, ttnn.bfloat16)
     result = ttnn.to_torch(tt)
@@ -87,7 +94,7 @@ def parse_args():
         choices=["fisher", "scores"],
         required=True,
         help="'fisher': compute and save fisher scores (GPU). "
-        "'scores': load fisher and compute sensitivity scores (TT device).",
+        "'scores': load fisher and compute sensitivity scores (host-side ttnn typecast).",
     )
     parser.add_argument(
         "--save-path",
@@ -115,7 +122,17 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_model_and_tokenizer(model_name, device_map=None):
+def load_causal_lm(model_name, device_map=None):
+    """Load a causal LM and its tokenizer via AutoModelForCausalLM.
+
+    AutoModelForCausalLM is already generic across LM architectures (Llama, Qwen,
+    Mistral, ...): it reads the arch from config and instantiates the right class.
+    We use the ForCausalLM head (not the head-less AutoModel) because the Fisher signal
+    is next-token cross-entropy on model(...).logits — see compute_fisher. Supporting
+    non-causal-LM tasks would require a pluggable (loader, loss, calibration) objective,
+    not just a different loader. Both fisher and scores stages must load with the same
+    class so collect_weights names match the saved Fisher keys.
+    """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
         model_name, dtype=torch.bfloat16, device_map=device_map
@@ -174,6 +191,9 @@ def compute_fisher(
         inputs = input_ids[:, :-1].contiguous()
         labels = input_ids[:, 1:].contiguous()
 
+        # Calibration objective: next-token cross-entropy on the LM logits. Fisher is
+        # the accumulated squared gradient of this loss, so the standard path is
+        # causal-LM by objective (it requires a .logits head and next-token labels).
         model.zero_grad()
         with torch.autocast("cuda", dtype=torch.bfloat16):
             logits = model(inputs).logits
@@ -293,7 +313,7 @@ def _run_fisher_offload(args):
     _validate_decoder_architecture(model)
     weight_params = collect_weights(model)
     calibration_data = get_calibration_data(tokenizer, NUM_SAMPLES)
-    fii_path = args.save_path if args.save_path else get_fii_path(args.model)
+    fii_path = args.save_path if args.save_path else get_fisher_path(args.model)
     out_dir = os.path.dirname(fii_path)
     print(
         f"Computing Fisher over {NUM_SAMPLES} samples (layer-wise offload, disk streaming)..."
@@ -315,7 +335,7 @@ def _run_fisher_offload(args):
 def _run_fisher_standard(args):
     device_map = "auto" if torch.cuda.is_available() else "cpu"
 
-    model, tokenizer = load_model_and_tokenizer(args.model, device_map=device_map)
+    model, tokenizer = load_causal_lm(args.model, device_map=device_map)
     model.gradient_checkpointing_enable()
 
     weight_params = collect_weights(model)
@@ -334,7 +354,7 @@ def _run_fisher_standard(args):
     del model
 
     fii = {k: v.to(torch.bfloat16) for k, v in fii.items()}
-    fii_path = args.save_path if args.save_path else get_fii_path(args.model)
+    fii_path = args.save_path if args.save_path else get_fisher_path(args.model)
     os.makedirs(os.path.dirname(fii_path), exist_ok=True)
     torch.save(fii, fii_path)
     print(f"\nSaved: {fii_path}")
@@ -351,7 +371,7 @@ def run_scores_stage(args):
     if not HAS_TTNN:
         raise RuntimeError("TTNN not found. Scores stage requires a TT device.")
 
-    fii_path = args.save_path if args.save_path else get_fii_path(args.model)
+    fii_path = args.save_path if args.save_path else get_fisher_path(args.model)
     fii_dir = os.path.dirname(fii_path)
 
     has_chunks = os.path.isdir(fii_dir) and any(
@@ -361,22 +381,18 @@ def run_scores_stage(args):
 
     print(f"Loading Fisher information from {fii_source}...")
 
-    model, _ = load_model_and_tokenizer(args.model)
+    model, _ = load_causal_lm(args.model)
     weight_params_dict = {name: param for name, param in collect_weights(model)}
 
-    print("Computing sensitivity scores on TT device...")
-    tt_device = ttnn.open_device(device_id=0)
+    print("Computing sensitivity scores (host-side quantization)...")
     scores = {}
 
-    try:
-        for name, fii_tensor in iter_fisher(fii_source):
-            w = weight_params_dict[name].data.cpu().float()
-            q = quantize_via_ttnn(w, ttnn.bfloat4_b, tt_device)
-            quant_err = (w - q.float()) ** 2
-            score = (fii_tensor.float() * quant_err).sum().item() / fii_tensor.numel()
-            scores[name] = score
-    finally:
-        ttnn.close_device(tt_device)
+    for name, fii_tensor in iter_fisher(fii_source):
+        w = weight_params_dict[name].data.cpu().float()
+        q = quantize_via_ttnn(w, ttnn.bfloat4_b)
+        quant_err = (w - q.float()) ** 2
+        score = (fii_tensor.float() * quant_err).sum().item() / fii_tensor.numel()
+        scores[name] = score
 
     scores_sorted = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 

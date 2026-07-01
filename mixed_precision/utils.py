@@ -151,6 +151,15 @@ def load_model_shell(model_name_or_path, trust_remote_code=False):
 
 
 def _run_layer(layer, hidden_states, position_ids, position_embeddings=None):
+    """Run a single transformer decoder layer in isolation, return its hidden-state output.
+
+    Used by the layer-wise offload path, which streams and executes one block at a time
+    rather than calling ``model(...)`` on the whole model.
+    """
+    # When the full model runs its own forward, ``model.forward`` builds the causal
+    # attention_mask, position_ids and RoPE position_embeddings and threads them into
+    # every layer. Executing blocks in isolation, we must build and pass those tensors
+    # ourselves; each is only forwarded if this layer's forward signature accepts it.
     seq_len = hidden_states.shape[1]
     causal_mask = torch.triu(
         torch.full(
@@ -176,7 +185,14 @@ def _run_layer(layer, hidden_states, position_ids, position_embeddings=None):
 
 
 def _compute_position_embeddings(base_model, seq_len, position_ids, device):
-    """Compute RoPE cos/sin for models with a model-level rotary_emb."""
+    """Compute RoPE cos/sin when the model exposes a top-level ``rotary_emb`` module.
+
+    Specific to architectures that compute rotary embeddings once at the model level
+    (e.g. Llama 3.1+, Qwen) and pass them down to each layer. Returns ``None`` when
+    ``base_model`` has no ``rotary_emb`` attribute — this covers both non-RoPE models
+    and implementations that compute RoPE inside each attention layer, in which case
+    each layer handles positional encoding internally.
+    """
     if not hasattr(base_model, "rotary_emb"):
         return None
     rotary_cls = type(base_model.rotary_emb)
@@ -189,7 +205,12 @@ def _compute_position_embeddings(base_model, seq_len, position_ids, device):
 
 
 def collect_weights(model):
-    """Return [(name, param)] for all quantizable weight tensors."""
+    """Return [(name, param)] for the weight matrices we score for low-precision casting.
+
+    Selects the >=2D linear/projection weights and skips tensors that are either not
+    matmul weights or that we never cast to BFP4: embeddings, norm scales, MoE router
+    weights, and biases.
+    """
     return [
         (f"{name}.{pname}" if name else pname, param)
         for name, module in model.named_modules()
@@ -202,7 +223,7 @@ def collect_weights(model):
     ]
 
 
-def get_fii_path(model_name):
+def get_fisher_path(model_name):
     model_short = model_name.split("/")[-1]
     return os.path.join(EXPERIMENTS_DIR, "fisher", model_short, "fii.pt")
 
