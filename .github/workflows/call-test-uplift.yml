@@ -1,0 +1,263 @@
+name: Test + Transformers Uplift Fix
+
+permissions:
+  contents: write
+  actions:  write
+  checks:   write
+
+on:
+  workflow_call:
+    inputs:
+      test_suite:
+        type: string
+        required: true
+        description: '"Custom" (then supply test_suite_custom) or a preset filename like "model-test-passing.json".'
+      test_suite_custom:
+        type: string
+        required: false
+        default: ""
+        description: 'JSON matrix payload when test_suite="Custom"; ignored otherwise.'
+      scope:
+        type: string
+        required: false
+        default: "model-test-uplifts"
+        description: 'Claude fix scope tag (see transformers-uplift-fix skill).'
+      tag:
+        type: string
+        required: false
+        default: "default"
+        description: 'Extra artifact/commit-message discriminator (e.g. "base" vs "full") when the caller invokes this workflow more than once in the same run with the same scope.'
+      iteration:
+        type: number
+        required: false
+        default: 1
+        description: 'Used to disambiguate artifact names + commit messages when chained.'
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      artifact_release_run_id:
+        type: string
+        required: true
+      artifact_suffix:
+        type: string
+        required: false
+        default: ""
+      docker_image:
+        type: string
+        required: true
+      baseline_run_id:
+        description: 'On-nightly run ID (on main) whose test-reports artifacts seed the baseline-failures filter. Empty -> filter disabled (claude-fix sees ALL current failures).'
+        type: string
+        required: false
+        default: ""
+    outputs:
+      has_failures:
+        description: 'true if extract-failures saw any uplift-induced failures'
+        value: ${{ jobs.extract-failures.outputs.has_failures }}
+      failure_count:
+        description: 'integer count of uplift-induced failures observed'
+        value: ${{ jobs.extract-failures.outputs.failure_count }}
+
+env:
+  LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
+
+jobs:
+  run-tests:
+    uses: ./.github/workflows/call-test.yml
+    with:
+      test_suite:              ${{ inputs.test_suite }}
+      test_suite_custom:       ${{ inputs.test_suite_custom }}
+      docker_image:            ${{ inputs.docker_image }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      wheel_build:             release
+    secrets: inherit
+
+  extract-failures:
+    needs: run-tests
+    if: always() && needs.run-tests.result != 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      has_failures:  ${{ steps.extract.outputs.has_failures }}
+      failure_count: ${{ steps.extract.outputs.failure_count }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: test-results
+          pattern: test-reports-*
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: test-results
+          pattern: test-log-*
+
+      - name: Download baseline nightly junit reports
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
+        run: |
+          mkdir -p baseline-results
+          if [[ -z "$BASELINE_RUN_ID" ]]; then
+            echo "::warning::baseline_run_id is empty (schedule found no on-nightly run with test-reports artifacts) — proceeding without baseline filter"
+            exit 0
+          fi
+          if ! gh run download "$BASELINE_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --dir baseline-results \
+              --pattern 'test-reports-*'; then
+            echo "::warning::could not download baseline junit from run $BASELINE_RUN_ID — proceeding without baseline filter"
+          fi
+
+      - name: Extract failures
+        id: extract
+        run: |
+          mkdir -p test-results baseline-results
+          mkdir -p "$(dirname "$LAST_FAILED_FILE")"
+
+          python3 .github/scripts/uplift/transformers/extract-failures.py \
+            --inputs-dir test-results \
+            --out-context failure_context.txt \
+            --out-failed-tests "$LAST_FAILED_FILE"
+
+          python3 .github/scripts/uplift/transformers/extract-failures.py \
+            --inputs-dir baseline-results \
+            --out-context baseline_failures.txt \
+            --out-failed-tests /tmp/baseline_failed.txt
+
+          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
+          echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "has_failures=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_failures=true"  >> "$GITHUB_OUTPUT"
+          fi
+          echo "Failing tests this iteration: $COUNT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+          path: |
+            failure_context.txt
+            baseline_failures.txt
+            ${{ env.LAST_FAILED_FILE }}
+          if-no-files-found: ignore
+
+  claude-fix:
+    needs: extract-failures
+    if: |
+      always()
+      && needs.extract-failures.outputs.has_failures == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.docker_image }}
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+
+      - name: Download tt-xla wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          WHEEL_ARTIFACT="xla-whl-release${{ inputs.artifact_suffix }}"
+          gh run download "${{ inputs.artifact_release_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --dir wheels \
+            --name "$WHEEL_ARTIFACT"
+
+      - name: Install wheel + uplifted transformers
+        shell: bash
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
+          uv pip install --force-reinstall --no-deps \
+            "transformers==${TARGET_VERSION}"
+
+      - name: Download failure context
+        uses: actions/download-artifact@v4
+        with:
+          name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            claude --version
+            exit 0
+          fi
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Invoke Claude fix skill
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+          HF_HOME: /mnt/dockercache/huggingface
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ITERATION: ${{ inputs.iteration }}
+          TARGET_VERSION: ${{ inputs.target_version }}
+          CURRENT_VERSION: ${{ inputs.current_version }}
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          source venv/activate
+          bash .github/scripts/uplift/transformers/run-claude-fix.sh \
+            --failures failure_context.txt \
+            --scope "$SCOPE"
+
+      - name: Commit + push fixes (if any)
+        if: always()
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          ITER:   ${{ inputs.iteration }}
+          SCOPE:  ${{ inputs.scope }}
+          TAG:    ${{ inputs.tag }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
+          if [[ -s "$SUMMARY_FILE" ]]; then
+            COMMIT_FLAG=(-F "$SUMMARY_FILE")
+          else
+            COMMIT_FLAG=(-m "transformers uplift: ${SCOPE}/${TAG} fixes (iter ${ITER})")
+          fi
+
+          # tt-forge-models submodule commit
+          if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
+            pushd third_party/tt_forge_models >/dev/null
+            git checkout -B "$BRANCH"
+            git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" || true
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+
+            git push --force origin "$BRANCH"
+            popd >/dev/null
+          fi
+
+          # tt-xla commit
+          git add "$LAST_FAILED_FILE"
+          if ! git diff --staged --quiet || [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+          fi

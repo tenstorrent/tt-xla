@@ -1,0 +1,281 @@
+name: Transformers Uplift + Claude Fix
+
+on:
+  workflow_call:
+    inputs:
+      iteration:
+        type: number
+        required: true
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      baseline_run_id:
+        description: 'On-nightly run ID (on main) whose test-reports artifacts seed the baseline-failures filter. Empty -> filter disabled.'
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+    inputs:
+      iteration:
+        description: 'Iteration number (1 for fresh start; 2+ for self-dispatched continuations).'
+        type: string
+        required: true
+        default: "1"
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      baseline_run_id:
+        description: 'Optional schedule-nightly run ID (on main) to seed the baseline-failures filter.'
+        type: string
+        required: false
+        default: ""
+
+
+permissions:
+  contents: write
+  actions:  write
+  checks:   write
+  pull-requests: write
+  packages: write
+  id-token: write
+
+concurrency:
+  group: transformers-uplift-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  MAX_ITERATIONS: 5
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: all
+
+  build-ttxla:
+    needs: build-image
+    name: "Build tt-xla"
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image:          ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types:           release
+
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      iteration: ${{ steps.params.outputs.iteration }}
+    steps:
+      - name: Normalize inputs
+        id: params
+        env:
+          ITER_RAW: ${{ inputs.iteration }}
+        run: |
+          # workflow_dispatch passes strings; workflow_call passes numbers.
+          # Normalize to an integer for arithmetic + comparison.
+          ITER=$(printf '%d' "${ITER_RAW}")
+          echo "iteration=$ITER" >> "$GITHUB_OUTPUT"
+
+  api-check:
+    needs: [setup, build-image, build-ttxla]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+    outputs:
+      passed: ${{ steps.run.outputs.passed }}
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+
+      - name: Download tt-xla wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          WHEEL_ARTIFACT="xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}"
+          echo "Downloading $WHEEL_ARTIFACT from run ${{ needs.build-ttxla.outputs.artifacts_run_id }}"
+          gh run download "${{ needs.build-ttxla.outputs.artifacts_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --dir wheels \
+            --name "$WHEEL_ARTIFACT"
+          ls -la wheels
+
+      - name: Install wheel
+        shell: bash
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
+          python -c "import transformers; print('transformers', transformers.__version__)"
+
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Run api-check with Claude sub-loop
+        id: run
+        shell: bash
+        env:
+          ITERATION: ${{ needs.setup.outputs.iteration }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+          HF_HOME: /mnt/dockercache/huggingface
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          TARGET_VERSION: ${{ inputs.target_version }}
+          CURRENT_VERSION: ${{ inputs.current_version }}
+        run: |
+          source venv/activate
+          bash .github/scripts/uplift/transformers/run-api-check.sh \
+            --iteration "$ITERATION" \
+            --max-subloops 5
+          # The script exits 0 iff api-check ends green.
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push any Claude-applied fixes
+        if: always()
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          ITER:   ${{ needs.setup.outputs.iteration }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
+          if [[ -s "$SUMMARY_FILE" ]]; then
+            COMMIT_FLAG=(-F "$SUMMARY_FILE")
+          else
+            COMMIT_FLAG=(-m "transformers uplift: api-check fixes (iter ${ITER})")
+          fi
+
+          # tt-forge-models submodule commit
+          if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
+            pushd third_party/tt_forge_models >/dev/null
+            git checkout -B "$BRANCH"
+
+            git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH" || true
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+
+            git push --force origin "$BRANCH"
+            popd >/dev/null
+          fi
+
+          # tt-xla commit
+          if ! git diff --quiet || [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+          fi
+
+  test-and-fix-base:
+    needs: [setup, build-image, build-ttxla, api-check]
+    if: ${{ needs['api-check'].outputs.passed == 'true' }}
+    uses: ./.github/workflows/call-test-uplift.yml
+    with:
+      test_suite:              baseline-uplift.json
+      scope:                   model-test-uplifts
+      tag:                     base
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
+    secrets: inherit
+
+  decide:
+    needs: [setup, api-check, test-and-fix-base]
+    if: always() && needs.setup.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.next.outputs.action }}
+      reason: ${{ steps.next.outputs.reason }}
+    steps:
+      - name: Resolve next action
+        id: next
+        env:
+          ITER:             ${{ needs.setup.outputs.iteration }}
+          API_CHECK_PASSED: ${{ needs['api-check'].outputs.passed }}
+          HAS_FAILURES:     ${{ needs['test-and-fix-base'].outputs.has_failures }}
+        run: |
+          if [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
+            echo "action=finalize" >> "$GITHUB_OUTPUT"
+            echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
+          elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" ]]; then
+            echo "action=finalize" >> "$GITHUB_OUTPUT"
+            echo "reason=all-tests-green" >> "$GITHUB_OUTPUT"
+          else
+            echo "action=redispatch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Self-dispatch next iteration
+        if: steps.next.outputs.action == 'redispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          NEXT_ITER: ${{ needs.setup.outputs.iteration }}
+        run: |
+          NEXT=$((NEXT_ITER + 1))
+          echo "Re-dispatching as iteration $NEXT"
+          gh workflow run workflow-transformers-uplift.yml \
+            --ref "${{ github.ref_name }}" \
+            -f iteration="$NEXT" \
+            -f target_version="${{ inputs.target_version }}" \
+            -f current_version="${{ inputs.current_version }}" \
+            -f baseline_run_id="${{ inputs.baseline_run_id }}"
+
+      - name: Log finalize handoff
+        if: steps.next.outputs.action == 'finalize'
+        run: |
+          echo "Loop terminating: ${{ steps.next.outputs.reason }}"
+          echo "Finalize jobs will run in this same workflow run."
+
+  test-and-fix-full:
+    needs: [setup, build-image, build-ttxla, decide]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-test-uplift.yml
+    with:
+      test_suite:              model-test-passing.json
+      scope:                   model-test-uplifts
+      tag:                     full
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
+    secrets: inherit
+
+  test-and-fix-perf:
+    needs: [setup, build-image, build-ttxla, decide, test-and-fix-full]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-perf-uplift.yml
+    secrets: inherit
+    with:
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      tag:                     perf
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
