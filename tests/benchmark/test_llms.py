@@ -1315,11 +1315,11 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     )
 
 
-def _gpt_oss_120b_mesh_config_fn(model_loader, num_devices):
+def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
     return (1, 4), ("batch", "model")
 
 
-def _gpt_oss_120b_shard_spec_fn(model_loader, model):
+def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
     """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
     shard_specs = {}
     shard_specs[model.model.embed_tokens.weight] = (None, None)
@@ -1338,7 +1338,7 @@ def _gpt_oss_120b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
-def test_gpt_oss_120b_tp(
+def test_gpt_oss_120b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1376,8 +1376,8 @@ def test_gpt_oss_120b_tp(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
-        mesh_config_fn=_gpt_oss_120b_mesh_config_fn,
-        # shard_spec_fn=_gpt_oss_120b_shard_spec_fn,
+        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
+        # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
@@ -1490,7 +1490,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     )
 
 
-def test_falcon3_7b_tp(
+def test_falcon3_7b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1520,7 +1520,7 @@ def test_falcon3_7b_tp(
     )
 
 
-def test_falcon3_10b_tp(
+def test_falcon3_10b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1550,7 +1550,7 @@ def test_falcon3_10b_tp(
     )
 
 
-def test_llama_3_1_8b_instruct_tp(
+def test_llama_3_1_8b_instruct_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1580,7 +1580,7 @@ def test_llama_3_1_8b_instruct_tp(
     )
 
 
-def test_ministral_8b_tp(
+def test_ministral_8b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1610,7 +1610,7 @@ def test_ministral_8b_tp(
     )
 
 
-def test_mistral_nemo_instruct_2407_tp(
+def test_mistral_nemo_instruct_2407_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1640,7 +1640,7 @@ def test_mistral_nemo_instruct_2407_tp(
     )
 
 
-def test_mistral_small_24b_instruct_2501_tp(
+def test_mistral_small_24b_instruct_2501_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1670,7 +1670,7 @@ def test_mistral_small_24b_instruct_2501_tp(
     )
 
 
-def test_qwen_2_5_14b_instruct_tp(
+def test_qwen_2_5_14b_instruct_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1700,7 +1700,7 @@ def test_qwen_2_5_14b_instruct_tp(
     )
 
 
-def test_qwen_2_5_coder_32b_instruct_tp(
+def test_qwen_2_5_coder_32b_instruct_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1730,7 +1730,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
     )
 
 
-def test_qwen_3_8b_tp(
+def test_qwen_3_8b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1760,7 +1760,7 @@ def test_qwen_3_8b_tp(
     )
 
 
-def test_qwen_3_14b_tp(
+def test_qwen_3_14b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1790,7 +1790,7 @@ def test_qwen_3_14b_tp(
     )
 
 
-def test_qwen_3_32b_tp(
+def test_qwen_3_32b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1820,7 +1820,7 @@ def test_qwen_3_32b_tp(
     )
 
 
-def test_gpt_oss_20b_tp(
+def test_gpt_oss_20b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1855,7 +1855,7 @@ def test_gpt_oss_20b_tp(
     )
 
 
-def test_llama_3_1_70b_tp(
+def test_llama_3_1_70b_tp_qb2(
     output_file,
     num_layers,
     request,
@@ -1891,7 +1891,7 @@ def test_llama_3_1_70b_tp(
 
 # Excluded from the onPR perf filter (still runs in nightly): slice op requires
 # tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
-def test_gpt_oss_20b_tp_batch_size_1(
+def test_gpt_oss_20b_tp_batch_size_1_qb2(
     output_file,
     num_layers,
     request,

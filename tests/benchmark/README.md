@@ -12,8 +12,8 @@ source venv/activate
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b
 pytest -svv tests/benchmark/test_vision.py::test_resnet50
 
-# LLMBOX / QB — tensor-parallel models
-pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp
+# QB2 — tensor-parallel models
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2
 
 # Galaxy
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy

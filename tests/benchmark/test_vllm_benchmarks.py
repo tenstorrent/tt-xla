@@ -188,20 +188,20 @@ SINGLE_DEVICE_CONFIGS = [
 # TP configs run exclusively on qb2-blackhole: 1D mesh, mesh_shape=None,
 # auto-sized to the machine's device count.
 TP_CONFIGS = [
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-tp"),
-    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-tp"),
-    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-qb2-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-qb2-tp"),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
-        id="qwen2.5-coder-32b-instruct-tp",
+        id="qwen2.5-coder-32b-instruct-qb2-tp",
     ),
     pytest.param(
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
-        id="mistral-small-24b-instruct-2501-tp",
+        id="mistral-small-24b-instruct-2501-qb2-tp",
     ),
     pytest.param(
         _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32),
-        id="llama-3.1-8b-tp",
+        id="llama-3.1-8b-qb2-tp",
     ),
     pytest.param(
         _tp_config(
@@ -211,7 +211,7 @@ TP_CONFIGS = [
             enable_const_eval=True,
             experimental_weight_dtype="bfp_bf8",
         ),
-        id="llama-3.1-70b-tp",
+        id="llama-3.1-70b-qb2-tp",
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
