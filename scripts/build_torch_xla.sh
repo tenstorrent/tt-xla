@@ -142,7 +142,8 @@ if [[ -d "${PYTORCH_DIR}" ]]; then
     fi
 else
     info "Cloning PyTorch ${PYTORCH_TAG}..."
-    git clone --recursive --branch "${PYTORCH_TAG}" https://github.com/pytorch/pytorch "${PYTORCH_DIR}"
+    git clone --depth=1 --shallow-submodules --recursive --jobs=8 \
+        --branch "${PYTORCH_TAG}" https://github.com/pytorch/pytorch "${PYTORCH_DIR}"
 fi
 
 # ── Step 4: Clone/verify PyTorch-XLA (Tenstorrent fork) ─────────────────────
