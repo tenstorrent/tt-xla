@@ -78,7 +78,7 @@ jobs:
       #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
       #   - vllm_llama_3_1_70b_tp (n300-llmbox): temporarily removed from On PR because flaky, tracked in issue #5294
       adv_filter: '[
-        { "accuracy-testing": false },
+        { "accuracy-testing": false, "perf-prefill": false },
         { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding","llama_3_1_8b","falcon3-1b","qwen_3_8b"] },
         { "runs-on": "n300-llmbox", "filter": ["test_llama_3_1_70b_tp"] } ]'
       sh-runner: false
@@ -97,7 +97,7 @@ jobs:
       # NOTE: galaxy-wh-6u accuracy is excluded on PR (only entry is the failing
       # llama_3_1_70b_tp_galaxy, fabric pinning #5210); still runs in nightly.
       adv_filter: '[
-        { "accuracy-testing": true },
+        { "accuracy-testing": true, "perf-prefill": false },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true
