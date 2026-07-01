@@ -187,74 +187,35 @@ SINGLE_DEVICE_CONFIGS = [
 ]
 
 
-# All _tp_config benchmarks below run on n300-llmbox (8 devices): a (2, 4) 2D
-# mesh. The qb2-blackhole config (qwen3-32b-qb2) uses a 1D mesh (mesh_shape=None).
+# TP configs run exclusively on qb2-blackhole: 1D mesh, mesh_shape=None,
+# auto-sized to the machine's device count.
 TP_CONFIGS = [
-    pytest.param(
-        _tp_config(
-            "tiiuae/Falcon3-7B-Base",
-            32,
-            mesh_shape=[2, 4],
-            # opt-level 2 fails with an L1/circular-buffer clash; see #5438.
-            optimization_level=1,
-        ),
-        id="falcon3-7b-tp",
-    ),
-    pytest.param(
-        # opt-level 2 fails with an L1/circular-buffer clash; see #5439.
-        _tp_config(
-            "tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4], optimization_level=1
-        ),
-        id="falcon3-10b-tp",
-    ),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]), id="qwen3-8b-tp"),
-    pytest.param(
-        _tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4], optimization_level=1),
-        id="qwen3-8b-tp-opt1",
-    ),
-    pytest.param(
-        _tp_config("Qwen/Qwen3-14B", 32, mesh_shape=[2, 4]), id="qwen3-14b-tp"
-    ),
-    pytest.param(
-        _tp_config("Qwen/Qwen3-32B", 32, mesh_shape=[2, 4]), id="qwen3-32b-tp"
-    ),
-    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-qb2-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-qb2-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-14B-Instruct", 32, mesh_shape=[2, 4]),
-        id="qwen2.5-14b-instruct-tp",
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
+        id="qwen2.5-coder-32b-instruct-qb2-tp",
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32, mesh_shape=[2, 4]),
-        id="qwen2.5-coder-32b-instruct-tp",
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
+        id="mistral-small-24b-instruct-2501-qb2-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Ministral-8B-Instruct-2410", 32, mesh_shape=[2, 4]),
-        id="ministral-8b-tp",
-    ),
-    pytest.param(
-        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32, mesh_shape=[2, 4]),
-        id="mistral-nemo-instruct-2407-tp",
-    ),
-    pytest.param(
-        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32, mesh_shape=[2, 4]),
-        id="mistral-small-24b-instruct-2501-tp",
-    ),
-    pytest.param(
-        _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32, mesh_shape=[2, 4]),
-        id="llama-3.1-8b-tp",
+        _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32),
+        id="llama-3.1-8b-qb2-tp",
     ),
     pytest.param(
         _tp_config(
             "meta-llama/Llama-3.1-70B-Instruct",
             32,
             gpu_memory_utilization=0.15,
-            mesh_shape=[2, 4],
             enable_const_eval=True,
             experimental_weight_dtype="bfp_bf8",
         ),
-        id="llama-3.1-70b-tp",
+        id="llama-3.1-70b-qb2-tp",
     ),
+    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
