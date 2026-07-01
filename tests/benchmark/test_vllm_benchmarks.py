@@ -133,8 +133,6 @@ def _gemma4_tp_config(model: str, batch_size: int):
         model,
         batch_size,
         gpu_memory_utilization=0.2,
-        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
-        optimization_level=1,
         enable_tensor_parallel=True,
         min_context_len=32,
         enable_const_eval=True,
