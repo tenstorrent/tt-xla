@@ -21,9 +21,9 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
 @pytest.mark.single_device
 @pytest.mark.xfail(
     reason=(
-        "RoPE complex legalization is fixed (tt-mlir #8874, merged), but the "
-        "~6.2B DiT does not fit a single Wormhole (DRAM OOM). Compiles and "
-        "passes on a single Blackhole; sharded multichip is the primary target."
+        "The ~6.2B DiT does not fit a single Wormhole (DRAM OOM). Confirmed to "
+        "compile and pass PCC>=0.99 on a single Blackhole; sharded multichip is "
+        "the primary target."
     ),
     strict=False,
 )
@@ -37,11 +37,13 @@ def test_transformer():
 @pytest.mark.tensor_parallel
 @pytest.mark.xfail(
     reason=(
-        "RoPE complex legalization is fixed (tt-mlir #8874, merged); sharded "
-        "(2,4) mesh now compiles + runs e2e. Remaining blockers: ttnn.concat "
-        "L1 overflow at full depth (tt-xla #5367, needs tt-mlir #8860) and "
-        "adaLN modulation sharding PCC drop (tt-xla #5351, needs "
-        "tt-forge-models #783); model=4 PCC ~0.88 (<0.99)."
+        "Full-depth sharded transformer needs three fixes not yet in the pinned "
+        "tt-mlir: complex RoPE legalization (tt-mlir #8874), ttnn.concat L1 "
+        "overflow cap (tt-mlir #8860, tt-xla #5367), and adaLN modulation "
+        "replication (tt-forge-models #783, tt-xla #5351). With all three, "
+        "model=2 (whole-head, mesh (2,2)) passes PCC>=0.99 at full 30-layer "
+        "depth; model=4 (mesh (1,4)) plateaus at ~0.884 because 30 heads do not "
+        "divide evenly by 4 and the per-layer error compounds with depth."
     ),
     strict=False,
 )
