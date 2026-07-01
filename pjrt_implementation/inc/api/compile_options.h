@@ -174,10 +174,6 @@ struct CompileOptions {
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
 
-  // Stable identity of the compiled graph: hash of the StableHLO module text,
-  // computed by the module builder after the frontend SHLO pipeline.
-  std::string graph_hash = "";
-
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };

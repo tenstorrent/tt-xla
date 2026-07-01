@@ -1,7 +1,7 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
+#
 # Chat client for the Qwen3-0.6B codegen-load server (see service.sh for usage).
 #
 # vLLM keeps no conversation state, so we maintain the history client-side: each

@@ -323,7 +323,8 @@ private:
       const std::vector<PJRT_Buffer_Type> &output_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, const std::string &graph_hash,
+      CompileOptions &&compile_options);
 
   // Builds the executable for Python codegen load mode: resolves the saved
   // graph directory by hash and restores the mesh shape / device count from its
@@ -338,7 +339,8 @@ private:
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_shardings,
       const std::vector<PJRT_Buffer_Type> &output_types,
-      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, const std::string &graph_hash,
+      CompileOptions &&compile_options);
 
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
   // independently of the frontend. In the future, this will also prepare
@@ -355,9 +357,11 @@ private:
   // Finds the saved graph directory under export_path whose module_key matches
   // the current graph hash, restoring the mesh shape and device count saved at
   // emit time.
-  static tt_pjrt_status resolveCodegenLoadDir(
-      const CompileOptions &compile_options, std::string &matched_dir,
-      std::vector<std::uint32_t> &mesh_shape, size_t &num_devices);
+  static tt_pjrt_status
+  resolveCodegenLoadDir(const CompileOptions &compile_options,
+                        const std::string &graph_hash, std::string &matched_dir,
+                        std::vector<std::uint32_t> &mesh_shape,
+                        size_t &num_devices);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
