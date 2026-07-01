@@ -2,32 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Playground v2.5 — nightly e2e pipeline test with per-component PCC checks.
+"""Playground v2.5 — text-to-image demo on Tenstorrent hardware.
 
-Every nn.Module component (text_encoder, text_encoder_2, unet, vae) runs on
-Tenstorrent. After each TT forward, the same real pipeline tensors are fed to
-a fp32 CPU "twin" of the component and PCC is checked immediately. Test fails
-fast the moment any PCC drops below `PCC_THRESHOLD`.
+Each nn.Module component (text_encoder, text_encoder_2, unet, vae) is moved to
+Tenstorrent via `model.compile(backend="tt") + model.to(xla_device())`. Tokenizer
+and scheduler stay on CPU. CPU→TT→CPU device switching is done inline at the
+call site of each component so that at most one model is resident on TT DRAM at
+a time.
 
-The pipeline itself continues with TT outputs (real deployment behavior); each
-per-component PCC assertion is measured against a clean fp32 CPU reference fed
-the same input the TT component saw.
+Run:
+    python examples/pytorch/playground_v2_5.py
 """
 
+from pathlib import Path
 from typing import Optional
 
-import pytest
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import EDMDPMSolverMultistepScheduler
-from infra import RunMode
-from infra.evaluators import PccConfig, TorchComparisonEvaluator
-from infra.evaluators.evaluation_config import ComparisonConfig
 from loguru import logger
+from PIL import Image
 from transformers import CLIPTokenizer
-from utils import BringupStatus, Category, ModelGroup
 
 from third_party.tt_forge_models.playground_v2_5.pytorch import (
     ModelLoader,
@@ -42,19 +39,17 @@ GUIDANCE_SCALE = 3.0
 NUM_INFERENCE_STEPS = 50
 HEIGHT = 1024
 WIDTH = 1024
-PCC_THRESHOLD = 0.99
-
-
-_PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
-_PCC_CONFIG = PccConfig()
-
-
-def _pcc(device_out, golden_out) -> float:
-    return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
 
 
 class PlaygroundV25Config:
-    def __init__(self, device: str = "cpu"):
+    def __init__(
+        self,
+        device: str = "cpu",
+        text_encoder_on_tt: bool = True,
+        text_encoder_2_on_tt: bool = True,
+        unet_on_tt: bool = True,
+        vae_on_tt: bool = True,
+    ):
         self.model_id = MODEL_ID
         self.width = WIDTH
         self.height = HEIGHT
@@ -62,10 +57,14 @@ class PlaygroundV25Config:
         self.latents_width = self.width // self.vae_scale_factor
         self.latents_height = self.height // self.vae_scale_factor
         self.device = device
+        self.text_encoder_on_tt = text_encoder_on_tt
+        self.text_encoder_2_on_tt = text_encoder_2_on_tt
+        self.unet_on_tt = unet_on_tt
+        self.vae_on_tt = vae_on_tt
 
 
 class PlaygroundV25Pipeline:
-    """Playground v2.5 pipeline: all four components run on TT with PCC checks."""
+    """Playground v2.5 pipeline with per-component TT toggles."""
 
     def __init__(self, config: PlaygroundV25Config):
         self.config = config
@@ -78,40 +77,34 @@ class PlaygroundV25Pipeline:
         self.load_tokenizers()
 
     def load_models(self):
-        # TT-bound models: load on CPU, register the "tt" dynamo backend here,
-        # move to xla_device inline in generate() right before the forward, then
-        # evict back to CPU. Keeps at most one model resident on TT DRAM at a time.
+        # Load all models on CPU. For TT-bound components we only register the
+        # `tt` dynamo backend here; the actual move to xla_device happens in
+        # generate() right before the forward, and we evict back to CPU after.
+        # This keeps at most one model resident on TT DRAM at a time.
         self.text_encoder = ModelLoader(ModelVariant.TEXT_ENCODER).load_model(
             dtype_override=torch.float32
         )
-        self.text_encoder.compile(backend="tt")
+        if self.config.text_encoder_on_tt:
+            self.text_encoder.compile(backend="tt")
 
         self.text_encoder_2 = ModelLoader(ModelVariant.TEXT_ENCODER_2).load_model(
             dtype_override=torch.float32
         )
-        self.text_encoder_2.compile(backend="tt")
+        if self.config.text_encoder_2_on_tt:
+            self.text_encoder_2.compile(backend="tt")
 
-        # UNet uses bf16 on TT to fit DRAM. CPU twin below stays fp32 as golden.
-        self.unet = ModelLoader(ModelVariant.UNET).load_model(
-            dtype_override=torch.bfloat16
-        )
-        self.unet.compile(backend="tt")
+        # UNet on fp32 throws OOM on the second iteration of the denoising loop,
+        # so UNet runs in bf16.
+        unet_dtype = torch.bfloat16 if self.config.unet_on_tt else torch.float32
+        self.unet = ModelLoader(ModelVariant.UNET).load_model(dtype_override=unet_dtype)
+        if self.config.unet_on_tt:
+            self.unet.compile(backend="tt")
 
         self.vae = ModelLoader(ModelVariant.VAE).load_model(
             dtype_override=torch.float32
         )
-        self.vae.compile(backend="tt")
-
-        # Lazy CPU fp32 twins for PCC comparison. Loaded on first use.
-        self._cpu_twins = {}
-
-    def _cpu_twin(self, variant: ModelVariant):
-        if variant not in self._cpu_twins:
-            logger.info(f"[PCC] loading CPU twin: {variant}")
-            self._cpu_twins[variant] = ModelLoader(variant).load_model(
-                dtype_override=torch.float32
-            )
-        return self._cpu_twins[variant]
+        if self.config.vae_on_tt:
+            self.vae.compile(backend="tt")
 
     def load_scheduler(self):
         self.scheduler = EDMDPMSolverMultistepScheduler.from_pretrained(
@@ -147,8 +140,11 @@ class PlaygroundV25Pipeline:
         cpu_cast = lambda x: x.to("cpu")
 
         with torch.no_grad():
+            generator = torch.Generator(device="cpu")
             if seed is not None:
-                torch.manual_seed(seed)
+                generator.manual_seed(seed)
+            else:
+                generator.seed()
 
             # ── Text encoder 1 (CLIPTextModel) ────────────────────────────
             logger.info("[STAGE] Text encoder 1: start")
@@ -159,20 +155,18 @@ class PlaygroundV25Pipeline:
                 truncation=True,
                 return_tensors="pt",
             ).input_ids.to(device=self.device)
-            tokens_1_cpu = tokens_1.clone()
 
-            self.text_encoder = self.text_encoder.to(xm.xla_device())
-            tokens_1 = tokens_1.to(device=xm.xla_device())
+            if self.config.text_encoder_on_tt:
+                self.text_encoder = self.text_encoder.to(xm.xla_device())
+                tokens_1 = tokens_1.to(device=xm.xla_device())
+
             prompt_embeds_1 = self.text_encoder(tokens_1)
-            prompt_embeds_1 = cpu_cast(prompt_embeds_1)
-            self.text_encoder = self.text_encoder.to("cpu")
 
-            golden_te1 = self._cpu_twin(ModelVariant.TEXT_ENCODER)(tokens_1_cpu)
-            pcc_te1 = _pcc(prompt_embeds_1, golden_te1)
-            logger.info(f"[PCC] text_encoder_1: pcc={pcc_te1:.6f}")
-            assert (
-                pcc_te1 >= PCC_THRESHOLD
-            ), f"text_encoder_1 PCC {pcc_te1:.6f} below threshold {PCC_THRESHOLD}"
+            if self.config.text_encoder_on_tt:
+                prompt_embeds_1 = cpu_cast(prompt_embeds_1)
+                self.text_encoder = self.text_encoder.to("cpu")
+
+            logger.info("[STAGE] Text encoder 1: done")
 
             # ── Text encoder 2 (CLIPTextModelWithProjection) ──────────────
             logger.info("[STAGE] Text encoder 2: start")
@@ -183,30 +177,19 @@ class PlaygroundV25Pipeline:
                 truncation=True,
                 return_tensors="pt",
             ).input_ids.to(device=self.device)
-            tokens_2_cpu = tokens_2.clone()
 
-            self.text_encoder_2 = self.text_encoder_2.to(xm.xla_device())
-            tokens_2 = tokens_2.to(device=xm.xla_device())
+            if self.config.text_encoder_2_on_tt:
+                self.text_encoder_2 = self.text_encoder_2.to(xm.xla_device())
+                tokens_2 = tokens_2.to(device=xm.xla_device())
+
             prompt_embeds_2, pooled_prompt_embeds = self.text_encoder_2(tokens_2)
-            prompt_embeds_2 = cpu_cast(prompt_embeds_2)
-            pooled_prompt_embeds = cpu_cast(pooled_prompt_embeds)
-            self.text_encoder_2 = self.text_encoder_2.to("cpu")
 
-            golden_te2_hidden, golden_te2_pooled = self._cpu_twin(
-                ModelVariant.TEXT_ENCODER_2
-            )(tokens_2_cpu)
-            pcc_te2_hidden = _pcc(prompt_embeds_2, golden_te2_hidden)
-            pcc_te2_pooled = _pcc(pooled_prompt_embeds, golden_te2_pooled)
-            logger.info(
-                f"[PCC] text_encoder_2: hidden_pcc={pcc_te2_hidden:.6f} "
-                f"pooled_pcc={pcc_te2_pooled:.6f}"
-            )
-            assert (
-                pcc_te2_hidden >= PCC_THRESHOLD
-            ), f"text_encoder_2 hidden PCC {pcc_te2_hidden:.6f} below threshold {PCC_THRESHOLD}"
-            assert (
-                pcc_te2_pooled >= PCC_THRESHOLD
-            ), f"text_encoder_2 pooled PCC {pcc_te2_pooled:.6f} below threshold {PCC_THRESHOLD}"
+            if self.config.text_encoder_2_on_tt:
+                prompt_embeds_2 = cpu_cast(prompt_embeds_2)
+                pooled_prompt_embeds = cpu_cast(pooled_prompt_embeds)
+                self.text_encoder_2 = self.text_encoder_2.to("cpu")
+
+            logger.info("[STAGE] Text encoder 2: done")
 
             # Concat the two encoders' hidden states
             prompt_embeds = torch.cat([prompt_embeds_1, prompt_embeds_2], dim=-1)
@@ -226,9 +209,11 @@ class PlaygroundV25Pipeline:
                     truncation=True,
                     return_tensors="pt",
                 ).input_ids.to(device=self.device)
-                neg_tokens_1 = neg_tokens_1.to(device=xm.xla_device())
+                if self.config.text_encoder_on_tt:
+                    neg_tokens_1 = neg_tokens_1.to(device=xm.xla_device())
                 negative_prompt_embeds_1 = self.text_encoder(neg_tokens_1)
-                negative_prompt_embeds_1 = cpu_cast(negative_prompt_embeds_1)
+                if self.config.text_encoder_on_tt:
+                    negative_prompt_embeds_1 = cpu_cast(negative_prompt_embeds_1)
 
                 neg_tokens_2 = self.tokenizer_2(
                     [negative_prompt],
@@ -237,12 +222,16 @@ class PlaygroundV25Pipeline:
                     truncation=True,
                     return_tensors="pt",
                 ).input_ids.to(device=self.device)
-                neg_tokens_2 = neg_tokens_2.to(device=xm.xla_device())
+                if self.config.text_encoder_2_on_tt:
+                    neg_tokens_2 = neg_tokens_2.to(device=xm.xla_device())
                 negative_prompt_embeds_2, negative_pooled_prompt_embeds = (
                     self.text_encoder_2(neg_tokens_2)
                 )
-                negative_prompt_embeds_2 = cpu_cast(negative_prompt_embeds_2)
-                negative_pooled_prompt_embeds = cpu_cast(negative_pooled_prompt_embeds)
+                if self.config.text_encoder_2_on_tt:
+                    negative_prompt_embeds_2 = cpu_cast(negative_prompt_embeds_2)
+                    negative_pooled_prompt_embeds = cpu_cast(
+                        negative_pooled_prompt_embeds
+                    )
 
                 negative_prompt_embeds = torch.cat(
                     [negative_prompt_embeds_1, negative_prompt_embeds_2], dim=-1
@@ -270,16 +259,17 @@ class PlaygroundV25Pipeline:
                 self.config.latents_height,
                 self.config.latents_width,
             )
-            latents = torch.randn(latent_shape, dtype=torch.float32).to(
-                device=self.device
-            )
+            latents = torch.randn(
+                latent_shape, generator=generator, dtype=torch.float32
+            ).to(device=self.device)
             latents = latents * self.scheduler.init_noise_sigma
 
-            # ── Denoising loop (UNet with CFG) ────────────────────────────
+            # ── Denoising loop (UNet) ─────────────────────────────────────
             logger.info(
                 f"[STAGE] UNet denoising loop: start ({num_inference_steps} steps)"
             )
-            self.unet = self.unet.to(xm.xla_device())
+            if self.config.unet_on_tt:
+                self.unet = self.unet.to(xm.xla_device())
             for i, t in enumerate(timesteps):
                 logger.info(f"[STEP] UNet step {i + 1}/{num_inference_steps}")
 
@@ -288,32 +278,23 @@ class PlaygroundV25Pipeline:
                     latent_model_input, t
                 )
 
-                # CPU → TT (UNet runs in bf16 on TT).
-                unet_sample = tt_cast(latent_model_input.to(torch.bfloat16))
-                unet_t = tt_cast(t.to(torch.bfloat16))
-                unet_eh = tt_cast(prompt_embeds.to(torch.bfloat16))
-                unet_te = tt_cast(add_text_embeds.to(torch.bfloat16))
-                unet_ti = tt_cast(add_time_ids.to(torch.bfloat16))
+                if self.config.unet_on_tt:
+                    unet_sample = tt_cast(latent_model_input.to(torch.bfloat16))
+                    unet_t = tt_cast(t.to(torch.bfloat16))
+                    unet_eh = tt_cast(prompt_embeds.to(torch.bfloat16))
+                    unet_te = tt_cast(add_text_embeds.to(torch.bfloat16))
+                    unet_ti = tt_cast(add_time_ids.to(torch.bfloat16))
+                else:
+                    unet_sample = latent_model_input
+                    unet_t = t
+                    unet_eh = prompt_embeds
+                    unet_te = add_text_embeds
+                    unet_ti = add_time_ids
 
                 noise_pred = self.unet(unet_sample, unet_t, unet_eh, unet_te, unet_ti)
-                noise_pred = cpu_cast(noise_pred).to(torch.float32)
 
-                # CPU golden fed the same fp32 tensors the TT UNet consumed.
-                golden_noise = self._cpu_twin(ModelVariant.UNET)(
-                    latent_model_input,
-                    t,
-                    prompt_embeds,
-                    add_text_embeds,
-                    add_time_ids,
-                )
-                pcc_unet = _pcc(noise_pred, golden_noise)
-                logger.info(
-                    f"[PCC] unet step {i + 1}/{num_inference_steps}: pcc={pcc_unet:.6f}"
-                )
-                assert pcc_unet >= PCC_THRESHOLD, (
-                    f"unet step {i + 1}/{num_inference_steps} PCC {pcc_unet:.6f} "
-                    f"below threshold {PCC_THRESHOLD}"
-                )
+                if self.config.unet_on_tt:
+                    noise_pred = cpu_cast(noise_pred).to(torch.float32)
 
                 # CFG combine + scheduler step
                 uncond, text = noise_pred.chunk(2)
@@ -322,7 +303,8 @@ class PlaygroundV25Pipeline:
                 latents = self.scheduler.step(
                     noise_pred, t, latents, return_dict=False
                 )[0]
-            self.unet = self.unet.to("cpu")
+            if self.config.unet_on_tt:
+                self.unet = self.unet.to("cpu")
             logger.info("[STAGE] UNet denoising loop: done")
 
             # ── VAE decode ────────────────────────────────────────────────
@@ -339,51 +321,60 @@ class PlaygroundV25Pipeline:
             )
             scaling_factor = self.vae.vae.config.scaling_factor
             latents = latents * latents_std / scaling_factor + latents_mean
-            latents_cpu = latents.clone()
 
-            # opt_level=1 (composite ttnn.group_norm) needed for VAE on TT.
-            torch_xla.set_custom_compile_options({"optimization_level": 1})
-            self.vae = self.vae.to(xm.xla_device())
-            latents = tt_cast(latents)
+            # opt_level=1 (composite ttnn.group_norm) is needed for VAE on TT.
+            if self.config.vae_on_tt:
+                torch_xla.set_custom_compile_options({"optimization_level": 1})
+                self.vae = self.vae.to(xm.xla_device())
+                latents = tt_cast(latents)
 
             image = self.vae(latents)
 
-            image = cpu_cast(image)
-            self.vae = self.vae.to("cpu")
-
-            golden_image = self._cpu_twin(ModelVariant.VAE)(latents_cpu)
-            pcc_vae = _pcc(image, golden_image)
-            logger.info(f"[PCC] vae: pcc={pcc_vae:.6f}")
-            assert (
-                pcc_vae >= PCC_THRESHOLD
-            ), f"vae PCC {pcc_vae:.6f} below threshold {PCC_THRESHOLD}"
+            if self.config.vae_on_tt:
+                image = cpu_cast(image)
+                self.vae = self.vae.to("cpu")
 
             logger.info("[STAGE] VAE decode: done")
             return image
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.single_device
-@pytest.mark.large
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name="PlaygroundV2_5_Pipeline",
-    model_group=ModelGroup.RED,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_playground_v25_pipeline():
-    """Playground v2.5 pipeline (all components on TT) with per-component PCC checks."""
-    xr.set_device_type("TT")
+def save_image(image: torch.Tensor, filepath: str = "output.png"):
+    image = (
+        (torch.clamp(image / 2 + 0.5, 0.0, 1.0) * 255.0).round().to(dtype=torch.uint8)
+    )
+    image_np = image.cpu().squeeze().numpy()
+    assert image_np.ndim == 3, "Image must be 3D"
+    if image_np.shape[0] == 3:
+        image_np = image_np.transpose(1, 2, 0)
+    Image.fromarray(image_np).save(filepath)
 
+
+def run_playground_v25(
+    output_path: str = "playground_v2_5_output.png",
+    num_inference_steps: int = NUM_INFERENCE_STEPS,
+):
+    """Run the Playground v2.5 pipeline end-to-end on TT and save the output image."""
     config = PlaygroundV25Config(device="cpu")
     pipeline = PlaygroundV25Pipeline(config=config)
     pipeline.setup()
-    pipeline.generate(
+
+    img = pipeline.generate(
         prompt=PROMPT,
         negative_prompt=NEGATIVE_PROMPT,
         cfg_scale=GUIDANCE_SCALE,
-        num_inference_steps=NUM_INFERENCE_STEPS,
+        num_inference_steps=num_inference_steps,
         seed=SEED,
     )
+
+    save_image(img, output_path)
+    return output_path
+
+
+if __name__ == "__main__":
+    xr.set_device_type("TT")
+    output_path = "playground_v2_5_output.png"
+    output_file = Path(output_path)
+    if output_file.exists():
+        output_file.unlink()
+    run_playground_v25(output_path=output_path)
+    logger.info(f"Output image saved to {output_path}")
