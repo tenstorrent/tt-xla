@@ -66,6 +66,17 @@ class AscendScheduler(Scheduler):
         # 0.0 falls back to the base per-request watermark for all prefills.
         # Resolved/validated/env-overridden in TTPlatform.check_and_update_config.
         self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
+        # [TT-SCHED] logging state. We log only on *changes* / *episodes* rather
+        # than once per decode step. Each flag suppresses repeats of one line
+        # until its condition clears, so a steady state logs once, not per step.
+        #   _dbg_running_ids        : the running (decode) batch last logged.
+        #   _dbg_prefill_blocked_logged : a KV-denied episode already logged.
+        #   _dbg_cap_blocked_logged : a concurrency-cap-saturated episode logged.
+        #   _dbg_starved_logged     : an under-fed (idle-capacity) episode logged.
+        self._dbg_running_ids: frozenset[str] = frozenset()
+        self._dbg_prefill_blocked_logged: bool = False
+        self._dbg_cap_blocked_logged: bool = False
+        self._dbg_starved_logged: bool = False
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
@@ -94,6 +105,15 @@ class AscendScheduler(Scheduler):
         # scheduled-vs-running invariant check below.
         num_partial_prefill_scheduled = 0
 
+        # [TT-SCHED] logging: records a *fresh* prefill that was held back this
+        # step for lack of KV cache (reserve/watermark gate or allocate failure),
+        # so the change-detection block at the end of schedule() can report it.
+        prefill_blocked_info: Optional[tuple[str, str]] = None
+        # [TT-SCHED] logging: set when the prefill loop stopped because every
+        # running slot is occupied (running == max_num_seqs) while work was still
+        # pending -- admission blocked by the concurrency cap, not by KV.
+        prefill_cap_blocked = False
+
         # Chunked prefill (tt-xla #4986): the num_computed_tokens stage of the
         # first prefill request scheduled this step. We only batch prefill
         # requests at the SAME stage in one step. Mixing a fresh request
@@ -121,6 +141,10 @@ class AscendScheduler(Scheduler):
         req_index = 0
         while (self.waiting or self.skipped_waiting) and token_budget > 0:
             if len(self.running) == self.max_num_running_reqs:
+                # We only enter this loop when work is pending, so reaching the
+                # cap here means the concurrency limit (not KV) is what stops us
+                # from admitting more. [TT-SCHED]
+                prefill_cap_blocked = True
                 break
 
             request_queue = self._select_waiting_queue_for_scheduling()
@@ -331,6 +355,17 @@ class AscendScheduler(Scheduler):
                 request, num_new_tokens, blocks, watermark
             ):
                 # Scheduling would exceed watermark, skip.
+                # [TT-SCHED] Record the first fresh prefill held back this step:
+                # "kv reserve" = blocked by the high-watermark headroom gate;
+                # "kv watermark" = blocked by the base anti-exhaustion floor.
+                if request.num_computed_tokens == 0 and prefill_blocked_info is None:
+                    reason = (
+                        "kv reserve"
+                        if self.prefill_kv_watermark > 0.0
+                        and watermark == self.prefill_kv_watermark
+                        else "kv watermark"
+                    )
+                    prefill_blocked_info = (request.request_id, reason)
                 skip_cur_request()
                 continue
 
@@ -344,6 +379,10 @@ class AscendScheduler(Scheduler):
             )
             if new_blocks is None:
                 # The request cannot be scheduled.
+                # [TT-SCHED] A fresh prefill that passed the watermark but still
+                # could not allocate blocks => the pool is genuinely full.
+                if request.num_computed_tokens == 0 and prefill_blocked_info is None:
+                    prefill_blocked_info = (request.request_id, "kv cache full")
                 break
 
             # KVConnector: update internal state after allocation.
@@ -541,6 +580,112 @@ class AscendScheduler(Scheduler):
             + len(scheduled_running_reqs)
             <= len(self.running) + num_partial_prefill_scheduled
         )
+
+        # [TT-SCHED] State-change logging. To understand admission/eviction
+        # behavior without flooding the log on every decode step, emit only on a
+        # change or a new "episode". Each line carries the same suffix
+        # "running=R/MAX kv_usage=U% waiting=W skipped=K" so every line is
+        # self-contained: R = decode batch size, MAX = max_num_seqs (concurrency
+        # cap), U = pool fill, W+K = pending requests the scheduler can see
+        # (W in the waiting queue, K parked in skipped_waiting). W+K == 0 means
+        # the engine has nothing queued -- it is being under-fed, not gated.
+        #
+        # Events (per step, in order):
+        #   prefill admitted   -- a new/resumed request started prefill.
+        #   PREEMPTED          -- a running request was evicted to free KV (its
+        #                         work is discarded and it must re-prefill).
+        #   decode batch ->    -- the running set changed (entered/left decode).
+        # "Why no admission" reasons, each throttled to once per episode so a
+        # steady state logs once, not per step:
+        #   prefill DENIED     -- a queued prefill was rejected by the KV gate.
+        #   admission CAPPED   -- the batch is full (running == max_num_seqs) with
+        #                         work still pending: limited by concurrency, not KV.
+        #   UNDER-FED          -- free slots and an empty queue: nothing to admit.
+        running_ids = frozenset(r.request_id for r in self.running)
+        batch_changed = running_ids != self._dbg_running_ids
+        admitted = [r.request_id for r in scheduled_new_reqs] + [
+            r.request_id for r in scheduled_resumed_reqs
+        ]
+        preempted = [r.request_id for r in preempted_reqs]
+        n_running = len(self.running)
+        n_waiting = len(self.waiting)
+        n_skipped = len(self.skipped_waiting)
+        n_pending = n_waiting + n_skipped
+        kv_usage = self.kv_cache_manager.usage * 100.0
+        max_reqs = self.max_num_running_reqs
+        # Common suffix args for every line below.
+        suffix = "running=%d/%d kv_usage=%.1f%% waiting=%d skipped=%d"
+        sfx = (n_running, max_reqs, kv_usage, n_waiting, n_skipped)
+
+        if admitted:
+            logger.info(
+                "[TT-SCHED] prefill admitted %d req(s) %s | " + suffix,
+                len(admitted),
+                admitted,
+                *sfx,
+            )
+        if preempted:
+            # Eviction => thrash: this work is thrown away and must re-prefill.
+            logger.info(
+                "[TT-SCHED] PREEMPTED %d req(s) %s (evicted to free KV) | " + suffix,
+                len(preempted),
+                preempted,
+                *sfx,
+            )
+        if batch_changed:
+            logger.info(
+                "[TT-SCHED] decode batch -> %d req(s) %s | " + suffix,
+                len(running_ids),
+                sorted(running_ids),
+                *sfx,
+            )
+
+        # A change to the running set, an admission, or an eviction all mean the
+        # KV picture moved, so re-arm the KV-denied line (it tracks usage as the
+        # batch drains).
+        if batch_changed or admitted or preempted:
+            self._dbg_prefill_blocked_logged = False
+        if prefill_blocked_info is not None and not self._dbg_prefill_blocked_logged:
+            blocked_rid, blocked_reason = prefill_blocked_info
+            logger.info(
+                "[TT-SCHED] prefill DENIED (%s): req %s held back | " + suffix,
+                blocked_reason,
+                blocked_rid,
+                *sfx,
+            )
+            self._dbg_prefill_blocked_logged = True
+
+        # Concurrency-cap saturation: batch full with work pending. Throttle to
+        # once per episode (re-arm when the cap is no longer the blocker).
+        if not prefill_cap_blocked:
+            self._dbg_cap_blocked_logged = False
+        elif not self._dbg_cap_blocked_logged:
+            logger.info(
+                "[TT-SCHED] admission CAPPED at concurrency limit "
+                "(%d pending could not be admitted) | " + suffix,
+                n_pending,
+                *sfx,
+            )
+            self._dbg_cap_blocked_logged = True
+
+        # Under-fed: spare decode capacity but nothing queued to admit. This is
+        # a throughput hole NOT caused by the scheduler (the engine is not being
+        # fed). Throttle to once per episode (re-arm when work arrives or the
+        # batch fills). Guarded to n_running>0 so plain idle is not flagged.
+        starved = 0 < n_running < max_reqs and n_pending == 0
+        if not starved:
+            self._dbg_starved_logged = False
+        elif not self._dbg_starved_logged:
+            logger.info(
+                "[TT-SCHED] UNDER-FED: %d/%d slots free but no requests queued "
+                "(engine not being fed) | " + suffix,
+                max_reqs - n_running,
+                max_reqs,
+                *sfx,
+            )
+            self._dbg_starved_logged = True
+
+        self._dbg_running_ids = running_ids
 
         # [SCHED-PROBE] Per-step instrumentation (temporary; tt-inference-server #4326)
         # to see whether prefills batch (waves of ~max_num_seqs) or trickle in
