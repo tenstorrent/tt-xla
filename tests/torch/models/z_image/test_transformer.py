@@ -19,14 +19,6 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
 
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason=(
-        "The ~6.2B DiT does not fit a single Wormhole (DRAM OOM). Confirmed to "
-        "compile and pass PCC>=0.99 on a single Blackhole; sharded multichip is "
-        "the primary target."
-    ),
-    strict=False,
-)
 def test_transformer():
     _run(sharded=False)
 
