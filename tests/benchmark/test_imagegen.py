@@ -179,3 +179,47 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_flux2(output_file, request):
+    from benchmarks.flux2_pipeline import Flux2Config, Flux2Pipeline_TT
+
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+    )
+
+    # FLUX.2-dev: ~24B Mistral3 text encoder + ~32B Flux2 transformer (both
+    # tensor-parallel sharded across the mesh's model axis) + replicated VAE.
+    # Multichip — wired to the 4-chip blackhole (qb2) in perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = 50
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = Flux2Pipeline_TT(config=Flux2Config(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux2",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_flux2_output.png",
+    )

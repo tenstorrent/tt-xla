@@ -120,12 +120,24 @@ def benchmark_imagegen_torch_xla(
     total_samples = 1
     samples_per_sec = total_samples / steady_state_time
 
-    # Per-component forward+sync times from the pipeline's own instrumentation
-    # (steady-state pass).
+    # Per-component steady-state times. A model reports only the components it
+    # runs (e.g. FLUX.2 has a single text encoder, so te2 is absent); missing
+    # ones are treated as 0 s and dropped from the breakdown + measurements.
     perf = pipeline._perf
-    unet_steps = perf["unet_steps"]
-    unet_step_mean_s = sum(unet_steps) / len(unet_steps)
-    tt_components_total = perf["te1"] + perf["te2"] + sum(unet_steps) + perf["vae"]
+    unet_steps = perf.get("unet_steps") or []
+    unet_step_mean_s = sum(unet_steps) / len(unet_steps) if unet_steps else 0.0
+
+    def _component_s(key):
+        value = perf.get(key)
+        return value if value is not None else 0.0
+
+    te1_s = _component_s("te1")
+    te2_s = _component_s("te2")
+    vae_s = _component_s("vae")
+    # Per-step label (UNet / Transformer); measurement name stays unet_step_mean_s.
+    step_label = perf.get("step_label", "UNet")
+
+    tt_components_total = te1_s + te2_s + sum(unet_steps) + vae_s
     cpu_overhead = max(0.0, perf["total"] - tt_components_total)
 
     metadata = get_benchmark_metadata()
@@ -149,25 +161,40 @@ def benchmark_imagegen_torch_xla(
         data_format="bfloat16",
         input_size=input_size,
     )
-    print(
-        f"| Num inference steps: {num_inference_steps}\n"
-        f"| Steady-state:\n"
-        f"|   Text encoder 1 (s):  {perf['te1']:.3f}\n"
-        f"|   Text encoder 2 (s):  {perf['te2']:.3f}\n"
-        f"|   UNet step mean (s):  {unet_step_mean_s:.3f}\n"
-        f"|   VAE (s):             {perf['vae']:.3f}\n"
-        f"|   CPU overhead (s):    {cpu_overhead:.3f}"
-    )
+    breakdown_lines = [
+        f"| Num inference steps: {num_inference_steps}",
+        "| Steady-state:",
+    ]
+    if perf.get("te1") is not None:
+        breakdown_lines.append(f"|   Text encoder 1 (s):  {te1_s:.3f}")
+    if perf.get("te2") is not None:
+        breakdown_lines.append(f"|   Text encoder 2 (s):  {te2_s:.3f}")
+    breakdown_lines.append(f"|   {step_label} step mean (s):  {unet_step_mean_s:.3f}")
+    if perf.get("vae") is not None:
+        breakdown_lines.append(f"|   VAE (s):             {vae_s:.3f}")
+    breakdown_lines.append(f"|   CPU overhead (s):    {cpu_overhead:.3f}")
+    print("\n".join(breakdown_lines))
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
         {"measurement_name": "e2e_latency", "value": steady_state_time},
-        {"measurement_name": "text_encoder_1_s", "value": perf["te1"]},
-        {"measurement_name": "text_encoder_2_s", "value": perf["te2"]},
-        {"measurement_name": "unet_step_mean_s", "value": unet_step_mean_s},
-        {"measurement_name": "vae_s", "value": perf["vae"]},
-        {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
     ]
+    if perf.get("te1") is not None:
+        custom_measurements.append(
+            {"measurement_name": "text_encoder_1_s", "value": te1_s}
+        )
+    if perf.get("te2") is not None:
+        custom_measurements.append(
+            {"measurement_name": "text_encoder_2_s", "value": te2_s}
+        )
+    custom_measurements.append(
+        {"measurement_name": "unet_step_mean_s", "value": unet_step_mean_s}
+    )
+    if perf.get("vae") is not None:
+        custom_measurements.append({"measurement_name": "vae_s", "value": vae_s})
+    custom_measurements.append(
+        {"measurement_name": "cpu_overhead_s", "value": cpu_overhead}
+    )
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
@@ -192,6 +219,7 @@ def benchmark_imagegen_torch_xla(
         device_name=socket.gethostname(),
         arch=get_xla_device_arch(),
         device_count=xr.global_runtime_device_count(),
+        mesh_shape=getattr(pipeline, "mesh_shape", None),
         input_is_image=True,
     )
 
