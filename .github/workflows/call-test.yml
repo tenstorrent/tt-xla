@@ -156,6 +156,12 @@ jobs:
       env:
         JOB_ID: ${{ job.check_run_id }}
       run: |
+        # Check if --dump-irs is in matrix.build.args
+        if [[ "${{ matrix.build.args }}" == *"--dump-irs"* ]]; then
+          echo "dump-irs=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "dump-irs=${{ inputs.dump_irs }}" >> "$GITHUB_OUTPUT"
+        fi
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
@@ -338,7 +344,7 @@ jobs:
           $CONTAINS_ARG \
           $PYTEST_SPLITS"
 
-        if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
+        if [[ "${{ inputs.dump_irs }}" == "true" && "${{ matrix.build.args }}" != *"--dump-irs"* ]]; then
           BASE_PYTEST_CMD="$BASE_PYTEST_CMD --dump-irs"
         fi
 
@@ -446,7 +452,7 @@ jobs:
         if-no-files-found: 'ignore'
 
     - name: Prune oversized IR dump folders
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       shell: bash
       run: |
         ir_root="collected_irs"
@@ -468,7 +474,7 @@ jobs:
         done
 
     - name: Upload IR Dumps
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       uses: actions/upload-artifact@v6
       with:
         name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
