@@ -95,7 +95,7 @@ jobs:
       # On-PR accuracy uplift check: llama_3_1_70b TP accuracy on qb2-blackhole.
       adv_filter: '[
         { "accuracy-testing": true },
-        { "runs-on": "qb2-blackhole", "filter": ["llama_3_1_70b_tp_qb2"] } ]'
+        { "runs-on": "qb2-blackhole", "filter": ["qwen_3_32b_tp_qb2"] } ]'
       sh-runner: false
       skip-device-perf: true
       regression_check: true
