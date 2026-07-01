@@ -16,6 +16,13 @@ from pathlib import Path
 
 import pytest
 
+# TODO(#5481): Skip in CI until EmitPy execution is available in the CI build.
+pytestmark = pytest.mark.skipif(
+    os.environ.get("GITHUB_ACTIONS") == "true",
+    reason="codegen load needs EmitPy execution (PythonModelRunner), which the "
+    "manylinux CI wheel omits; see tenstorrent/tt-xla#5481",
+)
+
 MLP_HELPER = Path(__file__).parent / "codegen_emit_load_helper.py"
 
 
