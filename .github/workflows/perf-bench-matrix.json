@@ -77,7 +77,7 @@
       },
       {
         "name": "vllm_bge_m3_encode_batch1",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_bge_m3_batch1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch1]",
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
@@ -86,7 +86,7 @@
       },
       {
         "name": "vllm_bge_m3_encode_batch32",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_bge_m3_batch32",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch32]",
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
@@ -300,7 +300,7 @@
       },
       {
         "name": "vllm_qwen_3_4b_embedding_batch1",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_qwen3_embedding_4b_batch1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[qwen3-embedding-4b-batch1]",
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,

@@ -310,6 +310,20 @@ def _embedding_config(
     )
 
 
+EMBEDDING_CONFIGS = [
+    # Trace disabled: host/device tensor shape mismatch
+    # (https://github.com/tenstorrent/tt-xla/issues/3936)
+    pytest.param(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
+        ),
+        id="qwen3-embedding-4b-batch1",
+    ),
+    pytest.param(_embedding_config("BAAI/bge-m3", 1), id="bge-m3-batch1"),
+    pytest.param(_embedding_config("BAAI/bge-m3", 32), id="bge-m3-batch32"),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -326,33 +340,6 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
         print(f"Results written to {output_file}")
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
-def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config(
-            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
-        ),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 1),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch32(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 32),
-        output_file,
-        request,
-    )
-
-
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
 def test_vllm_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
@@ -361,3 +348,8 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
+def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
