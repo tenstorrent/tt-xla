@@ -1,4 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.eng.aws.tenstorrent.com/
 black
 clang-format
 cmake==4.2.1
@@ -61,3 +62,13 @@ torchcodec
 
 # for CLIP metric in tests
 open_clip_torch==2.32.0
+
+# tt-lang (light build, 05/29).
+# SYNC WITH tt-metal: tt-lang generates kernel code (TTNN/tt-metal C++) that
+# must match the tt-metal API/ABI it runs against. tt-mlir (pinned in
+# third_party) points to a specific tt-metal, and tt-xla executes the
+# tt-lang-generated kernels through that tt-metal. This pin is therefore the
+# tt-lang version whose generated code is compatible with the tt-metal that
+# our current tt-mlir points to. When tt-mlir (and thus its tt-metal) is
+# uplifted, this tt-lang pin must be uplifted in sync.
+tt_lang==1.1.1.dev20260529+light

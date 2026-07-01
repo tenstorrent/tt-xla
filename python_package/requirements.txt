@@ -20,3 +20,13 @@ click==8.3.1
 pandas==3.0.0
 # tracy's serve_wasm.py imports websockets
 websockets==16.0
+
+# tt-lang (light build, 05/29).
+# SYNC WITH tt-metal: tt-lang generates kernel code (TTNN/tt-metal C++) that
+# must match the tt-metal API/ABI it runs against. tt-mlir (pinned in
+# third_party) points to a specific tt-metal, and tt-xla executes the
+# tt-lang-generated kernels through that tt-metal. This pin is therefore the
+# tt-lang version whose generated code is compatible with the tt-metal that
+# our current tt-mlir points to. When tt-mlir (and thus its tt-metal) is
+# uplifted, this tt-lang pin must be uplifted in sync.
+tt_lang@https://pypi.eng.aws.tenstorrent.com/tt-lang/tt_lang-1.1.1.dev20260529%2Blight-cp312-cp312-manylinux_2_35_x86_64.whl
