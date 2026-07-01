@@ -1047,6 +1047,8 @@ test_config:
     assert_pcc: false
   beit/pytorch-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Input rank 4 and begins 2 must have the same size (assert.hpp:104)"
     markers: [notimeout]
   beit/pytorch-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
