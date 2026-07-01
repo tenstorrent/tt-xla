@@ -94,6 +94,10 @@ PJRT_Error *onExecutableNumOutputs(PJRT_Executable_NumOutputs_Args *args);
 PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
     PJRT_Executable_SizeOfGeneratedCodeInBytes_Args *args);
 
+// Implements PJRT_Executable_GetCompiledMemoryStats API function.
+PJRT_Error *onExecutableGetCompiledMemoryStats(
+    PJRT_Executable_GetCompiledMemoryStats_Args *args);
+
 // Implements PJRT_Executable_OutputElementTypes API function.
 PJRT_Error *
 onExecutableOutputElementTypes(PJRT_Executable_OutputElementTypes_Args *args);

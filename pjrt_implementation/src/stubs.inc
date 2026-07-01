@@ -74,12 +74,6 @@
   _STUB(PJRT_Executable_GetCostAnalysis);
   _STUB(PJRT_Executable_ParameterMemoryKinds);
 
-  // This is not required to be implemented by all platforms. It should return
-  // memory stats that allow callers to estimate device memory usage when
-  // running the executable.
-  // https://github.com/tenstorrent/tt-xla/issues/496
-  _STUB(PJRT_Executable_GetCompiledMemoryStats);
-
   // Deserialization of our executable is not yet supported.
   // https://github.com/tenstorrent/tt-xla/issues/498
   _STUB(PJRT_Executable_DeserializeAndLoad);

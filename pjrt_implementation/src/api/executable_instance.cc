@@ -47,6 +47,8 @@ void ExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Executable_NumOutputs = internal::onExecutableNumOutputs;
   api->PJRT_Executable_SizeOfGeneratedCodeInBytes =
       internal::onExecutableSizeOfGeneratedCodeInBytes;
+  api->PJRT_Executable_GetCompiledMemoryStats =
+      internal::onExecutableGetCompiledMemoryStats;
   api->PJRT_Executable_Fingerprint = internal::onExecutableFingerprint;
   api->PJRT_Executable_OutputElementTypes =
       internal::onExecutableOutputElementTypes;
@@ -175,6 +177,17 @@ PJRT_Error *onExecutableSizeOfGeneratedCodeInBytes(
   args->size_in_bytes = -1;
 
   return nullptr;
+}
+
+PJRT_Error *onExecutableGetCompiledMemoryStats(
+    PJRT_Executable_GetCompiledMemoryStats_Args *args) {
+  ZoneScoped;
+
+  // Not implemented: we cannot estimate compiled memory usage. We bind this
+  // explicitly (instead of the generic stub) only to avoid the per-call "STUB"
+  // warning; behavior is otherwise identical -- callers get kUnimplemented.
+  // https://github.com/tenstorrent/tt-xla/issues/496
+  return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
 }
 
 PJRT_Error *onExecutableFingerprint(PJRT_Executable_Fingerprint_Args *args) {
