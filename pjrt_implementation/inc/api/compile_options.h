@@ -21,7 +21,14 @@ enum class BackendRuntime {
   TTNNCodegenCpp,
 
   // Generates TTNN Python code.
-  TTNNCodegenPy
+  TTNNCodegenPy,
+
+  // Loads previously emitted (and possibly user-edited) TTNN Python codegen
+  // instead of compiling. The incoming graph is matched by StableHLO hash
+  // against the saved graph directories under export_path and the matched code
+  // is executed via PythonModelRunner. Compilation fails if no directory
+  // matches.
+  TTNNCodegenLoadPy
 };
 
 // POD struct containing various options used to customize module compilation.
@@ -151,6 +158,12 @@ struct CompileOptions {
   // IRs out, or input tensors, or codegen code. Default true for codegen
   // backends, false for flatbuffer backend.
   bool dry_run = true;
+
+  // Whether Python codegen emits a runnable "target module" -- the main.py file
+  // will contain a forward(inputs, device) entrypoint that is suitable for
+  // runtimes holding the handles on device&tensor objects themselves, like
+  // PythonModelRunner or vLLM.
+  bool target_module = false;
 
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.

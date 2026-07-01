@@ -13,6 +13,7 @@
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -120,12 +121,22 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   CompileOptions options = m_executable_image->getCompileOptions();
-  std::string lang =
-      options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
-  std::cout << lang << " codegen successful. Check "
-            << options.export_path.value() << " for the results." << std::endl;
+  const bool is_python_codegen =
+      options.backend == BackendRuntime::TTNNCodegenPy ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy;
+  // The load path runs previously emitted code rather than generating any, so
+  // it must not claim "codegen successful" -- and since this runs on every
+  // Execute() (the hot decode loop in load mode) it would spam that line. The
+  // emit paths did just generate code, so they still report where it landed.
+  if (options.backend != BackendRuntime::TTNNCodegenLoadPy) {
+    std::string lang =
+        options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
+    std::cout << lang << " codegen successful. Check "
+              << options.export_path.value() << " for the results."
+              << std::endl;
+  }
 
-  if (options.dry_run || options.backend != BackendRuntime::TTNNCodegenPy) {
+  if (options.dry_run || !is_python_codegen) {
     // dry_run mode or non-Python codegen: return zero-filled output buffers.
     tt_pjrt_status status =
         createDefaultOutputBuffers(args->output_lists, args->num_devices);

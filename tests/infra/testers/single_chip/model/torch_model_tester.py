@@ -398,6 +398,7 @@ class TorchModelTester(ModelTester):
                 "export_path": emitpy_export_path,
                 "export_tensors": "true",
                 "dry_run": "false",
+                "target_module": "true",
             }
             torch_xla.set_custom_compile_options(emitpy_options)
 

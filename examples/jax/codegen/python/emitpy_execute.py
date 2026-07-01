@@ -43,6 +43,7 @@ def main():
         "backend": "codegen_py",
         "export_path": "model_execute",
         "export_tensors": True,
+        "target_module": True,
         "dry_run": False,
     }
     tt_result_codegen = jax.jit(forward, compiler_options=compiler_options)(

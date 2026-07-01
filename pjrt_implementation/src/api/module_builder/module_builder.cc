@@ -19,8 +19,10 @@
 #include <vector>
 
 // llvm includes
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/SHA256.h"
 #include "llvm/Support/raw_ostream.h"
 
 // llvm mlir includes
@@ -304,10 +306,9 @@ ModuleBuilder::buildModule(
 
   auto compile_options = CompileOptions::parse(compile_options_map);
 
-  // Construct full name: {model_name}_g{N}
-  // e.g., 1lyr_phi1_bs32_g0
-  // Only applies when user explicitly sets export_model_name.
-  // Reset graph counter when model_name changes (new test run).
+  // IR export keys dump filenames by export_model_name and appends _g{N} (e.g.
+  // resnet50_bs32_g0) so repeated dumps into one export_path don't collide.
+  // Reset the counter when the model name changes (new run).
   if (!compile_options.export_model_name.empty()) {
     if (compile_options.export_model_name != m_last_model_name) {
       m_graph_counter = 0;
@@ -315,6 +316,26 @@ ModuleBuilder::buildModule(
     }
     int graph_num = m_graph_counter++;
     compile_options.export_model_name += "_g" + std::to_string(graph_num);
+  }
+
+  // Each emitted graph gets its own graph_N subdir under export_path so the
+  // fixed-name files (main.py, ttnn.mlir, ...) don't clobber earlier compiles.
+  // Load mode is excluded: it matches saved graphs by hash, not by dir name.
+  const bool is_codegen_py =
+      compile_options.backend == BackendRuntime::TTNNCodegenPy;
+  const bool is_codegen_cpp =
+      compile_options.backend == BackendRuntime::TTNNCodegenCpp;
+  const bool is_codegen_py_load =
+      compile_options.backend == BackendRuntime::TTNNCodegenLoadPy;
+  if (is_codegen_py || is_codegen_cpp) {
+    const std::string codegen_export_root = *compile_options.export_path;
+    static std::mutex counters_mutex;
+    static std::unordered_map<std::string, int> counters;
+    int graph_index;
+    graph_index = counters[codegen_export_root]++;
+    compile_options.export_path = (std::filesystem::path(codegen_export_root) /
+                                   ("graph_" + std::to_string(graph_index)))
+                                      .string();
   }
 
   tt_pjrt_status status;
@@ -337,6 +358,15 @@ ModuleBuilder::buildModule(
                                    compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  // Stable identity of the graph (hash of the SHLO module text), used by the
+  // codegen emit/load helpers to key the saved graph directory. Kept as a local
+  // -- it's derived state, not a user-set compile option, so it is passed
+  // explicitly rather than stored on CompileOptions.
+  std::string graph_hash;
+  if (is_codegen_py || is_codegen_py_load) {
+    graph_hash = computeGraphHash(mlir_module);
   }
 
   std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
@@ -402,6 +432,16 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  // Load mode: executable metadata is already collected from SHLO, so skip
+  // SHLO->TTIR->TTNN and codegen; the executable points at the saved
+  // (possibly user-edited) graph directory matched by hash.
+  if (is_codegen_py_load) {
+    return buildModuleForTTNNCodegenLoad(
+        mlir_module, std::move(original_mlir_code), std::move(num_arguments),
+        input_shardings, output_shardings, output_types,
+        std::move(optimized_mlir_code), graph_hash, std::move(compile_options));
+  }
+
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status =
@@ -459,7 +499,7 @@ ModuleBuilder::buildModule(
         std::move(num_arguments), num_devices_result, mesh_shape,
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
-        std::move(optimized_mlir_code), std::move(compile_options));
+        std::move(optimized_mlir_code), graph_hash, std::move(compile_options));
   }
 
   LOG_F(ERROR, "Unsupported backend option");
@@ -1316,10 +1356,34 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     const std::vector<PJRT_Buffer_Type> &output_types,
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
-    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+    std::string &&optimized_mlir_code, const std::string &graph_hash,
+    CompileOptions &&compile_options) {
   tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  // Python codegen records the graph (hash + mesh) so load mode can later match
+  // it by hash.
+  if (compile_options.backend == BackendRuntime::TTNNCodegenPy &&
+      !graph_hash.empty()) {
+    std::filesystem::path graph_dir(*compile_options.export_path);
+    std::string mesh_str;
+    for (size_t i = 0; i < mesh_shape.size(); ++i) {
+      mesh_str += (i ? "x" : "") + std::to_string(mesh_shape[i]);
+    }
+
+    std::ofstream key_file(graph_dir / "module_key");
+    key_file << graph_hash << "\n"
+             << mesh_str << "\n"
+             << num_devices_result.num_devices_to_utilize << "\n";
+    key_file.close();
+
+    std::ofstream manifest(graph_dir.parent_path() / "manifest.json",
+                           std::ios::app);
+    manifest << "{\"hash\": \"" << graph_hash << "\", \"dir\": \""
+             << graph_dir.filename().string() << "\", \"mesh\": \"" << mesh_str
+             << "\"}\n";
   }
 
   auto executable_image = SOExecutableImage::createInstance(
@@ -1332,6 +1396,63 @@ ModuleBuilder::buildModuleForTTNNCodegen(
       num_devices_result.num_devices_to_utilize, mesh_shape, input_shardings,
       output_shardings, output_types, std::move(output_memory_kinds),
       std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
+      std::move(compile_options));
+  return {tt_pjrt_status::kSuccess, executable_image};
+}
+
+std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+ModuleBuilder::buildModuleForTTNNCodegenLoad(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    std::string &&original_mlir_code, NumArgumentsResult &&num_arguments,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
+    const std::vector<PJRT_Buffer_Type> &output_types,
+    std::string &&optimized_mlir_code, const std::string &graph_hash,
+    CompileOptions &&compile_options) {
+  std::string matched_dir;
+  // Mesh attributes are only materialized during SHLO->TTIR, which load mode
+  // skips, so mesh shape and device count are restored from the module_key
+  // saved at emit time.
+  std::vector<std::uint32_t> load_mesh_shape;
+  NumDevicesResult load_num_devices;
+  auto num_partitions_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions");
+  auto num_replicas_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_replicas");
+  load_num_devices.num_partitions =
+      num_partitions_attr ? static_cast<size_t>(num_partitions_attr.getInt())
+                          : 1;
+  load_num_devices.num_replicas =
+      num_replicas_attr ? static_cast<size_t>(num_replicas_attr.getInt()) : 1;
+  tt_pjrt_status status = resolveCodegenLoadDir(
+      compile_options, graph_hash, matched_dir, load_mesh_shape,
+      load_num_devices.num_devices_to_utilize);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+  LOG_F(INFO, "Codegen load: graph %s -> %s", graph_hash.c_str(),
+        matched_dir.c_str());
+  compile_options.export_path = matched_dir;
+  std::vector<const char *> load_output_memory_kinds;
+  std::vector<size_t> load_output_memory_kinds_sizes;
+  collectMemoryKinds(num_arguments.num_outputs, load_output_memory_kinds,
+                     load_output_memory_kinds_sizes);
+
+  // Skip codegen: point the executable at the saved (possibly user-edited) code
+  // in matched_dir, which export_path now refers to. ttir/ttnn are unused since
+  // nothing was compiled.
+  auto executable_image = SOExecutableImage::createInstance(
+      std::move(original_mlir_code), std::string(), std::string(),
+      "tt_executable", num_arguments.num_inputs, num_arguments.num_outputs,
+      std::move(num_arguments.output_dimensions),
+      std::move(num_arguments.output_ranks),
+      std::move(num_arguments.output_dimensions_flat),
+      load_num_devices.num_partitions, load_num_devices.num_replicas,
+      load_num_devices.num_devices_to_utilize, load_mesh_shape, input_shardings,
+      output_shardings, output_types, std::move(load_output_memory_kinds),
+      std::move(load_output_memory_kinds_sizes), std::move(optimized_mlir_code),
       std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
 }
@@ -1361,11 +1482,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   }
 
   std::string input_file = folder + "/ttnn.mlir";
-  // Controls wether the generated solution is designed
-  // for standalone execution(is_local=false)
-  // or for execution within an existing development environment that already
-  // has prerequisites installed(is_local=true).
-  bool is_local = false;
+
   // Alchemist specific options are passed here.
   // Other options are ingested during TTIR->TTNN conversion.
   std::string should_load = compile_options.export_tensors ? "true" : "false";
@@ -1374,11 +1491,18 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                                  " "
                                  "tensor-load-directory='./tensors'";
 
+  // Controls wether the generated solution is designed
+  // for standalone execution(is_local=false)
+  // or for execution within an existing development environment that already
+  // has prerequisites installed(is_local=true).
+  constexpr bool is_local_cpp = false;
+  constexpr bool is_local_py = true;
+
   bool result;
 
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     result = m_tt_alchemist_handler.generateCppFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local,
+        instance, input_file.c_str(), folder.c_str(), is_local_cpp,
         pipeline_options.c_str());
   } else if (compile_options.backend == BackendRuntime::TTNNCodegenPy) {
     // For Python specifically,
@@ -1391,14 +1515,13 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
-    // Emit a target module (forward(inputs, device)) only when the executor
-    // will actually run the generated Python via PythonModelRunner (which
-    // expects a `forward(inputs, device)` entrypoint).
-    std::string target_module = !compile_options.dry_run ? "true" : "false";
+    // Emit a target module (a forward(inputs, device) entrypoint that
+    // PythonModelRunner calls) when requested.
+    std::string target_module =
+        compile_options.target_module ? "true" : "false";
     pipeline_options += " target-module=" + target_module;
-    is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
-        instance, input_file.c_str(), folder.c_str(), is_local,
+        instance, input_file.c_str(), folder.c_str(), is_local_py,
         pipeline_options.c_str());
   } else {
     TT_THROW("Unsupported backend when doing codegen");
@@ -1410,6 +1533,87 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
   }
 
   return tt_pjrt_status::kSuccess;
+}
+
+std::string ModuleBuilder::computeGraphHash(
+    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
+  std::string module_text;
+  llvm::raw_string_ostream os(module_text);
+  module.get()->print(os, mlir::OpPrintingFlags());
+  auto digest = llvm::SHA256::hash(llvm::ArrayRef<uint8_t>(
+      reinterpret_cast<const uint8_t *>(module_text.data()),
+      module_text.size()));
+  return llvm::toHex(llvm::ArrayRef<uint8_t>(digest.data(), 8),
+                     /*LowerCase=*/true);
+}
+
+tt_pjrt_status ModuleBuilder::resolveCodegenLoadDir(
+    const CompileOptions &compile_options, const std::string &graph_hash,
+    std::string &matched_dir, std::vector<std::uint32_t> &mesh_shape,
+    size_t &num_devices) {
+  // In load mode export_path is the user-provided directory of saved graphs;
+  // it's replaced with the matched graph's subdirectory once found.
+  const std::string &load_root = *compile_options.export_path;
+  std::string available;
+
+  // Sorted scan keeps matching deterministic if duplicate hashes ever exist
+  // (e.g. stale dirs from prior runs reusing the same export root).
+  std::vector<std::filesystem::path> entries;
+  std::error_code ec;
+  for (const auto &entry : std::filesystem::directory_iterator(load_root, ec)) {
+    if (entry.is_directory()) {
+      entries.push_back(entry.path());
+    }
+  }
+  if (ec) {
+    LOG_F(ERROR, "Codegen load: cannot read load directory '%s': %s",
+          load_root.c_str(), ec.message().c_str());
+    return tt_pjrt_status::kInternal;
+  }
+  std::sort(entries.begin(), entries.end());
+
+  for (const auto &path : entries) {
+    std::ifstream key_file(path / "module_key");
+    if (!key_file.is_open()) {
+      continue;
+    }
+    std::string key;
+    key_file >> key;
+    if (key == graph_hash) {
+      matched_dir = path.string();
+      std::string mesh_str;
+      num_devices = 0;
+      key_file >> mesh_str >> num_devices;
+      mesh_shape.clear();
+      for (size_t pos = 0; pos < mesh_str.size();) {
+        size_t next = mesh_str.find('x', pos);
+        try {
+          mesh_shape.push_back(std::stoul(mesh_str.substr(pos, next - pos)));
+        } catch (const std::exception &) {
+          mesh_shape.clear();
+          break;
+        }
+        pos = next == std::string::npos ? mesh_str.size() : next + 1;
+      }
+      if (mesh_shape.empty() || num_devices == 0) {
+        LOG_F(ERROR,
+              "Codegen load: malformed module_key in '%s' (mesh '%s', "
+              "num_devices %zu). Re-emit with TTXLA_CODEGEN_EXPORT_DIR.",
+              matched_dir.c_str(), mesh_str.c_str(), num_devices);
+        return tt_pjrt_status::kInternal;
+      }
+      return tt_pjrt_status::kSuccess;
+    }
+    available += "\n  " + path.filename().string() + " (" + key + ")";
+  }
+
+  LOG_F(ERROR,
+        "Codegen load: no saved graph with hash %s found in '%s'. Available "
+        "graphs:%s\nRe-emit with TTXLA_CODEGEN_EXPORT_DIR to capture this "
+        "graph.",
+        graph_hash.c_str(), load_root.c_str(),
+        available.empty() ? " none" : available.c_str());
+  return tt_pjrt_status::kInternal;
 }
 
 } // namespace tt::pjrt::module_builder
