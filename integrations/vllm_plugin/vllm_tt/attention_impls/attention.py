@@ -23,7 +23,7 @@ from vllm.v1.attention.backend import (
     AttentionType,
 )
 
-from .logger import tt_init_logger
+from ..logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
 

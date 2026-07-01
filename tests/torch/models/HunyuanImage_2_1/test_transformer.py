@@ -25,7 +25,7 @@ def test_transformer():
 
 
 @pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4780"
+    reason="Out of Memory: Not enough space to allocate 771162112 B DRAM buffer across 12 banks, where each bank needs to store 64266240 B, but bank size is 1070773184 B - https://github.com/tenstorrent/tt-xla/issues/4780"
 )
 @pytest.mark.nightly
 @pytest.mark.model_test
