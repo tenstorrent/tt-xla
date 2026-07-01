@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
@@ -103,6 +104,7 @@ from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
+from .request_capture import ENV_VAR_REQUEST_CAPTURE_JSON, RequestCaptureRecorder
 from .sampler import Sampler
 from .vllm_distributed_utils import safe_mark_sharding, shard_model
 from .vllm_utils import (
@@ -591,6 +593,250 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.tt_config.num_hidden_layers,
             )
         )
+        self._request_capture_req_start_ts: dict[str, float] = {}
+        self._request_capture_last_sampling: dict[str, dict[str, Any]] = {}
+        self._request_capture = RequestCaptureRecorder.from_env()
+        if self._request_capture is not None:
+            self._request_capture.record_startup(self._build_request_capture_startup())
+
+    def _sampling_params_for_capture(
+        self, sampling_params: Any
+    ) -> dict[str, Any] | None:
+        if sampling_params is None:
+            return None
+
+        fields = [
+            "sampling_type",
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "presence_penalty",
+            "frequency_penalty",
+            "repetition_penalty",
+            "max_tokens",
+            "min_tokens",
+            "seed",
+        ]
+        payload: dict[str, Any] = {}
+        for field in fields:
+            if hasattr(sampling_params, field):
+                value = getattr(sampling_params, field)
+                if value is not None:
+                    payload[field] = value
+
+        if "sampling_type" in payload:
+            payload["sampling_type"] = str(payload["sampling_type"])
+
+        return payload
+
+    def _sampling_params_delta_for_capture(self, req_id: str) -> dict[str, Any] | None:
+        req_state = self.requests[req_id]
+        current = self._sampling_params_for_capture(req_state.sampling_params)
+        if current is None:
+            return None
+
+        previous = self._request_capture_last_sampling.get(req_id)
+        if previous == current:
+            return None
+
+        self._request_capture_last_sampling[req_id] = current
+        return current
+
+    def _request_capture_entry(
+        self,
+        req_id: str,
+        scheduled_tokens: int | None = None,
+        include_sampling_delta: bool = False,
+        include_verbose_tokens: bool = False,
+    ) -> dict[str, Any]:
+        req_state = self.requests[req_id]
+        prompt_len = (
+            len(req_state.prompt_token_ids)
+            if req_state.prompt_token_ids is not None
+            else None
+        )
+        output_len = len(req_state.output_token_ids)
+        entry: dict[str, Any] = {
+            "req_id": req_id,
+            "isl": prompt_len,
+            "osl": output_len,
+            "num_computed_tokens": int(req_state.num_computed_tokens),
+            "num_scheduled_tokens": scheduled_tokens,
+        }
+
+        if include_sampling_delta:
+            sampling_delta = self._sampling_params_delta_for_capture(req_id)
+            if sampling_delta is not None:
+                entry["sampling_params"] = sampling_delta
+
+        if include_verbose_tokens:
+            entry["prompt_token_ids"] = req_state.prompt_token_ids
+            entry["output_token_ids"] = req_state.output_token_ids
+            entry["prompt_embeds_shape"] = (
+                list(req_state.prompt_embeds.shape)
+                if req_state.prompt_embeds is not None
+                else None
+            )
+
+        return entry
+
+    def _build_request_capture_startup(self) -> dict[str, Any]:
+        assert self._request_capture is not None
+        return {
+            "env_var": ENV_VAR_REQUEST_CAPTURE_JSON,
+            "cwd": os.getcwd(),
+            "request_capture": {
+                "mode": self._request_capture.mode,
+                "startup_path": str(self._request_capture.startup_path),
+                "events_path": str(self._request_capture.events_path),
+            },
+            "vllm_config": self.vllm_config,
+            "tt_config": self.tt_config,
+            "pjrt_compile_options": self.tt_config.get_pjrt_compile_config(),
+            "runtime": {
+                "device": str(self.device),
+                "max_num_reqs": self.max_num_reqs,
+                "max_model_len": self.max_model_len,
+                "block_size": self.block_size,
+                "most_model_len": self.most_model_len,
+                "num_tokens_paddings": self.num_tokens_paddings,
+                "enable_tensor_parallel": self.enable_tensor_parallel,
+                "use_2d_mesh": self.use_2d_mesh,
+                "cpu_sampling": self.tt_config.cpu_sampling,
+            },
+        }
+
+    def _capture_scheduler_output(self, scheduler_output: "SchedulerOutput") -> None:
+        if self._request_capture is None:
+            return
+
+        verbose = self._request_capture.is_verbose
+        scheduled_tokens = {
+            req_id: int(num_tokens)
+            for req_id, num_tokens in scheduler_output.num_scheduled_tokens.items()
+        }
+        active_req_ids = [
+            req_id for req_id in self.input_batch.req_ids if req_id is not None
+        ]
+
+        req_entries: list[dict[str, Any]] = []
+        for req in scheduler_output.scheduled_new_reqs:
+            req_id = req.req_id
+            if req_id in self.requests:
+                req_entries.append(
+                    self._request_capture_entry(
+                        req_id,
+                        scheduled_tokens=scheduled_tokens.get(req_id),
+                        include_sampling_delta=True,
+                        include_verbose_tokens=verbose,
+                    )
+                )
+
+        for req_id in scheduler_output.scheduled_cached_reqs.req_ids:
+            if req_id in self.requests:
+                req_entries.append(
+                    self._request_capture_entry(
+                        req_id,
+                        scheduled_tokens=scheduled_tokens.get(req_id),
+                        include_sampling_delta=True,
+                        include_verbose_tokens=verbose,
+                    )
+                )
+
+        payload: dict[str, Any] = {
+            "total_num_scheduled_tokens": int(
+                scheduler_output.total_num_scheduled_tokens
+            ),
+            "num_active_reqs": len(active_req_ids),
+            "num_finished_reqs": len(scheduler_output.finished_req_ids),
+            "num_new_reqs": len(scheduler_output.scheduled_new_reqs),
+            "num_cached_reqs": len(scheduler_output.scheduled_cached_reqs.req_ids),
+            "requests": req_entries,
+        }
+
+        if verbose:
+            payload["finished_req_ids"] = list(scheduler_output.finished_req_ids)
+            payload["resumed_req_ids"] = list(
+                scheduler_output.scheduled_cached_reqs.resumed_req_ids
+            )
+            payload["active_req_ids"] = active_req_ids
+            payload["num_scheduled_tokens"] = scheduled_tokens
+            payload["free_encoder_mm_hashes"] = list(
+                scheduler_output.free_encoder_mm_hashes
+            )
+
+        self._request_capture.record_event("scheduler_output", payload)
+
+    def _capture_sample_result(
+        self,
+        scheduler_output: "SchedulerOutput",
+        req_ids: list[str],
+        sampled_token_ids: list[list[int]],
+        discard_sampled_tokens_req_indices: list[int],
+        grammar_output: "GrammarOutput | None",
+        finished_req_ids: list[str],
+    ) -> None:
+        if self._request_capture is None:
+            return
+
+        verbose = self._request_capture.is_verbose
+        finished_req_ids_set = set(finished_req_ids)
+        discarded_indices = set(discard_sampled_tokens_req_indices)
+        requests_payload = []
+        for index, req_id in enumerate(req_ids):
+            req_state = self.requests[req_id]
+            prompt_len = (
+                len(req_state.prompt_token_ids)
+                if req_state.prompt_token_ids is not None
+                else None
+            )
+            sample = sampled_token_ids[index]
+            sample_len = len(sample)
+            output_len_after = len(req_state.output_token_ids)
+            entry: dict[str, Any] = {
+                "req_id": req_id,
+                "isl": prompt_len,
+                "osl_before": output_len_after - sample_len,
+                "osl_after": output_len_after,
+                "scheduled_tokens": int(
+                    scheduler_output.num_scheduled_tokens.get(req_id, 0)
+                ),
+                "sampled_len": sample_len,
+                "discarded_sample": index in discarded_indices,
+                "finished": req_id in finished_req_ids_set,
+            }
+
+            sampling_delta = self._sampling_params_delta_for_capture(req_id)
+            if sampling_delta is not None:
+                entry["sampling_params"] = sampling_delta
+
+            if verbose:
+                entry["sampled_token_ids"] = sample
+
+            if req_id in finished_req_ids_set:
+                req_start_ts = self._request_capture_req_start_ts.get(req_id)
+                if req_start_ts is not None:
+                    elapsed_s = max(time.perf_counter() - req_start_ts, 1e-6)
+                    entry["tok_per_s"] = output_len_after / elapsed_s
+
+            requests_payload.append(entry)
+
+        payload: dict[str, Any] = {
+            "num_reqs": len(req_ids),
+            "num_finished_reqs": len(finished_req_ids),
+            "requests": requests_payload,
+        }
+
+        if verbose:
+            payload["grammar_applied"] = grammar_output is not None
+            payload["structured_output_request_ids"] = (
+                list(grammar_output.structured_output_request_ids)
+                if grammar_output is not None
+                else []
+            )
+
+        self._request_capture.record_event("sample_result", payload)
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -695,6 +941,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for req_id in scheduler_output.finished_req_ids:
             self.requests.pop(req_id, None)
             self.num_prompt_logprobs.pop(req_id, None)
+            self._request_capture_req_start_ts.pop(req_id, None)
+            self._request_capture_last_sampling.pop(req_id, None)
 
         # Remove the finished requests from the persistent batch.
         # NOTE(woosuk): There could be an edge case where finished_req_ids and
@@ -761,6 +1009,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 output_token_ids=[],
                 lora_request=new_req_data.lora_request,
             )
+            self._request_capture_req_start_ts[req_id] = time.perf_counter()
 
             if sampling_params and sampling_params.prompt_logprobs is not None:
                 self.num_prompt_logprobs[req_id] = (
@@ -1589,6 +1838,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
+        self._capture_scheduler_output(scheduler_output)
         if not scheduler_output.total_num_scheduled_tokens:
             if not has_kv_transfer_group():
                 # Return empty ModelRunnerOutput if there's no work to do.
@@ -1854,6 +2104,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pooler_output=[],
             kv_connector_output=kv_connector_output,
         )
+        finished_req_ids = [req_state.req_id for _, req_state, _ in request_seq_lens]
+        self._capture_sample_result(
+            scheduler_output,
+            req_ids,
+            valid_sampled_token_ids,
+            discard_sampled_tokens_req_indices,
+            grammar_output,
+            finished_req_ids,
+        )
 
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
@@ -1873,6 +2132,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             config = getattr(self, config_name)
             new_config = update_config(config, config_overrides)
             setattr(self, config_name, new_config)
+            if self._request_capture is not None:
+                self._request_capture.record_event(
+                    "config_update",
+                    {
+                        "config_name": config_name,
+                        "overrides": config_overrides,
+                    },
+                )
 
     def load_model(self) -> None:
         logger.info("CALLING LOAD MODEL")
