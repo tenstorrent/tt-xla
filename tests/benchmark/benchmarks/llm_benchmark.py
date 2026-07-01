@@ -267,6 +267,7 @@ def benchmark_llm_torch_xla(
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
+    enable_activation_dtype_lowering: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -477,6 +478,8 @@ def benchmark_llm_torch_xla(
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
     if enable_create_d2m_subgraphs:
         options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
+    if enable_activation_dtype_lowering:
+        options["enable_activation_dtype_lowering"] = "true"
 
     torch_xla.set_custom_compile_options(options)
 
