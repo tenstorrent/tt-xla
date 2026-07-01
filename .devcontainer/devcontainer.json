@@ -1,0 +1,32 @@
+// This is used to create a Docker container for development work on bare metal machines.
+// By default, it works for Galaxy machines in the tt-forge UF cluster.
+{
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "USERNAME": "${localEnv:USER}",
+      // Important: Run `id` and copy the UID and GID to the args below.
+      "USER_UID": "",
+      "USER_GID": ""
+    }
+  },
+
+  // This mounts the entire /data/{user} directory on the UF galaxy host machine to the
+  // container. If running on a different bare metal machine that doesn't have /data,
+  // update the source path to the directory that contains the tt-xla repo.
+  "workspaceMount": "source=/data/${localEnv:USER},target=/home/${localEnv:USER},type=bind,consistency=cached",
+  "workspaceFolder": "/home/${localEnv:USER}/tt-xla",
+
+  "runArgs": [
+    "--device=/dev/tenstorrent",
+    "--volume=/dev/hugepages-1G:/dev/hugepages-1G",
+    "--name=tt-xla-devcontainer-${localEnv:USER}"
+  ],
+
+  "containerEnv": {
+    "HOME": "/home/${localEnv:USER}",
+    "TTMLIR_TOOLCHAIN_DIR": "/opt/ttmlir-toolchain"
+  },
+
+  "remoteUser": "${localEnv:USER}"
+}
