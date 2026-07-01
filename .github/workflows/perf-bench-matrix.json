@@ -56,6 +56,11 @@
         "group": "experimental"
       },
       {
+        "name": "sana",
+        "pytest": "tests/benchmark/test_sana.py::test_sana",
+        "group": "experimental"
+      },
+      {
         "name": "flux1",
         "pytest": "tests/benchmark/test_imagegen.py::test_flux",
         "runs-on": "qb2-blackhole",
