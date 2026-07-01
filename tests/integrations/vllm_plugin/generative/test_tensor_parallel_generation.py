@@ -268,7 +268,7 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
     ["model_name", "mesh_shape", "opt_level"],
-    [pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", [4, 8], 0)],
+    [pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", [8, 4], 0)],
 )
 def test_tensor_parallel_generation_galaxy_wh_6u_mistral_small(
     model_name: str, mesh_shape: list[int], opt_level: int
