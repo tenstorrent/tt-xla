@@ -57,6 +57,9 @@ class AscendScheduler(Scheduler):
         add_cfg = vllm_config.additional_config or {}
         self.prefill_batch_threshold = int(add_cfg.get("prefill_batch_threshold") or 0)
         self.b1_min_num_seqs = int(add_cfg.get("min_num_seqs") or 0)
+        # Fresh-prefill KV-cache admission watermark (0.0 = off). See
+        # TTConfig.prefill_kv_watermark.
+        self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
@@ -247,7 +250,26 @@ class AscendScheduler(Scheduler):
                         skip_cur_request()
                         continue
 
-            watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            base_watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            # Apply the high-watermark only to FRESH prefills
+            # (num_computed_tokens == 0); continuation chunks keep the base
+            # watermark so an in-flight prefill is never stranded. The
+            # forward-progress guard falls back to the base watermark when
+            # nothing is running or scheduled yet, so a single large prompt that
+            # exceeds the reserve still gets admitted instead of deadlocking.
+            # See TTConfig.prefill_kv_watermark.
+            nothing_scheduled_yet = not (
+                scheduled_new_reqs or scheduled_resumed_reqs or scheduled_running_reqs
+            )
+            force_progress = not self.running and nothing_scheduled_yet
+            if (
+                self.prefill_kv_watermark > 0.0
+                and request.num_computed_tokens == 0
+                and not force_progress
+            ):
+                watermark = self.prefill_kv_watermark
+            else:
+                watermark = base_watermark
             if not self._check_watermark_for_prefill(
                 request, num_new_tokens, blocks, watermark
             ):
