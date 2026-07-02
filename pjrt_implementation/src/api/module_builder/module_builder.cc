@@ -946,6 +946,18 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
   }
 
+  if (compile_options.math_approx_mode.has_value()) {
+    options.computeCfgMathApproxMode = compile_options.math_approx_mode.value();
+  }
+
+  if (compile_options.packer_l1_acc.has_value()) {
+    options.computeCfgPackerL1Acc = compile_options.packer_l1_acc.value();
+  }
+
+  if (compile_options.dst_full_sync_en.has_value()) {
+    options.computeCfgDstFullSyncEn = compile_options.dst_full_sync_en.value();
+  }
+
   options.enableFusingConv2dWithMultiplyPattern =
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =

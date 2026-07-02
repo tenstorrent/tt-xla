@@ -30,6 +30,12 @@ CompileOptions CompileOptions::parse(
 
   options.fp32_dest_acc_en =
       internal::parseBoolOption(compile_options, "fp32_dest_acc_en");
+  options.math_approx_mode =
+      internal::parseBoolOption(compile_options, "math_approx_mode");
+  options.packer_l1_acc =
+      internal::parseBoolOption(compile_options, "packer_l1_acc");
+  options.dst_full_sync_en =
+      internal::parseBoolOption(compile_options, "dst_full_sync_en");
   options.experimental_enable_fusing_conv2d_with_multiply_pattern =
       internal::parseBoolOption(
           compile_options,

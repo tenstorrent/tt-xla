@@ -47,6 +47,19 @@ class CompilerConfig:
     # Currently, MLIR default is true for all operations.
     fp32_dest_acc_en: Optional[bool] = None
 
+    # Override math approx mode for all ttnn operations exposing compute kernel
+    # config. Approximate mode (True) trades accuracy for speed on SFPU ops.
+    # If None (Unset), the value is left for ttnn to decide.
+    math_approx_mode: Optional[bool] = None
+
+    # Override packer L1 accumulation for all ttnn operations exposing compute
+    # kernel config. If None (Unset), the value is left for ttnn to decide.
+    packer_l1_acc: Optional[bool] = None
+
+    # Override dst full sync enable for all ttnn operations exposing compute
+    # kernel config. If None (Unset), the value is left for ttnn to decide.
+    dst_full_sync_en: Optional[bool] = None
+
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
     # TODO(sdjordjevicTT): This is a temporary option and will be removed once the underlying
     # issue https://github.com/tenstorrent/tt-mlir/issues/4628 is fixed.
@@ -108,6 +121,17 @@ class CompilerConfig:
 
         if self.fp32_dest_acc_en is not None:
             options["fp32_dest_acc_en"] = "true" if self.fp32_dest_acc_en else "false"
+
+        if self.math_approx_mode is not None:
+            options["math_approx_mode"] = "true" if self.math_approx_mode else "false"
+
+        if self.packer_l1_acc is not None:
+            options["packer_l1_acc"] = "true" if self.packer_l1_acc else "false"
+
+        if self.dst_full_sync_en is not None:
+            options["dst_full_sync_en"] = (
+                "true" if self.dst_full_sync_en else "false"
+            )
 
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"

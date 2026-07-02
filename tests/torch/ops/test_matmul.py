@@ -80,6 +80,39 @@ def test_matmul_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
     )
 
 
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+@pytest.mark.parametrize("math_approx_mode", [True, False, None])
+@pytest.mark.parametrize("packer_l1_acc", [True, False, None])
+@pytest.mark.parametrize("dst_full_sync_en", [True, False, None])
+def test_matmul_compute_kernel_config_knobs(
+    math_approx_mode, packer_l1_acc, dst_full_sync_en
+):
+    """Exercise the tri-state (True / False / Unset) compute-kernel-config bool
+    knobs. None leaves the knob for ttnn to decide."""
+    dtype = torch.bfloat16
+    inner_dim = 64
+    rhs_outer_dim = 64
+    lhs_outer_dim = 64
+
+    matmul = Matmul(inner_dim, rhs_outer_dim, dtype=dtype)
+    compiler_config = CompilerConfig(
+        math_approx_mode=math_approx_mode,
+        packer_l1_acc=packer_l1_acc,
+        dst_full_sync_en=dst_full_sync_en,
+    )
+
+    run_op_test_with_random_inputs(
+        matmul,
+        [(lhs_outer_dim, inner_dim)],
+        dtype=dtype,
+        framework=Framework.TORCH,
+        compiler_config=compiler_config,
+    )
+
+
 @pytest.mark.nightly
 @pytest.mark.dual_chip
 @pytest.mark.record_test_properties(category=Category.OP_TEST)

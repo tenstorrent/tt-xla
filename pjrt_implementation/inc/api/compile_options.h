@@ -57,6 +57,19 @@ struct CompileOptions {
   // MLIR is used. Currently, MLIR default is true for all operations.
   std::optional<bool> fp32_dest_acc_en = std::nullopt;
 
+  // Override math approx mode for all ttnn operations exposing compute kernel
+  // config. Approximate mode (true) trades accuracy for speed on SFPU ops.
+  // If not set (nullopt), the value is left for TTNN to decide.
+  std::optional<bool> math_approx_mode = std::nullopt;
+
+  // Override packer L1 accumulation for all ttnn operations exposing compute
+  // kernel config. If not set (nullopt), the value is left for TTNN to decide.
+  std::optional<bool> packer_l1_acc = std::nullopt;
+
+  // Override dst full sync enable for all ttnn operations exposing compute
+  // kernel config. If not set (nullopt), the value is left for TTNN to decide.
+  std::optional<bool> dst_full_sync_en = std::nullopt;
+
   // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
   // TODO(sdjordjevicTT): This is a temporary option and will be removed once
   // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is
