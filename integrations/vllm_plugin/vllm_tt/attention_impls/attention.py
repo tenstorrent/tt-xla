@@ -183,7 +183,6 @@ class TTMetadata:
     chunk_start_idx: torch.Tensor
     batch_idx: Optional[torch.Tensor] = None
     num_users: Optional[int] = None
-    num_tokens: Optional[int] = None
 
     def __init__(
         self,
@@ -195,7 +194,6 @@ class TTMetadata:
         chunk_start_idx: torch.Tensor | None = None,
         batch_idx: torch.Tensor | None = None,
         num_users: Optional[int] = None,
-        num_tokens: Optional[int] = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -205,10 +203,7 @@ class TTMetadata:
             fill_page_table if fill_page_table is not None else page_table
         )
         self.chunk_start_idx = chunk_start_idx
-        assert num_users is not None, "num_users must be provided."
-        assert num_tokens is not None, "num_tokens must be provided."
         self.num_users = num_users
-        self.num_tokens = num_tokens
         self.batch_idx = batch_idx
 
 
@@ -336,6 +331,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         from collections import namedtuple
 
         num_users = attn_metadata.num_users
+        assert num_users is not None, "num_users must be provided in attn_metadata."
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 

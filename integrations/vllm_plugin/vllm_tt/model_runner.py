@@ -1336,7 +1336,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else self.batch_idx_max_reqs
             ),
             num_users=target_num_reqs,
-            num_tokens=padded_total_num_scheduled_tokens,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -2110,7 +2109,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else self.batch_idx_max_reqs
             ),
             num_users=num_reqs,
-            num_tokens=num_tokens,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2463,14 +2461,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
-            fill_page_table=page_table,
             batch_idx=(
                 self.batch_idx_min_reqs
                 if num_reqs == self.min_num_reqs
                 else self.batch_idx_max_reqs
             ),
             num_users=num_reqs,
-            num_tokens=num_tokens,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
