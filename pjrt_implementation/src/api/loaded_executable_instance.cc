@@ -11,10 +11,12 @@
 #include "api/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <cstdio>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
 #include <optional>
+#include <unistd.h>
 #include <unordered_set>
 
 // tracy includes
@@ -41,6 +43,32 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+// Returns the current resident set size (RSS) of this process in megabytes,
+// read from /proc/self/statm. Returns -1.0 if it cannot be read.
+double getCurrentRSSMB() {
+  FILE *statm = std::fopen("/proc/self/statm", "r");
+  if (!statm) {
+    return -1.0;
+  }
+
+  // Fields are: size resident shared text lib data dt (in pages). We only need
+  // the second field (resident).
+  long resident_pages = 0;
+  int matched = std::fscanf(statm, "%*s %ld", &resident_pages);
+  std::fclose(statm);
+  if (matched != 1) {
+    return -1.0;
+  }
+
+  long page_size = sysconf(_SC_PAGESIZE);
+  return static_cast<double>(resident_pages) *
+         static_cast<double>(page_size) / (1024.0 * 1024.0);
+}
+
+} // namespace
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
@@ -202,6 +230,12 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       return tt_pjrt_status::kInternal;
     }
   }
+
+  LOG_F(INFO,
+        "LoadedExecutableInstance::getInputRuntimeTensors: num_args=%zu, "
+        "num_devices=%zu, rss=%.2f MB",
+        num_args, num_devices, getCurrentRSSMB());
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -485,9 +519,11 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   const std::shared_ptr<ExecutableImage> &executable_image =
       instance->getSharedExecutableImage();
-  LOG_F(INFO, "LoadedExecutableInstance::execute: name=%s, graph_hash=%s",
+  LOG_F(INFO,
+        "LoadedExecutableInstance::execute: name=%s, graph_hash=%s, "
+        "rss=%.2f MB",
         executable_image->getExecutableName().c_str(),
-        executable_image->getFingerprint().c_str());
+        executable_image->getFingerprint().c_str(), getCurrentRSSMB());
 
   if (instance->isCompileOnly()) {
     LOG_F(INFO, "Compile-only mode: returning default output buffers "
