@@ -494,6 +494,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
   enableVerboseIRPrinting(vhlo_to_shlo_pm);
+  enableMlirPassTiming(vhlo_to_shlo_pm);
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
@@ -778,6 +779,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                                stablehlo_pipeline_options);
 
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
+  enableMlirPassTiming(stablehlo_pipeline_pm);
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");
@@ -813,6 +815,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
   enableVerboseIRPrinting(shlo_to_ttir_pm);
+  enableMlirPassTiming(shlo_to_ttir_pm);
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -1059,6 +1062,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
+  enableMlirPassTiming(ttir_to_ttnn_pm);
 
   // Run the pass manager.
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
@@ -1211,6 +1215,27 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   pm.enableIRPrinting();
 }
 
+void ModuleBuilder::enableMlirPassTiming(mlir::PassManager &pm) {
+  const char *enable_pass_timing = std::getenv("TTXLA_MLIR_PASS_TIMING");
+  if (enable_pass_timing == nullptr || enable_pass_timing[0] == '\0' ||
+      (enable_pass_timing[0] == '0' && enable_pass_timing[1] == '\0')) {
+    return;
+  }
+
+  // Mutually exclusive with verbose IR printing: that path disables
+  // multithreading (see enableVerboseIRPrinting), which would make the timing
+  // numbers meaningless. Let verbose printing take precedence when both are
+  // requested.
+  if (loguru::g_stderr_verbosity >= LOG_VERBOSE) {
+    LOG_F(WARNING, "TTXLA_MLIR_PASS_TIMING ignored: verbose IR printing is "
+                   "enabled, which disables multithreading and would make pass "
+                   "timing unrepresentative.");
+    return;
+  }
+
+  pm.enableTiming();
+}
+
 void ModuleBuilder::collectMemoryKinds(
     size_t num_outputs, std::vector<const char *> &output_memory_kinds,
     std::vector<size_t> &output_memory_kinds_sizes) {
@@ -1259,6 +1284,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
                                                     runtime_options);
   enableVerboseIRPrinting(runtime_pm);
+  enableMlirPassTiming(runtime_pm);
 
   mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
   if (mlir::failed(mlir_result)) {
