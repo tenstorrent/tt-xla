@@ -74,7 +74,7 @@ class TTConfig:
     # at least one prefill when nothing is running, so a single large prompt is
     # never starved. 0.0 = off (legacy 1% watermark for all prefills).
     # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
-    # Override at runtime with env var TT_XLA_PREFILL_KV_WATERMARK_PERCENT (a
+    # Override at runtime with env var TTXLA_PREFILL_KV_WATERMARK_PERCENT (a
     # percent, e.g. 25), which takes precedence over additional_config.
     # Resolved/validated in TTPlatform.check_and_update_config.
     prefill_kv_watermark: float = 0.25
@@ -337,13 +337,13 @@ class TTPlatform(Platform):
         # See TTConfig.prefill_kv_watermark.
         if additional_config.get("prefill_kv_watermark") is None:
             additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
-        env_wm = os.environ.get("TT_XLA_PREFILL_KV_WATERMARK_PERCENT")
+        env_wm = os.environ.get("TTXLA_PREFILL_KV_WATERMARK_PERCENT")
         if env_wm is not None:
             additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
         wm = float(additional_config["prefill_kv_watermark"])
         if not (0.0 <= wm < 1.0):
             raise ValueError(
-                "prefill_kv_watermark (TT_XLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
+                "prefill_kv_watermark (TTXLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
                 f"must be in [0, 1); got {wm}."
             )
         additional_config["prefill_kv_watermark"] = wm
