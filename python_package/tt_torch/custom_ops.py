@@ -1828,21 +1828,6 @@ def _tt_lang_op_fake(
     return [tensors[i].clone() for i in out_indices]
 
 
-@tt_lang_op.register_autograd
-def _tt_lang_op_autograd(ctx, grad_outputs):
-    """Autograd for tt-lang kernels is not yet supported.
-
-    Returning ``None`` per input would silently produce wrong gradients;
-    raising preserves correctness. Wrap the kernel call in ``torch.no_grad``
-    or register an explicit backward kernel as a separate @tt_torch.tt_lang_operation.
-    """
-    raise NotImplementedError(
-        "Autograd for tt-lang custom kernels is not yet supported. Wrap "
-        "the kernel call in torch.no_grad() or register an explicit "
-        "backward kernel."
-    )
-
-
 def tt_lang_op_dispatch(
     tensors: Sequence[torch.Tensor],
     *,
