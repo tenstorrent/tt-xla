@@ -128,3 +128,62 @@ def test_matmul_weight_dtype_override_multi_chip(weight_dtype, shard_spec):
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
     )
+
+class MatmulFromAnotherOp(torch.nn.Module):
+    """
+    Matmul whose operands are produced by another op (an elementwise add),
+    mirroring the sweeps ``ModelFromAnotherOp`` for matmul:
+    ``xx = add(x, x); yy = add(y, y); matmul(xx, yy)``.
+    """
+
+    def forward(self, x, y):
+        xx = torch.add(x, x)
+        yy = torch.add(y, y)
+        return torch.matmul(xx, yy)
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.OP_TEST)
+def test_matmul_mp_opt2_large_seq_len():
+    """
+    Single-chip mixed-precision matmul, port of the sweeps test vector:
+
+        matmul_mp-FROM_ANOTHER_OP-
+        {'compiler_config': 'mp_opt2_bfp8_fp32acctrue_hifi2'}-
+        ((32, 128, 1024), (1024, 2048))-None-None
+
+    Decoded compiler config ``mp_opt2_bfp8_fp32acctrue_hifi2``:
+      - optimization_level = 2
+      - weight_dtype       = bfp8  -> experimental_weight_dtype = "bfp_bf8"
+      - fp32_accumulation  = True  -> fp32_dest_acc_en = True
+      - math_fidelity      = hifi2
+    """
+    lhs_shape = (32, 128, 1024)
+    rhs_shape = (1024, 2048)
+
+    matmul = MatmulFromAnotherOp()
+
+    compiler_config = CompilerConfig(
+        optimization_level=2,
+        experimental_weight_dtype="bfp_bf8",
+        math_fidelity="hifi2",
+        fp32_dest_acc_en=True,
+    )
+
+    # Match the sweeps value_checker: PCC 0.99, allclose rtol/atol 1e-2.
+    comparison_config = ComparisonConfig()
+    comparison_config.pcc = PccConfig(required_pcc=0.99)
+
+    # Sweeps uses ValueRanges.SMALL == [-1, 1) with float32 inputs (dev_data_format=None).
+    run_op_test_with_random_inputs(
+        matmul,
+        [lhs_shape, rhs_shape],
+        minval=-1.0,
+        maxval=1.0,
+        dtype="float32",
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        compiler_config=compiler_config,
+    )
