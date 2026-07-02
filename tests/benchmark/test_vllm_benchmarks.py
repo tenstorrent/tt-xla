@@ -190,6 +190,12 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     cfg.limit_mm_per_prompt = {"image": 0}
     # Instruct-tuned: drive via the chat template for coherent output.
     cfg.use_chat_template = True
+    # Optional: force a long generation so a short prompt still fills the context
+    # (e.g. TT_BENCHMARK_MAX_TOKENS=4096 with a ~12-token prompt exercises full
+    # 4096-token KV cache per sequence -- makes b32 concurrency actually bind).
+    _bench_max_tokens = os.environ.get("TT_BENCHMARK_MAX_TOKENS")
+    if _bench_max_tokens is not None:
+        cfg.max_tokens = int(_bench_max_tokens)
     return cfg
 
 
