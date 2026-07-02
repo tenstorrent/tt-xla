@@ -129,9 +129,7 @@ class CompilerConfig:
             options["packer_l1_acc"] = "true" if self.packer_l1_acc else "false"
 
         if self.dst_full_sync_en is not None:
-            options["dst_full_sync_en"] = (
-                "true" if self.dst_full_sync_en else "false"
-            )
+            options["dst_full_sync_en"] = "true" if self.dst_full_sync_en else "false"
 
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
