@@ -11,6 +11,7 @@ from infra import Framework, RunMode, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from utils import BringupStatus, Category
 
+from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
@@ -20,6 +21,7 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=ModelLoader.get_model_info(ModelVariant.T5_TEXT_ENCODER),
+    parallelism=Parallelism.SINGLE_DEVICE,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
