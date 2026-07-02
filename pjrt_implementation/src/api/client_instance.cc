@@ -478,13 +478,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
     const std::unordered_map<std::string, std::string> &compile_options,
-    const std::optional<std::vector<int64_t>> &replica_device_ids) {
+    const std::optional<std::vector<int64_t>> &replica_device_ids,
+    size_t target_num_devices) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
-                                    compile_options, this);
+                                    compile_options, this, target_num_devices);
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -840,6 +841,13 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }
 
+  // Execution device count from the device assignment (>1 for a multi-device
+  // run) tells the module builder to give no-input graphs the full mesh instead
+  // of collapsing it. Assumes pure SPMD (num_replicas == 1), which holds for
+  // the torch-xla / JAX SPMD compiles here.
+  size_t target_num_devices =
+      replica_device_ids.has_value() ? replica_device_ids->size() : 1;
+
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {
@@ -855,7 +863,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map, replica_device_ids);
+      compile_options_map, replica_device_ids, target_num_devices);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

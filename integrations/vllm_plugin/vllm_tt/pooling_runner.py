@@ -86,7 +86,7 @@ from vllm.v1.worker.utils import (
     sanity_check_mm_encoder_outputs,
 )
 
-from .attention import (
+from .attention_impls.attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,

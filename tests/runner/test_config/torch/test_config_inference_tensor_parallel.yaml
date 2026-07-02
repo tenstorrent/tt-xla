@@ -406,3 +406,13 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+
+  # Text-to-image DiT transformers brought up multi-chip with Megatron-1D
+  # tensor parallelism (mesh (None, "model")). Both OOM on a single chip.
+  srpo/pytorch-Base-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, lb-blackhole]
+    status: EXPECTED_PASSING
+
+  fibo/pytorch-Base-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, lb-blackhole]
+    status: EXPECTED_PASSING
