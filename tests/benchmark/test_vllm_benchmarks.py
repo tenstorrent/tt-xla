@@ -160,7 +160,11 @@ SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
     pytest.param(_config("meta-llama/Llama-3.2-3B-Instruct"), id="llama-3.2-3b"),
-    pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
+    # opt-level 2 (the default since #5410) OOMs DRAM on n150. See https://github.com/tenstorrent/tt-xla/issues/5494.
+    pytest.param(
+        _config("meta-llama/Llama-3.1-8B-Instruct", optimization_level=0),
+        id="llama-3.1-8b",
+    ),
     # Qwen 2.5
     pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
