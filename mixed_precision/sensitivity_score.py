@@ -15,13 +15,13 @@ Stage 2 — compute scores (host-side quantization, needs ttnn installed but no 
 """
 
 import argparse
+import contextlib
 import json
 import os
 import threading
 
 import torch
 import torch.nn as nn
-from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ttnn is only used by the scores stage (host-side typecast for BFP4 quantization).
@@ -57,6 +57,19 @@ def quantize_via_ttnn(tensor, dtype):
     result = ttnn.to_torch(tt)
     result = result[: tensor.shape[0], : tensor.shape[1]]
     return result.reshape(orig_shape)
+
+
+def compute_sensitivity_score(w, fii_tensor):
+    """Per-tensor sensitivity S(T) = mean_i [ Fii * (wi - Q(wi))^2 ].
+
+    w and fii_tensor are host torch tensors; quantization uses host-side ttnn.typecast.
+    Returns a Python float. Shared by run_scores_stage and the CPU regression test so
+    both exercise the same score path.
+    """
+    w = w.float()
+    q = quantize_via_ttnn(w, ttnn.bfloat4_b)
+    quant_err = (w - q.float()) ** 2
+    return (fii_tensor.float() * quant_err).sum().item() / fii_tensor.numel()
 
 
 def iter_fisher(fii_source):
@@ -142,6 +155,8 @@ def load_causal_lm(model_name, device_map=None):
 
 
 def get_calibration_data(tokenizer, num_samples):
+    from datasets import load_dataset
+
     dataset = load_dataset("allenai/c4", "en", split="train", streaming=True)
     samples = []
     for sample in dataset:
@@ -194,8 +209,14 @@ def compute_fisher(
         # Calibration objective: next-token cross-entropy on the LM logits. Fisher is
         # the accumulated squared gradient of this loss, so the standard path is
         # causal-LM by objective (it requires a .logits head and next-token labels).
+        # Autocast only on CUDA; the CPU fallback (and the CPU CI test) runs in fp32.
         model.zero_grad()
-        with torch.autocast("cuda", dtype=torch.bfloat16):
+        autocast_ctx = (
+            torch.autocast("cuda", dtype=torch.bfloat16)
+            if device.type == "cuda"
+            else contextlib.nullcontext()
+        )
+        with autocast_ctx:
             logits = model(inputs).logits
         loss = nn.functional.cross_entropy(
             logits.view(-1, logits.size(-1)), labels.view(-1)
@@ -388,11 +409,8 @@ def run_scores_stage(args):
     scores = {}
 
     for name, fii_tensor in iter_fisher(fii_source):
-        w = weight_params_dict[name].data.cpu().float()
-        q = quantize_via_ttnn(w, ttnn.bfloat4_b)
-        quant_err = (w - q.float()) ** 2
-        score = (fii_tensor.float() * quant_err).sum().item() / fii_tensor.numel()
-        scores[name] = score
+        w = weight_params_dict[name].data.cpu()
+        scores[name] = compute_sensitivity_score(w, fii_tensor)
 
     scores_sorted = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
 
