@@ -35,7 +35,7 @@ def test_transformer():
     _run(sharded=False)
 
 
-@pytest.mark.bh_galaxy
+@pytest.mark.lb_blackhole
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.record_test_properties(
