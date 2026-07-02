@@ -70,3 +70,37 @@ def test_tensor_parallel_llmbox(
         enable_tensor_parallel=True,
         max_num_batched_tokens=128,
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.parametrize(
+    ["model_name", "baseline_path"],
+    [
+        pytest.param(
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
+        ),
+        pytest.param(
+            "BAAI/bge-m3",
+            "baseline/bge_m3_baseline.pt",
+        ),
+    ],
+)
+def test_tensor_parallel_galaxy_wh_6u(
+    model_name: str,
+    baseline_path: str,
+):
+    """
+    Test tensor parallel inference with vLLM for embedding models on a
+    Wormhole 6U galaxy.
+    """
+
+    run_pooling_test(
+        model_name,
+        baseline_path,
+        max_model_len=64,
+        enable_tensor_parallel=True,
+        max_num_batched_tokens=128,
+    )
