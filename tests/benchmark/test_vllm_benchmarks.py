@@ -146,6 +146,53 @@ def _gemma4_tp_config(model: str, batch_size: int):
     return cfg
 
 
+def _mistral_small_31_tp_config(model: str, batch_size: int):
+    # Mistral-Small-3.1 is a Pixtral-based multimodal model, benchmarked
+    # text-only (limit_mm_per_prompt zeroed so the vision tower never compiles),
+    # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u (32 devices).
+    #
+    # mesh_shape=[8, 4] = 4-way tensor-parallel (model axis) x 8-way batch/data
+    # axis. This matches the TP width validated for this 24B model on n300-llmbox
+    # ([2, 4], also model axis 4) and keeps 2 KV heads/device (Mistral has 8 KV
+    # heads). The mesh factoring is a perf choice to benchmark, not a correctness
+    # one; both factorings are SPMD-equivalent. (The alternative [4, 8] widens TP
+    # to 8, collapsing KV heads to 1/device, which also trips the tt-metal
+    # sdpa_decode tree-reduction cap.)
+    #
+    # Production knobs per FORGE_MODEL_INTEGRATION_GUIDE Stage 1: opt level 1,
+    # bfp_bf8 weights + KV cache, trace (enable_trace defaults True in _config),
+    # const-eval, batch 32, and b1-prefill optimization (min_num_seqs=1 +
+    # prefill_batch_threshold=16). Context length and GPU-memory utilization are
+    # swept at run time via TT_BENCHMARK_MAX_MODEL_LEN / TT_BENCHMARK_GMU.
+    #
+    # Deviation from the doc's cpu_sampling=false (on-device) target: _config
+    # force-sets cpu_sampling=True at opt>=1 (device sampling + trace + opt>=1 is
+    # rejected upstream). Reaching the device-sampling path needs that guard
+    # relaxed and is out of scope for this benchmark entry.
+    cfg = _config(
+        model,
+        batch_size,
+        gpu_memory_utilization=0.15,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_tensor_parallel=True,
+        use_2d_mesh=False,
+        mesh_shape=[8, 4],
+        min_context_len=32,
+        enable_const_eval=True,
+        # b1-prefill optimization: serve prefills serially (small graph) when
+        # <=16 are pending instead of a wasted-row b32 batch. Needs min_num_seqs
+        # < max_num_seqs (batch_size=32).
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+    )
+    cfg.limit_mm_per_prompt = {"image": 0}
+    # Instruct-tuned: drive via the chat template for coherent output.
+    cfg.use_chat_template = True
+    return cfg
+
+
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
@@ -230,6 +277,12 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32, mesh_shape=[2, 4]),
         id="mistral-small-24b-instruct-2501-tp",
+    ),
+    pytest.param(
+        _mistral_small_31_tp_config(
+            "mistralai/Mistral-Small-3.1-24B-Instruct-2503", 32
+        ),
+        id="mistral-small-3.1-24b-tp",
     ),
     pytest.param(
         _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32, mesh_shape=[2, 4]),
