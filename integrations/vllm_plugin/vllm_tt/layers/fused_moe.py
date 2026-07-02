@@ -15,7 +15,7 @@ TT-friendly expert dispatch delegated to ``tt_torch.moe_backend``:
 
 Routing uses the model's own ``custom_routing_function`` when present, else
 standard softmax / top_k / renormalize. Registered at import time via
-``@CustomOp.register_oot``; the import is fired from ``register_moe_oot_layer``
+``@CustomOp.register_oot``; the import is fired from ``register_oot_layer``
 (the ``vllm.general_plugins`` entry point), mirroring the MLA backend.
 """
 
@@ -26,6 +26,7 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+from vllm.model_executor.layers.fused_moe.shared_fused_moe import SharedFusedMoE
 
 
 @CustomOp.register_oot(name="FusedMoE")
@@ -97,3 +98,17 @@ class TTFusedMoE(FusedMoE):
         else:
             out_flat = tt_dense_experts_forward(self, h_flat, topk_ids, topk_weights)
         return out_flat.view(orig_shape)
+
+
+@CustomOp.register_oot(name="SharedFusedMoE")
+class TTSharedFusedMoE(SharedFusedMoE, TTFusedMoE):
+    """
+    OOT implementation of the SharedFusedMoE class. Used by models that have
+    shared experts.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Our vLLM plugin doesn't support overlapping the shared experts'
+        # forward with the all2all dispatch, so we disable it.
+        self.use_overlapped = False

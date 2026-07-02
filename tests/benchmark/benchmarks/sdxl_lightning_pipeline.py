@@ -38,7 +38,7 @@ class SDXLLightningConfig:
         text_encoder_on_tt: bool = True,
         text_encoder_2_on_tt: bool = True,
         unet_on_tt: bool = True,
-        vae_on_tt: bool = False,
+        vae_on_tt: bool = True,
         compile_options: Optional[dict] = None,
     ):
         self.model_id = MODEL_ID

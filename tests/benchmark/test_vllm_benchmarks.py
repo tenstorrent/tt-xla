@@ -44,7 +44,7 @@ def _config(
     batch_size: int = 32,
     *,
     gpu_memory_utilization: float = 0.05,
-    optimization_level: int = 0,
+    optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
     fp32_dest_acc_en: bool | None = False,
     **additional_config_extra,
@@ -60,7 +60,7 @@ def _config(
         additional["experimental_weight_dtype"] = experimental_weight_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
-    if optimization_level > 0:
+    if optimization_level:
         additional["optimization_level"] = optimization_level
         # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
         additional["cpu_sampling"] = True
@@ -92,6 +92,7 @@ def _tp_config(
     batch_size: int,
     *,
     gpu_memory_utilization: float = 0.1,
+    optimization_level: int = 2,
     **additional_config_extra,
 ):
     tp_defaults = {
@@ -111,6 +112,7 @@ def _tp_config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
+        optimization_level=optimization_level,
         # Keep TP configs as-is: the single-device alignment defaults
         # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
@@ -131,6 +133,8 @@ def _gemma4_tp_config(model: str, batch_size: int):
         model,
         batch_size,
         gpu_memory_utilization=0.2,
+        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
+        optimization_level=1,
         enable_tensor_parallel=True,
         min_context_len=32,
         enable_const_eval=True,
@@ -191,11 +195,16 @@ TP_CONFIGS = [
             "tiiuae/Falcon3-7B-Base",
             32,
             mesh_shape=[2, 4],
+            # opt-level 2 fails with an L1/circular-buffer clash; see #5438.
+            optimization_level=1,
         ),
         id="falcon3-7b-tp",
     ),
     pytest.param(
-        _tp_config("tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4]),
+        # opt-level 2 fails with an L1/circular-buffer clash; see #5439.
+        _tp_config(
+            "tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4], optimization_level=1
+        ),
         id="falcon3-10b-tp",
     ),
     pytest.param(_tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]), id="qwen3-8b-tp"),
