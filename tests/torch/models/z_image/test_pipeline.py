@@ -28,6 +28,14 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
+from infra import RunMode
+from utils import (
+    BringupStatus,
+    Category,
+    ModelGroup,
+    TTArch,
+    get_torch_device_arch,
+)
 
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     CFG_NORMALIZATION,
@@ -316,7 +324,16 @@ def run_zimage_pipeline(
 
 
 @pytest.mark.model_test
+@pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.large
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name="ZImage_Pipeline",
+    model_group=ModelGroup.RED,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
 def test_pipeline():
     """Full Z-Image text-to-image e2e on a single Blackhole chip.
 
@@ -324,6 +341,10 @@ def test_pipeline():
     decode at 1280x720 does not OOM (issue #4755).
     """
     xr.set_device_type("TT")
+    # The ~6.2B transformer + Qwen3 encoder + VAE fit a single Blackhole but OOM
+    # on a single Wormhole (n150), so this e2e is Blackhole-only (issue #4756).
+    if get_torch_device_arch() != TTArch.BLACKHOLE:
+        pytest.skip("Z-Image e2e runs on Blackhole only (OOMs on single Wormhole)")
     torch.manual_seed(SEED)
 
     output_path = "test_zimage_output.png"
