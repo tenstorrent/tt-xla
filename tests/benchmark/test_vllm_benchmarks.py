@@ -143,6 +143,49 @@ def _gemma4_tp_config(model: str, batch_size: int):
     return cfg
 
 
+def _falcon3_7b_flatbuffer_repro_config():
+    """Falcon3-7B-Instruct at the failing-CI production settings for issue #4471.
+
+    Reproduces the >2GB TTNN flatbuffer overflow at ttnnToFlatbuffer during trace
+    capture:
+        flatbuffers/vector_downward.h:146 ... Assertion `size() < max_size_' failed
+    The serialized TTNN program exceeds INT32_MAX (~2GB) because the SDPA causal
+    mask (~seq^2) is materialized as a ttnn.constant and serialized inline.
+
+    Mirrors the additional_config from the confirmed-bad tt-shield run (Falcon3-7B,
+    wheel 1.3.0.dev20260613003624 == tt-xla 4fe5a22 / tt-mlir 464a5f341, Jun 9):
+    opt=0, b4, 16K context, const-eval on, trace on, bfp_bf8 weights, and crucially
+    NO chunked prefill / NO b1-prefill (chunking shrinks the mask and hides the bug;
+    b4 avoids the separate head_dim=256 SDPA-buffer OOM that b32-no-chunk would hit).
+
+    Expected: PASSES on the good pin (tt-xla f9d68f6 / tt-mlir c5f39843, May 25),
+    ABORTS with the flatbuffers assertion on bad. Bisect target for f9d68f6..4fe5a22.
+    """
+    cfg = _config(
+        "tiiuae/Falcon3-7B-Instruct",
+        batch_size=4,
+        # 0.10 matches the confirmed-good CI run (bump-tt-forge-1.3.0 default). Window is
+        # narrow: 0.05 is too LOW (vLLM's 16K KV-budget check aborts pre-compile,
+        # "estimated maximum model length is 14912 ..."), while 0.30 is too HIGH (big KV
+        # pool leaves too little free DRAM for the ~3GB prefill MLP activation -> runtime
+        # DRAM OOM in ttnn.silu on the GOOD tt-mlir, masking the clean pass). gmu does not
+        # affect flatbuffer size, so the bad side still crashes at compile regardless.
+        # Env-overridable via TT_BENCHMARK_GMU.
+        gpu_memory_utilization=0.10,
+        optimization_level=0,
+        experimental_weight_dtype="bfp_bf8",
+        fp32_dest_acc_en=None,  # match CI: key absent (avoid a spurious variable)
+        enable_const_eval=True,
+        cpu_sampling=True,
+        min_context_len=32,
+    )
+    # The overflow scales with sequence length (SDPA mask ~ seq^2); the suite
+    # default (_BENCH_MAX_MODEL_LEN=128) is far too small to trip it. Force 16K
+    # (the CI value); still env-overridable via TT_BENCHMARK_MAX_MODEL_LEN.
+    cfg.max_model_len = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "16384"))
+    return cfg
+
+
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
@@ -331,3 +374,13 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+def test_vllm_falcon3_7b_flatbuffer_repro(output_file, request):
+    """Standalone repro of the #4471 flatbuffer 2GB overflow, for bisecting tt-xla
+    f9d68f6..4fe5a22. See _falcon3_7b_flatbuffer_repro_config for mechanism / pins.
+
+    A "good" result = the benchmark completes; "bad" = the run aborts with
+    `flatbuffers/vector_downward.h ... size() < max_size_` in ttnnToFlatbuffer.
+    """
+    _run_vllm_benchmark(_falcon3_7b_flatbuffer_repro_config(), output_file, request)
