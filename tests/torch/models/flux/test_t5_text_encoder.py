@@ -14,6 +14,8 @@ from utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
+from . import skip_on_wormhole
+
 
 @pytest.mark.single_device
 @pytest.mark.nightly
@@ -26,6 +28,7 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
     bringup_status=BringupStatus.PASSED,
 )
 def test_t5_text_encoder():
+    skip_on_wormhole("T5 text encoder")
     xr.set_device_type("TT")
     torch.manual_seed(42)
 

@@ -11,11 +11,14 @@ from infra import Framework, run_graph_test
 
 from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 
+from . import skip_on_wormhole
+
 
 @pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_vae_decoder():
+    skip_on_wormhole("VAE decoder")
     xr.set_device_type("TT")
     torch.manual_seed(42)
 

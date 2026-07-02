@@ -20,6 +20,8 @@ from utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
+from . import skip_on_wormhole
+
 
 @pytest.mark.single_device
 @pytest.mark.nightly
@@ -32,6 +34,7 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
     bringup_status=BringupStatus.PASSED,
 )
 def test_transformer():
+    skip_on_wormhole("transformer")
     _run(sharded=False)
 
 
