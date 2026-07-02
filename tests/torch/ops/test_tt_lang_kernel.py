@@ -362,7 +362,7 @@ class _FakeCompiledKernel:
         self.core_ranges = _MockCoreRangeSet(0, 0, 0, 0)
         self.kernel_tensor_indices = [(0, 1, 2), (0, 1), (2,)]
         self.num_tensors = num_tensors
-        self.num_pipe_nets = 1
+        self.num_pipe_sync_semaphores = 1
 
 
 @pytest.fixture
@@ -466,7 +466,7 @@ def test_resolve_operation_returns_json_artifact(clean_registry, fake_ttl):
 
     assert payload["format_version"] == tt_lang_mod._ARTIFACT_FORMAT_VERSION
     assert payload["num_tensors"] == 3
-    assert payload["num_pipe_nets"] == 1
+    assert payload["num_pipe_sync_semaphores"] == 1
     assert payload["core_range"] == {"start": [0, 0], "end": [0, 0]}
 
     kernels = payload["kernels"]
@@ -732,5 +732,7 @@ def test_resolve_operation_deviceless_passes_stub_tensors(clean_registry, fake_t
 # Real-tt-lang compile integration is exercised in
 # ``tests/torch/ops/test_tt_lang_kernel_e2e.py``, which drives the full
 # stub-tensor compile path against the real tt-lang wheel and runs the
-# resulting flatbuffer through tt-mlir on silicon. The e2e test is the
-# single source of truth for the runtime TensorAccessor expansion path.
+# resulting flatbuffer through tt-mlir on silicon. That test is the single
+# source of truth for the runtime TensorAccessor expansion path;
+# ``examples/pytorch/tt_lang_eltwise_add.py`` is a copy-oriented integration
+# example, not a substitute for it.

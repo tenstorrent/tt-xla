@@ -30,16 +30,6 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple
 import torch
 from tt_torch.custom_ops import tt_lang_op_dispatch
 
-__all__ = [
-    "OperationEntry",
-    "TTLangError",
-    "tt_lang_operation",
-    "get_registered_operation",
-    "iter_registered_operations",
-    "resolve_operation",
-]
-
-
 # Format version of the JSON artifact returned by ``resolve_operation``.
 # The tt-mlir flatbuffer emitter checks the same value; bump on any
 # breaking schema change. Schema documented at the
@@ -123,15 +113,15 @@ def _clear_registry_for_tests() -> None:
 
 
 def _derive_version_tag(fn: Callable) -> str:
-    """Stable short hash of the operation source. Best-effort.
-
-    Falls back to the qualified name if the source isn't introspectable
-    (e.g. C-backed callables); identical source produces identical tags.
-    """
+    """Stable short hash of the operation source."""
     try:
         material = inspect.getsource(fn)
-    except (OSError, TypeError):
-        material = getattr(fn, "__qualname__", fn.__class__.__name__)
+    except (OSError, TypeError) as exc:
+        raise TypeError(
+            f"Cannot derive a version_tag for {fn!r}: its source is not "
+            f"introspectable. tt-lang operations must be Python callables "
+            f"with readable source."
+        ) from exc
     return hashlib.sha1(material.encode("utf-8")).hexdigest()[:12]
 
 
@@ -368,13 +358,15 @@ _MLIR_DTYPE_TO_TORCH: dict[str, torch.dtype] = {
 
 
 def _torch_dtype_from_mlir_string(name: str) -> torch.dtype:
-    """Map an MLIR-style element-type string to a ``torch.dtype``.
-
-    Unknown / non-element types fall back to ``torch.float32`` so the
-    compile can still proceed (tt-lang doesn't read dtype off the stub
-    tensor on the compile-only path).
-    """
-    return _MLIR_DTYPE_TO_TORCH.get(name.strip().lower(), torch.float32)
+    """Map an MLIR-style element-type string to a ``torch.dtype``."""
+    key = name.strip().lower()
+    try:
+        return _MLIR_DTYPE_TO_TORCH[key]
+    except KeyError as e:
+        raise TTLangError(
+            f"resolve_operation: unrecognized MLIR element type {name!r}; "
+            f"expected one of {sorted(_MLIR_DTYPE_TO_TORCH)}."
+        ) from e
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +385,7 @@ def _torch_dtype_from_mlir_string(name: str) -> torch.dtype:
 # is a ``_compile_ttnn_kernel_from_spec`` entry point upstream in
 # tt-lang, after which these stubs and the monkey-patch can be deleted.
 # Grep for ``DEMO HACK`` to find every site.
+# TODO: Look into using Mock Device
 
 
 class _StubGridSize:
@@ -400,7 +393,7 @@ class _StubGridSize:
 
     __slots__ = ("x", "y")
 
-    def __init__(self, x: int = 8, y: int = 8) -> None:
+    def __init__(self, x: int, y: int) -> None:
         self.x = x
         self.y = y
 
@@ -418,9 +411,9 @@ class _StubTtnnDevice:
     def __init__(
         self,
         *,
-        grid_cols: int = 8,
-        grid_rows: int = 8,
-        arch: str = "wormhole_b0",
+        grid_cols: int,
+        grid_rows: int,
+        arch: str,
     ) -> None:
         self._grid = _StubGridSize(grid_cols, grid_rows)
         self.arch = arch
@@ -492,6 +485,7 @@ def _memory_space_from_layout(layout_str: str) -> str:
     Returns the bare string the stub's ``buffer_type`` should contain.
     The default is ``"DRAM"`` because that's what tt-lang itself
     defaults to when no explicit memory_config is plumbed through.
+    TODO: Add a test to check for DRAM is still tt-lang's default
     """
     s = layout_str.lower()
     if "#l1" in s or " l1>" in s or "l1_memory" in s:
@@ -521,7 +515,7 @@ def _make_deviceless_ttnn_args(
             f"resolve_operation: shapes/dtypes/layouts length mismatch "
             f"({len(shapes)}/{len(dtypes)}/{len(layouts)})."
         )
-    device = _StubTtnnDevice()
+    device = _StubTtnnDevice(grid_cols=8, grid_rows=8, arch="wormhole_b0")
     args: List[_StubTtnnTensor] = []
     for shape, dtype_str, layout_str in zip(shapes, dtypes, layouts):
         mem_cfg = _StubMemoryConfig(_memory_space_from_layout(layout_str or ""))
@@ -621,6 +615,8 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
 
         _patch("ttl.ttl_api", "get_min_remaining_l1_for_device", lambda _device: 0)
 
+    # TODO: See if there is a proper way to invoke the tt-lang compiler for
+    # compile only intead of setting and unsetting an environment variable.
     prev_env = os.environ.get("TTLANG_COMPILE_ONLY")
     with _DRIVE_LOCK:
         _ttl_api._compile_kernel = _capturing_compile  # type: ignore[attr-defined]
@@ -655,9 +651,12 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
 
 
 # Mapping from a tt-metal/ttnn DataType (or torch dtype) to the ttcore
-# DataType enum name that the tt-mlir flatbuffer emitter expects. Both
-# producers (this file) and consumer (TTNNToFlatbuffer.cpp's
-# `parseDataType`) must stay in sync with
+# DataType enum name emitted as each `cb_configs[*].data_format` in the
+# kernel_artifact JSON. The consumer is the `--ttnn-lower-tt-lang-to-generic`
+# pass (TTNNLowerTTLangToGeneric.cpp's `parseDataType`), which maps the
+# string to a `ttcore::DataType` while building the `#ttnn.program`; from
+# there on the value is an enum, so the flatbuffer emitter never sees this
+# spelling. This producer and that consumer must both stay in sync with
 # `third_party/tt-mlir/.../Target/Common/types.fbs::enum DataType`.
 _TTNN_DTYPE_NAME_TO_FB: dict[str, str] = {
     "BFLOAT16": "BFloat16",
@@ -729,7 +728,7 @@ def _tile_bytes_from_dtype_name(name: str) -> int:
     sizes. Each TT-Metal tile is 32x32 elements; the byte cost depends
     on element width and format-specific exponent overhead.
     """
-    return {
+    tile_bytes = {
         "BFloat16": 32 * 32 * 2,
         "Float32": 32 * 32 * 4,
         "Int32": 32 * 32 * 4,
@@ -738,7 +737,14 @@ def _tile_bytes_from_dtype_name(name: str) -> int:
         "UInt8": 32 * 32,
         "BFP_BFloat8": 32 * 32 + 64,
         "BFP_BFloat4": 512 + 64,
-    }.get(name, 32 * 32 * 2)
+    }
+    try:
+        return tile_bytes[name]
+    except KeyError as e:
+        raise TTLangError(
+            f"resolve_operation: cannot compute tile size for unknown "
+            f"ttcore DataType {name!r}; expected one of {sorted(tile_bytes)}."
+        ) from e
 
 
 def _serialize_kernel_config(thread_type: str, cfg: Any, noc_kernel_idx: int) -> dict:
@@ -807,7 +813,15 @@ def _serialize_cb_config(cb: Any) -> dict:
     ):
         # Compiler-allocated DFB: format comes from a name string.
         name_map = {"bfloat16": "BFloat16", "float16": "BFloat16", "float32": "Float32"}
-        data_format = name_map.get(cb.data_format.lower(), "BFloat16")
+        fmt_key = cb.data_format.lower()
+        try:
+            data_format = name_map[fmt_key]
+        except KeyError as e:
+            raise TTLangError(
+                f"resolve_operation: unrecognized compiler-allocated DFB "
+                f"data_format {cb.data_format!r}; expected one of "
+                f"{sorted(name_map)}."
+            ) from e
         page_size = _tile_bytes_from_dtype_name(data_format)
         total_size = int(cb.num_tiles) * int(cb.block_count) * page_size
         return {
@@ -872,9 +886,9 @@ def _serialize_compiled_operation(
           ],
           "core_range":  {"start": [x, y], "end": [x, y]},
           "cb_configs":  [{...}, ...],            # see _serialize_cb_config
-          "num_tensors":      <int>,
-          "num_pipe_nets":    <int>,
-          "operand_metadata": { ... }             # see resolve_operation
+          "num_tensors":            <int>,
+          "num_pipe_sync_semaphores": <int>,
+          "operand_metadata":       { ... }       # see resolve_operation
         }
 
     Every field is structured (no Python ``repr`` strings). The cpp
@@ -886,6 +900,9 @@ def _serialize_compiled_operation(
     The TensorAccessor compile-time args are derived at execute time by
     the tt-mlir runtime from each operand's live ``Buffer*``; there is
     no correct value to bake at MLIR-translate time.
+
+    TODO: We should add a way to store and check tt-lang versions to
+    make sure the schema is intact.
     """
     kernels: List[dict] = []
     noc_idx = 0
@@ -909,18 +926,11 @@ def _serialize_compiled_operation(
         "core_range": _serialize_core_range(compiled.core_ranges),
         "cb_configs": [_serialize_cb_config(c) for c in compiled.cb_configs],
         "num_tensors": int(compiled.num_tensors),
-        # tt-lang renamed CompiledTTNNKernel.num_pipe_nets ->
-        # num_pipe_sync_semaphores (post-1.1.1 uplift); both name the same
-        # PipeNet sync-semaphore count. Keep the artifact key as
-        # "num_pipe_nets" (the tt-mlir flatbuffer parser reads that key) and
-        # fall back across ttl versions.
-        "num_pipe_nets": int(
-            getattr(
-                compiled,
-                "num_pipe_sync_semaphores",
-                getattr(compiled, "num_pipe_nets", 0),
-            )
-        ),
+        # PipeNet sync-semaphore count. tt-lang exposes this as
+        # CompiledTTNNKernel.num_pipe_sync_semaphores (renamed from
+        # num_pipe_nets in the post-1.1.1 uplift); the artifact uses the
+        # current name too.
+        "num_pipe_sync_semaphores": int(compiled.num_pipe_sync_semaphores),
     }
     if operand_metadata is not None:
         payload["operand_metadata"] = operand_metadata
