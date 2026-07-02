@@ -573,32 +573,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Prefill SDPA mask buffers — one per prefill bucket (num_tokens > 1).
         # Shape per bucket: [num_reqs, 1, num_tokens, num_blocks * block_size].
         # Constant shape lets warmup and runtime share a single traced graph.
-        self._prefill_attn_mask_dev_max: dict[int, torch.Tensor] = {}
-        self._prefill_attn_mask_dev_most: dict[int, torch.Tensor] = {}
+        # Keyed by (num_reqs, num_tokens): num_reqs follows the request-count
+        # bucketing (min/max) so the mask batch matches the query batch
+        # (target_num_reqs), like the page_table/cache_position buffers.
+        self._prefill_attn_mask_dev_max: dict[tuple[int, int], torch.Tensor] = {}
+        self._prefill_attn_mask_dev_most: dict[tuple[int, int], torch.Tensor] = {}
         for _nt in self.num_tokens_paddings:
             if _nt <= 1:
                 continue
-            self._prefill_attn_mask_dev_max[_nt] = _alloc_dev(
-                (
-                    self.num_reqs_max_model_len,
-                    1,
-                    _nt,
-                    self.max_num_blocks_per_req * self.block_size,
-                ),
-                self.dtype,
-            )
-            if self.most_model_len is not None:
-                assert self.num_reqs_most_model_len is not None
-                assert self.num_blocks_per_most_len_req is not None
-                self._prefill_attn_mask_dev_most[_nt] = _alloc_dev(
+            for _nr in {self.min_num_reqs, self.num_reqs_max_model_len}:
+                self._prefill_attn_mask_dev_max[(_nr, _nt)] = _alloc_dev(
                     (
-                        self.num_reqs_most_model_len,
+                        _nr,
                         1,
                         _nt,
-                        self.num_blocks_per_most_len_req * self.block_size,
+                        self.max_num_blocks_per_req * self.block_size,
                     ),
                     self.dtype,
                 )
+            if self.most_model_len is not None:
+                assert self.num_reqs_most_model_len is not None
+                assert self.num_blocks_per_most_len_req is not None
+                for _nr in {self.min_num_reqs, self.num_reqs_most_model_len}:
+                    self._prefill_attn_mask_dev_most[(_nr, _nt)] = _alloc_dev(
+                        (
+                            _nr,
+                            1,
+                            _nt,
+                            self.num_blocks_per_most_len_req * self.block_size,
+                        ),
+                        self.dtype,
+                    )
 
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
@@ -1325,17 +1330,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_mask: torch.Tensor | None = None
         if padded_total_num_scheduled_tokens > 1:
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+            # Mask batch must equal the query batch (target_num_reqs, the
+            # request-count bucket) -- not the fixed max -- else SDPA asserts
+            # "Attention mask batch size must match query batch size".
+            num_users_bucket = target_num_reqs
             if use_max_model_len:
-                num_users_bucket = self.num_reqs_max_model_len
                 kv_len = self.max_num_blocks_per_req * self.block_size
                 attn_mask_dev_buf = self._prefill_attn_mask_dev_max[
-                    padded_total_num_scheduled_tokens
+                    (target_num_reqs, padded_total_num_scheduled_tokens)
                 ]
             else:
-                num_users_bucket = self.num_reqs_most_model_len
                 kv_len = self.num_blocks_per_most_len_req * self.block_size
                 attn_mask_dev_buf = self._prefill_attn_mask_dev_most[
-                    padded_total_num_scheduled_tokens
+                    (target_num_reqs, padded_total_num_scheduled_tokens)
                 ]
             attn_mask_cpu = _build_prefill_attn_mask(
                 num_computed=num_computed,
@@ -2442,7 +2449,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         attn_mask = None
         if num_tokens > 1:
-            attn_mask = self._prefill_attn_mask_dev_max[num_tokens]
+            # Mask batch must match the dummy query batch (num_reqs). Clamp to
+            # the max-model-len request bucket the buffers are keyed on.
+            mask_num_reqs = min(num_reqs, self.num_reqs_max_model_len)
+            attn_mask = self._prefill_attn_mask_dev_max[(mask_num_reqs, num_tokens)]
 
         attn_metadata = TTMetadata(
             page_table=page_table,
