@@ -62,8 +62,6 @@ def _config(
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level > 0:
         additional["optimization_level"] = optimization_level
-        # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
-        additional["cpu_sampling"] = True
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     if _BENCH_KV_CACHE_DTYPE:
@@ -169,10 +167,14 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     # force-sets cpu_sampling=True at opt>=1 (device sampling + trace + opt>=1 is
     # rejected upstream). Reaching the device-sampling path needs that guard
     # relaxed and is out of scope for this benchmark entry.
+    # Validated Stage 1 production point on galaxy-wh-6u [8, 4]: b32 @ 8192
+    # context, GMU 0.66 -> concurrency >= 32 (no preemption), compiles + serves
+    # + captures trace without DRAM OOM. ~8.4 tok/s/user, TTFT ~9.9s (inflated by
+    # the FABRIC_1D degraded fabric, tt-metal #43210, and cpu_sampling=True).
     cfg = _config(
         model,
         batch_size,
-        gpu_memory_utilization=0.15,
+        gpu_memory_utilization=0.65,
         optimization_level=1,
         experimental_weight_dtype="bfp_bf8",
         experimental_kv_cache_dtype="bfp_bf8",
@@ -190,9 +192,14 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     cfg.limit_mm_per_prompt = {"image": 0}
     # Instruct-tuned: drive via the chat template for coherent output.
     cfg.use_chat_template = True
+    # Default to the validated 8192 target context; TT_BENCHMARK_MAX_MODEL_LEN
+    # still overrides (_config wires max_model_len to that env var, default 128).
+    if os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN") is None:
+        cfg.max_model_len = 8192
     # Optional: force a long generation so a short prompt still fills the context
-    # (e.g. TT_BENCHMARK_MAX_TOKENS=4096 with a ~12-token prompt exercises full
-    # 4096-token KV cache per sequence -- makes b32 concurrency actually bind).
+    # (e.g. TT_BENCHMARK_MAX_TOKENS=8192 with a ~12-token prompt exercises the
+    # full 8192-token KV cache per sequence -- makes b32 concurrency actually
+    # bind, as validated above).
     _bench_max_tokens = os.environ.get("TT_BENCHMARK_MAX_TOKENS")
     if _bench_max_tokens is not None:
         cfg.max_tokens = int(_bench_max_tokens)
