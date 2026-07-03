@@ -64,6 +64,16 @@ class LLMSamplingWrapper(torch.nn.Module):
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
+        if self.mesh is not None:
+            # argmax reduces over the vocab dim (TP-sharded), which tt-mlir miscompiles
+            # for a sharded dim, so pin vocab replicated to force the gather. Keep batch
+            # sharded (when known) to avoid a redundant DP all_gather + mesh_partition
+            # round-trip around the argmax.
+            batch_axis = (
+                self.output_sharding_spec[0] if self.output_sharding_spec else None
+            )
+            logits_spec = (batch_axis,) + (None,) * (logits.dim() - 1)
+            logits = sharding_constraint_tensor(logits, self.mesh, logits_spec)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
         next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
