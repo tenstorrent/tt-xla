@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
@@ -1332,6 +1332,118 @@ def paged_scaled_dot_product_attention_decode_fake(
 
 
 @torch.library.custom_op(
+    "tt::chunked_scaled_dot_product_attention",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def chunked_scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    chunk_start_idx_tensor: torch.Tensor,
+    scale: float = None,
+) -> torch.Tensor:
+    """Chunked prefill attention over a paged K/V cache.
+
+    A ``query`` chunk (prefix already in the paged cache) attends causally over
+    ``[0, chunk_start_idx + chunk_len)`` read from the cache via ``page_table``,
+    on device. The prefix offset comes from the device tensor
+    ``chunk_start_idx_tensor`` (the trace-compatible tensor overload of
+    ``ttnn.transformer.chunked_scaled_dot_product_attention``).
+
+    Shapes:
+        query                 [users, n_heads, chunk_len, head]
+        key / value (cache)   [num_blocks, n_kv_heads, block_size, head]
+        page_table            [users, num_blocks_per_user]   (full prefix+chunk)
+        chunk_start_idx_tensor [1] int32  (= num_computed)
+    Result: same shape/dtype as ``query``.
+    """
+    device = query.device
+
+    if device.type == "xla":
+        attrs = {}
+        if scale is not None:
+            attrs["scale"] = str(scale)
+        inputs = [query, key, value, page_table, chunk_start_idx_tensor]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.chunked_scaled_dot_product_attention",
+            [query.shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        # Reference: gather the full prefix+chunk K/V from the paged cache, then
+        # run causal+offset masked SDPA. Doubles as the equivalence oracle.
+        users, n_heads, chunk_len, head_size = query.shape
+        num_kv_heads = key.shape[1]
+        block_size = key.shape[2]
+        num_blocks_per_user = page_table.shape[1]
+        s_len = num_blocks_per_user * block_size
+        chunk_start = int(chunk_start_idx_tensor.reshape(-1)[0].item())
+
+        # [users, num_kv_heads, s_len, head_size] gathered per user.
+        flat_indices = page_table.reshape(-1)
+        gathered_k = torch.index_select(key, 0, flat_indices).view(
+            users, num_blocks_per_user, num_kv_heads, block_size, head_size
+        )
+        gathered_v = torch.index_select(value, 0, flat_indices).view(
+            users, num_blocks_per_user, num_kv_heads, block_size, head_size
+        )
+        gathered_k = (
+            gathered_k.permute(0, 2, 1, 3, 4)
+            .contiguous()
+            .reshape(users, num_kv_heads, s_len, head_size)
+        )
+        gathered_v = (
+            gathered_v.permute(0, 2, 1, 3, 4)
+            .contiguous()
+            .reshape(users, num_kv_heads, s_len, head_size)
+        )
+
+        # GQA: broadcast KV heads up to query heads.
+        if num_kv_heads != n_heads:
+            rep = n_heads // num_kv_heads
+            gathered_k = gathered_k.repeat_interleave(rep, dim=1)
+            gathered_v = gathered_v.repeat_interleave(rep, dim=1)
+
+        scale_val = 1.0 / head_size**0.5 if scale is None else scale
+        attn = torch.matmul(query, gathered_k.transpose(-2, -1)) * scale_val
+
+        # Causal+offset mask: query row i is absolute position chunk_start + i;
+        # it may attend key column j iff j <= chunk_start + i (and j < s_len).
+        q_pos = chunk_start + torch.arange(chunk_len, device=query.device).view(
+            chunk_len, 1
+        )
+        k_pos = torch.arange(s_len, device=query.device).view(1, s_len)
+        allowed = k_pos <= q_pos  # [chunk_len, s_len]
+        mask = torch.where(
+            allowed,
+            torch.zeros((), dtype=attn.dtype, device=query.device),
+            torch.full((), float("-inf"), dtype=attn.dtype, device=query.device),
+        )
+        attn = attn + mask.view(1, 1, chunk_len, s_len)
+        attn = torch.softmax(attn, dim=-1)
+        out = torch.matmul(attn, gathered_v)
+        return out  # [users, n_heads, chunk_len, head_size]
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@chunked_scaled_dot_product_attention.register_fake
+def chunked_scaled_dot_product_attention_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    chunk_start_idx_tensor: torch.Tensor,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
+
+
+@torch.library.custom_op(
     "tt::sparse_matmul", mutates_args=[], device_types=["xla", "cpu"]
 )
 def sparse_matmul(
@@ -2149,6 +2261,119 @@ def sampling_fake(
 ) -> torch.Tensor:
     batch = input_values.shape[0]
     return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
+
+
+# ---------------------------------------------------------------------------
+# tt::tt_lang_op -- variadic dispatcher for @tt_torch.tt_lang_operation
+# ---------------------------------------------------------------------------
+
+# The op carries the metadata the plugin needs to find the live kernel at
+# runtime; outputs are materialized from the user's pre-allocated "out"
+# operands so post-Shardy shape/dtype/layout is observable.
+
+
+def _validate_tt_lang_op_out_indices(
+    out_indices: Sequence[int], num_tensors: int
+) -> None:
+    if not out_indices:
+        raise ValueError("tt::tt_lang_op requires at least one 'out' operand.")
+    seen: set = set()
+    for idx in out_indices:
+        if not 0 <= idx < num_tensors:
+            raise ValueError(
+                f"out index {idx} is out of range for {num_tensors} operands."
+            )
+        if idx in seen:
+            raise ValueError(f"out index {idx} appears more than once.")
+        seen.add(idx)
+
+
+@torch.library.custom_op("tt::tt_lang_op", mutates_args=[], device_types=["xla"])
+def tt_lang_op(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
+
+    Emits ``stablehlo.custom_call @tt.tt_lang_op`` with
+    ``kernel_id`` / ``arg_roles`` / ``version_tag`` / ``shard_spec`` in
+    ``frontend_attributes``. The custom call's results mirror the
+    ``out``-tagged input tensors in shape and dtype, so the plugin sees
+    the real (post-Shardy) types.
+
+    The op is registered only for the XLA dispatch key; calling it on a
+    CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
+    refuses non-XLA tensors at the wrapper level for the same reason,
+    so this dispatch error should only be reachable via direct calls
+    to ``torch.ops.tt.tt_lang_op``. Fake-tensor / Dynamo tracing goes
+    through ``_tt_lang_op_fake`` below.
+    """
+    if not tensors:
+        raise ValueError("tt::tt_lang_op requires at least one tensor operand.")
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+
+    output_shapes = [list(tensors[i].shape) for i in out_indices]
+    output_dtypes = [tensors[i].dtype for i in out_indices]
+
+    frontend_attributes = {
+        "kernel_id": kernel_id,
+        "arg_roles": arg_roles,
+        "version_tag": version_tag,
+    }
+    if shard_spec:
+        frontend_attributes["shard_spec"] = shard_spec
+
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        list(tensors),
+        "tt.tt_lang_op",
+        output_shapes,
+        output_dtypes,
+        frontend_attributes=frontend_attributes,
+    )
+    if isinstance(result, torch.Tensor):
+        return [result]
+    return list(result)
+
+
+@tt_lang_op.register_fake
+def _tt_lang_op_fake(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+    return [tensors[i].clone() for i in out_indices]
+
+
+def tt_lang_op_dispatch(
+    tensors: Sequence[torch.Tensor],
+    *,
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: Sequence[int],
+) -> List[torch.Tensor]:
+    """Keyword-only wrapper around ``torch.ops.tt.tt_lang_op``.
+
+    Lets @tt_torch.tt_lang_operation call sites read cleanly without remembering the
+    positional argument order.
+    """
+    return torch.ops.tt.tt_lang_op(
+        list(tensors),
+        kernel_id,
+        arg_roles,
+        version_tag,
+        shard_spec,
+        list(out_indices),
+    )
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow

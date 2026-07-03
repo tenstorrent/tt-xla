@@ -98,6 +98,19 @@ moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
   return public_func_ops[0].getNumArguments() > 0;
 }
 
+// Returns true if any sharding genuinely partitions a tensor across devices
+// (`MeshShardType::Devices`). Replicate / presharded-replicate shardings do not
+// count, since they do not require a multi-device mesh.
+static bool anyShardedAcrossDevices(
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+  return std::any_of(
+      shardings.begin(), shardings.end(),
+      [](const mlir::tt::sharding_utils::MeshSharding &sharding) {
+        return sharding.getShardType() ==
+               mlir::tt::ttcore::MeshShardType::Devices;
+      });
+}
+
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -286,7 +299,7 @@ ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
     const std::unordered_map<std::string, std::string> &compile_options_map,
-    ClientInstance *client_instance, size_t target_num_devices) {
+    ClientInstance *client_instance) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
@@ -358,10 +371,10 @@ ModuleBuilder::buildModule(
       parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
                   : std::nullopt;
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name,
-                                        current_mesh_shape, target_num_devices);
+  status = runCompilerStableHLOPipeline(
+      mlir_module, result_presharded, output_shardings,
+      compile_options.export_path, compile_options.export_model_name,
+      current_mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -736,21 +749,27 @@ std::vector<int64_t> ModuleBuilder::collectResultPresharded(
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<int64_t> &result_presharded,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
-    const std::optional<std::vector<uint32_t>> &current_mesh_shape,
-    size_t target_num_devices) {
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // A no-input graph on a multi-device run must adopt the full mesh: a no-input
-  // replicated value (e.g. a const-folded torch.arange) would otherwise default
-  // to 1x1, collapse the mesh, and break the live sharded buffers.
-  // See https://github.com/tenstorrent/tt-xla/issues/5360
+  // A graph with no inputs inherits the full device mesh so that a genuinely
+  // distributed result lands on all devices (see #4439). But that is only
+  // correct when something is actually sharded across devices: a no-input graph
+  // that merely produces a replicated value (e.g. gemma's standalone
+  // `sqrt(hidden_size)` scalar normalizer) is executed on a single device, so
+  // stamping it with the full mesh inflates the device count and breaks
+  // execution with a "Device count mismatch" error. Only adopt the full mesh
+  // when a result is genuinely device-sharded; otherwise let it default to a
+  // single device.
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      !moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1) {
+      !moduleHasAnyFuncArguments(mlir_module) &&
+      anyShardedAcrossDevices(output_shardings)) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};
@@ -1041,6 +1060,30 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
+
+  // The resolveTTLangKernels pass walks `ttnn.tt_lang_op` ops and invokes the
+  // tt-lang compiler to compile each kernel through the
+  // tt_torch.tt_lang.resolve_operation via pybind11. The output of the compiler
+  // is then added back as the `kernel_artifact` attribute on the op.
+  mlir::tt::ttnn::TTNNResolveTTLangKernelsOptions resolve_options;
+  // The pass takes mesh-shape as a comma-separated string so the
+  // pipeline-options machinery (which doesn't natively support
+  // std::vector<uint32_t>) can round-trip it. Empty -> the pass defaults
+  // to `[1]`.
+  std::string mesh_csv;
+  for (size_t i = 0; i < devices_mesh_shape.size(); ++i) {
+    if (i != 0) {
+      mesh_csv.push_back(',');
+    }
+    mesh_csv += std::to_string(devices_mesh_shape[i]);
+  }
+  resolve_options.meshShape = std::move(mesh_csv);
+  ttir_to_ttnn_pm.addPass(
+      mlir::tt::ttnn::createTTNNResolveTTLangKernels(resolve_options));
+
+  // Lower each now-resolved `ttnn.tt_lang_op` to `ttnn.generic` op
+  ttir_to_ttnn_pm.addPass(mlir::tt::ttnn::createTTNNLowerTTLangToGeneric());
+
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
