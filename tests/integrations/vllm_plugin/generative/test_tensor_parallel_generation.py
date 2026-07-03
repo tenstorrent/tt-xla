@@ -84,11 +84,15 @@ def test_tensor_parallel_generation_llmbox_small(
         "experimental_weight_dtype",
         "mesh_shape",
         "opt_level",
+        "flat_model_io",
     ],
     [
-        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0),
-        pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1),
-        pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0),
+        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0, False),
+        pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
+        pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
+        # TODO - change opt_level to 1 once these issues: tt-mlir#8919 and tt-mlir#8920 are
+        # fixed and uplifted
+        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -96,6 +100,7 @@ def test_tensor_parallel_generation_llmbox_large(
     experimental_weight_dtype: str,
     mesh_shape: list[int],
     opt_level: int,
+    flat_model_io: bool,
 ):
     prompts = [
         "I like taking walks in the",
@@ -113,6 +118,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
+            "flat_model_io": flat_model_io,
         },
     }
     llm = vllm.LLM(**llm_args)

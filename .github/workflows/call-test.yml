@@ -135,6 +135,7 @@ jobs:
           venv/
           examples/
           scripts/
+          mixed_precision/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -156,6 +157,12 @@ jobs:
       env:
         JOB_ID: ${{ job.check_run_id }}
       run: |
+        # Check if --dump-irs is in matrix.build.args
+        if [[ "${{ matrix.build.args }}" == *"--dump-irs"* ]]; then
+          echo "dump-irs=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "dump-irs=${{ inputs.dump_irs }}" >> "$GITHUB_OUTPUT"
+        fi
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
@@ -191,7 +198,16 @@ jobs:
 
         echo "=== Installing wheel ==="
         source venv/activate
-        uv pip install wheels/*.whl
+        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" ]]; then
+          # tt-lang's wheel metadata caps numpy<2, but tt-lang works with numpy 2.x.
+          # vllm (via opencv-python-headless>=4.13) requires numpy>=2, so pjrt_plugin_tt
+          # and vllm_tt cannot co-resolve. Override the stale cap; every other
+          # dependency still resolves normally.
+          echo 'numpy>=2' > wheels/numpy-override.txt
+          uv pip install --override wheels/numpy-override.txt wheels/*.whl
+        else
+          uv pip install wheels/*.whl
+        fi
 
     - name: Install custom torch_xla from workflow run
       if: ${{ inputs.torchxla_build_run_id != '' }}
@@ -338,7 +354,7 @@ jobs:
           $CONTAINS_ARG \
           $PYTEST_SPLITS"
 
-        if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
+        if [[ "${{ inputs.dump_irs }}" == "true" && "${{ matrix.build.args }}" != *"--dump-irs"* ]]; then
           BASE_PYTEST_CMD="$BASE_PYTEST_CMD --dump-irs"
         fi
 
@@ -371,7 +387,12 @@ jobs:
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
-        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        COLLECTED_TESTS=$(grep "::" collected_tests.txt | tr '\n' ' ' || true)
+        if [[ -n "$COLLECTED_TESTS" ]]; then
+          NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $COLLECTED_TESTS 2>/dev/null | grep -c "::" || true)
+        else
+          NOTIMEOUT_COUNT=0
+        fi
         if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
           echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
           ESTIMATED_DURATION=240
@@ -441,7 +462,7 @@ jobs:
         if-no-files-found: 'ignore'
 
     - name: Prune oversized IR dump folders
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       shell: bash
       run: |
         ir_root="collected_irs"
@@ -463,7 +484,7 @@ jobs:
         done
 
     - name: Upload IR Dumps
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       uses: actions/upload-artifact@v6
       with:
         name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}

@@ -3,17 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression test: no XLA graph recompiles after warmup across an ISL sweep.
 
-Warms up, then sweeps prompt lengths across every prefill token-bucket of a 4K
-context and asserts the XLA cached-graph count does not grow — i.e. all prefill
-graphs were precompiled at init. A single transformer layer keeps compile fast.
+Sweeps prompt lengths over every prefill token-bucket of a 4K context and asserts
+the XLA cached-graph count does not grow. Chunked prefill is on, so ISLs above
+the chunk split into continuation chunks routed through the chunked-SDPA op --
+covering the cached-prefix warmup in _precompile_model_fused, whose graph must be
+precompiled at init or the first continuation chunk recompiles mid-serving.
 
-Reading the (process-local) graph counter requires the engine to run in-process
-(VLLM_ENABLE_V1_MULTIPROCESSING=0), which initializes the XLA computation cache
-in this process. That cache is a once-only process singleton, so doing this in
-the shared pytest worker poisons every subsequent vLLM test ("Computation cache
-has already been initialized"). To isolate it, the pytest test re-execs this
-file as a worker in a throwaway child process; the env var and the cache init
-live and die with the child.
+The graph counter is process-local, so the engine must run in-process
+(VLLM_ENABLE_V1_MULTIPROCESSING=0), which inits the once-only XLA computation
+cache; to avoid poisoning other vLLM tests, pytest re-execs this file as a
+throwaway child worker.
 """
 import os
 import subprocess
@@ -26,10 +25,15 @@ MODEL = "Qwen/Qwen3-0.6B"
 MAX_LEN = 4096
 MAX_TOKENS = 4
 
-# ISLs covering each prefill bucket (128/256/512/1024/2048/4096), mixing power-of-
-# two (aligned) and non-power-of-two (padded up) lengths:
-#   128->128, 200->256, 512->512, 1000->1024, 2048->2048, 3000->4096, 4000->4096
+# Per-seq chunk (< MAX_LEN enables chunked prefill / the chunked-SDPA path).
+PREFILL_CHUNK = 512
+
+# ISLs covering each prefill bucket, mixing aligned and padded-up lengths.
+# Those above PREFILL_CHUNK split into continuation chunks.
 SWEEP_ISLS = (128, 200, 512, 1000, 2048, 3000, 4000)
+
+# No continuation chunk => chunked-prefix path untested (silent pass).
+assert max(SWEEP_ISLS) > PREFILL_CHUNK
 
 WORKER_TIMEOUT = 1800
 
@@ -73,10 +77,14 @@ def _run_sweep():
         model=MODEL,
         max_model_len=MAX_LEN,
         max_num_seqs=1,
-        max_num_batched_tokens=MAX_LEN,
         gpu_memory_utilization=0.1,
-        enable_prefix_caching=False,  # each ISL fully prefills its own bucket
-        additional_config={"num_hidden_layers": 1, "min_context_len": 128},
+        enable_prefix_caching=False,
+        # platform.py derives max_num_batched_tokens from prefill_chunk_size.
+        additional_config={
+            "num_hidden_layers": 1,
+            "min_context_len": 128,
+            "prefill_chunk_size": PREFILL_CHUNK,
+        },
     )
     sp = vllm.SamplingParams(temperature=0.0, max_tokens=MAX_TOKENS)
 
