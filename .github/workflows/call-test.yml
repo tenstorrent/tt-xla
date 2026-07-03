@@ -135,6 +135,7 @@ jobs:
           venv/
           examples/
           scripts/
+          mixed_precision/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
