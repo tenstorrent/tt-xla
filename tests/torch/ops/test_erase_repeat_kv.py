@@ -105,22 +105,39 @@ def _enable_gqa_flags(gm):
     return [sn.kwargs.get("enable_gqa", None) for sn in _sdpa_nodes(gm)]
 
 
+def _kv_operands_are_rewired(gm):
+    """True if every SDPA key/value operand is a plain source, not a repeat_kv node.
+
+    Confirms the operand was rewired past the expansion, independent of whether the
+    now-dead expansion node has been eliminated (the pass intentionally leaves DCE
+    to the mutation-aware export pipeline).
+    """
+    repeat_targets = {"reshape", "view", "expand", "repeat_interleave"}
+    for sn in _sdpa_nodes(gm):
+        for pos, kw in ((1, "key"), (2, "value")):
+            op = _sdpa_operand(sn, pos, kw)
+            if op.op == "call_method" and op.target in repeat_targets:
+                return False
+            if op.op == "call_function" and op.target is torch.repeat_interleave:
+                return False
+    return True
+
+
 def run_pass(module, inputs):
     """Dynamo-capture module.forward, apply erase_repeat_kv, assert numerics, return info.
 
-    Returns a dict with the transformed GraphModule and before/after node counts.
+    The pass rewires SDPA operands but intentionally does NOT eliminate dead nodes
+    (that is left to the mutation-aware export pipeline), so we assert on the SDPA
+    operands rather than on global expansion-node counts. `*_before` counts confirm
+    the repeat_kv pattern was actually present pre-pass.
     """
     torch._dynamo.reset()
     info = {}
 
     def backend(gm, example_inputs):
         info["expand_before"] = _count(gm, "call_method", "expand")
-        info["reshape_before"] = _count(gm, "call_method", "reshape")
         info["ri_before"] = _count_repeat_interleave(gm)
         erase_repeat_kv(gm)
-        info["expand_after"] = _count(gm, "call_method", "expand")
-        info["reshape_after"] = _count(gm, "call_method", "reshape")
-        info["ri_after"] = _count_repeat_interleave(gm)
         info["gm"] = gm
         return gm.forward
 
@@ -161,10 +178,11 @@ def test_hf_repeat_kv_is_erased(n_rep, kv_heads):
     q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
     info = run_pass(M(), (q, k, v))
 
-    # Both key and value expansions removed.
+    # The repeat_kv pattern was present pre-pass...
     assert info["expand_before"] == 2
-    assert info["expand_after"] == 0
-    # SDPA now consumes non-inflated K/V and is told to broadcast heads.
+    # ...and SDPA now consumes non-inflated K/V (rewired past the expansion) and
+    # is told to broadcast heads on device.
+    assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True]
 
@@ -188,7 +206,7 @@ def test_repeat_interleave_form_is_erased():
     info = run_pass(M(), (q, k, v))
 
     assert info["ri_before"] == 2
-    assert info["ri_after"] == 0
+    assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True]
 
@@ -213,7 +231,7 @@ def test_explicit_unsqueeze_repeat_kv_is_erased():
     info = run_pass(M(), (q, k, v))
 
     assert info["expand_before"] == 2
-    assert info["expand_after"] == 0
+    assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True]
 
@@ -241,7 +259,7 @@ def test_attn_mask_and_scale_are_preserved():
     info = run_pass(M(), (q, k, v, mask))
 
     gm = info["gm"]
-    assert info["expand_after"] == 0
+    assert _kv_operands_are_rewired(gm)
     assert _kv_head_counts(gm) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(gm) == [True]
     # attn_mask and scale must survive the rewrite untouched.
@@ -267,7 +285,7 @@ def test_keyword_key_value_operands_are_erased():
     q, k, v = _qkv(1, kv_heads * n_rep, kv_heads, 16, 32)
     info = run_pass(M(), (q, k, v))
 
-    assert info["expand_after"] == 0
+    assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True]
 
@@ -291,7 +309,7 @@ def test_multiple_attention_layers_all_erased():
     info = run_pass(M(), (q0, k0, v0, q1, k1, v1))
 
     assert info["expand_before"] == 4
-    assert info["expand_after"] == 0
+    assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads), (kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True, True]
 
@@ -309,18 +327,20 @@ def test_shared_repeat_kv_keeps_other_consumer():
         def forward(self, q, k, v):
             k_inflated = repeat_kv_hf(k, n_rep)
             out = SDPA(q, k_inflated, repeat_kv_hf(v, n_rep))
-            # k_inflated is also returned -> expansion cannot be fully DCE'd.
+            # k_inflated is also returned -> the shared expansion must stay intact
+            # for the second consumer while SDPA is rewired past it.
             return out, k_inflated
 
     q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
     info = run_pass(M(), (q, k, v))
 
     gm = info["gm"]
-    # SDPA operands are non-inflated and enable_gqa is set...
+    # SDPA operand is rewired to the non-inflated key and enable_gqa is set...
+    assert _kv_operands_are_rewired(gm)
     assert _kv_head_counts(gm) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(gm) == [True]
-    # ...but the expansion feeding the second output is preserved (1 of 2 remains).
-    assert info["expand_after"] == 1
+    # ...while the returned k_inflated (32 heads) is preserved -- verified by the
+    # numerics check in run_pass, which compares the full (out, k_inflated) tuple.
 
 
 # ===========================================================================
@@ -408,7 +428,9 @@ def test_repeat_interleave_on_wrong_axis_not_erased():
     v = torch.randn(1, heads, 16 * n_rep, 32)
     info = run_pass(M(), (q, k, v))
 
-    assert info["ri_after"] == info["ri_before"] == 1
+    assert info["ri_before"] == 1
+    # Key operand still routes through repeat_interleave (not rewired), no enable_gqa.
+    assert not _kv_operands_are_rewired(info["gm"])
     assert _enable_gqa_flags(info["gm"]) == [None]
 
 

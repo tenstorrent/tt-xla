@@ -339,7 +339,16 @@ def erase_repeat_kv(gm: torch.fx.GraphModule) -> None:
             )
 
     if changed:
-        gm.graph.eliminate_dead_code()
+        # NOTE: deliberately do NOT call gm.graph.eliminate_dead_code() here.
+        # In KV-cache models the pre-inflation source is a cache tensor written
+        # by an in-place `update_cache` (RoPE'd K/V). Once SDPA is rewired to read
+        # that source directly, the bypassed repeat_kv (expand/reshape) becomes
+        # dead -- but a dynamo-stage eliminate_dead_code() is not mutation-aware
+        # and would also drop the in-place cache write (and its RoPE), silently
+        # corrupting attention (observed PCC ~0.3, all update_cache ops removed).
+        # The orphaned repeat_kv nodes are pure and are cleaned up later by the
+        # mutation-aware torch.export / run_decompositions pipeline, which
+        # preserves the cache mutations.
         gm.graph.lint()
         gm.recompile()
 
