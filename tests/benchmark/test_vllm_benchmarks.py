@@ -147,30 +147,10 @@ def _gemma4_tp_config(model: str, batch_size: int):
 def _mistral_small_31_tp_config(model: str, batch_size: int):
     # Mistral-Small-3.1 is a Pixtral-based multimodal model, benchmarked
     # text-only (limit_mm_per_prompt zeroed so the vision tower never compiles),
-    # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u (32 devices).
+    # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u in a 8x4 mesh.
     #
-    # mesh_shape=[8, 4] = 4-way tensor-parallel (model axis) x 8-way batch/data
-    # axis. This matches the TP width validated for this 24B model on n300-llmbox
-    # ([2, 4], also model axis 4) and keeps 2 KV heads/device (Mistral has 8 KV
-    # heads). The mesh factoring is a perf choice to benchmark, not a correctness
-    # one; both factorings are SPMD-equivalent. (The alternative [4, 8] widens TP
-    # to 8, collapsing KV heads to 1/device, which also trips the tt-metal
-    # sdpa_decode tree-reduction cap.)
-    #
-    # Production knobs per FORGE_MODEL_INTEGRATION_GUIDE Stage 1: opt level 1,
-    # bfp_bf8 weights + KV cache, trace (enable_trace defaults True in _config),
-    # const-eval, batch 32, and b1-prefill optimization (min_num_seqs=1 +
-    # prefill_batch_threshold=16). Context length and GPU-memory utilization are
-    # swept at run time via TT_BENCHMARK_MAX_MODEL_LEN / TT_BENCHMARK_GMU.
-    #
-    # Deviation from the doc's cpu_sampling=false (on-device) target: _config
-    # force-sets cpu_sampling=True at opt>=1 (device sampling + trace + opt>=1 is
-    # rejected upstream). Reaching the device-sampling path needs that guard
-    # relaxed and is out of scope for this benchmark entry.
-    # Validated Stage 1 production point on galaxy-wh-6u [8, 4]: b32 @ 8192
-    # context, GMU 0.66 -> concurrency >= 32 (no preemption), compiles + serves
-    # + captures trace without DRAM OOM. ~8.4 tok/s/user, TTFT ~9.9s (inflated by
-    # the FABRIC_1D degraded fabric, tt-metal #43210, and cpu_sampling=True).
+    # Validated max_model_len of 8192 at GMU of 0.65, but the current default
+    # of max_model_len i 128, so it needs to be overriden through the env. var.
     cfg = _config(
         model,
         batch_size,
@@ -192,17 +172,6 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     cfg.limit_mm_per_prompt = {"image": 0}
     # Instruct-tuned: drive via the chat template for coherent output.
     cfg.use_chat_template = True
-    # Default to the validated 8192 target context; TT_BENCHMARK_MAX_MODEL_LEN
-    # still overrides (_config wires max_model_len to that env var, default 128).
-    if os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN") is None:
-        cfg.max_model_len = 8192
-    # Optional: force a long generation so a short prompt still fills the context
-    # (e.g. TT_BENCHMARK_MAX_TOKENS=8192 with a ~12-token prompt exercises the
-    # full 8192-token KV cache per sequence -- makes b32 concurrency actually
-    # bind, as validated above).
-    _bench_max_tokens = os.environ.get("TT_BENCHMARK_MAX_TOKENS")
-    if _bench_max_tokens is not None:
-        cfg.max_tokens = int(_bench_max_tokens)
     return cfg
 
 
