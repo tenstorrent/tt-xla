@@ -1,0 +1,468 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""
+Unit tests for the ``erase_repeat_kv`` FX pass (tt_torch/backend/passes.py).
+
+The pass rewrites the key/value operands of ``scaled_dot_product_attention`` from
+their grouped-query ``repeat_kv`` head-expansion to the non-inflated source and
+sets ``enable_gqa=True`` instead, so the downstream (composite / ttnn) SDPA can
+broadcast the KV heads on device.
+
+These are pure graph-transformation tests: they dynamo-capture a module's forward
+graph, run the pass on it directly, and assert on both the resulting graph
+structure (what was / wasn't rewritten) and numerical equivalence against eager.
+No Tenstorrent device is required. The SDPA math backend is pinned so eager and
+transformed executions use the same kernel and compare bit-for-bit.
+"""
+
+import pytest
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch_xla  # noqa: F401  # pass import chain registers xla custom ops
+from torch.nn.attention import SDPBackend, sdpa_kernel
+from tt_torch.backend.passes import (
+    _SDPA_HEAD_AXIS_FROM_END,
+    _fx_node_shape,
+    _normalize_dim,
+    _sdpa_operand,
+    erase_repeat_kv,
+)
+
+from utils import Category
+
+SDPA = torch.nn.functional.scaled_dot_product_attention
+
+
+# ---------------------------------------------------------------------------
+# Helpers: repeat_kv variants
+# ---------------------------------------------------------------------------
+def repeat_kv_hf(hidden: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """HF-style repeat_kv: unsqueeze-after-head -> expand -> reshape (interleaved)."""
+    b, h, s, d = hidden.shape
+    if n_rep == 1:
+        return hidden
+    hidden = hidden[:, :, None, :, :].expand(b, h, n_rep, s, d)
+    return hidden.reshape(b, h * n_rep, s, d)
+
+
+def repeat_kv_explicit_unsqueeze(hidden: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """repeat_kv using an explicit .unsqueeze(head+1) instead of None-indexing.
+
+    Exercises the second unsqueeze form in _match_unsqueeze_after; the None-index
+    form in repeat_kv_hf exercises the first.
+    """
+    b, h, s, d = hidden.shape
+    if n_rep == 1:
+        return hidden
+    hidden = hidden.unsqueeze(2).expand(b, h, n_rep, s, d)
+    return hidden.reshape(b, h * n_rep, s, d)
+
+
+def repeat_kv_tile_via_unsqueeze(hidden: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """Tile-style expansion: unsqueeze *before* head -> expand -> reshape.
+
+    Produces block ordering (head = r*Hkv + hkv), which is NOT what enable_gqa
+    does, so the pass must refuse to rewrite it.
+    """
+    b, h, s, d = hidden.shape
+    hidden = hidden[:, None, :, :, :].expand(b, n_rep, h, s, d)
+    return hidden.reshape(b, n_rep * h, s, d)
+
+
+# ---------------------------------------------------------------------------
+# Helpers: capture + run
+# ---------------------------------------------------------------------------
+def _count(gm, op, target) -> int:
+    return sum(1 for n in gm.graph.nodes if n.op == op and n.target == target)
+
+
+def _count_repeat_interleave(gm) -> int:
+    return sum(
+        1
+        for n in gm.graph.nodes
+        if (n.op == "call_function" and n.target is torch.repeat_interleave)
+        or (n.op == "call_method" and n.target == "repeat_interleave")
+    )
+
+
+def _sdpa_nodes(gm):
+    return [n for n in gm.graph.nodes if n.op == "call_function" and n.target is SDPA]
+
+
+def _kv_head_counts(gm):
+    """Return list of (key_heads, value_heads) per SDPA node."""
+    out = []
+    for sn in _sdpa_nodes(gm):
+        k = _fx_node_shape(_sdpa_operand(sn, 1, "key"))
+        v = _fx_node_shape(_sdpa_operand(sn, 2, "value"))
+        out.append((k[-_SDPA_HEAD_AXIS_FROM_END], v[-_SDPA_HEAD_AXIS_FROM_END]))
+    return out
+
+
+def _enable_gqa_flags(gm):
+    return [sn.kwargs.get("enable_gqa", None) for sn in _sdpa_nodes(gm)]
+
+
+def run_pass(module, inputs):
+    """Dynamo-capture module.forward, apply erase_repeat_kv, assert numerics, return info.
+
+    Returns a dict with the transformed GraphModule and before/after node counts.
+    """
+    torch._dynamo.reset()
+    info = {}
+
+    def backend(gm, example_inputs):
+        info["expand_before"] = _count(gm, "call_method", "expand")
+        info["reshape_before"] = _count(gm, "call_method", "reshape")
+        info["ri_before"] = _count_repeat_interleave(gm)
+        erase_repeat_kv(gm)
+        info["expand_after"] = _count(gm, "call_method", "expand")
+        info["reshape_after"] = _count(gm, "call_method", "reshape")
+        info["ri_after"] = _count_repeat_interleave(gm)
+        info["gm"] = gm
+        return gm.forward
+
+    # Pin the SDPA math backend so eager and transformed use the same kernel and
+    # the enable_gqa substitution compares exactly.
+    with sdpa_kernel(SDPBackend.MATH):
+        eager = module(*inputs)
+        compiled = torch.compile(module, backend=backend, fullgraph=True)
+        transformed = compiled(*inputs)
+
+    torch.testing.assert_close(transformed, eager)
+    return info
+
+
+def _qkv(batch, q_heads, kv_heads, seq, dim, dtype=torch.float32):
+    q = torch.randn(batch, q_heads, seq, dim, dtype=dtype)
+    k = torch.randn(batch, kv_heads, seq, dim, dtype=dtype)
+    v = torch.randn(batch, kv_heads, seq, dim, dtype=dtype)
+    return q, k, v
+
+
+# ===========================================================================
+# Positive cases: repeat_kv should be erased
+# ===========================================================================
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+@pytest.mark.parametrize("n_rep", [2, 4, 8])
+@pytest.mark.parametrize("kv_heads", [1, 2])
+def test_hf_repeat_kv_is_erased(n_rep, kv_heads):
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(q, repeat_kv_hf(k, n_rep), repeat_kv_hf(v, n_rep))
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    # Both key and value expansions removed.
+    assert info["expand_before"] == 2
+    assert info["expand_after"] == 0
+    # SDPA now consumes non-inflated K/V and is told to broadcast heads.
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_repeat_interleave_form_is_erased():
+    kv_heads, n_rep = 2, 4
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(
+                q,
+                k.repeat_interleave(n_rep, dim=-3),
+                v.repeat_interleave(n_rep, dim=-3),
+            )
+
+    q, k, v = _qkv(1, kv_heads * n_rep, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert info["ri_before"] == 2
+    assert info["ri_after"] == 0
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_explicit_unsqueeze_repeat_kv_is_erased():
+    """repeat_kv built with .unsqueeze() rather than None-indexing (matcher form 2)."""
+    kv_heads, n_rep = 2, 4
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(
+                q,
+                repeat_kv_explicit_unsqueeze(k, n_rep),
+                repeat_kv_explicit_unsqueeze(v, n_rep),
+            )
+
+    q, k, v = _qkv(1, kv_heads * n_rep, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert info["expand_before"] == 2
+    assert info["expand_after"] == 0
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_attn_mask_and_scale_are_preserved():
+    kv_heads, n_rep, seq = 2, 4, 16
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v, mask):
+            return SDPA(
+                q,
+                repeat_kv_hf(k, n_rep),
+                repeat_kv_hf(v, n_rep),
+                attn_mask=mask,
+                scale=0.123,
+            )
+
+    q, k, v = _qkv(1, q_heads, kv_heads, seq, 32)
+    mask = torch.zeros(1, q_heads, seq, seq, dtype=torch.float32)
+    info = run_pass(M(), (q, k, v, mask))
+
+    gm = info["gm"]
+    assert info["expand_after"] == 0
+    assert _kv_head_counts(gm) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(gm) == [True]
+    # attn_mask and scale must survive the rewrite untouched.
+    (sn,) = _sdpa_nodes(gm)
+    assert sn.kwargs.get("scale") == 0.123
+    mask_operand = sn.kwargs.get("attn_mask")
+    assert mask_operand is not None
+    assert _fx_node_shape(mask_operand) == (1, q_heads, seq, seq)
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_keyword_key_value_operands_are_erased():
+    kv_heads, n_rep = 2, 4
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            # key/value passed by keyword -> exercises the kwargs write-back path.
+            return SDPA(q, key=repeat_kv_hf(k, n_rep), value=repeat_kv_hf(v, n_rep))
+
+    q, k, v = _qkv(1, kv_heads * n_rep, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert info["expand_after"] == 0
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_multiple_attention_layers_all_erased():
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q0, k0, v0, q1, k1, v1):
+            a = SDPA(q0, repeat_kv_hf(k0, n_rep), repeat_kv_hf(v0, n_rep))
+            b = SDPA(q1, repeat_kv_hf(k1, n_rep), repeat_kv_hf(v1, n_rep))
+            return a + b
+
+    q0, k0, v0 = _qkv(1, q_heads, kv_heads, 16, 32)
+    q1, k1, v1 = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q0, k0, v0, q1, k1, v1))
+
+    assert info["expand_before"] == 4
+    assert info["expand_after"] == 0
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads), (kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True, True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_shared_repeat_kv_keeps_other_consumer():
+    """If the inflated K/V also feeds a non-SDPA consumer, only SDPA is rewired."""
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            k_inflated = repeat_kv_hf(k, n_rep)
+            out = SDPA(q, k_inflated, repeat_kv_hf(v, n_rep))
+            # k_inflated is also returned -> expansion cannot be fully DCE'd.
+            return out, k_inflated
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    gm = info["gm"]
+    # SDPA operands are non-inflated and enable_gqa is set...
+    assert _kv_head_counts(gm) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(gm) == [True]
+    # ...but the expansion feeding the second output is preserved (1 of 2 remains).
+    assert info["expand_after"] == 1
+
+
+# ===========================================================================
+# Negative cases: pass must NOT rewrite
+# ===========================================================================
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_plain_mha_untouched():
+    heads = 8
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(q, k, v)
+
+    q, k, v = _qkv(1, heads, heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert _kv_head_counts(info["gm"]) == [(heads, heads)]
+    # No expansion existed, so enable_gqa is never introduced.
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_tile_repeat_not_erased():
+    """torch.repeat / tile ordering differs from enable_gqa -> must not be rewritten."""
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(q, k.repeat(1, n_rep, 1, 1), v.repeat(1, n_rep, 1, 1))
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    # K/V stay inflated and enable_gqa is not set.
+    assert _kv_head_counts(info["gm"]) == [(q_heads, q_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_unsqueeze_before_head_not_erased():
+    """expand+reshape with the rep dim inserted before the head axis is tile order."""
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            return SDPA(
+                q,
+                repeat_kv_tile_via_unsqueeze(k, n_rep),
+                repeat_kv_tile_via_unsqueeze(v, n_rep),
+            )
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert _kv_head_counts(info["gm"]) == [(q_heads, q_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_repeat_interleave_on_wrong_axis_not_erased():
+    """repeat_interleave along a non-head axis must not be treated as repeat_kv."""
+    heads, n_rep = 8, 2
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            # Interleave along seq (dim=-2), not heads -> different semantics.
+            return SDPA(q, k.repeat_interleave(n_rep, dim=-2), v)
+
+    q = torch.randn(1, heads, 16 * n_rep, 32)
+    k = torch.randn(1, heads, 16, 32)
+    v = torch.randn(1, heads, 16 * n_rep, 32)
+    info = run_pass(M(), (q, k, v))
+
+    assert info["ri_after"] == info["ri_before"] == 1
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_pass_is_noop_without_sdpa():
+    class M(nn.Module):
+        def forward(self, x):
+            return x @ x.transpose(-1, -2)
+
+    x = torch.randn(1, 4, 8, 8)
+    info = run_pass(M(), (x,))
+    assert _sdpa_nodes(info["gm"]) == []
+
+
+# ===========================================================================
+# Direct unit tests for small helpers
+# ===========================================================================
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_normalize_dim():
+    assert _normalize_dim(-3, 4) == 1
+    assert _normalize_dim(-1, 4) == 3
+    assert _normalize_dim(1, 4) == 1
+    assert _normalize_dim(0, 4) == 0
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_sdpa_operand_positional_and_keyword():
+    """_sdpa_operand resolves operands whether positional or keyword."""
+    torch._dynamo.reset()
+    captured = {}
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            # value passed by keyword, key positional
+            return SDPA(q, k, value=v)
+
+    def backend(gm, example_inputs):
+        captured["gm"] = gm
+        return gm.forward
+
+    q, k, v = _qkv(1, 4, 4, 8, 16)
+    torch.compile(M(), backend=backend, fullgraph=True)(q, k, v)
+
+    (sn,) = _sdpa_nodes(captured["gm"])
+    # query + key positional; value keyword.
+    assert _fx_node_shape(_sdpa_operand(sn, 0, "query")) == (1, 4, 8, 16)
+    assert _fx_node_shape(_sdpa_operand(sn, 1, "key")) == (1, 4, 8, 16)
+    assert _fx_node_shape(_sdpa_operand(sn, 2, "value")) == (1, 4, 8, 16)
