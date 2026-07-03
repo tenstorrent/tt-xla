@@ -445,6 +445,11 @@ def benchmark_llm_torch_xla(
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        # Register the mesh globally so mesh-aware experts backends (tt_moe,
+        # tt_moe_fused) can read it via torch_xla get_global_mesh(); plain
+        # mark_sharding does not set the global mesh. Non-mesh backends
+        # (tt_dense) never call get_global_mesh(), so this is inert for them.
+        xs.set_global_mesh(mesh)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)

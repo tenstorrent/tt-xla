@@ -39,6 +39,12 @@ REDUCTION_SIZE = 32
 # the batch size; configurable via register_tt_moe_backend().
 DEFAULT_MOE_DECODE_TOKEN_THRESHOLD = 32
 
+# Default output_height_shard_dim for the emitted tt.moe_decode op. tt-mlir's
+# moe_compute requires this to be positive (it drives the data-parallel
+# tilize-drain core layout); 4 matches the tt-mlir op default. Configurable via
+# register_tt_moe_backend().
+DEFAULT_MOE_OUTPUT_HEIGHT_SHARD_DIM = 4
+
 # HF built-in backend keys — patched validator falls through for these.
 _HF_BUILTIN_EXPERTS_KEYS = frozenset({"eager", "grouped_mm", "batched_mm", "deepgemm"})
 
@@ -48,6 +54,7 @@ _config: dict = {
     "moe_decode_activation": "silu",
     "moe_decode_token_threshold": DEFAULT_MOE_DECODE_TOKEN_THRESHOLD,
     "moe_use_interleaved_gate_up": False,
+    "moe_output_height_shard_dim": DEFAULT_MOE_OUTPUT_HEIGHT_SHARD_DIM,
 }
 
 
@@ -624,7 +631,7 @@ def _tt_moe_decode_forward(
         bias2=bias2,
         cluster_axis=cluster_axis,
         layer_id=layer_id,
-        output_height_shard_dim=0,
+        output_height_shard_dim=_config["moe_output_height_shard_dim"],
         intermediate_size=intermediate_size,
         activation_function=_config["moe_decode_activation"],
     )  # [K, M, H]
@@ -679,6 +686,7 @@ def register_tt_moe_backend(
     moe_decode_activation: str = "silu",
     moe_decode_token_threshold: int = DEFAULT_MOE_DECODE_TOKEN_THRESHOLD,
     use_interleaved: bool = False,
+    moe_output_height_shard_dim: int = DEFAULT_MOE_OUTPUT_HEIGHT_SHARD_DIM,
 ) -> None:
     """Register tt_moe, tt_dense and tt_moe_fused backends. Idempotent and
     re-entrant: re-resolves transformers each call so it survives a version swap.
@@ -694,6 +702,9 @@ def register_tt_moe_backend(
             tt.moe_decode — ``False`` for concat ``[gate | up]`` packing
             (default), ``True`` for interleaved ``[g0, u0, g1, u1, ...]`` packing
             (e.g. GPT-OSS). The caller sets this to match the model under test.
+        moe_output_height_shard_dim: ``output_height_shard_dim`` stamped onto the
+            emitted tt.moe_decode op; must be positive (tt-mlir's moe_compute
+            rejects 0). Defaults to 4 (the tt-mlir op default).
     """
     global _original_validator, ALL_EXPERTS_FUNCTIONS, ExpertsInterface
     global PreTrainedModel
@@ -710,11 +721,17 @@ def register_tt_moe_backend(
             f"moe_decode_activation must be 'silu' or 'swiglu', got "
             f"{moe_decode_activation!r}"
         )
+    if moe_output_height_shard_dim <= 0:
+        raise ValueError(
+            f"moe_output_height_shard_dim must be positive, got "
+            f"{moe_output_height_shard_dim}"
+        )
 
     _config["cluster_axis"] = cluster_axis
     _config["moe_decode_activation"] = moe_decode_activation
     _config["moe_decode_token_threshold"] = moe_decode_token_threshold
     _config["moe_use_interleaved_gate_up"] = use_interleaved
+    _config["moe_output_height_shard_dim"] = moe_output_height_shard_dim
     ExpertsInterface.register(TT_MOE_BACKEND_NAME, tt_experts_forward)
     if TT_MOE_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_MOE_BACKEND_NAME} registration failed")

@@ -1114,6 +1114,16 @@ def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
     return (1, num_devices), ("batch", "model")
 
 
+def _gpt_oss_20b_2x4_mesh_config_fn(model_loader, num_devices):
+    # 2D (2, num_devices//2) mesh: data-parallel over "batch", tensor/expert
+    # parallel over "model". Used by the tt_moe_fused decode path: the fused
+    # all_to_all_dispatch + moe_compute (selective-reduce-combine) is exercised on
+    # tt-metal only on 2D meshes; the 1D 1x8 ring deadlocks the combine on
+    # n300-llmbox (see MOE_COMPUTE_LLMBOX_HANG_BUGREPORT.md). Experts shard along
+    # "model" (axis 1), so tt_moe_fused must run with cluster_axis=1.
+    return (2, num_devices // 2), ("batch", "model")
+
+
 def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     shard_specs = {}
     for layer in model.model.layers:
@@ -1176,6 +1186,12 @@ def test_gpt_oss_20b_tp(
 # all_to_all_dispatch + moe_compute decode kernel (experts EP-sharded along the
 # "model" axis). GPT-OSS packs its fused gate_up weight interleaved and uses the
 # clamped SwiGLU, so use_interleaved=True + activation "swiglu" are required.
+#
+# Runs on a 2x4 2D mesh (NOT a 1x8 1D mesh): the fused moe_compute
+# selective-reduce-combine is only supported on 2D meshes on tt-metal; on a 1x8
+# 1D ring it deadlocks the inter-chip fabric on n300-llmbox
+# (MOE_COMPUTE_LLMBOX_HANG_BUGREPORT.md). Experts shard along "model" (axis 1),
+# so the backend is registered with cluster_axis=1.
 def test_gpt_oss_20b_tp_moe_fused(
     output_file,
     num_layers,
@@ -1198,6 +1214,7 @@ def test_gpt_oss_20b_tp_moe_fused(
     # (batch * seq) stays on the dense path while decode emits tt.moe_decode.
     bs = batch_size if batch_size is not None else DEFAULT_BATCH_SIZE
     register_tt_moe_backend(
+        cluster_axis=1,  # experts are EP-sharded along "model" (axis 1) of the 2x4 mesh
         use_interleaved=True,
         moe_decode_activation="swiglu",
         moe_decode_token_threshold=bs,
@@ -1215,7 +1232,7 @@ def test_gpt_oss_20b_tp_moe_fused(
             batch_size=bs,
             max_output_tokens=max_output_tokens,
             decode_only=decode_only,
-            mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+            mesh_config_fn=_gpt_oss_20b_2x4_mesh_config_fn,
             shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
             trace_enabled=False,
             optimization_level=1,
