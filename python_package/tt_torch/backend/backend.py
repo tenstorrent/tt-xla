@@ -30,6 +30,7 @@ from .passes import (
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
     clamp_neg_slice_bounds,
+    erase_repeat_kv,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -62,6 +63,7 @@ def torch_pass_pipeline(
         "tt_enable_composite_ops", True
     )
     if enable_composite_ops:
+        erase_repeat_kv(gm)
         handle_composite_ops(gm)
 
     decompositions = populate_decompositions()
