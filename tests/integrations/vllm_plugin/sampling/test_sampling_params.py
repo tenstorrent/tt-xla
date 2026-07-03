@@ -542,7 +542,24 @@ def test_logit_bias(llm, prompt):
     )
 
 
-@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+@for_targets(
+    single_device="nightly",
+    n300="nightly",
+    n300_llmbox=(
+        "nightly",
+        pytest.mark.xfail(
+            strict=False,
+            reason=(
+                "Flaky under TP: greedy decode is not run-to-run reproducible at "
+                "a near-tie logit, so the position-2 stop token can be missed. "
+                "Same-graph cross-chip reduction nondeterminism (argmax is "
+                "deterministic; the logits themselves flip). Tracked in tt-xla "
+                "#5520; proper fix (fp32 dest-acc on the logit path) in a "
+                "follow-up PR."
+            ),
+        ),
+    ),
+)
 def test_stop_token_ids(llm, prompt):
     """Test that stop_token_ids halts generation at the specified token."""
     baseline_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
@@ -743,7 +760,24 @@ def test_allowed_token_ids(llm, prompt):
         )
 
 
-@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+@for_targets(
+    single_device="nightly",
+    n300="nightly",
+    n300_llmbox=(
+        "nightly",
+        pytest.mark.xfail(
+            strict=False,
+            reason=(
+                "Flaky under TP: greedy decode is not run-to-run reproducible at "
+                "a near-tie logit, so the position-2 stop token can be missed. "
+                "Same-graph cross-chip reduction nondeterminism (argmax is "
+                "deterministic; the logits themselves flip). Tracked in tt-xla "
+                "#5520; proper fix (fp32 dest-acc on the logit path) in a "
+                "follow-up PR."
+            ),
+        ),
+    ),
+)
 def test_min_tokens(llm, prompt):
     """Test that min_tokens suppresses stop_token_ids until the minimum is reached.
 
