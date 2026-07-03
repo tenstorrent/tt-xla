@@ -137,6 +137,16 @@ jobs:
           scripts/
           mixed_precision/
 
+    - name: Multihost SSH pre-flight check (dual t3k)
+      # Fail fast before any test setup if the SSH agent socket is dead or the
+      # controller (f10cs03) cannot SSH into the worker (f10cs04).
+      if: ${{ matrix.build.topology == 'dual_t3k' }}
+      shell: bash
+      env:
+        SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+      run: |
+        .github/scripts/multihost-ssh-precheck.sh f10cs04 ubuntu
+
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
       shell: bash
