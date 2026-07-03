@@ -152,7 +152,7 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u in a 8x4 mesh.
     #
     # Validated max_model_len of 8192 at GMU of 0.65, but the current default
-    # of max_model_len i 128, so it needs to be overriden through the env. var.
+    # of max_model_len is 128, so it needs to be overriden through the env. var.
     cfg = _config(
         model,
         batch_size,
