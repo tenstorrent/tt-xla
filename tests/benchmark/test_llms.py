@@ -30,6 +30,7 @@ DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.94
+DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING = False
 
 
 def default_read_logits_fn(output):
@@ -69,6 +70,7 @@ def test_llm(
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
+    enable_activation_dtype_lowering: bool = DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -170,6 +172,7 @@ def test_llm(
         use_indexer_cache=use_indexer_cache,
         enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
         experts_implementation=experts_implementation,
+        enable_activation_dtype_lowering=enable_activation_dtype_lowering,
     )
 
     if output_file:
@@ -1894,6 +1897,10 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        # Lower activations to bfp8 around the MLP/O-proj CCL ops to cut the bytes
+        # the collectives move. Validated on the full 80-layer model: TOP1 mean
+        # 95.95% vs 95.80% baseline, TOP5 100% in both, so accuracy is preserved.
+        enable_activation_dtype_lowering=True,
     )
 
 

@@ -23,7 +23,7 @@ from vllm.v1.attention.backend import (
     AttentionType,
 )
 
-from .logger import tt_init_logger
+from ..logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
 
@@ -177,6 +177,12 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Chunked-prefill prefix offset: device [1] int32 = num_computed (shared
+    # across users by same-stage batching). Set only on a cached-prefix chunk;
+    # consumed by the chunked_scaled_dot_product_attention op.
+    chunk_start_idx: torch.Tensor
+    batch_idx: Optional[torch.Tensor] = None
+    num_users: Optional[int] = None
 
     def __init__(
         self,
@@ -186,6 +192,9 @@ class TTMetadata:
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
         dp_size: int = 1,
+        chunk_start_idx: torch.Tensor | None = None,
+        batch_idx: torch.Tensor | None = None,
+        num_users: Optional[int] = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -197,6 +206,9 @@ class TTMetadata:
         # Number of batch shards; used by paged_fill_cache to rebase batch_idx
         # into per-shard local ids.
         self.dp_size = dp_size
+        self.chunk_start_idx = chunk_start_idx
+        self.num_users = num_users
+        self.batch_idx = batch_idx
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -282,7 +294,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
-
+        assert attn_metadata is not None, "TT attention requires metadata."
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
@@ -322,14 +334,8 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Prepare and reshape input tensors for attention computation."""
         from collections import namedtuple
 
-        # Extract common metadata
-        # Handle case when cache_position is None (e.g., during profiling)
-        if attn_metadata is not None and attn_metadata.cache_position is not None:
-            num_users = attn_metadata.cache_position.shape[0]  # logical batch size
-        else:
-            # Fallback: infer from query shape
-            num_users = query.shape[0] if query.ndim > 2 else 1
-
+        num_users = attn_metadata.num_users
+        assert num_users is not None, "num_users must be provided in attn_metadata."
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 
@@ -491,13 +497,10 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
-            # TODO(#5154): hoist to a setup-time metadata input built on CPU
-            # instead of an in-graph device constructor rebuilt per call.
-            batch_idxs = torch.arange(
-                key_for_update.shape[0],
-                dtype=torch.int32,
-                device=k_cache.device,
-            )
+            # batch_idx is now built on CPU at setup time (#5154, done upstream)
+            # and passed via metadata rather than constructed in-graph per call.
+            batch_idxs = attn_metadata.batch_idx
+            assert batch_idxs is not None, "batch_idx must be provided for prefill."
             # paged_fill_cache expects batch_idx local to each batch shard, but
             # it's sharded — so % local_batch rebases it to local ids (no-op
             # when dp_size == 1).
@@ -535,12 +538,36 @@ class TTAttentionBackendImpl(AttentionImpl):
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
         """
-        shared_kv_mode = (
-            self.kv_sharing_target_layer_name is not None
-            and isinstance(kv_cache, (list, tuple))
+        has_paged_cache = (
+            isinstance(kv_cache, (list, tuple))
             and len(kv_cache) >= 2
             and kv_cache[0].numel() > 0
         )
+        shared_kv_mode = (
+            self.kv_sharing_target_layer_name is not None and has_paged_cache
+        )
+        # Cached-prefix path: a chunk whose prefix is in the paged cache attends
+        # over it via chunked_scaled_dot_product_attention (mask + offset internal,
+        # no host mask/gather). The model runner sets chunk_start_idx only when
+        # chunking occurs and the kernel supports the layout (_chunked_sdpa_active),
+        # else it stays None (standard path). The trigger is Python-level, so it
+        # traces as a distinct graph -- no data-dependent control flow.
+        chunked_prefix = (
+            attn_metadata.chunk_start_idx is not None
+            and has_paged_cache
+            and not shared_kv_mode
+        )
+        if chunked_prefix:
+            chunked_out = torch.ops.tt.chunked_scaled_dot_product_attention(
+                inputs.query.transpose(-3, -2),  # [users, n_heads, chunk_len, head]
+                kv_cache[0],
+                kv_cache[1],
+                attn_metadata.page_table,
+                attn_metadata.chunk_start_idx,
+                scale=self.scale,
+            )
+            # Back to [users, tokens, num_heads, head_size].
+            return chunked_out.transpose(-3, -2)
 
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]

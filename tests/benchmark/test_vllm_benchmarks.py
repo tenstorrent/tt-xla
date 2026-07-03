@@ -37,6 +37,10 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+# Opt-in chunked prefill (tt-xla #4986): caps per-step prefill budget so
+# compile time + peak prefill DRAM are bounded by the chunk size, not
+# max_model_len. 0 / unset = disabled (unchanged behavior).
+_BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
 
 
 def _config(
@@ -44,7 +48,7 @@ def _config(
     batch_size: int = 32,
     *,
     gpu_memory_utilization: float = 0.05,
-    optimization_level: int = 0,
+    optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
     fp32_dest_acc_en: bool | None = False,
     **additional_config_extra,
@@ -60,7 +64,7 @@ def _config(
         additional["experimental_weight_dtype"] = experimental_weight_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
-    if optimization_level > 0:
+    if optimization_level:
         additional["optimization_level"] = optimization_level
         # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
         additional["cpu_sampling"] = True
@@ -77,6 +81,8 @@ def _config(
         additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
     if _BENCH_TRACE is not None:
         additional["enable_trace"] = _BENCH_TRACE == "1"
+    if _BENCH_PREFILL_CHUNK_SIZE is not None:
+        additional["prefill_chunk_size"] = int(_BENCH_PREFILL_CHUNK_SIZE)
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
@@ -92,6 +98,7 @@ def _tp_config(
     batch_size: int,
     *,
     gpu_memory_utilization: float = 0.1,
+    optimization_level: int = 2,
     **additional_config_extra,
 ):
     tp_defaults = {
@@ -111,6 +118,7 @@ def _tp_config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
+        optimization_level=optimization_level,
         # Keep TP configs as-is: the single-device alignment defaults
         # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
@@ -131,6 +139,8 @@ def _gemma4_tp_config(model: str, batch_size: int):
         model,
         batch_size,
         gpu_memory_utilization=0.2,
+        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
+        optimization_level=1,
         enable_tensor_parallel=True,
         min_context_len=32,
         enable_const_eval=True,
@@ -192,11 +202,16 @@ TP_CONFIGS = [
             "tiiuae/Falcon3-7B-Base",
             32,
             mesh_shape=[2, 4],
+            # opt-level 2 fails with an L1/circular-buffer clash; see #5438.
+            optimization_level=1,
         ),
         id="falcon3-7b-tp",
     ),
     pytest.param(
-        _tp_config("tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4]),
+        # opt-level 2 fails with an L1/circular-buffer clash; see #5439.
+        _tp_config(
+            "tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4], optimization_level=1
+        ),
         id="falcon3-10b-tp",
     ),
     pytest.param(_tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]), id="qwen3-8b-tp"),
@@ -318,6 +333,20 @@ def _embedding_config(
     )
 
 
+EMBEDDING_CONFIGS = [
+    # Trace disabled: host/device tensor shape mismatch
+    # (https://github.com/tenstorrent/tt-xla/issues/3936)
+    pytest.param(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
+        ),
+        id="qwen3-embedding-4b-batch1",
+    ),
+    pytest.param(_embedding_config("BAAI/bge-m3", 1), id="bge-m3-batch1"),
+    pytest.param(_embedding_config("BAAI/bge-m3", 32), id="bge-m3-batch32"),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -334,33 +363,6 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
         print(f"Results written to {output_file}")
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
-def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config(
-            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
-        ),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 1),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch32(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 32),
-        output_file,
-        request,
-    )
-
-
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
 def test_vllm_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
@@ -369,3 +371,8 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
+def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
