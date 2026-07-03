@@ -470,7 +470,27 @@ def _get_custom_decompositions() -> DecompositionTable:
     }
 
 
-def populate_decompositions() -> DecompositionTable:
+def addmm_keep_input_dtype(self, mat1, mat2, beta=1, alpha=1):
+    """addmm decomposition that does NOT upcast operands to f32.
+
+    torch._decomp's addmm is wrapped in @pw_cast_for_opmath, which upcasts bf16/
+    fp16 operands to f32 for the mm and downcasts the result. That materializes
+    matmul weights in f32 — fine normally, but for models that fuse many matmuls
+    sharing one input into a single large weight (e.g. HunyuanVideo's AdaLayerNorm
+    modulation), the f32 weight can blow the DRAM budget. This variant keeps the
+    inputs' dtype (bf16 stays bf16); device accumulation precision is still
+    governed by fp32_dest_acc_en. Opt-in via the tt_preserve_matmul_input_dtype
+    compile option.
+    """
+    out = torch.mm(mat1, mat2)
+    if beta == 0:
+        return alpha * out
+    return alpha * out + beta * self
+
+
+def populate_decompositions(
+    preserve_matmul_input_dtype: bool = False,
+) -> DecompositionTable:
     decompositions = torch._decomp.core_aten_decompositions()
 
     # Pytorch folds batch dimensions of bmms https://github.com/pytorch/pytorch/blob/a5436a5e8e4ee42d1debf52c2786c7ae0043a434/aten/src/ATen/native/LinearAlgebra.cpp#L1999.
@@ -485,5 +505,10 @@ def populate_decompositions() -> DecompositionTable:
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
+
+    # Override the f32-upcasting addmm decomposition with a dtype-preserving one.
+    # Must come after the updates above so it wins.
+    if preserve_matmul_input_dtype:
+        decompositions[torch.ops.aten.addmm.default] = addmm_keep_input_dtype
 
     return decompositions

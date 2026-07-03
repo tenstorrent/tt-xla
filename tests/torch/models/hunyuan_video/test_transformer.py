@@ -19,9 +19,6 @@ def test_transformer():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 75497472 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4790"
-)
 def test_transformer_sharded():
     _run(sharded=True)
 
@@ -43,10 +40,17 @@ def _run(sharded: bool):
         mesh = get_mesh(mesh_shape, mesh_names)
         shard_spec_fn = loader.load_shard_spec
 
+    # Keep matmul/linear operands in bf16 during device compilation instead of the
+    # default f32 upcast. Otherwise the fused AdaLayerNorm modulation weight is
+    # materialized in f32 (~3.4 GB) and OOMs DRAM. This only affects the TT
+    # compile path; the CPU golden is unchanged.
+    torch_options = {"tt_preserve_matmul_input_dtype": True}
+
     run_graph_test(
         model,
         inputs,
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
+        torch_options=torch_options,
     )

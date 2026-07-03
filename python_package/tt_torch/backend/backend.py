@@ -64,7 +64,15 @@ def torch_pass_pipeline(
     if enable_composite_ops:
         handle_composite_ops(gm)
 
-    decompositions = populate_decompositions()
+    # When set, decompose matmul/linear without upcasting operands to f32 (keeps
+    # bf16 weights bf16). Opt-in per model to avoid changing device numerics
+    # globally.
+    preserve_matmul_input_dtype = (
+        bool(options.get("tt_preserve_matmul_input_dtype", False)) if options else False
+    )
+    decompositions = populate_decompositions(
+        preserve_matmul_input_dtype=preserve_matmul_input_dtype
+    )
 
     program = torch.export.export(
         gm,
