@@ -288,6 +288,25 @@ def _sdpa_operand(node: torch.fx.Node, pos: int, name: str):
     return node.kwargs.get(name)
 
 
+def count_inplace_mutations(gm: torch.fx.GraphModule) -> int:
+    """Count in-place tensor-method mutations (trailing-underscore call_method nodes).
+
+    These (e.g. `Tensor.copy_` used for KV-cache fills, `index_copy_`, `masked_fill_`)
+    are represented as ``call_method`` nodes, which ``torch.fx.Node.is_impure()`` treats
+    as *pure* (FX only schema-checks mutability for ``call_function``). So a pre-export
+    ``gm.graph.eliminate_dead_code()`` will silently delete them when they have no SSA
+    users -- corrupting buffer/cache writes (see erase_repeat_kv). Used by the dynamo-
+    stage pass guard in the backend to fail loudly if any such mutation is dropped.
+    """
+    return sum(
+        1
+        for n in gm.graph.nodes
+        if n.op == "call_method"
+        and isinstance(n.target, str)
+        and n.target.endswith("_")
+    )
+
+
 def erase_repeat_kv(gm: torch.fx.GraphModule) -> None:
     """
     Erase grouped-query `repeat_kv` head-expansion off the key/value operands of

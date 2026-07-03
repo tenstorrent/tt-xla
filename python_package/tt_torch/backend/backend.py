@@ -30,6 +30,7 @@ from .passes import (
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
     clamp_neg_slice_bounds,
+    count_inplace_mutations,
     erase_repeat_kv,
     handle_composite_ops,
     insert_argument_type_markers,
@@ -46,6 +47,13 @@ def torch_pass_pipeline(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
+
+    # Count in-place mutations (e.g. Tensor.copy_ KV-cache fills) before the dynamo-
+    # stage passes. These are call_method nodes that torch.fx treats as pure, so a
+    # pre-export eliminate_dead_code() in any pass would silently drop them and corrupt
+    # buffer/cache writes. We assert none are lost across the passes below (they are
+    # only safely functionalized by torch.export further down). See erase_repeat_kv.
+    mutations_before = count_inplace_mutations(gm)
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -65,6 +73,18 @@ def torch_pass_pipeline(
     if enable_composite_ops:
         erase_repeat_kv(gm)
         handle_composite_ops(gm)
+
+    mutations_after = count_inplace_mutations(gm)
+    if mutations_after < mutations_before:
+        raise RuntimeError(
+            f"Dynamo-stage passes dropped "
+            f"{mutations_before - mutations_after} in-place mutation op(s) "
+            f"(before={mutations_before}, after={mutations_after}). These are "
+            f"call_method ops like Tensor.copy_ (e.g. KV-cache fills) which torch.fx "
+            f"treats as pure; a pass most likely called gm.graph.eliminate_dead_code() "
+            f"before torch.export functionalization, silently corrupting buffer/cache "
+            f"writes. Remove the pre-export DCE or make it mutation-aware."
+        )
 
     decompositions = populate_decompositions()
 

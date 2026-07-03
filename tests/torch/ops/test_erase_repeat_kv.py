@@ -27,6 +27,7 @@ from tt_torch.backend.passes import (
     _fx_node_shape,
     _normalize_dim,
     _sdpa_operand,
+    count_inplace_mutations,
     erase_repeat_kv,
 )
 
@@ -137,7 +138,9 @@ def run_pass(module, inputs):
     def backend(gm, example_inputs):
         info["expand_before"] = _count(gm, "call_method", "expand")
         info["ri_before"] = _count_repeat_interleave(gm)
+        info["mutations_before"] = count_inplace_mutations(gm)
         erase_repeat_kv(gm)
+        info["mutations_after"] = count_inplace_mutations(gm)
         info["gm"] = gm
         return gm.forward
 
@@ -341,6 +344,69 @@ def test_shared_repeat_kv_keeps_other_consumer():
     assert _enable_gqa_flags(gm) == [True]
     # ...while the returned k_inflated (32 heads) is preserved -- verified by the
     # numerics check in run_pass, which compares the full (out, k_inflated) tuple.
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_kv_cache_copy_mutation_is_preserved():
+    """Regression: the pass must not drop in-place KV-cache writes (Tensor.copy_).
+
+    A prefill KV-cache fill is a `call_method copy_` that torch.fx treats as pure, so
+    a blanket eliminate_dead_code() in the pass would delete it once SDPA is rewired
+    past the repeat_kv (observed as PCC ~0.3, all fill_cache/RoPE ops removed). The
+    pass must rewire SDPA yet leave the mutation intact for torch.export to
+    functionalize.
+    """
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("kcache", torch.zeros(1, kv_heads, 16, 32))
+
+        def forward(self, q, k, v):
+            self.kcache.copy_(k)  # in-place cache fill -> call_method copy_
+            return SDPA(q, repeat_kv_hf(self.kcache, n_rep), repeat_kv_hf(v, n_rep))
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    # The cache write must survive the pass (this is the actual PCC=0.3 regression).
+    assert info["mutations_before"] >= 1
+    assert info["mutations_after"] == info["mutations_before"]
+    # SDPA is still rewired to the non-inflated cache tensor + enable_gqa.
+    assert _kv_operands_are_rewired(info["gm"])
+    assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [True]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_count_inplace_mutations_counts_copy():
+    """count_inplace_mutations detects trailing-underscore in-place call_method ops."""
+    torch._dynamo.reset()
+    captured = {}
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("buf", torch.zeros(4))
+
+        def forward(self, x):
+            self.buf.copy_(x)
+            return x + 1
+
+    def backend(gm, example_inputs):
+        captured["count"] = count_inplace_mutations(gm)
+        return gm.forward
+
+    torch.compile(M(), backend=backend, fullgraph=True)(torch.randn(4))
+    assert captured["count"] >= 1
 
 
 # ===========================================================================
