@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: '0 0 * * 1-6'
     - cron: '0 0 * * 0' # on Sundays, run with dump_irs=true
-  workflow_dispatch:
 
 permissions:
   contents: write
