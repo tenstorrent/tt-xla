@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
+#
 # Serve Qwen3-0.6B from previously emitted TTNN codegen instead of compiling.
 #
 #   1. emit once (offline) to populate the codegen dir:
@@ -16,7 +16,6 @@
 # against the saved subdirs and run the (optionally edited) main.py, skipping
 # SHLO->TTIR->TTNN compilation. The server's "spawn" workers inherit this env
 # var. The flags below MUST match the emit run (qwen.py) so the hashes line up.
-#
 
 set -euo pipefail
 

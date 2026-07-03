@@ -361,9 +361,7 @@ ModuleBuilder::buildModule(
   }
 
   // Stable identity of the graph (hash of the SHLO module text), used by the
-  // codegen emit/load helpers to key the saved graph directory. Kept as a local
-  // -- it's derived state, not a user-set compile option, so it is passed
-  // explicitly rather than stored on CompileOptions.
+  // codegen emit/load helpers to key the saved graph directory.
   std::string graph_hash;
   if (is_codegen_py || is_codegen_py_load) {
     graph_hash = computeGraphHash(mlir_module);
