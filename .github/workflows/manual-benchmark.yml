@@ -125,7 +125,7 @@ jobs:
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
-      sh-runner: 'true'
+      sh-runner: true
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       check_fusions: ${{ inputs.check_fusions }}
 
