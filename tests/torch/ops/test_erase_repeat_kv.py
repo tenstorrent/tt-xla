@@ -30,7 +30,6 @@ from tt_torch.backend.passes import (
     count_inplace_mutations,
     erase_repeat_kv,
 )
-
 from utils import Category
 
 SDPA = torch.nn.functional.scaled_dot_product_attention
