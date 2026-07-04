@@ -63,7 +63,7 @@ torchcodec
 # for CLIP metric in tests
 open_clip_torch==2.32.0
 
-# tt-lang (light build, 05/29).
+# tt-lang (light build, 07/03).
 # SYNC WITH tt-metal: tt-lang generates kernel code (TTNN/tt-metal C++) that
 # must match the tt-metal API/ABI it runs against. tt-mlir (pinned in
 # third_party) points to a specific tt-metal, and tt-xla executes the
@@ -71,4 +71,4 @@ open_clip_torch==2.32.0
 # tt-lang version whose generated code is compatible with the tt-metal that
 # our current tt-mlir points to. When tt-mlir (and thus its tt-metal) is
 # uplifted, this tt-lang pin must be uplifted in sync.
-tt_lang==1.1.1.dev20260529+light
+tt_lang@https://pypi.eng.aws.tenstorrent.com/13adda8/tt-lang/tt_lang-1.1.5.dev20260703%2Blight-cp312-cp312-manylinux_2_34_x86_64.whl#sha256=71a1a10a5df9e6a4b8bd40caf87e85a641d50af3cb9be7e41a821189925ce95a
