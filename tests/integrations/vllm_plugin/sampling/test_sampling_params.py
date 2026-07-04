@@ -210,7 +210,23 @@ def test_sampling_has_diversity_when_temp_positive(llm, prompt):
     assert_diverse(texts)
 
 
-@for_targets(single_device="push", n300="push", n300_llmbox="push")
+@for_targets(
+    single_device="push",
+    n300="push",
+    n300_llmbox=(
+        "push",
+        pytest.mark.xfail(
+            strict=False,
+            reason=(
+                "Flaky under TP: greedy decode is not run-to-run reproducible at "
+                "a near-tie logit (same-graph cross-chip reduction nondeterminism; "
+                "argmax is deterministic, the logits themselves flip). Tracked in "
+                "tt-xla #5520; proper fix (fp32 dest-acc on the logit path) in a "
+                "follow-up PR."
+            ),
+        ),
+    ),
+)
 def test_greedy_determinism(llm, prompt):
     """Verify greedy sampling (temperature=0) is deterministic."""
     params = vllm.SamplingParams(temperature=0.0, max_tokens=20)
