@@ -2360,6 +2360,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not (prefix_chunk and num_tokens == 1)
         ]
 
+        # Compile largest buckets first so the biggest pinned trace buffers get a
+        # clean DRAM arena, avoiding fragmentation OOMs at long context (#5522).
+        configs.sort(key=lambda c: (c["num_reqs"], c["num_tokens"]), reverse=True)
+
         for config in configs:
             if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
                 logger.debug(
@@ -2742,9 +2746,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 torch_xla.sync()
 
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
-        for num_tokens in self.num_tokens_paddings:
-            for warmup_num_reqs in num_reqs_options:
+        # Largest-first, as in _precompile_model_fused, to avoid fragmentation (#5522).
+        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs}, reverse=True)
+        for warmup_num_reqs in num_reqs_options:
+            for num_tokens in reversed(self.num_tokens_paddings):
                 _run_backbone_dummies(num_tokens, warmup_num_reqs, prefix_chunk=False)
                 # Precompile the cached-prefix graph for prompt chunks
                 # (num_tokens > 1) so it isn't compiled on the first continuation.
