@@ -1363,14 +1363,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if target_num_reqs == self.min_num_reqs
+            else self.batch_idx_max_reqs
+        )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # page_table / cache_position must share the K/V input's per-device
-            # leading dim, so shard them on "batch" to match the sharded inputs.
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs. batch_idx feeds paged_fill_cache, whose verifier
+            # requires its dim0 to equal the per-device batch.
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
             if fill_page_table is not page_table:
                 safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
@@ -1409,11 +1417,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table=fill_page_table,
             dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if target_num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=target_num_reqs,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -2185,14 +2189,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if num_reqs == self.min_num_reqs
+            else self.batch_idx_max_reqs
+        )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # page_table / cache_position must share the K/V input's per-device
-            # leading dim, so shard them on "batch" to match the sharded inputs.
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs (batch_idx feeds paged_fill_cache).
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
 
         # prefix_chunk=True precompiles the cached-prefix prefill graph: chunk_start_idx
         # routes attention through the chunked SDPA op. Only reached when the op is
@@ -2216,11 +2227,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dp_size=self.dp_size,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=num_reqs,
         )
 
@@ -2556,12 +2563,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if num_reqs == self.min_num_reqs
+            else self.batch_idx_max_reqs
+        )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
+            # batch_idx feeds paged_fill_cache; shard it on "batch" like
+            # page_table / cache_position so its per-device dim0 matches the
+            # DP-sharded K/V input.
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
 
         # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
         # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
@@ -2583,11 +2599,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table=fill_page_table,
             dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=num_reqs,
         )
         per_layer_attn_metadata = dict.fromkeys(
