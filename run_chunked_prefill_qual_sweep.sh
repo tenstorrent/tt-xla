@@ -19,21 +19,21 @@ TRACE=1
 CPU_SAMPLING=0          # device sampling
 KV_CACHE_DTYPE=bfp_bf8  # BFP8 KV (weights BFP8 by default)
 BATCH=32
-# Per-model chunk + gmu: the expected-to-work chunk-2048 config with the tt-xla
-# largest-first precompile reorder (#5523). Falcon3-7B cannot fit chunk 2048 at
-# any practical gmu (head_dim 256 -> 2.81 GiB prefill buffer), so it stays at 1024.
+# Per-model chunk + gmu: the shipping chunk-1024 production config (cnn.yaml /
+# FINDINGS qualification matrix). All models at chunk 1024; gmu 0.5 for the 3B/4B,
+# 0.35 for the 7-8B.
 declare -A MODEL_CHUNK=(
-  ["llama-3.2-3b"]=2048
-  ["llama-3.1-8b"]=2048
-  ["qwen3-8b"]=2048
-  ["qwen3-4b"]=2048
+  ["llama-3.2-3b"]=1024
+  ["llama-3.1-8b"]=1024
+  ["qwen3-8b"]=1024
+  ["qwen3-4b"]=1024
   ["falcon3-7b-base"]=1024
 )
 declare -A MODEL_GMU=(
-  ["llama-3.2-3b"]=0.55
-  ["llama-3.1-8b"]=0.325
+  ["llama-3.2-3b"]=0.5
+  ["llama-3.1-8b"]=0.35
   ["qwen3-8b"]=0.35
-  ["qwen3-4b"]=0.55
+  ["qwen3-4b"]=0.5
   ["falcon3-7b-base"]=0.35
 )
 # NUM_HIDDEN_LAYERS=1   # single-layer quick-compile hack; leave commented for full-model sweep
