@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Chunked-prefill qualification sweep for the refactored tt-mlir chunked SDPA op.
 # Sweeps llama-3.2-3b, llama-3.1-8b, qwen3-8b, qwen3-4b and falcon3-7b-base at
-# 128 / 4K / 32K / 64K (b32, device sampling, trace, BFP8 weights+KV) with the
-# best-known vLLM benchmark settings. max_num_batched_tokens = batch x prefill_chunk
-# (= 65536) caps the prefill bucket to one chunk. The 64K target is capped per
-# model to its max context (Qwen3 -> 40960, Falcon3-7B-Base -> 32768).
+# max_model_len 128 and 64K (b32, device sampling, trace, BFP8 weights+KV), full model
+# (num_hidden_layers hack commented out below), with prefill request-count bucketing
+# (min_num_seqs=1, prefill_batch_threshold=16; tt-xla #5363). max_num_batched_tokens =
+# batch x prefill_chunk (= 65536) caps the prefill bucket to one chunk. The 64K target
+# is capped per model to its max context (Qwen3 -> 40960, Falcon3-7B-Base -> 32768).
 # Runs are sequential (one device, exclusive). Each writes its own log; a summary
 # table is printed and saved at the end.
 
@@ -18,16 +19,31 @@ TRACE=1
 CPU_SAMPLING=0          # device sampling
 KV_CACHE_DTYPE=bfp_bf8  # BFP8 KV (weights BFP8 by default)
 BATCH=32
-PREFILL_CHUNK=2048
-GMU=0.15                # known-good (b32 @64K). 0.35/0.325/0.30 OOM llama-3.1-8b: the
-                        # [batch x chunk x intermediate] prefill activation needs free DRAM,
-                        # so KV budget must stay low. 0.15 is the min that still inits 64K KV.
-MAX_NUM_BATCHED_TOKENS=$(( BATCH * PREFILL_CHUNK ))   # = 65536, vs 2M default
+# Per-model chunk + gmu: the expected-to-work chunk-2048 config with the tt-xla
+# largest-first precompile reorder (#5523). Falcon3-7B cannot fit chunk 2048 at
+# any practical gmu (head_dim 256 -> 2.81 GiB prefill buffer), so it stays at 1024.
+declare -A MODEL_CHUNK=(
+  ["llama-3.2-3b"]=2048
+  ["llama-3.1-8b"]=2048
+  ["qwen3-8b"]=2048
+  ["qwen3-4b"]=2048
+  ["falcon3-7b-base"]=1024
+)
+declare -A MODEL_GMU=(
+  ["llama-3.2-3b"]=0.55
+  ["llama-3.1-8b"]=0.325
+  ["qwen3-8b"]=0.35
+  ["qwen3-4b"]=0.55
+  ["falcon3-7b-base"]=0.35
+)
+# NUM_HIDDEN_LAYERS=1   # single-layer quick-compile hack; leave commented for full-model sweep
+MIN_NUM_SEQS=1          # prefill request-count bucketing (tt-xla #5363)
+PREFILL_BATCH_THRESHOLD=16   # small-prefill scheduling threshold (tt-xla #5363)
 
 # Default model set; override with e.g. SWEEP_MODELS="qwen3-8b falcon3-7b-base" to run a subset.
 DEFAULT_MODELS=("llama-3.2-3b" "llama-3.1-8b" "qwen3-8b" "qwen3-4b" "falcon3-7b-base")
 if [ -n "${SWEEP_MODELS:-}" ]; then read -ra MODELS <<< "$SWEEP_MODELS"; else MODELS=("${DEFAULT_MODELS[@]}"); fi
-SEQ_LENS=(128 4096 32768 65536)
+SEQ_LENS=(65536)   # big length only; capped per model (qwen3 -> 40960, falcon3-7b -> 32768)
 
 # Per-model max context: the 64K target is capped to each model's limit (Qwen3
 # tops out at 40960, Falcon3-7B-Base at 32768). A seq_len that collapses onto an
@@ -50,14 +66,18 @@ echo "# Chunked-prefill qualification sweep ($TS)" | tee "$SUMMARY"
 {
   echo
   echo "Settings: opt=$OPT_LEVEL trace=$TRACE cpu_sampling=$CPU_SAMPLING kv=$KV_CACHE_DTYPE"
-  echo "batch=$BATCH prefill_chunk=$PREFILL_CHUNK gmu=$GMU max_num_batched_tokens=$MAX_NUM_BATCHED_TOKENS"
+  echo "batch=$BATCH (per-model chunk+gmu below); max_num_batched_tokens = batch * chunk"
+  echo "num_hidden_layers=${NUM_HIDDEN_LAYERS:-full} min_num_seqs=$MIN_NUM_SEQS prefill_batch_threshold=$PREFILL_BATCH_THRESHOLD"
   echo
-  echo "| model | seq_len | result | wall | samples/s | TTFT (ms) | note |"
-  echo "|---|---|---|---|---|---|---|"
+  echo "| model | seq_len | chunk | gmu | result | wall | samples/s | TTFT (ms) | note |"
+  echo "|---|---|---|---|---|---|---|---|---|"
 } | tee -a "$SUMMARY"
 
 for MODEL in "${MODELS[@]}"; do
   MAXCTX=${MODEL_MAX_CTX[$MODEL]:-65536}
+  CHUNK=${MODEL_CHUNK[$MODEL]:-2048}
+  GMU=${MODEL_GMU[$MODEL]:-0.325}
+  MAX_NUM_BATCHED_TOKENS=$(( BATCH * CHUNK ))
   declare -A _seen_seqs=()
   for SEQ in "${SEQ_LENS[@]}"; do
     # Cap the requested seq_len to the model's max context, then skip if a prior
@@ -74,15 +94,22 @@ for MODEL in "${MODELS[@]}"; do
     JSON="$LOGDIR/${TAG}.json"
     echo ">>> [$(date +%H:%M:%S)] $MODEL seq_len=$EFFSEQ -> $LOG"
 
+    # Only pass num_hidden_layers when the quick-compile hack is enabled above.
+    NHL_ENV=()
+    [ -n "${NUM_HIDDEN_LAYERS:-}" ] && NHL_ENV=("TT_BENCHMARK_NUM_HIDDEN_LAYERS=$NUM_HIDDEN_LAYERS")
+
+    env "${NHL_ENV[@]}" \
     _BENCH_OPTIMIZATION_LEVEL=$OPT_LEVEL \
     TT_BENCHMARK_TRACE=$TRACE \
     TT_BENCHMARK_CPU_SAMPLING=$CPU_SAMPLING \
     TT_BENCHMARK_KV_CACHE_DTYPE=$KV_CACHE_DTYPE \
     TT_BENCHMARK_BATCH_SIZE=$BATCH \
-    TT_BENCHMARK_PREFILL_CHUNK_SIZE=$PREFILL_CHUNK \
+    TT_BENCHMARK_PREFILL_CHUNK_SIZE=$CHUNK \
     TT_BENCHMARK_GMU=$GMU \
     TT_BENCHMARK_MAX_MODEL_LEN=$EFFSEQ \
     TT_BENCHMARK_MAX_NUM_BATCHED_TOKENS=$MAX_NUM_BATCHED_TOKENS \
+    TT_BENCHMARK_MIN_NUM_SEQS=$MIN_NUM_SEQS \
+    TT_BENCHMARK_PREFILL_BATCH_THRESHOLD=$PREFILL_BATCH_THRESHOLD \
     python -m pytest -svv tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark \
       -k "$MODEL" --output-file "$JSON" > "$LOG" 2>&1
     RC=$?
@@ -101,7 +128,7 @@ for MODEL in "${MODELS[@]}"; do
     if grep -qiE "out of memory|OOM|Out of Memory|alloc.*fail|warmup" "$LOG" && [ "$RESULT" = "FAIL" ]; then NOTE="${NOTE:+$NOTE,}possible-OOM"; fi
     if grep -qiE "Fatal error|FATAL" "$LOG"; then NOTE="${NOTE:+$NOTE,}fatal"; fi
 
-    echo "| $MODEL | $EFFSEQ | $RESULT | ${WALL:-?} | ${SPS:-?} | ${TTFT:-?} | ${NOTE:-} |" | tee -a "$SUMMARY"
+    echo "| $MODEL | $EFFSEQ | $CHUNK | $GMU | $RESULT | ${WALL:-?} | ${SPS:-?} | ${TTFT:-?} | ${NOTE:-} |" | tee -a "$SUMMARY"
   done
 done
 
