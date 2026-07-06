@@ -110,7 +110,7 @@ def test_fibo(output_file, request):
     # optimization_level=1 the winner at ~+5.6%; opt=2 exceeded the harness 10-min
     # compile budget and bfp8/trace were inert on this compute-bound forward — so a
     # follow-up tuning pass on batch=1 should start from opt=1.)
-    compiler_config = CompilerConfig(optimization_level=0, enable_trace=False)
+    compiler_config = CompilerConfig(optimization_level=1, enable_trace=False)
 
     print(f"Running FIBO DiT benchmark: {model_info_name} (sharded=True, TP-4, batch=1)")
 
