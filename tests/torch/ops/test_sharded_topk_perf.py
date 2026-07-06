@@ -41,10 +41,9 @@ import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from torch_xla.distributed.spmd import Mesh
-from utils import Category
-
 from tt_torch.composite_ops import composite_topk
 from tt_torch.sharding import sharding_constraint_tensor
+from utils import Category
 
 # --- constants mirrored from integrations/vllm_plugin/vllm_tt/sampler.py ---
 _TOPK_MAX_CHUNK_SIZE = 32768  # largest power-of-2 below 65536

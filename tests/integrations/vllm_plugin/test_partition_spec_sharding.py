@@ -17,7 +17,6 @@ TP sampling.
 import types
 
 import pytest
-
 from tt_torch.sharding import _partition_spec_to_sdy_sharding
 
 
