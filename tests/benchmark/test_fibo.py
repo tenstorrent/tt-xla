@@ -94,7 +94,6 @@ def test_fibo(output_file, request):
     compiler_config = CompilerConfig(
         optimization_level=1,
         enable_trace=False,
-        experimental_weight_dtype="bfp_bf8",
     )
 
     print(f"Running FIBO DiT benchmark: {model_info_name} (sharded=True, TP-4)")
