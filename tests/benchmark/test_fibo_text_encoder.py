@@ -54,7 +54,6 @@ MAX_TP4_CONTEXT_LENGTH = 24576
 COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
-    experimental_weight_dtype="bfp_bf8",
 )
 
 # Harness floor — model-bringup measured PCC 0.9987 at ctx 24576 under TP-4.
