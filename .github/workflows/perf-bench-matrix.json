@@ -749,6 +749,13 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "vllm_mistral_small_3_1_24b_tp",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-3.1-24b-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "vllm_llama_3_1_8b_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-8b-tp]",
         "vllm": true,
