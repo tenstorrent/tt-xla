@@ -37,7 +37,7 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
 
-from .attention import TT_HEAD_SIZE_ALIGNMENT
+from .attention_impls.attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig

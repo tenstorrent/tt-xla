@@ -20,13 +20,17 @@ The flow, top to bottom:
     model = torch.compile(model, backend="tt")
     prefill + decode loop
 
-This is a run-to-completion smoke test: it generates tokens and prints the
-decoded continuations, but does not check PCC against a CPU reference.
+A CPU-reference PCC check runs without re-loading weights: each block's CPU
+forward is advanced through prefill + all decode steps while its weights are on
+host (layer-outer), equivalent to the device's time-outer run since the only
+cross-time state is the per-block KV cache. Needs teacher-forced decode inputs.
 
     pytest -svv tests/torch/models/deepseek_v4/test_deepseek_v4_e2e_streaming.py
 """
+
 from __future__ import annotations
 
+import copy
 import gc
 import logging
 import sys
@@ -48,6 +52,7 @@ from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.sparse_mlp import enable_sparse_mlp
 from ttxla_tools.logging import logger
 
+from tests.benchmark.utils import compute_pcc
 from third_party.tt_forge_models.deepseek_v4.modified_model import (
     model_decode_opt as mdo,
 )
@@ -59,6 +64,11 @@ MODEL_NAME = "deepseek-ai/DeepSeek-V4-Flash"
 BATCH_SIZE = 8
 MAX_NEW_TOKENS = 16
 PROMPT_LEN = 128
+
+# Prefill drifts more than a single decode step (full-vector PCC ~0.915) while
+# its argmax still tracks the dense reference, so hold it to a looser bar.
+PREFILL_PCC_BAR = 0.91
+DECODE_PCC_BAR = 0.95
 
 # First BATCH_SIZE of these are tokenized and run.
 PROMPTS = [
@@ -410,6 +420,20 @@ def test_streaming_dsv4_flash() -> None:
         else:
             freqs_by_cr[cr] = blk.attn.freqs_cis
 
+    # Teacher-forced decode inputs (fixed up front) let the reference run
+    # layer-outer; any valid tokens work since CPU/device see identical inputs.
+    prompts_used = [PROMPTS[i % len(PROMPTS)] for i in range(BATCH_SIZE)]
+    prompt_ids_cpu, tok = _tokenize(prompts_used)
+    # Two steps: covers the decode branch + cross-step KV-cache continuity.
+    num_decode = 2
+    decode_tokens_cpu = [
+        prompt_ids_cpu[:, k : k + 1].contiguous() for k in range(num_decode)
+    ]
+    sp_prefill_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    sp_decode_cpu = [
+        torch.tensor(PROMPT_LEN + k, dtype=torch.long) for k in range(num_decode)
+    ]
+
     # ---- ship top-level params (embed / norm / head / hc_head_*) ----
     t = time.time()
     embed_sd = weight_loader.load_embed_state_dict(MODEL_NAME)
@@ -419,6 +443,27 @@ def test_streaming_dsv4_flash() -> None:
         weight_loader.load_top_level_state_dict(MODEL_NAME), strict=False
     )
     gc.collect()
+
+    # Embed the reference's initial hidden states on host and keep CPU copies of
+    # the head stack to turn the final hidden states into logits later.
+    def _embed_hc(ids):
+        h = model.embed(ids)
+        return h.unsqueeze(2).repeat(1, 1, model.hc_mult, 1)
+
+    h_pref_cpu = _embed_hc(prompt_ids_cpu)
+    h_dec_cpu = [_embed_hc(decode_tokens_cpu[k]) for k in range(num_decode)]
+    _cpu = {"h_pref": h_pref_cpu, "h_dec": h_dec_cpu}
+    cpu_head = copy.deepcopy(model.head)
+    cpu_norm = copy.deepcopy(model.norm)
+    cpu_hc = (
+        model.hc_head_fn.detach().clone(),
+        model.hc_head_scale.detach().clone(),
+        model.hc_head_base.detach().clone(),
+    )
+
+    def _cpu_logits(h):
+        return cpu_head(h, cpu_hc[0], cpu_hc[1], cpu_hc[2], cpu_norm)
+
     top_spec = _top_level_spec(model)
     for sub in (model.embed, model.norm, model.head):
         _ship_module(sub, top_spec, mesh, device)
@@ -461,17 +506,13 @@ def test_streaming_dsv4_flash() -> None:
     def run_block_flush(block, *blk_args):
         return block(*blk_args)
 
-    # Per-layer stages, factored so the streaming loop below reads as just
-    # `pre_flush → run_block_flush → post_flush`. They close over the run
-    # state (mesh, device, args, persistent_bufs, dummy inputs) and stash
-    # per-layer timing/hook on `_t` so the loop body stays three calls.
+    # Per-layer stages: prepare_block → cpu_golden → ship_block →
+    # run_block_flush → post_flush. They stash per-layer timing on `_t`.
     _t: Dict[str, float] = {}
 
-    def pre_flush(block, layer_id: int) -> None:
-        """Everything before the dummy flush: load HF weights → swap dense MoE
-        for the sparse/all-to-all version (dropping its CPU golden refs) →
-        splice this layer's persistent KV buffers → ship the weights to device
-        sharded → arm the output-shard hook for the upcoming flush."""
+    def prepare_block(block, layer_id: int) -> None:
+        """Load HF weights and swap dense MoE for the sparse version, keeping the
+        CPU golden refs for `cpu_golden`."""
         cr = getattr(block.attn, "compress_ratio", None)
         logger.info(f"\n[stream] === layer {layer_id}/{n_layers - 1} (cr={cr}) ===")
         _t["start"] = time.time()
@@ -481,10 +522,26 @@ def test_streaming_dsv4_flash() -> None:
         enable_sparse_mlp(
             block, mesh=mesh_shape, cluster_axis=0, config=args, verbose=False
         )
-        _strip_cpu_golden(block)
         gc.collect()
         _t["load"] = time.time() - _t["start"]
 
+    def cpu_golden(block) -> None:
+        """Advance the CPU prefill + decode hidden states through this block in
+        time order (builds its CPU KV cache), before its weights ship to
+        device."""
+        t = time.time()
+        _cpu["h_pref"] = block(_cpu["h_pref"], sp_prefill_cpu, prompt_ids_cpu)
+        for k in range(num_decode):
+            _cpu["h_dec"][k] = block(
+                _cpu["h_dec"][k], sp_decode_cpu[k], decode_tokens_cpu[k]
+            )
+        _t["golden"] = time.time() - t
+
+    def ship_block(block, layer_id: int) -> None:
+        """Drop the CPU golden refs, splice the persistent device KV buffers,
+        ship the sparse weights sharded, and arm the output-shard hook."""
+        _strip_cpu_golden(block)
+        gc.collect()
         _splice_persistent_buffers(block, persistent_bufs[layer_id])
         t_ship = time.time()
         _ship_module(block, _block_spec(block, mesh), mesh, device)
@@ -508,10 +565,11 @@ def test_streaming_dsv4_flash() -> None:
         gc.collect()
 
         total = time.time() - _t["start"]
-        flush = total - _t["load"] - _t["ship"]
+        golden = _t.get("golden", 0.0)
+        flush = total - _t["load"] - golden - _t["ship"]
         logger.info(
-            f"[stream l{layer_id}] total={total:.1f}s "
-            f"load={_t['load']:.1f}s ship={_t['ship']:.1f}s flush={flush:.1f}s"
+            f"[stream l{layer_id}] total={total:.1f}s load={_t['load']:.1f}s "
+            f"golden={golden:.1f}s ship={_t['ship']:.1f}s flush={flush:.1f}s"
         )
         _log_mem(f"l{layer_id} post-flush")
 
@@ -530,7 +588,9 @@ def test_streaming_dsv4_flash() -> None:
     t_loop = time.time()
     for layer_id in range(n_layers):
         block = layers[layer_id]
-        pre_flush(block, layer_id)
+        prepare_block(block, layer_id)
+        cpu_golden(block)
+        ship_block(block, layer_id)
         run_block_flush(block, h_dummy, sp_dummy, ids_dummy)
         post_flush(block, layer_id)
     logger.info(f"\n[step] per-layer loop: {time.time() - t_loop:.1f}s")
@@ -542,54 +602,92 @@ def test_streaming_dsv4_flash() -> None:
         sharding_constraint_hook(model.head, mesh, (None, None))
     )
 
-    # ---- whole-model compile, then prefill + decode ----
+    # ---- whole-model compile, then teacher-forced prefill + decode ----
     logger.info("\n[stream] torch.compile(model) + prefill ...")
     compiled = torch.compile(model, backend="tt")
 
-    prompts_used = [PROMPTS[i % len(PROMPTS)] for i in range(BATCH_SIZE)]
-    ids_cpu, tok = _tokenize(prompts_used)
-    prompt_ids = ids_cpu.to(device)
+    prompt_ids = prompt_ids_cpu.to(device)
     xs.mark_sharding(prompt_ids, mesh, ("_axis_0", None))
-    generated: List[List[int]] = [[] for _ in range(BATCH_SIZE)]
 
-    # Prefill. Greedy argmax runs on device (traced into the graph) so only the
-    # (bsz,) token ids cross to host, not the full (bsz, vocab) logits.
+    # Device feeds the same teacher-forced inputs as the CPU reference (no
+    # autoregressive feedback), so each step's logits are directly comparable.
     sp = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
     t = time.time()
-    next_ids_tt = compiled(prompt_ids, sp).argmax(dim=-1)
+    prefill_logits_dev = compiled(prompt_ids, sp).to("cpu").float()
     torch_xla.sync(wait=True)
     logger.info(f"[prefill] compile+exec {time.time() - t:.1f}s")
-    next_ids = next_ids_tt.to("cpu")
-    for i in range(BATCH_SIZE):
-        generated[i].append(int(next_ids[i].item()))
-    logger.info(f"[prefill] first ids[:8]={next_ids[:8].tolist()}")
 
-    # Decode loop.
+    decode_logits_dev: List[torch.Tensor] = []
+    for k in range(num_decode):
+        tok_tt = decode_tokens_cpu[k].to(device)
+        xs.mark_sharding(tok_tt, mesh, ("_axis_0", None))
+        sp = torch.tensor(PROMPT_LEN + k, dtype=torch.long).to(device)
+        t = time.time()
+        logits = compiled(tok_tt, sp).to("cpu").float()
+        torch_xla.sync(wait=True)
+        decode_logits_dev.append(logits)
+        kind = "compile+exec" if k == 0 else "exec"
+        logger.info(f"[decode {k}] sp={PROMPT_LEN + k} {kind}={time.time() - t:.2f}s")
+
+    # ---- CPU reference logits (from the layer-outer streaming pass) ----
+    prefill_logits_cpu = _cpu_logits(_cpu["h_pref"]).float()
+    decode_logits_cpu = [_cpu_logits(h).float() for h in _cpu["h_dec"]]
+
+    # ---- PCC + top-k agreement ----
+    # top-1/top-5 distinguish benign tail drift (low PCC, argmax still matches)
+    # from a wrong prediction.
+    logger.info(f"\n[stream] done in {time.time() - t_run:.1f}s\n" + "=" * 72)
+
+    def _topk_agree(cpu_l, dev_l):
+        cpu_top1 = cpu_l.argmax(-1)
+        top1 = (cpu_top1 == dev_l.argmax(-1)).float().mean().item()
+        dev_top5 = dev_l.topk(5, dim=-1).indices
+        top5 = (dev_top5 == cpu_top1.unsqueeze(-1)).any(-1).float().mean().item()
+        return top1, top5
+
+    rows = [("prefill", prefill_logits_cpu, prefill_logits_dev, PREFILL_PCC_BAR)]
+    for k in range(num_decode):
+        rows.append(
+            (f"decode[{k}]", decode_logits_cpu[k], decode_logits_dev[k], DECODE_PCC_BAR)
+        )
+    all_pass = True
+    for desc, cpu_l, dev_l, bar in rows:
+        pcc = compute_pcc(cpu_l, dev_l)
+        top1, top5 = _topk_agree(cpu_l, dev_l)
+        flag = "" if pcc >= bar else f"  <-- PCC FAIL (<{bar})"
+        logger.info(
+            f"[pcc] {desc:12s} pcc={pcc:.6f} top1={top1:.3f} top5={top5:.3f}{flag}"
+        )
+        if pcc < bar:
+            all_pass = False
+    logger.info("=" * 72)
+
+    # ---- free-run generation so output coherence is visible in CI ----
+    # The PCC pass is teacher-forced; regenerate greedily and print the text
+    # (assert is deferred so this runs even on a PCC failure). Host-side argmax
+    # reuses the compiled graphs above (no recompile).
+    reinit_kv(model)
+    sp = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+    next_ids = compiled(prompt_ids, sp).to("cpu").float().argmax(-1)
+    generated: List[List[int]] = [[int(next_ids[i])] for i in range(BATCH_SIZE)]
     prev = next_ids.unsqueeze(1)
     for step in range(MAX_NEW_TOKENS - 1):
-        sp_val = PROMPT_LEN + step
         prev_tt = prev.to(device)
         xs.mark_sharding(prev_tt, mesh, ("_axis_0", None))
-        sp = torch.tensor(sp_val, dtype=torch.long).to(device)
-        t = time.time()
-        next_ids_tt = compiled(prev_tt, sp).argmax(dim=-1)
-        torch_xla.sync(wait=True)
-        next_ids = next_ids_tt.to("cpu")
+        sp = torch.tensor(PROMPT_LEN + step, dtype=torch.long).to(device)
+        next_ids = compiled(prev_tt, sp).to("cpu").float().argmax(-1)
         for i in range(BATCH_SIZE):
-            generated[i].append(int(next_ids[i].item()))
-        kind = "compile+exec" if step == 0 else "exec"
-        logger.info(
-            f"[decode {step + 1}] sp={sp_val} {kind}={time.time() - t:.2f}s "
-            f"ids[:8]={next_ids[:8].tolist()}"
-        )
+            generated[i].append(int(next_ids[i]))
         prev = next_ids.unsqueeze(1)
 
-    # ---- decode to text ----
-    logger.info(f"\n[stream] done in {time.time() - t_run:.1f}s\n" + "=" * 72)
+    logger.info("[gen] greedy continuations:")
     eos_id = tok.eos_token_id
     for i, ids in enumerate(generated):
         trimmed = ids[: ids.index(eos_id)] if eos_id in ids else ids
         text = tok.decode(trimmed, skip_special_tokens=True)
-        logger.info(f"[row {i:02d}] prompt={prompts_used[i]!r}")
-        logger.info(f"          cont={text!r}")
+        logger.info(f"[gen {i:02d}] {prompts_used[i]!r} -> {text!r}")
     logger.info("=" * 72)
+
+    assert (
+        all_pass
+    ), f"Expected prefill PCC >= {PREFILL_PCC_BAR} and decode PCCs >= {DECODE_PCC_BAR}"
