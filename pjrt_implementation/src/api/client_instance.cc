@@ -425,6 +425,8 @@ tt_pjrt_status ClientInstance::populateDevices() {
           m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
+  // Required for host-only compile: system descriptor discovery can initialize
+  // MetalContext, and without this release it remains alive through compile.
   releaseMetalContextIfRequested(
       "TT_PJRT_RELEASE_METAL_CONTEXT_AFTER_SYSTEM_DESC");
   pjrtPhaseTrace(
