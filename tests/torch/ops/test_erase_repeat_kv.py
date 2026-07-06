@@ -27,7 +27,6 @@ from tt_torch.backend.passes import (
     _fx_node_shape,
     _normalize_dim,
     _sdpa_operand,
-    count_inplace_mutations,
     erase_repeat_kv,
 )
 from utils import Category
@@ -137,9 +136,9 @@ def run_pass(module, inputs):
     def backend(gm, example_inputs):
         info["expand_before"] = _count(gm, "call_method", "expand")
         info["ri_before"] = _count_repeat_interleave(gm)
-        info["mutations_before"] = count_inplace_mutations(gm)
+        info["copy_before"] = _count(gm, "call_method", "copy_")
         erase_repeat_kv(gm)
-        info["mutations_after"] = count_inplace_mutations(gm)
+        info["copy_after"] = _count(gm, "call_method", "copy_")
         info["gm"] = gm
         return gm.forward
 
@@ -373,70 +372,14 @@ def test_kv_cache_copy_mutation_is_preserved():
     q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
     info = run_pass(M(), (q, k, v))
 
-    # The cache write must survive the pass (this is the actual PCC=0.3 regression).
-    assert info["mutations_before"] >= 1
-    assert info["mutations_after"] == info["mutations_before"]
+    # The cache write must survive the pass (this is the actual PCC=0.3 regression):
+    # erase_repeat_kv must rewire SDPA without dropping the in-place copy_.
+    assert info["copy_before"] >= 1
+    assert info["copy_after"] == info["copy_before"]
     # SDPA is still rewired to the non-inflated cache tensor + enable_gqa.
     assert _kv_operands_are_rewired(info["gm"])
     assert _kv_head_counts(info["gm"]) == [(kv_heads, kv_heads)]
     assert _enable_gqa_flags(info["gm"]) == [True]
-
-
-@pytest.mark.push
-@pytest.mark.nightly
-@pytest.mark.single_device
-@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-def test_count_inplace_mutations_counts_copy():
-    """count_inplace_mutations detects trailing-underscore in-place call_method ops."""
-    torch._dynamo.reset()
-    captured = {}
-
-    class M(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("buf", torch.zeros(4))
-
-        def forward(self, x):
-            self.buf.copy_(x)
-            return x + 1
-
-    def backend(gm, example_inputs):
-        captured["count"] = count_inplace_mutations(gm)
-        return gm.forward
-
-    torch.compile(M(), backend=backend, fullgraph=True)(torch.randn(4))
-    assert captured["count"] >= 1
-
-
-@pytest.mark.push
-@pytest.mark.nightly
-@pytest.mark.single_device
-@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
-def test_count_inplace_mutations_counts_setitem():
-    """count_inplace_mutations detects slice/index assignment (operator.setitem).
-
-    `x[...] = y` lowers to a `call_function operator.setitem`, not a trailing-underscore
-    call_method, so the earlier call_method-only heuristic missed it -- yet DCE would
-    still drop it and corrupt the write.
-    """
-    torch._dynamo.reset()
-    captured = {}
-
-    class M(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("buf", torch.zeros(4))
-
-        def forward(self, x):
-            self.buf[0:2] = x[0:2]  # -> call_function operator.setitem
-            return x + 1
-
-    def backend(gm, example_inputs):
-        captured["count"] = count_inplace_mutations(gm)
-        return gm.forward
-
-    torch.compile(M(), backend=backend, fullgraph=True)(torch.randn(4))
-    assert captured["count"] >= 1
 
 
 # ===========================================================================

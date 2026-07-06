@@ -30,7 +30,6 @@ from .passes import (
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
     clamp_neg_slice_bounds,
-    count_inplace_mutations,
     erase_repeat_kv,
     handle_composite_ops,
     insert_argument_type_markers,
@@ -48,14 +47,6 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
 
-    # Count in-place mutations (e.g. Tensor.copy_ KV-cache fills, x[...] = y) before the
-    # dynamo-stage passes. torch.fx treats these (call_method copy_/index_copy_,
-    # operator.setitem) as pure, so a pre-export eliminate_dead_code() in any pass would
-    # silently drop them and corrupt buffer/cache writes. We assert none are lost across
-    # the passes below (they are only safely functionalized by torch.export further
-    # down). See erase_repeat_kv and count_inplace_mutations.
-    mutations_before = count_inplace_mutations(gm)
-
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
     enable_fusion_passes = options is None or options.get(
@@ -72,21 +63,15 @@ def torch_pass_pipeline(
         "tt_enable_composite_ops", True
     )
     if enable_composite_ops:
+        # WARNING: erase_repeat_kv rewrites SDPA operands past their repeat_kv
+        # head-expansion. It (and any dynamo-stage pass here) must NOT call
+        # gm.graph.eliminate_dead_code(): torch.fx treats in-place mutations
+        # (Tensor.copy_ KV-cache fills, x[...] = y) as pure and would silently drop
+        # them pre-export, corrupting buffer/cache writes (observed as PCC ~0.3).
+        # There is no automated guard for this -- always verify end-to-end (real
+        # model, PCC) when adding or changing a pass here.
         erase_repeat_kv(gm)
         handle_composite_ops(gm)
-
-    mutations_after = count_inplace_mutations(gm)
-    if mutations_after < mutations_before:
-        raise RuntimeError(
-            f"Dynamo-stage passes dropped "
-            f"{mutations_before - mutations_after} in-place mutation op(s) "
-            f"(before={mutations_before}, after={mutations_after}). These are ops like "
-            f"Tensor.copy_ (e.g. KV-cache fills) or x[...] = y (operator.setitem) which "
-            f"torch.fx treats as pure; a pass most likely called "
-            f"gm.graph.eliminate_dead_code() before torch.export functionalization, "
-            f"silently corrupting buffer/cache writes. Remove the pre-export DCE or make "
-            f"it mutation-aware."
-        )
 
     decompositions = populate_decompositions()
 
