@@ -6,7 +6,22 @@ on:
   workflow_call:
     inputs:
       docker_image:
-        description: 'Docker image to use for processing (e.g., ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest)'
+        description: 'Docker image to use for processing'
+        required: true
+        type: string
+      dumped_irs_run_id:
+        description: 'Run ID of the workflow that dumped IRs'
+        required: true
+        type: string
+      shared-runners:
+        description: 'Use shared runners'
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for processing'
         required: true
         type: string
       dumped_irs_run_id:

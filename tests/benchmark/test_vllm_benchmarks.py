@@ -37,6 +37,10 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+# Opt-in chunked prefill (tt-xla #4986): caps per-step prefill budget so
+# compile time + peak prefill DRAM are bounded by the chunk size, not
+# max_model_len. 0 / unset = disabled (unchanged behavior).
+_BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
 
 
 def _config(
@@ -77,6 +81,8 @@ def _config(
         additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
     if _BENCH_TRACE is not None:
         additional["enable_trace"] = _BENCH_TRACE == "1"
+    if _BENCH_PREFILL_CHUNK_SIZE is not None:
+        additional["prefill_chunk_size"] = int(_BENCH_PREFILL_CHUNK_SIZE)
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
@@ -310,6 +316,20 @@ def _embedding_config(
     )
 
 
+EMBEDDING_CONFIGS = [
+    # Trace disabled: host/device tensor shape mismatch
+    # (https://github.com/tenstorrent/tt-xla/issues/3936)
+    pytest.param(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
+        ),
+        id="qwen3-embedding-4b-batch1",
+    ),
+    pytest.param(_embedding_config("BAAI/bge-m3", 1), id="bge-m3-batch1"),
+    pytest.param(_embedding_config("BAAI/bge-m3", 32), id="bge-m3-batch32"),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -326,33 +346,6 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
         print(f"Results written to {output_file}")
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
-def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config(
-            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
-        ),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch1(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 1),
-        output_file,
-        request,
-    )
-
-
-def test_vllm_bge_m3_batch32(output_file, request):
-    _run_vllm_embedding_benchmark(
-        _embedding_config("BAAI/bge-m3", 32),
-        output_file,
-        request,
-    )
-
-
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
 def test_vllm_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
@@ -361,3 +354,8 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
+def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
