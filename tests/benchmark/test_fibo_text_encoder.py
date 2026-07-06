@@ -52,7 +52,7 @@ MAX_TP4_CONTEXT_LENGTH = 24576
 
 # Bringup-safe compiler defaults; model-perf-tuning ramps these to headline perf.
 COMPILER_CONFIG = CompilerConfig(
-    optimization_level=2,
+    optimization_level=1,
     enable_trace=True,
     experimental_weight_dtype="bfp_bf8",
 )
