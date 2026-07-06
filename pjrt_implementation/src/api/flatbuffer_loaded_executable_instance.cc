@@ -5,6 +5,10 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
+// c++ standard library includes
+#include <cstdio>
+#include <cstdlib>
+
 // tracy includes
 #include "tracy/Tracy.hpp"
 
@@ -25,6 +29,23 @@
 #include "utils/utils.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+bool pjrtPhaseTraceEnabled() {
+  const char *value = std::getenv("TT_PJRT_TRACE_PHASES");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+void pjrtPhaseTrace(const char *message) {
+  if (!pjrtPhaseTraceEnabled()) {
+    return;
+  }
+  std::fprintf(stderr, "[PJRT_PHASE] %s\n", message);
+  std::fflush(stderr);
+}
+
+} // namespace
 
 std::unique_ptr<FlatbufferLoadedExecutableInstance>
 FlatbufferLoadedExecutableInstance::createInstance(
@@ -232,9 +253,11 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
+  pjrtPhaseTrace("FlatbufferLoadedExecutableInstance submit ENTER running model");
   auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                   executable_image->getFlatbufferBinary(),
                                   program_index, input_tensors);
+  pjrtPhaseTrace("FlatbufferLoadedExecutableInstance submit EXIT running model");
 
   if (!r) {
     m_client_instance->closeMeshDevice();

@@ -11,6 +11,8 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -45,6 +47,55 @@
 namespace tt::pjrt {
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
+
+namespace {
+
+bool deferHostBufferTensorCreation() {
+  const char *value = std::getenv("TT_PJRT_DEFER_HOST_BUFFER_TENSOR");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+bool traceDeferredHostBuffer() {
+  const char *value = std::getenv("TT_PJRT_TRACE_DEFER_HOST_BUFFER");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+bool hasCompactHostLayout(const std::int64_t *dims, size_t num_dims,
+                          const std::int64_t *byte_strides,
+                          size_t num_byte_strides,
+                          std::uint32_t element_size) {
+  if (num_byte_strides == 0) {
+    return true;
+  }
+  if (num_byte_strides != num_dims) {
+    return false;
+  }
+
+  std::int64_t expected_stride = static_cast<std::int64_t>(element_size);
+  for (size_t reverse_index = 0; reverse_index < num_dims; ++reverse_index) {
+    size_t dim_index = num_dims - 1 - reverse_index;
+    if (byte_strides[dim_index] != expected_stride) {
+      return false;
+    }
+    expected_stride *= dims[dim_index];
+  }
+  return true;
+}
+
+void traceDeferredHostBufferFallback(const char *reason, size_t num_dims,
+                                     size_t num_byte_strides,
+                                     size_t byte_size) {
+  if (!traceDeferredHostBuffer()) {
+    return;
+  }
+  std::fprintf(stderr,
+               "[PJRT_DEFER_HOST_BUFFER] fallback reason=%s num_dims=%zu "
+               "num_byte_strides=%zu byte_size=%zu\n",
+               reason, num_dims, num_byte_strides, byte_size);
+  std::fflush(stderr);
+}
+
+} // namespace
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
@@ -147,6 +198,7 @@ void BufferInstance::deleteData() {
   }
 
   m_data_deleted = true;
+  m_pending_host_tensor.reset();
   if (m_done_with_host_buffer_event) {
     EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
                                           tt_pjrt_status::kSuccess);
@@ -173,6 +225,7 @@ void BufferInstance::copyFromHost(
       data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
+  m_pending_host_tensor.reset();
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -187,6 +240,35 @@ void BufferInstance::copyFromHost(
       EventInstance::createInstance();
 
   tt::runtime::Tensor runtime_tensor;
+
+  size_t byte_size = logicalTensorSize();
+  bool can_defer_host_tensor =
+      deferHostBufferTensorCreation() &&
+      hasCompactHostLayout(dims, num_dims, byte_strides, num_byte_strides,
+                           element_size);
+  if (can_defer_host_tensor) {
+    PendingHostTensor pending{
+        std::vector<std::byte>(byte_size), std::move(shape), std::move(strides),
+        element_size, runtime_data_type};
+    m_pending_host_tensor = std::move(pending);
+    if (byte_size != 0) {
+      TT_FATAL(host_buffer != nullptr,
+               "Cannot defer non-empty host buffer with null host pointer");
+      std::memcpy(m_pending_host_tensor->data.data(), host_buffer, byte_size);
+    }
+
+    // PJRT owns the staged bytes now, so the caller can release its buffer.
+    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                          tt_pjrt_status::kSuccess);
+    markAsDataReady();
+    *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
+    return;
+  }
+
+  if (deferHostBufferTensorCreation()) {
+    traceDeferredHostBufferFallback("non_compact_or_invalid_strides", num_dims,
+                                    num_byte_strides, byte_size);
+  }
 
   // In distributed runtime, we always create owned host tensor because we
   // cannot alias the host buffer.
@@ -249,6 +331,7 @@ void BufferInstance::copyFromHost(
 
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
+  src_buffer->materializeHostTensorIfNeeded();
   TT_FATAL(src_buffer->getPjrtTensor(), "Source buffer has no data.");
 
   ::tt::target::DataType runtime_data_type =
@@ -272,6 +355,20 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
   markAsDataReady();
+}
+
+void BufferInstance::materializeHostTensorIfNeeded() {
+  if (!m_pending_host_tensor.has_value()) {
+    return;
+  }
+
+  PendingHostTensor pending = std::move(*m_pending_host_tensor);
+  m_pending_host_tensor.reset();
+
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
+      pending.data.data(), pending.shape, pending.strides, pending.element_size,
+      pending.runtime_data_type);
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 }
 
 std::vector<std::uint32_t>
@@ -326,6 +423,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   // In compile-only mode, output buffers have no associated tensor (no
   // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    materializeHostTensorIfNeeded();
+  }
+
   if (!m_pjrt_tensor) {
     std::memset(host_buffer, 0, host_buffer_size);
     std::unique_ptr<EventInstance> event = EventInstance::createInstance();

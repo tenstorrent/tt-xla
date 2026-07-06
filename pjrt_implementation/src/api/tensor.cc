@@ -42,6 +42,10 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
+  for (BufferInstance *shard : shards) {
+    shard->materializeHostTensorIfNeeded();
+  }
+
   if (have_same_tensor(shards))
     return from_shards(shards);
 
@@ -189,7 +193,7 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
   std::vector<tt::runtime::Tensor> tensors;
   tensors.reserve(shards.size());
 
-  for (const BufferInstance *shard : shards) {
+  for (BufferInstance *shard : shards) {
     tensors.emplace_back(shard->runtimeTensor());
   }
 

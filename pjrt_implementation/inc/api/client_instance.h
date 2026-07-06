@@ -146,6 +146,10 @@ public:
   // Closes currently opened mesh device and submesh device, if any.
   void closeMeshDevice();
 
+  // Releases MetalContext if the requested env flag is set and no PJRT-owned
+  // mesh is open.
+  void releaseMetalContextIfNoOpenMesh(const char *env_name);
+
   // Returns the optimizer submesh device of the provided shape. If there is
   // already opened optimizer submesh and its shape matches the provided shape,
   // it is returned. Otherwise, we close any previously opened optimizer submesh

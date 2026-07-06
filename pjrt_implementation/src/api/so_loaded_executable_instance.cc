@@ -6,6 +6,8 @@
 #include "api/so_loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 
@@ -27,6 +29,23 @@
 #include "utils/status.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+bool pjrtPhaseTraceEnabled() {
+  const char *value = std::getenv("TT_PJRT_TRACE_PHASES");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+void pjrtPhaseTrace(const char *message) {
+  if (!pjrtPhaseTraceEnabled()) {
+    return;
+  }
+  std::fprintf(stderr, "[PJRT_PHASE] %s\n", message);
+  std::fflush(stderr);
+}
+
+} // namespace
 
 std::unique_ptr<SOLoadedExecutableInstance>
 SOLoadedExecutableInstance::createInstance(
@@ -75,6 +94,7 @@ tt_pjrt_status
 SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "SOLoadedExecutableInstance::Execute");
+  pjrtPhaseTrace("SOLoadedExecutableInstance execute ENTER");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     LOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
@@ -120,6 +140,8 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
             << options.export_path.value() << " for the results." << std::endl;
   // TODO: Implement SO execution. For now, we create default output buffers.
   // https://github.com/tenstorrent/tt-xla/issues/2038
+  pjrtPhaseTrace(
+      "SOLoadedExecutableInstance default-output path; no runtime submit");
   createDefaultOutputBuffers(args->output_lists, args->num_devices);
 
   if (args->device_complete_events) {
@@ -135,6 +157,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
   }
 
+  pjrtPhaseTrace("SOLoadedExecutableInstance execute EXIT");
   return tt_pjrt_status::kSuccess;
 }
 

@@ -12,10 +12,13 @@
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <unordered_set>
 
 // tracy includes
@@ -42,6 +45,35 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+bool pjrtPhaseTraceEnabled() {
+  const char *value = std::getenv("TT_PJRT_TRACE_PHASES");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+void pjrtPhaseTrace(const char *message) {
+  if (!pjrtPhaseTraceEnabled()) {
+    return;
+  }
+  std::fprintf(stderr, "[PJRT_PHASE] %s\n", message);
+  std::fflush(stderr);
+}
+
+std::string meshShapeToString(const std::vector<uint32_t> &shape) {
+  std::string result = "[";
+  for (size_t i = 0; i < shape.size(); ++i) {
+    if (i != 0) {
+      result += ",";
+    }
+    result += std::to_string(shape[i]);
+  }
+  result += "]";
+  return result;
+}
+
+} // namespace
 
 // Clears program cache on instance destroy.
 LoadedExecutableInstance::~LoadedExecutableInstance() {
@@ -116,6 +148,14 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
 
   const std::vector<std::uint32_t> &devices_mesh_shape =
       m_executable_image->getDevicesMeshShape();
+  if (pjrtPhaseTraceEnabled()) {
+    std::fprintf(stderr,
+                 "[PJRT_PHASE] runtime getOrCreateMeshDevice target=%s "
+                 "num_devices=%zu num_args=%zu\n",
+                 meshShapeToString(devices_mesh_shape).c_str(), num_devices,
+                 num_args);
+    std::fflush(stderr);
+  }
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
@@ -143,7 +183,13 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
+  pjrtPhaseTrace("runtime opening/reusing mesh before model execution");
+  m_client_instance->releaseMetalContextIfNoOpenMesh(
+      "TT_PJRT_RELEASE_METAL_CONTEXT_BEFORE_RUNTIME_OPEN");
+  std::optional<tt::runtime::Device> device =
+      m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
+  pjrtPhaseTrace("runtime mesh ready; model execution can proceed");
+  return device;
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
@@ -370,6 +416,7 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+  pjrtPhaseTrace("PJRT_LoadedExecutable_Execute ENTER runtime phase");
 
   LoadedExecutableInstance *instance =
       LoadedExecutableInstance::unwrap(args->executable);
@@ -393,6 +440,11 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   tt_pjrt_status status = instance->execute(args);
+  if (pjrtPhaseTraceEnabled()) {
+    std::fprintf(stderr, "[PJRT_PHASE] PJRT_LoadedExecutable_Execute EXIT status=%d\n",
+                 static_cast<int>(status));
+    std::fflush(stderr);
+  }
   return *ErrorInstance::makeError(status).release();
 }
 
