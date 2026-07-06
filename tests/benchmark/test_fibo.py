@@ -91,7 +91,11 @@ def test_fibo(output_file, request):
     ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
 
     # Bringup-safe compile defaults; model-perf-tuning ramps these knobs.
-    compiler_config = CompilerConfig(optimization_level=0, enable_trace=False)
+    compiler_config = CompilerConfig(
+        optimization_level=2,
+        enable_trace=True,
+        experimental_weight_dtype="bfp_bf8",
+    )
 
     print(f"Running FIBO DiT benchmark: {model_info_name} (sharded=True, TP-4)")
 
