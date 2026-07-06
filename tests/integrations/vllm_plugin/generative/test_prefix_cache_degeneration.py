@@ -98,7 +98,11 @@ def _find_free_port():
         return s.getsockname()[1]
 
 
-def _read_tail(path, chars=2000):
+def _read_tail(path, chars=20000):
+    # 20k (was 2k): a server crash surfaces only the APIServer "Engine core
+    # initialization failed. See root cause above." wrapper in the last ~2k
+    # chars; the real EngineCore error (OOM / mask crash / compile) sits above
+    # that window, so a small tail hides exactly the line we need.
     try:
         with open(path) as f:
             return f.read()[-chars:]
