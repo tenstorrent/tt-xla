@@ -205,7 +205,7 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("Qwen/Qwen3-0.6B"), id="qwen3-0.6b"),
     pytest.param(_config("Qwen/Qwen3-1.7B"), id="qwen3-1.7b"),
     pytest.param(_config("Qwen/Qwen3-4B"), id="qwen3-4b"),
-    pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
+    pytest.param(_config("Qwen/Qwen3-8B", optimization_level=0), id="qwen3-8b"),
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
     # Phi
@@ -222,7 +222,10 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
     ),
-    pytest.param(_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b"),
+    pytest.param(
+        _config("mistralai/Ministral-8B-Instruct-2410", optimization_level=0),
+        id="ministral-8b",
+    ),
     # OPT (vLLM-only fast canary; not part of the torch-xla matrix)
     pytest.param(_config("facebook/opt-125m"), id="opt-125m"),
 ]
