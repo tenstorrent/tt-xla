@@ -53,7 +53,7 @@ MAX_TP4_CONTEXT_LENGTH = 24576
 # Bringup-safe compiler defaults; model-perf-tuning ramps these to headline perf.
 COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
-    enable_trace=True,
+    enable_trace=False,
 )
 
 # Harness floor — model-bringup measured PCC 0.9987 at ctx 24576 under TP-4.
