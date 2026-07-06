@@ -30,7 +30,6 @@ from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
@@ -447,11 +446,6 @@ def benchmark_llm_torch_xla(
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
-
-        # Apply sharding constraint on lm_head output to all_gather logits
-        if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
-            model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
