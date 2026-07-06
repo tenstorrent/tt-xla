@@ -25,6 +25,7 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
@@ -41,6 +42,12 @@
 
 namespace tt::tt_metal::detail {
 void ReleaseOwnership() __attribute__((weak));
+}
+
+namespace tt::runtime::common {
+tt::runtime::MeshFabricConfig computeMeshFabricConfig(
+    const std::vector<::tt::target::ChipChannel> &chipChannels,
+    const std::vector<uint32_t> &meshShape, const std::vector<int> &deviceIds);
 }
 
 namespace tt::pjrt {
@@ -538,6 +545,17 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
       executable_image->toExecutableInstance(std::move(addressable_devices),
                                              this);
 
+  if (!m_compile_only &&
+      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE")) {
+    const std::vector<std::uint32_t> &mesh_shape =
+        executable_image->getDevicesMeshShape();
+    pjrtPhaseTracef("compileMlirProgram preopen runtime mesh target=%s",
+                    utils::to_string(mesh_shape).c_str());
+    releaseMetalContextIfNoOpenMesh(
+        "TT_PJRT_RELEASE_METAL_CONTEXT_BEFORE_RUNTIME_OPEN");
+    getOrCreateMeshDevice(mesh_shape);
+  }
+
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
   *out_executable = executable.release();
@@ -548,6 +566,12 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
 tt::runtime::MeshFabricConfig
 ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
+  const std::string cache_key = utils::to_string(mesh_shape);
+  auto cached_config = m_fabric_config_cache.find(cache_key);
+  if (cached_config != m_fabric_config_cache.end()) {
+    return cached_config->second;
+  }
+
   // Distributed uses FABRIC_1D for now.
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
@@ -555,8 +579,10 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
     if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
         std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
-                                           {}};
+      tt::runtime::MeshFabricConfig fabric_config{
+          tt::runtime::FabricConfig::FABRIC_2D, {}};
+      m_fabric_config_cache.emplace(cache_key, fabric_config);
+      return fabric_config;
     }
 
     uint32_t num_devices = 1;
@@ -566,19 +592,50 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     tt::runtime::FabricConfig global =
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
-    return tt::runtime::MeshFabricConfig{global, {}};
+    tt::runtime::MeshFabricConfig fabric_config{global, {}};
+    m_fabric_config_cache.emplace(cache_key, fabric_config);
+    return fabric_config;
   }
+
   uint32_t num_devices = 1;
   for (auto dim : mesh_shape) {
     num_devices *= dim;
   }
 
-  // Avoid runtime topology mapping here: it can initialize MetalContext through
-  // SystemMesh before execution owns the real device lifecycle.
-  tt::runtime::FabricConfig global =
-      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
-                      : tt::runtime::FabricConfig::DISABLED;
-  return tt::runtime::MeshFabricConfig{global, {}};
+  TT_FATAL(m_system_descriptor->chip_desc_indices()->size() >= num_devices,
+           "System descriptor has fewer devices than requested mesh shape: "
+           "devices={}, requested={}",
+           m_system_descriptor->chip_desc_indices()->size(), num_devices);
+
+  std::vector<::tt::target::ChipChannel> chip_channels;
+  const auto *fb_channels = m_system_descriptor->chip_channels();
+  if (fb_channels) {
+    chip_channels.reserve(fb_channels->size());
+    for (const auto *channel : *fb_channels) {
+      chip_channels.push_back(*channel);
+    }
+  }
+
+  if (chip_channels.empty() && num_devices > 1) {
+    tt::runtime::MeshFabricConfig fabric_config{
+        tt::runtime::FabricConfig::FABRIC_1D, {}};
+    m_fabric_config_cache.emplace(cache_key, fabric_config);
+    return fabric_config;
+  }
+
+  std::vector<int> device_ids;
+  device_ids.reserve(num_devices);
+  for (uint32_t i = 0; i < num_devices; ++i) {
+    device_ids.push_back(m_system_descriptor->chip_desc_indices()->Get(i));
+  }
+
+  // Use the cached system descriptor and cached device ordering instead of the
+  // SystemDesc overload, which calls SystemMesh and can initialize MetalContext.
+  tt::runtime::MeshFabricConfig fabric_config =
+      tt::runtime::common::computeMeshFabricConfig(chip_channels, mesh_shape,
+                                                   device_ids);
+  m_fabric_config_cache.emplace(cache_key, fabric_config);
+  return fabric_config;
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
