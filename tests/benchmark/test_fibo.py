@@ -92,7 +92,7 @@ def test_fibo(output_file, request):
 
     # Bringup-safe compile defaults; model-perf-tuning ramps these knobs.
     compiler_config = CompilerConfig(
-        optimization_level=2,
+        optimization_level=0,
         enable_trace=True,
         experimental_weight_dtype="bfp_bf8",
     )
