@@ -248,7 +248,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_config = self.scheduler_config
         parallel_config = self.parallel_config
         self.device = device
-        self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
         self.use_flat_model_io = self.tt_config.flat_model_io
         self.enable_decode_fused_graphs = self.tt_config.enable_decode_fused_graphs
 
@@ -752,8 +751,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.mm_budget.reset_cache()
 
     def _update_num_xla_graphs(self, case_str):
-        check_comp = self.check_recompilation and not self.enforce_eager
-        if not check_comp:
+        if self.enforce_eager:
             return
 
         total_cached_graphs = xr.get_num_cached_compilation_graph()
@@ -767,30 +765,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_xla_graphs += new_compiled_graphs
 
     def _verify_num_xla_graphs(self, case_str):
-        check_comp = self.check_recompilation and not self.enforce_eager
-        if not check_comp:
+        if self.enforce_eager:
             return
 
         curr_cached_graph = xr.get_num_cached_compilation_graph()
+        new_compiled_graphs = curr_cached_graph - self.num_xla_graphs
 
-        if not self._recompile_locked:
-            # Accept new graphs while chunk-size bucket shapes are still being
-            # seen; lock once the set is stable for a couple of steps.
-            if curr_cached_graph > self.num_xla_graphs:
-                self._update_num_xla_graphs(f"{case_str} (warm-up)")
-                self._recompile_stable_steps = 0
-            else:
-                self._recompile_stable_steps += 1
-                if self._recompile_stable_steps >= 2:
-                    self._recompile_locked = True
-            return
-
-        assert self.num_xla_graphs == curr_cached_graph, (
-            "Recompilation after warm up is detected during {}."
-            " num_xla_graphs = {} curr_cached_graph = {}".format(
-                case_str, self.num_xla_graphs, curr_cached_graph
+        if new_compiled_graphs > 0:
+            logger.error(
+                "Detected %d new XLA graph compilation(s) during sample_tokens().",
+                new_compiled_graphs,
             )
-        )
+        self.num_xla_graphs += new_compiled_graphs
 
     def _update_states(self, scheduler_output: "SchedulerOutput") -> bool:
         """Update the cached states and the persistent batch with the scheduler
@@ -2481,6 +2467,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not (prefix_chunk and num_tokens == 1)
         ]
 
+        # Compile largest buckets first so the biggest pinned trace buffers get a
+        # clean DRAM arena, avoiding fragmentation OOMs at long context (#5522).
+        configs.sort(key=lambda c: (c["num_reqs"], c["num_tokens"]), reverse=True)
+
         for config in configs:
             if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
                 logger.debug(
@@ -2876,9 +2866,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 torch_xla.sync()
 
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
-        for num_tokens in self.num_tokens_paddings:
-            for warmup_num_reqs in num_reqs_options:
+        # Largest-first, as in _precompile_model_fused, to avoid fragmentation (#5522).
+        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs}, reverse=True)
+        for warmup_num_reqs in num_reqs_options:
+            for num_tokens in reversed(self.num_tokens_paddings):
                 _run_backbone_dummies(num_tokens, warmup_num_reqs, prefix_chunk=False)
                 # Precompile the cached-prefix graph for prompt chunks
                 # (num_tokens > 1) so it isn't compiled on the first continuation.
