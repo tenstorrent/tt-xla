@@ -3160,7 +3160,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             vocab_sharded = self.is_sharded_compute_logits
             out_tokens = self.sampler(
-                logits, sampling_metadata, vocab_sharded=vocab_sharded
+                logits,
+                sampling_metadata,
+                vocab_sharded=vocab_sharded,
+                mesh=self.mesh if vocab_sharded else None,
             ).sampled_token_ids
         return out_tokens
 

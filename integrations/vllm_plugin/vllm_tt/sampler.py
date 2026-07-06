@@ -71,11 +71,14 @@ class Sampler(nn.Module):
         sampling_metadata: XLASupportedSamplingMetadata,
         *,
         vocab_sharded: bool = False,
+        mesh=None,
     ) -> SamplerOutput:
         # Use float32 for the logits.
         logits = logits.to(torch.float32)
         # Sample the next token.
-        sampled = self.sample(logits, sampling_metadata, vocab_sharded=vocab_sharded)
+        sampled = self.sample(
+            logits, sampling_metadata, vocab_sharded=vocab_sharded, mesh=mesh
+        )
 
         # These are XLA tensors.
         sampler_output = SamplerOutput(
@@ -104,8 +107,15 @@ class Sampler(nn.Module):
         return logits.div_(temp.unsqueeze(dim=1))
 
     def greedy_sample(
-        self, logits: torch.Tensor, *, vocab_sharded: bool = False
+        self, logits: torch.Tensor, *, vocab_sharded: bool = False, mesh=None
     ) -> torch.Tensor:
+        if vocab_sharded and mesh is not None:
+            # The distributed composite_argmax mis-executes at runtime in the
+            # full graph; gather logits to full and take a plain argmax instead.
+            from tt_torch.sharding import sharding_constraint_tensor
+
+            logits = sharding_constraint_tensor(logits, mesh, (None, None))
+            return logits.argmax(dim=-1).view(-1)
         if vocab_sharded:
             from tt_torch.composite_ops import composite_argmax
 
@@ -176,6 +186,7 @@ class Sampler(nn.Module):
         sampling_metadata: XLASupportedSamplingMetadata,
         *,
         vocab_sharded: bool = False,
+        mesh=None,
     ) -> torch.Tensor:
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
@@ -212,7 +223,9 @@ class Sampler(nn.Module):
         # over full vocab was ~34% of sampler runtime at b=32 in tracy.
         all_random = sampling_metadata.all_random
         if not all_random:
-            greedy_sampled = self.greedy_sample(logits, vocab_sharded=vocab_sharded)
+            greedy_sampled = self.greedy_sample(
+                logits, vocab_sharded=vocab_sharded, mesh=mesh
+            )
 
         # Symmetric skip: when every row is greedy, the candidate/random path
         # below is fully discarded by the torch.where. Skipping it avoids wasted
