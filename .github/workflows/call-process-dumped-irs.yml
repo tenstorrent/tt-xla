@@ -47,7 +47,7 @@ jobs:
       ir_count: ${{ steps.check-dumped-irs.outputs.ir_count }}
       ir_jobs: ${{ steps.check-dumped-irs.outputs.ir_jobs }}
     env:
-      MAX_PARALLEL_JOBS: 5
+      MAX_PARALLEL_JOBS: 20
     steps:
       - name: Check for dumped IRs
         id: check-dumped-irs
@@ -55,9 +55,8 @@ jobs:
         run: |
           echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
           # Get artifacts for this run
-          artifacts_json=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts)
+          artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
+            "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
           # Check if any artifacts match the pattern "ir-dumps-*"
           ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
           echo "Found $ir_count dumped IR artifacts"
