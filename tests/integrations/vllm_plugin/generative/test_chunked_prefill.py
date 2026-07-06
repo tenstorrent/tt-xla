@@ -85,7 +85,13 @@ def _generate(max_num_batched_tokens: int) -> str:
         additional_config={
             "experimental_weight_dtype": "bfp_bf8",
             "experimental_kv_cache_dtype": "bfp_bf8",
-            "fp32_dest_acc_en": False,
+            # Required, not optional: the always-mask cold prefill (is_causal=False
+            # + explicit mask over the full padded K/V slab) normalizes the softmax
+            # over more columns than native causal, so bf16 accumulation rounds the
+            # first-token logits enough to flip the single-chunk oracle's greedy
+            # argmax to a degenerate token 0. fp32 dest accumulation closes that gap
+            # and is why single-chunk now matches multi-chunk (cf. tt-mlir #8657).
+            "fp32_dest_acc_en": True,
             "enable_trace": False,
             # Opt in to chunked prefill at this chunk size. With budget >= prompt
             # length this is a single chunk (the oracle); with a small budget the
