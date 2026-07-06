@@ -551,8 +551,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
         executable_image->getDevicesMeshShape();
     pjrtPhaseTracef("compileMlirProgram preopen runtime mesh target=%s",
                     utils::to_string(mesh_shape).c_str());
-    releaseMetalContextIfNoOpenMesh(
-        "TT_PJRT_RELEASE_METAL_CONTEXT_BEFORE_RUNTIME_OPEN");
     getOrCreateMeshDevice(mesh_shape);
   }
 
@@ -708,21 +706,6 @@ void ClientInstance::closeMeshDevice() {
   closeOptimizerSubmesh();
   closeParentMesh();
   loguru::flush();
-}
-
-void ClientInstance::releaseMetalContextIfNoOpenMesh(const char *env_name) {
-  if (!envFlagEnabled(env_name)) {
-    return;
-  }
-  if (m_parent_mesh.has_value()) {
-    std::fprintf(stderr,
-                 "[PJRT_METAL_CONTEXT] %s set, but parent mesh is open; "
-                 "skipping MetalContext release\n",
-                 env_name);
-    std::fflush(stderr);
-    return;
-  }
-  releaseMetalContextIfRequested(env_name);
 }
 
 tt::runtime::Device
@@ -1010,8 +993,6 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   }
 
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
-  client_instance->releaseMetalContextIfNoOpenMesh(
-      "TT_PJRT_RELEASE_METAL_CONTEXT_BEFORE_COMPILE");
 
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,

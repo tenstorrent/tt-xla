@@ -184,8 +184,6 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // https://github.com/tenstorrent/tt-xla/issues/502
 
   pjrtPhaseTrace("runtime opening/reusing mesh before model execution");
-  m_client_instance->releaseMetalContextIfNoOpenMesh(
-      "TT_PJRT_RELEASE_METAL_CONTEXT_BEFORE_RUNTIME_OPEN");
   std::optional<tt::runtime::Device> device =
       m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
   pjrtPhaseTrace("runtime mesh ready; model execution can proceed");
