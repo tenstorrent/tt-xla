@@ -85,6 +85,15 @@ def test_fibo(output_file, request):
 
     loader = ModelLoader(ModelVariant.BASE)
 
+    # Force genuine batch=1 by disabling classifier-free guidance. The FIBO
+    # pipeline gates every batch-doubling (latents, prompt embeds, attention
+    # mask) on ``guidance_scale > 1`` (pipeline_bria_fibo.py), so a scale of 1.0
+    # leaves a single unconditional stream — captured DiT input (1, 4096, 48).
+    # The loader ships guidance_scale=5.0 (CFG on → batch=2); we override the
+    # instance attribute here (not the off-limits loader file). _ensure_capture
+    # reads self.guidance_scale, so this must be set before load_model/load_inputs.
+    loader.guidance_scale = 1.0
+
     # load_model triggers the one-shot input capture (drives a short pipe() call
     # and intercepts the first transformer forward); load_inputs replays those
     # exact positional tensors, so the two stay in lockstep. With CFG off the
