@@ -503,6 +503,37 @@ def test_repeat_interleave_on_wrong_axis_not_erased():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_nonuniform_repeat_interleave_not_erased():
+    """A per-head `repeats` tensor does not match enable_gqa's uniform interleave.
+
+    repeats=[3, 1] along the head axis inflates 2 kv heads to 4 (== q_heads), so the
+    output-shape gate alone would accept it -- but the head ordering differs from
+    enable_gqa, so the pass must refuse based on `repeats` not being a scalar int.
+    """
+    kv_heads = 2
+    q_heads = 4  # 3 + 1
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            repeats = torch.tensor([3, 1])
+            return SDPA(
+                q,
+                k.repeat_interleave(repeats, dim=-3),
+                v.repeat_interleave(repeats, dim=-3),
+            )
+
+    q, k, v = _qkv(1, q_heads, kv_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    # K/V stay inflated and enable_gqa is not set.
+    assert _kv_head_counts(info["gm"]) == [(q_heads, q_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_pass_is_noop_without_sdpa():
     class M(nn.Module):
         def forward(self, x):

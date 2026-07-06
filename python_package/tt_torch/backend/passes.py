@@ -197,6 +197,12 @@ def _match_repeat_interleave(node: torch.fx.Node, head_axis: int):
         return None
     if _normalize_dim(dim, len(out_shape)) != head_axis:
         return None
+    # `repeats` must be a uniform scalar to match enable_gqa's interleave ordering.
+    # A per-head tensor of repeats can satisfy the output-shape gate while producing
+    # a different head ordering, which would make the enable_gqa substitution wrong.
+    repeats = node.args[1] if len(node.args) > 1 else node.kwargs.get("repeats")
+    if not isinstance(repeats, int):
+        return None
     return node.args[0]
 
 
