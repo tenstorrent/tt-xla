@@ -534,6 +534,34 @@ def test_nonuniform_repeat_interleave_not_erased():
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_one_sided_expansion_not_erased():
+    """Only key is repeat_kv-expanded; value already has q_heads.
+
+    A one-sided rewrite would leave SDPA with a de-inflated key + full-head value
+    under enable_gqa (mismatched K/V heads), so the pass must skip the node entirely.
+    """
+    kv_heads, n_rep = 2, 4
+    q_heads = kv_heads * n_rep
+
+    class M(nn.Module):
+        def forward(self, q, k, v):
+            # key is expanded from kv_heads -> q_heads; value is already q_heads.
+            return SDPA(q, repeat_kv_hf(k, n_rep), v)
+
+    q = torch.randn(1, q_heads, 16, 32)
+    k = torch.randn(1, kv_heads, 16, 32)
+    v = torch.randn(1, q_heads, 16, 32)
+    info = run_pass(M(), (q, k, v))
+
+    # Nothing rewired: key stays inflated, no enable_gqa.
+    assert _kv_head_counts(info["gm"]) == [(q_heads, q_heads)]
+    assert _enable_gqa_flags(info["gm"]) == [None]
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_pass_is_noop_without_sdpa():
     class M(nn.Module):
         def forward(self, x):

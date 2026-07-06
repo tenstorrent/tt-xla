@@ -339,29 +339,43 @@ def erase_repeat_kv(gm: torch.fx.GraphModule) -> None:
             else None
         )
 
-        node_changed = False
-        new_args = list(node.args)
-        new_kwargs = dict(node.kwargs)
-
+        # Match key and value independently, but only rewrite if BOTH deflate.
+        # enable_gqa requires key and value to share the same head count, so a
+        # one-sided rewrite (e.g. deflated key + still-expanded value) would
+        # leave SDPA with mismatched K/V heads and produce a wrong/failed result.
+        matched = {}
         for pos, kw in ((1, "key"), (2, "value")):
             src = _uninflated_kv_source(_sdpa_operand(node, pos, kw), q_heads)
-            if src is None:
-                continue
+            if src is not None:
+                matched[(pos, kw)] = src
+
+        if len(matched) != 2:
+            continue
+
+        src_heads = {
+            _fx_node_shape(src)[-_SDPA_HEAD_AXIS_FROM_END] for src in matched.values()
+        }
+        if len(src_heads) != 1:
+            # Deflated key and value disagree on head count -> not a valid GQA
+            # grouping for enable_gqa; leave the node untouched.
+            continue
+
+        new_args = list(node.args)
+        new_kwargs = dict(node.kwargs)
+        for (pos, kw), src in matched.items():
             if pos < len(new_args):
                 new_args[pos] = src
             else:
                 new_kwargs[kw] = src
-            node_changed = True
 
-        if node_changed:
-            new_kwargs["enable_gqa"] = True
-            node.args = tuple(new_args)
-            node.kwargs = new_kwargs
-            changed = True
-            logger.debug(
-                "erase_repeat_kv: erased repeat_kv for SDPA node %s",
-                node.name,
-            )
+        new_kwargs["enable_gqa"] = True
+        node.args = tuple(new_args)
+        node.kwargs = new_kwargs
+        changed = True
+        logger.debug(
+            "erase_repeat_kv: erased repeat_kv for SDPA node %s",
+            node.name,
+        )
 
     if changed:
         # NOTE: deliberately do NOT call gm.graph.eliminate_dead_code() here.
