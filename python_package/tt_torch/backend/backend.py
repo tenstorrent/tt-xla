@@ -48,11 +48,12 @@ def torch_pass_pipeline(
     options: dict[str, bool] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
 
-    # Count in-place mutations (e.g. Tensor.copy_ KV-cache fills) before the dynamo-
-    # stage passes. These are call_method nodes that torch.fx treats as pure, so a
-    # pre-export eliminate_dead_code() in any pass would silently drop them and corrupt
-    # buffer/cache writes. We assert none are lost across the passes below (they are
-    # only safely functionalized by torch.export further down). See erase_repeat_kv.
+    # Count in-place mutations (e.g. Tensor.copy_ KV-cache fills, x[...] = y) before the
+    # dynamo-stage passes. torch.fx treats these (call_method copy_/index_copy_,
+    # operator.setitem) as pure, so a pre-export eliminate_dead_code() in any pass would
+    # silently drop them and corrupt buffer/cache writes. We assert none are lost across
+    # the passes below (they are only safely functionalized by torch.export further
+    # down). See erase_repeat_kv and count_inplace_mutations.
     mutations_before = count_inplace_mutations(gm)
 
     # Run fusion passes to detect and fuse multi-op patterns
@@ -79,11 +80,12 @@ def torch_pass_pipeline(
         raise RuntimeError(
             f"Dynamo-stage passes dropped "
             f"{mutations_before - mutations_after} in-place mutation op(s) "
-            f"(before={mutations_before}, after={mutations_after}). These are "
-            f"call_method ops like Tensor.copy_ (e.g. KV-cache fills) which torch.fx "
-            f"treats as pure; a pass most likely called gm.graph.eliminate_dead_code() "
-            f"before torch.export functionalization, silently corrupting buffer/cache "
-            f"writes. Remove the pre-export DCE or make it mutation-aware."
+            f"(before={mutations_before}, after={mutations_after}). These are ops like "
+            f"Tensor.copy_ (e.g. KV-cache fills) or x[...] = y (operator.setitem) which "
+            f"torch.fx treats as pure; a pass most likely called "
+            f"gm.graph.eliminate_dead_code() before torch.export functionalization, "
+            f"silently corrupting buffer/cache writes. Remove the pre-export DCE or make "
+            f"it mutation-aware."
         )
 
     decompositions = populate_decompositions()

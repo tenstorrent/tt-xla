@@ -408,6 +408,37 @@ def test_count_inplace_mutations_counts_copy():
     assert captured["count"] >= 1
 
 
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_count_inplace_mutations_counts_setitem():
+    """count_inplace_mutations detects slice/index assignment (operator.setitem).
+
+    `x[...] = y` lowers to a `call_function operator.setitem`, not a trailing-underscore
+    call_method, so the earlier call_method-only heuristic missed it -- yet DCE would
+    still drop it and corrupt the write.
+    """
+    torch._dynamo.reset()
+    captured = {}
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("buf", torch.zeros(4))
+
+        def forward(self, x):
+            self.buf[0:2] = x[0:2]  # -> call_function operator.setitem
+            return x + 1
+
+    def backend(gm, example_inputs):
+        captured["count"] = count_inplace_mutations(gm)
+        return gm.forward
+
+    torch.compile(M(), backend=backend, fullgraph=True)(torch.randn(4))
+    assert captured["count"] >= 1
+
+
 # ===========================================================================
 # Negative cases: pass must NOT rewrite
 # ===========================================================================

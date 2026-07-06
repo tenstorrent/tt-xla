@@ -294,23 +294,38 @@ def _sdpa_operand(node: torch.fx.Node, pos: int, name: str):
     return node.kwargs.get(name)
 
 
-def count_inplace_mutations(gm: torch.fx.GraphModule) -> int:
-    """Count in-place tensor-method mutations (trailing-underscore call_method nodes).
+def _is_inplace_mutation(n: torch.fx.Node) -> bool:
+    """True if `n` mutates a tensor in place at the dynamo (pre-export) stage.
 
-    These (e.g. `Tensor.copy_` used for KV-cache fills, `index_copy_`, `masked_fill_`)
-    are represented as ``call_method`` nodes, which ``torch.fx.Node.is_impure()`` treats
-    as *pure* (FX only schema-checks mutability for ``call_function``). So a pre-export
-    ``gm.graph.eliminate_dead_code()`` will silently delete them when they have no SSA
-    users -- corrupting buffer/cache writes (see erase_repeat_kv). Used by the dynamo-
-    stage pass guard in the backend to fail loudly if any such mutation is dropped.
+    Covers the forms in-place writes take before functionalization:
+      * ``call_method`` with a trailing-underscore target -- ``Tensor.copy_`` (KV-cache
+        fills), ``index_copy_``, ``masked_fill_``, etc.;
+      * ``call_function`` ``operator.setitem`` -- slice/index assignment ``x[...] = y``;
+      * ``call_function`` on a mutable-schema aten OpOverload, or any callable whose name
+        ends in ``_`` (e.g. ``torch.Tensor.copy_`` reached as a function).
+
+    ``torch.fx.Node.is_impure()`` treats the ``call_method`` forms as *pure* (it only
+    schema-checks ``call_function``), and does not recognize ``operator.setitem``, so a
+    pre-export ``eliminate_dead_code()`` silently deletes these when they have no SSA
+    users -- corrupting buffer/cache writes (see erase_repeat_kv). This is used by the
+    dynamo-stage pass guard in the backend to fail loudly if any such op is dropped.
     """
-    return sum(
-        1
-        for n in gm.graph.nodes
-        if n.op == "call_method"
-        and isinstance(n.target, str)
-        and n.target.endswith("_")
-    )
+    if n.op == "call_method":
+        return isinstance(n.target, str) and n.target.endswith("_")
+    if n.op == "call_function":
+        if n.target is operator.setitem:
+            return True
+        schema = getattr(n.target, "_schema", None)
+        if schema is not None and schema.is_mutable:
+            return True
+        name = getattr(n.target, "__name__", "")
+        return isinstance(name, str) and name.endswith("_")
+    return False
+
+
+def count_inplace_mutations(gm: torch.fx.GraphModule) -> int:
+    """Count in-place tensor mutations in `gm` (see :func:`_is_inplace_mutation`)."""
+    return sum(1 for n in gm.graph.nodes if _is_inplace_mutation(n))
 
 
 def erase_repeat_kv(gm: torch.fx.GraphModule) -> None:
