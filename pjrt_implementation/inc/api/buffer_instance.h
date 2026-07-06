@@ -13,6 +13,7 @@
 
 // c++ standard library includes
 #include <atomic>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -25,6 +26,7 @@
 
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
 #include "api/event_instance.h"
@@ -162,6 +164,9 @@ public:
   // device) and marks data ready event as ready (if it is already created).
   void markAsDataReady();
 
+  // Materializes a deferred host-buffer placeholder into a runtime tensor.
+  void materializeHostTensorIfNeeded();
+
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);
@@ -178,13 +183,24 @@ public:
   const PjrtTensorRef &getPjrtTensor() const { return m_pjrt_tensor; };
 
   const tt::runtime::Tensor &runtimeTensor() const {
+    TT_FATAL(m_pjrt_tensor, "Buffer has no runtime tensor");
     return m_pjrt_tensor->runtime_tensor();
   }
   tt::runtime::Tensor &runtimeTensor() {
+    materializeHostTensorIfNeeded();
+    TT_FATAL(m_pjrt_tensor, "Buffer has no runtime tensor");
     return m_pjrt_tensor->runtime_tensor();
   }
 
 private:
+  struct PendingHostTensor {
+    std::vector<std::byte> data;
+    std::vector<std::uint32_t> shape;
+    std::vector<std::int64_t> strides;
+    std::uint32_t element_size;
+    ::tt::target::DataType runtime_data_type;
+  };
+
   // Constructor used for the input buffers.
   BufferInstance(PJRT_Buffer_Type data_type, const std::int64_t *dims,
                  size_t num_dims, DeviceInstance *device,
@@ -277,6 +293,10 @@ private:
 
   // Pjrt tensor reference.
   PjrtTensorRef m_pjrt_tensor;
+
+  // Host-side placeholder used to defer TTNN host tensor creation until
+  // execution actually needs a runtime tensor.
+  std::optional<PendingHostTensor> m_pending_host_tensor;
 };
 
 namespace internal {

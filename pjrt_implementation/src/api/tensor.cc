@@ -42,6 +42,10 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
+  for (BufferInstance *shard : shards) {
+    shard->materializeHostTensorIfNeeded();
+  }
+
   if (have_same_tensor(shards))
     return from_shards(shards);
 

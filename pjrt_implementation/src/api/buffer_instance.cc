@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -46,6 +47,120 @@
 namespace tt::pjrt {
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
+
+namespace {
+
+bool deferHostBufferTensorCreation() {
+  const char *value = std::getenv("TT_PJRT_DEFER_HOST_BUFFER_TENSOR");
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+// Returns the byte size of the compact runtime tensor we stage in PJRT-owned
+// memory before materializing a TTNN/runtime host tensor.
+size_t tensorByteSize(const std::vector<std::uint32_t> &shape,
+                      std::uint32_t element_size) {
+  size_t num_elements = 1;
+  for (std::uint32_t dim : shape) {
+    num_elements *= static_cast<size_t>(dim);
+  }
+  return num_elements * element_size;
+}
+
+// Builds dense row-major strides for the compact staged buffer. These can differ
+// from the incoming PJRT byte strides, which describe the caller's source view.
+std::vector<std::int64_t>
+calculateCompactStrides(const std::vector<std::uint32_t> &shape) {
+  std::vector<std::int64_t> strides(shape.size());
+  std::int64_t stride = 1;
+  for (size_t reverse_index = 0; reverse_index < shape.size();
+       ++reverse_index) {
+    size_t dim_index = shape.size() - 1 - reverse_index;
+    strides[dim_index] = stride;
+    stride *= shape[dim_index];
+  }
+  return strides;
+}
+
+// Returns the number of bytes to copy for one logical PJRT element.
+size_t hostElementSize(PJRT_Buffer_Type data_type,
+                       std::uint32_t runtime_element_size) {
+  // PJRT complex host buffers are interleaved real/imag pairs.
+  return data_type_utils::isComplexPJRTType(data_type)
+             ? static_cast<size_t>(runtime_element_size) * 2
+             : static_cast<size_t>(runtime_element_size);
+}
+
+// Walks an explicitly strided PJRT source view and writes logical elements into
+// compact row-major destination storage.
+void packStridedHostBufferRecursive(const std::byte *source, std::byte *dest,
+                                    const std::int64_t *dims, size_t num_dims,
+                                    const std::int64_t *byte_strides,
+                                    size_t dim_index,
+                                    std::int64_t source_offset,
+                                    size_t &linear_index,
+                                    size_t host_element_size) {
+  if (dim_index == num_dims) {
+    std::memcpy(dest + linear_index * host_element_size,
+                source + source_offset, host_element_size);
+    ++linear_index;
+    return;
+  }
+
+  TT_FATAL(dims[dim_index] >= 0, "Tensor dimensions must be non-negative");
+  if (dim_index + 1 == num_dims &&
+      byte_strides[dim_index] == static_cast<std::int64_t>(host_element_size)) {
+    size_t num_bytes = static_cast<size_t>(dims[dim_index]) * host_element_size;
+    std::memcpy(dest + linear_index * host_element_size,
+                source + source_offset, num_bytes);
+    linear_index += static_cast<size_t>(dims[dim_index]);
+    return;
+  }
+
+  for (std::int64_t i = 0; i < dims[dim_index]; ++i) {
+    packStridedHostBufferRecursive(
+        source, dest, dims, num_dims, byte_strides, dim_index + 1,
+        source_offset + i * byte_strides[dim_index], linear_index,
+        host_element_size);
+  }
+}
+
+// Copies the PJRT host buffer into compact staged storage. Compact inputs use a
+// single memcpy; explicit strided inputs are packed into logical tensor order.
+void packHostBuffer(const void *host_buffer, const std::int64_t *dims,
+                    size_t num_dims, const std::int64_t *byte_strides,
+                    size_t num_byte_strides, size_t host_element_size,
+                    std::byte *dest, size_t dest_size) {
+  if (dest_size == 0) {
+    return;
+  }
+
+  TT_FATAL(host_buffer != nullptr,
+           "Cannot defer non-empty host buffer with null host pointer");
+
+  if (num_byte_strides == 0) {
+    std::memcpy(dest, host_buffer, dest_size);
+    return;
+  }
+
+  TT_FATAL(num_byte_strides == num_dims,
+           "num_byte_strides must be 0 or equal to num_dims: "
+           "num_byte_strides={}, num_dims={}",
+           num_byte_strides, num_dims);
+
+  for (size_t i = 0; i < num_byte_strides; ++i) {
+    TT_FATAL(byte_strides[i] >= 0,
+             "Negative host byte strides are not supported: byte_strides[{}]={}",
+             i, byte_strides[i]);
+  }
+
+  size_t linear_index = 0;
+  packStridedHostBufferRecursive(
+      reinterpret_cast<const std::byte *>(host_buffer), dest, dims, num_dims,
+      byte_strides, /*dim_index=*/0, /*source_offset=*/0, linear_index,
+      host_element_size);
+}
+
+} // namespace
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
@@ -148,6 +263,7 @@ void BufferInstance::deleteData() {
   }
 
   m_data_deleted = true;
+  m_pending_host_tensor.reset();
   if (m_done_with_host_buffer_event) {
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
@@ -239,6 +355,7 @@ void BufferInstance::copyFromHost(
       data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
+  m_pending_host_tensor.reset();
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -261,6 +378,33 @@ void BufferInstance::copyFromHost(
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
+
+  if (deferHostBufferTensorCreation()) {
+    // Stage the host buffer as compact, owned bytes so runtime tensor creation
+    // can be deferred until execution opens the mesh.
+    std::vector<std::int64_t> compact_strides = calculateCompactStrides(shape);
+    size_t byte_size = tensorByteSize(shape, element_size);
+
+    PendingHostTensor pending{std::vector<std::byte>(byte_size),
+                              std::move(shape),
+                              std::move(compact_strides),
+                              element_size,
+                              runtime_data_type};
+    m_pending_host_tensor = std::move(pending);
+
+    // Copy the logical PJRT host buffer into the compact staged storage, packing
+    // explicit strided layouts when needed.
+    packHostBuffer(host_buffer, dims, num_dims, byte_strides, num_byte_strides,
+                   hostElementSize(m_data_type, element_size),
+                   m_pending_host_tensor->data.data(), byte_size);
+
+    // PJRT owns the staged bytes now, so the caller can release its buffer.
+    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                          tt_pjrt_status::kSuccess);
+    markAsDataReady();
+    *out_done_with_host_buffer_event = done_with_host_buffer_event.release();
+    return;
+  }
 
   tt::runtime::Tensor runtime_tensor;
 
@@ -341,6 +485,7 @@ void BufferInstance::copyFromHost(
 
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
+  src_buffer->materializeHostTensorIfNeeded();
   TT_FATAL(src_buffer->getPjrtTensor(), "Source buffer has no data.");
 
   ::tt::target::DataType runtime_data_type =
@@ -388,6 +533,26 @@ void BufferInstance::allocateUninitialized(const std::int64_t *byte_strides,
   PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
   markAsDataReady();
+}
+
+void BufferInstance::materializeHostTensorIfNeeded() {
+  if (!m_pending_host_tensor.has_value()) {
+    return;
+  }
+
+  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
+  TT_FATAL(client != nullptr && client->parentMesh().has_value(),
+           "Deferred host tensor materialization requires an open runtime "
+           "mesh. Materializing before execution can implicitly initialize "
+           "MetalContext during host-only compile setup.");
+
+  PendingHostTensor pending = std::move(*m_pending_host_tensor);
+  m_pending_host_tensor.reset();
+
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
+      pending.data.data(), pending.shape, pending.strides, pending.element_size,
+      pending.runtime_data_type);
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 }
 
 std::vector<std::uint32_t>
@@ -442,6 +607,10 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
 
   // In compile-only mode, output buffers have no associated tensor (no
   // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    materializeHostTensorIfNeeded();
+  }
+
   if (!m_pjrt_tensor) {
     TT_FATAL(m_device->getClient()->isCompileOnly(),
              "Copy from buffer without an associated tensor.");

@@ -456,9 +456,10 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  // tt-xla creates 1D mesh by default, so if compiler determines a different
-  // mesh shape, we need to update the mesh in the client instance to match the
-  // compiler determined mesh shape.
+  // If a parent mesh already exists from prior execution/optimizer setup and
+  // the compiler determines a different mesh shape, synchronize the client
+  // mesh. This does not create the initial mesh when compilation starts
+  // host-only because current_mesh_shape is empty in that case.
   if (current_mesh_shape.has_value() &&
       current_mesh_shape.value() != mesh_shape) {
     client_instance->getOrCreateMeshDevice(mesh_shape);
