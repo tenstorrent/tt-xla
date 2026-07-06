@@ -224,9 +224,13 @@ def benchmark_video_gen_torch_xla(
     # check and no score is recorded.
     evaluation_score = None
     if required_pcc is not None:
-        evaluation_score = compute_pcc(
-            last_output, golden_output, required_pcc=required_pcc
-        )
+        # utils.compute_pcc(golden, device) takes two positional tensors and does
+        # not assert, so compute the score and enforce the threshold here (matches
+        # the encoder harness). PCC is symmetric, so argument order is immaterial.
+        evaluation_score = compute_pcc(golden_output, last_output)
+        assert (
+            evaluation_score >= required_pcc
+        ), f"PCC comparison failed. PCC={evaluation_score:.6f}, Required={required_pcc}"
         print(f"PCC verification passed with PCC={evaluation_score:.6f}")
     else:
         print("PCC check skipped (required_pcc=None).")

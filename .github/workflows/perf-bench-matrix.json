@@ -227,6 +227,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "fibo_text_encoder_tp_qb2",
+        "pytest": "tests/benchmark/test_fibo_text_encoder.py::test_fibo_text_encoder",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "microsoft_phi-1",
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },
