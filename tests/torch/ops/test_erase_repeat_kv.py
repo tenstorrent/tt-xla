@@ -149,7 +149,8 @@ def run_pass(module, inputs):
         compiled = torch.compile(module, backend=backend, fullgraph=True)
         transformed = compiled(*inputs)
 
-    torch.testing.assert_close(transformed, eager)
+    # rtol=atol=0: the substitution is exact (same MATH kernel), so require bit-equality.
+    torch.testing.assert_close(transformed, eager, rtol=0, atol=0)
     return info
 
 
