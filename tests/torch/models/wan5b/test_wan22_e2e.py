@@ -39,10 +39,10 @@ from .shared import (
     VAEEncoderWrapper,
     WanDiTWrapper,
     load_dit,
-    load_first_frame_image,
     load_tokenizer,
     load_umt5,
     load_vae,
+    make_synthetic_first_frame,
     prompt_clean,
     run_component,
     shard_dit_specs,
@@ -183,9 +183,11 @@ def _build_components(mode: str) -> _Components:
 # ---------------------------------------------------------------------------
 
 
-# First-frame conditioning image for i2v. Resized via cover-fit + center
-# crop to the active resolution. Ignored when mode == "t2v".
-IMAGE_PATH = Path(__file__).parent / "reze.jpg"
+# First-frame conditioning input for i2v. Generated deterministically at the
+# active resolution (see make_synthetic_first_frame); content is irrelevant to
+# pass/fail since reference and device outputs derive from the same frame.
+# Ignored when mode == "t2v". The stem is a stable string used in output names.
+SYNTHETIC_FRAME_STEM = "synthetic_first_frame"
 _OUT_DIR = Path(__file__).parent / "generated"
 
 
@@ -207,7 +209,7 @@ def _devtag(mode: str) -> str:
 def _stem(mode: str, resolution: str) -> str:
     base = f"wan22_{mode}_{resolution}_steps{NUM_STEPS}_{_devtag(mode)}"
     if mode == "i2v":
-        base += f"_{IMAGE_PATH.stem}"
+        base += f"_{SYNTHETIC_FRAME_STEM}"
     return base
 
 
@@ -580,9 +582,10 @@ def _run(
     image_latent = None
     if mode == "i2v":
         assert components.vae_encoder is not None, "i2v requires components.vae_encoder"
-        image = load_first_frame_image(IMAGE_PATH, shapes["video_h"], shapes["video_w"])
+        image = make_synthetic_first_frame(shapes["video_h"], shapes["video_w"])
         _log(
-            f"i2v first-frame loaded image={IMAGE_PATH.name} shape={tuple(image.shape)}"
+            f"i2v first-frame synthesized name={SYNTHETIC_FRAME_STEM} "
+            f"shape={tuple(image.shape)}"
         )
 
         t = time.perf_counter()
