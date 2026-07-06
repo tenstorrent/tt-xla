@@ -1,112 +1,150 @@
-name: Update Test Durations
+name: Manual vLLM Single-Device on QB2
 
-# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
-# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
-# calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# Runs the vLLM single-device tests on a Blackhole QB2 runner, pinned to a chip
+# via TT_VISIBLE_DEVICES + the p150 mesh graph descriptor. Can be built against a
+# specific tt-mlir branch/SHA via mlir_override (issue #5521).
 
 on:
   workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'tt-mlir branch name OR git SHA to build against (blank = pinned version)'
+        required: false
+        type: string
+      test_mark:
+        description: 'pytest -m marker expression'
+        required: false
+        default: 'single_device'
+        type: string
+      pin_device:
+        description: 'TT_VISIBLE_DEVICES value (which chip to pin)'
+        required: false
+        default: '1'
+        type: string
+      forge_models_override:
+        description: 'tt-forge-models branch/SHA (optional)'
+        required: false
+        type: string
 
 permissions:
-  actions: read
-  contents: write
-  issues: write
-  pull-requests: write
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+
+run-name: "vLLM QB2 (mark: ${{ inputs.test_mark }}, chip: ${{ inputs.pin_device }}, mlir: ${{ inputs.mlir_override || 'pinned' }})"
 
 jobs:
-  update_test_durations:
-    runs-on: ubuntu-latest
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
+
+  run-tests:
+    needs: [ build-image, build-ttxla ]
+    runs-on: qb2-blackhole
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+      TT_XLA_CI: 1
+      TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
+      # ---- the two vars you asked for ----
+      TT_VISIBLE_DEVICES: ${{ inputs.pin_device }}
+      # TT_MESH_GRAPH_DESC_PATH is resolved at runtime below (its path differs in CI).
+
     steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v6
-      - name: Process test durations from latest workflows
-        id: get-test-durations
-        env:
-          GH_TOKEN: ${{ github.token }}
+          submodules: recursive
+
+      - name: Override tt_forge_models ref
+        if: ${{ inputs.forge_models_override != '' }}
+        shell: bash
         run: |
-          repo="tenstorrent/tt-xla"
+          REF="${{ inputs.forge_models_override }}"
+          RESOLVED=$(gh api repos/tenstorrent/tt-forge-models/commits/$REF --jq .sha 2>/dev/null || echo "$REF")
+          cd third_party/tt_forge_models
+          git fetch --depth=1 origin "$RESOLVED"
+          git checkout FETCH_HEAD
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+      - name: Download and install wheels
+        shell: bash
+        run: |
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} --dir wheels \
+            --name vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          echo "Downloaded:"; ls -la wheels
+          source venv/activate
+          uv pip install wheels/*.whl
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+      - name: Resolve mesh graph descriptor path
+        shell: bash
+        run: |
+          set -euo pipefail
 
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+          DESC="$(find / -name 'p150_mesh_graph_descriptor.textproto' -print -quit 2>/dev/null || true)"
 
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
+          if [ -z "$DESC" ]; then
+            echo "::error::p150_mesh_graph_descriptor.textproto not found in container"
+            exit 1
+          fi
 
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
+          if [ ! -f "$DESC" ]; then
+            echo "::error::Resolved descriptor path is not a file: $DESC"
+            exit 1
+          fi
 
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
+          echo "Using mesh descriptor: $DESC"
+          echo "TT_MESH_GRAPH_DESC_PATH=$DESC" >> "$GITHUB_ENV"
 
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
+      - name: Run vLLM single-device tests
+        env:
+          HF_HOME: /mnt/dockercache/huggingface
+          TORCH_HOME: /mnt/dockercache/torchhub
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        shell: bash
+        run: |
+          echo "TT_VISIBLE_DEVICES=$TT_VISIBLE_DEVICES"
+          echo "TT_MESH_GRAPH_DESC_PATH=$TT_MESH_GRAPH_DESC_PATH"
+          source venv/activate
+          python -m pytest -v -m "${{ inputs.test_mark }}" \
+            ./tests/integrations/vllm_plugin \
+            --junitxml=report_${{ github.run_id }}.xml \
+            2>&1 | tee pytest.log
 
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
-        id: create-pr
+      - name: Upload test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
         with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ github.token }}
-
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Generate Summary
-        run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+          name: vllm-qb2-report
+          path: |
+            report_*.xml
+            pytest.log
+          if-no-files-found: ignore
