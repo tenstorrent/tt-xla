@@ -2723,3 +2723,22 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+
+  # XTTS-v2 (coqui/XTTS-v2) per-nn.Module component bring-up - https://github.com/tenstorrent/tt-xla/issues/5216
+  xtts_v2/pytorch-speaker_encoder-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-conditioning-single_device-inference:
+    assert_pcc: false
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ttnn.group_norm requires tile-aligned flattened height (multiple of 32); the conditioning encoder mel length is not. Verified fixed by https://github.com/tenstorrent/tt-mlir/pull/8935; flip to EXPECTED_PASSING once #8935 is merged and TT_MLIR_VERSION is uplifted - https://github.com/tenstorrent/tt-xla/issues/5483"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+
+  xtts_v2/pytorch-gpt_prefill-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_latents-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-hifigan_decoder-single_device-inference:
+    status: EXPECTED_PASSING
