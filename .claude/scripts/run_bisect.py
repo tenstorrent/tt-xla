@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
 Orchestrate bisect-commit runs for all qualifying tests in a regression report.
 
@@ -39,7 +42,10 @@ def qualify_test(result: dict, supported_machine_types: list[str]) -> tuple[bool
     """
     machine_type = result.get("machine_type", "")
     if machine_type not in supported_machine_types:
-        return False, f"Machine type '{machine_type}' not in supported list {supported_machine_types}"
+        return (
+            False,
+            f"Machine type '{machine_type}' not in supported list {supported_machine_types}",
+        )
 
     if not result.get("first_bad_sha"):
         return False, "No first_bad_sha (boundary not found or unavailable)"
@@ -61,7 +67,7 @@ def build_claude_prompt(result: dict, log_dir: Path) -> str:
     known_error_escaped = known_error.replace('"', '\\"')
 
     return (
-        f'/bisect-commit '
+        f"/bisect-commit "
         f'test_id="{test_id}" '
         f'first_bad_sha="{first_bad_sha}" '
         f'last_good_sha="{last_good_sha}" '
@@ -92,7 +98,9 @@ def main() -> None:
     bisect_repo = repo_root.parent / "tt-xla_bisect"
     if not bisect_repo.exists():
         remote_url = (
-            subprocess.check_output(["git", "remote", "get-url", "origin"], cwd=repo_root)
+            subprocess.check_output(
+                ["git", "remote", "get-url", "origin"], cwd=repo_root
+            )
             .decode()
             .strip()
         )
@@ -101,7 +109,9 @@ def main() -> None:
             ["git", "clone", remote_url, str(bisect_repo)],
             check=True,
         )
-        print(f"Cloned. NOTE: set up venv in {bisect_repo} before bisecting needs it.\n")
+        print(
+            f"Cloned. NOTE: set up venv in {bisect_repo} before bisecting needs it.\n"
+        )
     else:
         print(f"Bisect repo:  {bisect_repo}  (exists)")
 

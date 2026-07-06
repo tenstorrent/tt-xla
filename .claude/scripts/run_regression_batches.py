@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
 Run find-regression-boundaries in parallel batches using separate claude processes.
 
@@ -39,12 +42,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Log pre-download helpers
 # ---------------------------------------------------------------------------
 
-def gh_api(endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: float = 5.0) -> str:
+
+def gh_api(
+    endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: float = 5.0
+) -> str:
     cmd = ["gh", "api", endpoint]
     if jq:
         cmd += ["--jq", jq]
@@ -54,7 +59,10 @@ def gh_api(endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: 
         if result.returncode == 0:
             return result.stdout.strip()
         last_err = result.stderr.strip()
-        if any(code in last_err for code in ("HTTP 502", "HTTP 503", "HTTP 504", "HTTP 429")):
+        if any(
+            code in last_err
+            for code in ("HTTP 502", "HTTP 503", "HTTP 504", "HTTP 429")
+        ):
             if attempt < retries - 1:
                 time.sleep(retry_delay * (attempt + 1))
                 continue
@@ -62,7 +70,9 @@ def gh_api(endpoint: str, jq: str | None = None, retries: int = 3, retry_delay: 
     raise RuntimeError(f"gh api {endpoint} failed:\n{last_err}")
 
 
-def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> list[dict]:
+def fetch_run_list(
+    github_repo: str, workflow_id: int, starting_run_id: int
+) -> list[dict]:
     """Return up to 10 completed runs ordered newest->oldest that precede starting_run_id.
 
     The starting run itself is excluded from the returned list — it may still be
@@ -71,7 +81,7 @@ def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> 
     """
     meta_raw = gh_api(
         f"repos/{github_repo}/actions/runs/{starting_run_id}",
-        jq='{id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
+        jq="{id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}",
     )
     starting_run = json.loads(meta_raw)
     created_at = starting_run["created_at"]
@@ -82,7 +92,7 @@ def fetch_run_list(github_repo: str, workflow_id: int, starting_run_id: int) -> 
         raw = gh_api(
             f"repos/{github_repo}/actions/workflows/{workflow_id}/runs"
             f"?per_page=50&status=completed&created=%3C%3D{created_at}&page={page}",
-            jq='.workflow_runs[] | {id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}'
+            jq=".workflow_runs[] | {id: .id, head_sha: .head_sha, created_at: .created_at, conclusion: .conclusion}",
         )
         page_runs = []
         for line in raw.strip().splitlines():
@@ -127,7 +137,7 @@ def fetch_all_run_jobs(run_id: int, github_repo: str) -> list[dict]:
     while True:
         raw = gh_api(
             f"repos/{github_repo}/actions/runs/{run_id}/jobs?per_page=25&page={page}",
-            jq='.jobs[] | {id: .id, name: .name, conclusion: .conclusion}'
+            jq=".jobs[] | {id: .id, name: .name, conclusion: .conclusion}",
         )
         page_jobs = []
         for line in raw.strip().splitlines():
@@ -191,7 +201,9 @@ def _print_job_stats(counts: dict) -> None:
         print(f"    {', '.join(parts)}", flush=True)
 
 
-def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict) -> dict:
+def download_run_logs(
+    run_id: int, github_repo: str, logs_dir: Path, index: dict
+) -> dict:
     """Ensure all job logs for a run are downloaded.
 
     - Cached run: scan for stub-only dirs (system.txt only, left by old ZIP downloads)
@@ -211,14 +223,18 @@ def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict
             return index[key]
 
         stub_dirs = [
-            d for d in run_dir.iterdir()
+            d
+            for d in run_dir.iterdir()
             if d.is_dir() and [f.name for f in d.iterdir()] == ["system.txt"]
         ]
         if not stub_dirs:
             print(f"  run {run_id}: cached, no stubs — OK")
             return index[key]
 
-        print(f"  run {run_id}: cached, {len(stub_dirs)} stub dirs — repairing...", flush=True)
+        print(
+            f"  run {run_id}: cached, {len(stub_dirs)} stub dirs — repairing...",
+            flush=True,
+        )
         all_jobs = fetch_all_run_jobs(run_id, github_repo)
         name_to_id = {j["name"].replace(" / ", " _ "): j["id"] for j in all_jobs}
 
@@ -239,7 +255,7 @@ def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict
     print(f"  run {run_id}: fetching metadata...", flush=True)
     meta_raw = gh_api(
         f"repos/{github_repo}/actions/runs/{run_id}",
-        jq='{id: .id, workflow_id: .workflow_id, workflow_name: (.name), head_sha: .head_sha, created_at: .created_at}'
+        jq="{id: .id, workflow_id: .workflow_id, workflow_name: (.name), head_sha: .head_sha, created_at: .created_at}",
     )
     meta = json.loads(meta_raw)
 
@@ -275,6 +291,7 @@ def download_run_logs(run_id: int, github_repo: str, logs_dir: Path, index: dict
 # Batch runner
 # ---------------------------------------------------------------------------
 
+
 def batch_report_path(bisection_dir: Path, batch_idx: int, run_id: int) -> Path:
     """Return the path where the skill will write the report for this batch.
     Matches the skill's filename derivation:
@@ -302,7 +319,9 @@ def write_batch_file(batch_file: Path, data: dict, batch_tests: list) -> None:
         json.dump(batch_data, f, indent=2)
 
 
-def run_batch(batch_idx: int, batch_file: Path, log_file: Path, repo_root: Path) -> tuple[int, int, bool]:
+def run_batch(
+    batch_idx: int, batch_file: Path, log_file: Path, repo_root: Path
+) -> tuple[int, int, bool]:
     """Spawn one `claude -p /find-regression-boundaries <batch_file>` process."""
     cmd = [
         "claude",
@@ -355,12 +374,16 @@ def run_batches_parallel(
                 batch_idx, rc, ok = future.result()
                 done += 1
                 status = "OK" if ok else f"FAILED (rc={rc})"
-                print(f"  [{done}/{total}] batch {batch_idx:2d}  {status}  log: batch_{batch_idx}_{run_id}_attempt{attempt}.log")
+                print(
+                    f"  [{done}/{total}] batch {batch_idx:2d}  {status}  log: batch_{batch_idx}_{run_id}_attempt{attempt}.log"
+                )
                 if ok:
                     if batch_report_path(bisection_dir, batch_idx, run_id).exists():
                         succeeded.append(batch_idx)
                     else:
-                        print(f"    WARNING: batch {batch_idx} exited OK but report file missing — treating as failed")
+                        print(
+                            f"    WARNING: batch {batch_idx} exited OK but report file missing — treating as failed"
+                        )
                         failed.append(batch_idx)
                 else:
                     failed.append(batch_idx)
@@ -376,22 +399,37 @@ def run_batches_parallel(
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run find-regression-boundaries in parallel batches"
     )
-    parser.add_argument("failures_json", help="Path to failures JSON from /collect-failures")
     parser.add_argument(
-        "--batch-size", type=int, default=10,
+        "failures_json", help="Path to failures JSON from /collect-failures"
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10,
         help="Tests per claude process (default: 10). Number of processes = ceil(total / batch_size).",
     )
     parser.add_argument(
-        "--max-retries", type=int, default=2,
+        "--max-retries",
+        type=int,
+        default=2,
         help="Max retry attempts for batches that fail or produce no report (default: 2)",
     )
     parser.add_argument(
-        "--no-cleanup", action="store_true",
+        "--no-cleanup",
+        action="store_true",
         help="Keep batch JSON and per-batch report files after completion",
+    )
+    parser.add_argument(
+        "--download-only",
+        action="store_true",
+        help="Only fetch the previous-run list and pre-download their job logs into "
+        "bisection/logs/, then exit. Use this when the caller will invoke "
+        "/find-regression-boundaries directly (no nested `claude -p` subprocess).",
     )
     args = parser.parse_args()
 
@@ -431,7 +469,9 @@ def main():
     run_list = fetch_run_list(github_repo, workflow_id, run_id)
     print(f"Runs to search ({len(run_list)}, newest -> oldest, prior to run {run_id}):")
     for idx, r in enumerate(run_list):
-        print(f"  [{idx}] run {r['id']}  {r['created_at'][:10]}  sha={r['head_sha'][:8]}")
+        print(
+            f"  [{idx}] run {r['id']}  {r['created_at'][:10]}  sha={r['head_sha'][:8]}"
+        )
     print()
 
     # ------------------------------------------------------------------
@@ -450,6 +490,16 @@ def main():
         save_index(index_path, index)
     print()
 
+    # Download-only mode: logs are cached; caller invokes /find-regression-boundaries
+    # directly (Skill tool + its own subagents) instead of spawning `claude -p`.
+    if args.download_only:
+        cached = [k for k in index if k.startswith("run_")]
+        print(
+            f"--download-only: logs cached for {len(cached)} run(s). "
+            f"Now run:  /find-regression-boundaries {failures_path.relative_to(repo_root)}"
+        )
+        return
+
     # ------------------------------------------------------------------
     # Phase 3: ensure GitHub SSH host key is known (avoids interactive
     # prompts when 8 agents all connect simultaneously)
@@ -460,8 +510,7 @@ def main():
     if "github.com" not in existing:
         print("Adding GitHub to SSH known_hosts...")
         result = subprocess.run(
-            ["ssh-keyscan", "github.com"],
-            capture_output=True, text=True
+            ["ssh-keyscan", "github.com"], capture_output=True, text=True
         )
         if result.returncode == 0:
             with open(known_hosts, "a") as f:
@@ -481,7 +530,9 @@ def main():
     for i in range(n_batches):
         batch_tests = failed_tests[i * args.batch_size : (i + 1) * args.batch_size]
         write_batch_file(batch_input_path(bisection_dir, i, run_id), data, batch_tests)
-        print(f"  batch {i:2d}: {len(batch_tests):2d} tests -> batch_{i}_{run_id}_failures.json")
+        print(
+            f"  batch {i:2d}: {len(batch_tests):2d} tests -> batch_{i}_{run_id}_failures.json"
+        )
     print()
 
     # ------------------------------------------------------------------
@@ -494,7 +545,9 @@ def main():
     for attempt in range(1, args.max_retries + 2):  # +2: initial run + max_retries
         if not pending:
             break
-        label = "initial run" if attempt == 1 else f"retry {attempt - 1}/{args.max_retries}"
+        label = (
+            "initial run" if attempt == 1 else f"retry {attempt - 1}/{args.max_retries}"
+        )
         print(f"Launching {len(pending)} claude processes in parallel ({label})...")
 
         succeeded, failed = run_batches_parallel(
@@ -506,7 +559,9 @@ def main():
         if pending and attempt <= args.max_retries:
             print(f"\n{len(pending)} batch(es) failed: {pending} — retrying...")
         elif pending:
-            print(f"\nERROR: {len(pending)} batch(es) still failing after {args.max_retries} retries: {pending}")
+            print(
+                f"\nERROR: {len(pending)} batch(es) still failing after {args.max_retries} retries: {pending}"
+            )
             print(f"  Check logs in bisection/batch_logs/")
 
     total_elapsed = time.time() - start_time

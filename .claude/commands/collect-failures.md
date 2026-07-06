@@ -165,17 +165,18 @@ grep "Machine name:" "<log_file>" | head -1
 
 Parse `machine_name` as the value inside the quotes (e.g. `forge-n150-12`).
 
-Derive `machine_type` from `machine_name` by extracting the first token from the set `{n150, n300, p150, llmbox}` found anywhere in the name:
+Derive `machine_type` from `machine_name` by matching, **longest token first**, against the known runner set `{n150, n300, p150, n300-llmbox, llmbox, galaxy-wh-6u, galaxy-bh, qb2-blackhole}` found anywhere in the name:
 - `forge-n150-12` → `n150`
 - `forge-n300-5` → `n300`
 - `forge-p150-3` → `p150`
 - `forge-llmbox-n300-1` → `llmbox`
 - `forge-mlir-n150-7` → `n150`
 - `forge-torch-p150-2` → `p150`
+- blackhole / galaxy runners → `qb2-blackhole` / `galaxy-bh` / `galaxy-wh-6u` (match the full compound token; do NOT truncate `qb2-blackhole` to a bare arch)
 
-The only valid machine types are: `n150`, `n300`, `p150`, `llmbox`. Any prefix segments (e.g. `mlir`, `torch`) are ignored.
+Valid machine types: `n150`, `n300`, `p150`, `n300-llmbox` (or `llmbox`), `galaxy-wh-6u`, `galaxy-bh`, `qb2-blackhole`. Any prefix segments (e.g. `mlir`, `torch`) are ignored. Match longest tokens first.
 
-If the `Machine name:` line is missing, fall back to extracting machine type from the job name (look for the first parenthesized token matching a known type, e.g. `(n150, run_forge_models_torch, 1)` → `n150`).
+If the `Machine name:` line is missing **or contains no known token** (common for blackhole/galaxy runners), fall back to the **job name's first parenthesized token**, which is the exact `runs_on` value — e.g. `(n150, run_forge_models_torch, 1)` → `n150`, `(galaxy-bh, run_torch_bh_galaxy, 18)` → `galaxy-bh`, `(qb2-blackhole, run_vllm_bhqb_tests, 16)` → `qb2-blackhole`, `(galaxy-wh-6u, run_torch_galaxy, 17)` → `galaxy-wh-6u`. Prefer this fallback whenever the machine-name match is empty — never emit `null` when the job name carries the arch.
 
 #### Step 0b — Detect in-job timeouts and reclassify
 
@@ -372,7 +373,7 @@ Note: `failed_tests` contains tests from both **failed** and **cancelled** jobs.
 
 Before saving, sort `failed_tests`:
 1. Primary sort: `test_id` alphabetically (A→Z)
-2. Secondary sort: `machine_type` in the fixed order `n150 → p150 → n300 → llmbox`
+2. Secondary sort: `machine_type` in the fixed order `n150 → p150 → n300 → n300-llmbox/llmbox → galaxy-wh-6u → galaxy-bh → qb2-blackhole` (unknown/other last)
 
 Use the Write tool to save this file.
 
