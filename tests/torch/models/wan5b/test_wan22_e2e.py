@@ -477,7 +477,7 @@ def _run_vae(
             on_tt=TT_VAE_DECODER,
             mesh=mesh,
             shard_module=decoder_wrapper.vae,
-            shard_fn=shard_vae_decoder_specs,
+            shard_fn=lambda m: shard_vae_decoder_specs(m, mesh),
         )
     _record(timings_slot, time.perf_counter() - t0)
     return result
@@ -592,7 +592,7 @@ def _run(
             on_tt=TT_VAE_ENCODER,
             mesh=_mesh,
             shard_module=components.vae_encoder.vae,
-            shard_fn=shard_vae_encoder_specs,
+            shard_fn=lambda m: shard_vae_encoder_specs(m, _mesh),
         )
         _record(timings.vae_encoder, time.perf_counter() - t)
         _log(
