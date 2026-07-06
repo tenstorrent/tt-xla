@@ -86,7 +86,7 @@ from vllm.v1.worker.utils import (
     sanity_check_mm_encoder_outputs,
 )
 
-from .attention import (
+from .attention_impls.attention import (
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
@@ -980,6 +980,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
+            num_users=self.input_ids_cpu.shape[0],
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1462,6 +1463,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
+            num_users=num_reqs,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
