@@ -101,7 +101,14 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
-    fp32_dest_acc_en: Optional[bool] = None
+    # Defaults to True: the always-mask prefill SDPA path (is_causal=False +
+    # explicit mask over the full padded K/V slab) normalizes the softmax over
+    # more columns than native causal, and in bf16 that rounding can flip a
+    # borderline greedy first token to EOS (empty output — reproduced on
+    # Wormhole with facebook/opt-125m via test_responses_api_instructions).
+    # fp32 dest accumulation closes that gap. Set False in additional_config to
+    # trade precision for speed.
+    fp32_dest_acc_en: Optional[bool] = True
 
     # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
