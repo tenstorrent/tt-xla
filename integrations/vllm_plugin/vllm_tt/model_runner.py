@@ -3146,7 +3146,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_generators
         ):
             if self.is_sharded_compute_logits:
-                out_tokens = composite_argmax(logits, dim=-1, keepdim=True)
+                # Greedy: gather logits to full and take a plain argmax. Faster
+                # than the sharded distributed argmax at these batch/seq sizes
+                # (host/dispatch-bound), and the distributed composite_argmax
+                # mis-executes at runtime here anyway. Sampling paths stay
+                # vocab-sharded via the (None,"model") entry constraint above.
+                logits_full = sharding_constraint_tensor(
+                    logits, self.mesh, (None, None)
+                )
+                out_tokens = torch.argmax(logits_full, dim=-1, keepdim=True)
             else:
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
