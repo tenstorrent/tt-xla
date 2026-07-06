@@ -254,6 +254,7 @@ class RequirementsManager:
             f"[Requirements] __enter__: changed_versions={sorted(self._changed_versions.keys())}"
         )
         self._purge_stale_modules()
+        self._apply_transformers_compat_patches()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -305,6 +306,7 @@ class RequirementsManager:
                         os.unlink(restore_file)
 
             self._purge_stale_modules()
+            self._apply_transformers_compat_patches()
         finally:
             # Always release the lock if held
             if self._lock_file is not None:
@@ -401,6 +403,14 @@ class RequirementsManager:
                 f"'{normalized_fallback}'."
             )
         return {normalized_fallback}
+
+    @staticmethod
+    def _apply_transformers_compat_patches() -> None:
+        from third_party.tt_forge_models.tools.transformers_compat import (
+            apply_transformers_compat_patches,
+        )
+
+        apply_transformers_compat_patches()
 
     def _purge_stale_modules(self) -> None:
         """Remove changed/new packages from sys.modules so re-imports load from disk.

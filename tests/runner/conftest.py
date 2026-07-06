@@ -7,6 +7,9 @@ import os
 import pytest
 
 from tests.runner.requirements import RequirementsManager
+from third_party.tt_forge_models.tools.transformers_compat import (
+    apply_transformers_compat_patches,
+)
 from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
 from tests.runner.test_config.torch import test_config as torch_test_config
@@ -57,12 +60,14 @@ def pytest_sessionstart(session):
     inherited by all children via fork().
     """
     RequirementsManager.capture_golden_state()
+    apply_transformers_compat_patches()
 
 
 @pytest.fixture(autouse=True)
 def restore_pip_env_if_dirty():
     """Restore pip environment before each test if a previous fork was killed."""
     RequirementsManager.check_and_restore_environment()
+    apply_transformers_compat_patches()
 
 
 def _get_model_group_from_item(item):
