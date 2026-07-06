@@ -62,3 +62,31 @@ def replace_modules(model: torch.nn.Module) -> None:
             _process_module(child_module, child_name, module)
 
     _process_module(model)
+
+
+def repair_stale_moe_closures(model: torch.nn.Module) -> None:
+    """Move CPU tensors captured by MoE ``custom_routing_function`` closures
+    onto the model's device.
+
+    Models that build ``custom_routing_function`` as a closure over a parameter
+    (e.g. Gemma-4's ``per_expert_scale``) keep the original CPU tensor in the
+    closure cell after ``model.to(device)``, so routing later mixes cpu/xla
+    tensors and fails to trace. Rewrite any such cell to the device tensor —
+    name- and model-agnostic. Runs unconditionally after load, independent of TP.
+    """
+    device = next((p.device for p in model.parameters()), None)
+    if device is None or device.type == "cpu":
+        return
+
+    for module in model.modules():
+        fn = getattr(module, "custom_routing_function", None)
+        closure = getattr(fn, "__closure__", None)
+        if not closure:
+            continue
+        for cell in closure:
+            try:
+                val = cell.cell_contents
+            except ValueError:
+                continue  # empty cell
+            if isinstance(val, torch.Tensor) and val.device != device:
+                cell.cell_contents = val.to(device)

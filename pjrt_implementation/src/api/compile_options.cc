@@ -25,6 +25,10 @@ CompileOptions CompileOptions::parse(
           .value_or(options.experimental_weight_dtype);
   options.experimental_kv_cache_dtype = internal::parseStringOption(
       compile_options, "experimental-kv-cache-dtype");
+  options.enable_activation_dtype_lowering =
+      internal::parseBoolOption(compile_options,
+                                "enable_activation_dtype_lowering")
+          .value_or(options.enable_activation_dtype_lowering);
   options.math_fidelity =
       internal::parseStringOption(compile_options, "math_fidelity");
 
@@ -76,6 +80,10 @@ CompileOptions CompileOptions::parse(
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
+  options.all_reduce_workaround_enabled =
+      internal::parseBoolOption(compile_options,
+                                "all_reduce_workaround_enabled")
+          .value_or(options.all_reduce_workaround_enabled);
   options.ttnn_perf_metrics_output_file =
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")

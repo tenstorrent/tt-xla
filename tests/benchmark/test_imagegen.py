@@ -92,14 +92,6 @@ def test_imagegen(
             json.dump(results, file, indent=2)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
-        "possibly due to recent uplift — "
-        "https://github.com/tenstorrent/tt-xla/issues/5176"
-    ),
-    strict=False,
-)
 def test_playground_v2_5(output_file, request):
     from benchmarks.playground_v2_5_pipeline import (
         PlaygroundV25Config,
@@ -159,14 +151,10 @@ def test_sdxl_lightning(output_file, request):
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
-        # Text encoders + UNet on TT; VAE on CPU. The VAE OOMs from GroupNorm
-        # decomposition at opt_level=0; opt_level=1 enables the composite
-        # ttnn.group_norm which lets the VAE pass, but switching opt level
-        # (UNet opt 0 -> VAE opt 1) trips a device-hash mismatch
-        # (https://github.com/tenstorrent/tt-xla/issues/5176). So keep the VAE on
-        # CPU until tt-metal https://github.com/tenstorrent/tt-metal/pull/46959 lands.
+        # All 4 components on TT. compile_options forwarded into Config so the
+        # VAE-only opt_level switch can merge instead of clobbering.
         pipeline = SDXLLightningPipeline(
-            config=SDXLLightningConfig(vae_on_tt=False, compile_options=compile_options)
+            config=SDXLLightningConfig(compile_options=compile_options)
         )
         pipeline.setup()
 

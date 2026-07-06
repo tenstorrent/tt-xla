@@ -175,21 +175,30 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
+  // The library lands in `lib/` on Debian-style builds (e.g. the release wheel)
+  // and in `lib64/` on RHEL-style builds (e.g. the manylinux wheel, where CMake
+  // GNUInstallDirs defaults CMAKE_INSTALL_LIBDIR to lib64). Check both.
+  static constexpr const char *kLibSubdirs[] = {"/lib/", "/lib64/"};
+  static constexpr const char *kLibName = "libtt-alchemist-lib.so";
+
   // Wheel install: pjrt_plugin_tt/__init__.py exports TT_PJRT_PLUGIN_DIR,
-  // and the bundled library lives in <plugin_dir>/lib/.
+  // and the bundled library lives in <plugin_dir>/lib/ or <plugin_dir>/lib64/.
   if (const char *plugin_dir = std::getenv("TT_PJRT_PLUGIN_DIR")) {
-    std::string p = std::string(plugin_dir) + "/lib/libtt-alchemist-lib.so";
-    if (std::filesystem::exists(p)) {
-      return p;
+    for (const char *subdir : kLibSubdirs) {
+      std::string p = std::string(plugin_dir) + subdir + kLibName;
+      if (std::filesystem::exists(p)) {
+        return p;
+      }
     }
   }
 
-  // Source build fallback: tt-mlir build tree.
+  // Source build fallback: tt-mlir build tree (lib/ or lib64/).
   if (const char *mlir_home = std::getenv("TT_MLIR_HOME")) {
-    std::string p =
-        std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
-    if (std::filesystem::exists(p)) {
-      return p;
+    for (const char *subdir : kLibSubdirs) {
+      std::string p = std::string(mlir_home) + "/build" + subdir + kLibName;
+      if (std::filesystem::exists(p)) {
+        return p;
+      }
     }
   }
 
@@ -485,6 +494,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
   enableVerboseIRPrinting(vhlo_to_shlo_pm);
+  enableMlirPassTiming(vhlo_to_shlo_pm);
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
@@ -769,6 +779,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                                stablehlo_pipeline_options);
 
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
+  enableMlirPassTiming(stablehlo_pipeline_pm);
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");
@@ -804,6 +815,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
   enableVerboseIRPrinting(shlo_to_ttir_pm);
+  enableMlirPassTiming(shlo_to_ttir_pm);
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -975,6 +987,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     }
     options.experimentalKVCacheDtype = dtype.value();
   }
+  options.enableActivationDtypeLowering =
+      compile_options.enable_activation_dtype_lowering;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
@@ -986,6 +1000,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableCreateD2MSubgraphs =
       compile_options.enable_create_d2m_subgraphs;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
+  options.allReduceWorkaroundEnabled =
+      compile_options.all_reduce_workaround_enabled;
 
   // Auto-number performance metrics output file if enabled
   if (compile_options.ttnn_perf_metrics_enabled &&
@@ -1048,6 +1064,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
+  enableMlirPassTiming(ttir_to_ttnn_pm);
 
   // Run the pass manager.
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
@@ -1200,6 +1217,27 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   pm.enableIRPrinting();
 }
 
+void ModuleBuilder::enableMlirPassTiming(mlir::PassManager &pm) {
+  const char *enable_pass_timing = std::getenv("TTXLA_MLIR_PASS_TIMING");
+  if (enable_pass_timing == nullptr || enable_pass_timing[0] == '\0' ||
+      (enable_pass_timing[0] == '0' && enable_pass_timing[1] == '\0')) {
+    return;
+  }
+
+  // Mutually exclusive with verbose IR printing: that path disables
+  // multithreading (see enableVerboseIRPrinting), which would make the timing
+  // numbers meaningless. Let verbose printing take precedence when both are
+  // requested.
+  if (loguru::g_stderr_verbosity >= LOG_VERBOSE) {
+    LOG_F(WARNING, "TTXLA_MLIR_PASS_TIMING ignored: verbose IR printing is "
+                   "enabled, which disables multithreading and would make pass "
+                   "timing unrepresentative.");
+    return;
+  }
+
+  pm.enableTiming();
+}
+
 void ModuleBuilder::collectMemoryKinds(
     size_t num_outputs, std::vector<const char *> &output_memory_kinds,
     std::vector<size_t> &output_memory_kinds_sizes) {
@@ -1248,6 +1286,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
                                                     runtime_options);
   enableVerboseIRPrinting(runtime_pm);
+  enableMlirPassTiming(runtime_pm);
 
   mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
   if (mlir::failed(mlir_result)) {
