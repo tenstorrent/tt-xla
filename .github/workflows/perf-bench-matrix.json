@@ -77,10 +77,6 @@
         "runs-on": "n150"
       },
       {
-        "name": "bria_2_3",
-        "pytest": "tests/benchmark/test_imagegen.py::test_bria_2_3"
-      },
-      {
         "name": "sdxl_lightning",
         "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
       },
