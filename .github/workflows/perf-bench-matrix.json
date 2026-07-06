@@ -844,6 +844,13 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "fibo_dit_tp",
+        "pytest": "tests/benchmark/test_fibo.py::test_fibo",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }

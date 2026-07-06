@@ -48,6 +48,25 @@ EXECUTION_STEPS = 3
 MODULE_EXPORT_PATH = "modules"
 
 
+def _to_device(x, device):
+    """Recursively move tensors in nested containers to ``device``.
+
+    The Wan components take flat lists of plain tensors, but loader-sourced
+    components (e.g. FIBO) may pass a mix of tensors, nested lists of tensors
+    (``text_encoder_layers``), and non-tensor Python values
+    (``joint_attention_kwargs`` dicts, ``return_dict`` bools). Tensors are moved,
+    lists/tuples/dicts are recursed into, and everything else is passed through
+    unchanged — so a plain-tensor input behaves exactly as ``x.to(device)`` did.
+    """
+    if torch.is_tensor(x):
+        return x.to(device)
+    if isinstance(x, (list, tuple)):
+        return type(x)(_to_device(v, device) for v in x)
+    if isinstance(x, dict):
+        return {k: _to_device(v, device) for k, v in x.items()}
+    return x
+
+
 def _execute_and_measure(
     model, inputs, loop_count, extract_output_tensor_fn, run_context
 ):
@@ -175,7 +194,7 @@ def benchmark_video_gen_torch_xla(
     wrapper_on_device = wrapper.to(device)
     if hasattr(wrapper_on_device, "tie_weights"):
         wrapper_on_device.tie_weights()
-    inputs_on_device = [t.to(device) for t in inputs]
+    inputs_on_device = [_to_device(t, device) for t in inputs]
 
     if use_sharding:
         assert apply_sharding_fn is not None, "sharded run requires apply_sharding_fn"
@@ -218,15 +237,16 @@ def benchmark_video_gen_torch_xla(
         for i, ms in enumerate(per_forward_ms)
     ]
 
-    # Validate correctness (asserts internally on PCC < required_pcc) and record
-    # the measured PCC as the evaluation score, matching the encoder harness.
-    # When the golden was skipped (required_pcc is None) there is nothing to
-    # check and no score is recorded.
+    # Validate correctness and record the measured PCC as the evaluation score,
+    # matching the encoder harness. ``compute_pcc`` only computes the value, so
+    # the threshold assertion happens here. When the golden was skipped
+    # (required_pcc is None) there is nothing to check and no score is recorded.
     evaluation_score = None
     if required_pcc is not None:
-        evaluation_score = compute_pcc(
-            last_output, golden_output, required_pcc=required_pcc
-        )
+        evaluation_score = compute_pcc(golden_output, last_output)
+        assert (
+            evaluation_score >= required_pcc
+        ), f"PCC {evaluation_score:.6f} below required {required_pcc}"
         print(f"PCC verification passed with PCC={evaluation_score:.6f}")
     else:
         print("PCC check skipped (required_pcc=None).")
