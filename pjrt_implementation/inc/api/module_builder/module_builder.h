@@ -273,6 +273,10 @@ private:
   // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
+  // Enables MLIR pass timing when requested via the TTXLA_MLIR_PASS_TIMING
+  // environment variable. Used to measure per-pass compile time.
+  static void enableMlirPassTiming(mlir::PassManager &pm);
+
   // Checks if a particular type is scalar.
   static bool isScalarType(mlir::Type type);
 
