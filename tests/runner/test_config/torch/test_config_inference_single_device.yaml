@@ -2737,6 +2737,12 @@ test_config:
   xtts_v2/pytorch-gpt_prefill-single_device-inference:
     status: EXPECTED_PASSING
 
+  # One KV-cached decode step (the graph the autoregressive loop reuses every
+  # token). Cache is prefilled on CPU and handed in as inputs; the wrapper
+  # rebuilds a fresh StaticCache from clones so the forward is pure.
+  xtts_v2/pytorch-gpt_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
   xtts_v2/pytorch-gpt_latents-single_device-inference:
     status: EXPECTED_PASSING
 

@@ -25,12 +25,20 @@ device or is not a learned graph: the STFT/mel front-ends (complex FFT, problem
 #5216), text tokenization, greedy token sampling / loop control, and audio I/O.
 
 The autoregressive audio-token loop (``gpt_codes``) is the only host-driven
-stage and it also runs the GPT2 trunk on TT. XTTS's GPT2 (transformers 5.x)
-does not accept ``cache_position`` and so cannot use an HF ``StaticCache`` the
-way the Llama loops do; instead we re-run a fixed-length (padded) sequence each
-step with a growing attention mask, so the graph compiles exactly once and every
-step reuses it (no per-step recompiles). Correct and single-compile, but
-O(max_len) per step — cap generation with ``--max-audio-tokens``.
+stage and it also runs the GPT2 trunk on TT. On CPU the original XTTS uses HF
+``gpt.generate`` with a *dynamic* KV cache that grows one slot per step; those
+ever-changing cache shapes would force a fresh compile every step on TT (torch_xla
+keys its graph cache on tensor shapes). Instead we drive the loop with a
+pre-allocated HF ``StaticCache`` (``GptCachedStep`` below): the K/V buffers are
+sized once to ``prefix_len + max_tokens`` and written in place, and every step
+feeds a fixed-shape single token, position, and ``[1, max_cache_len]`` attention
+mask — only the mask *values* change, not shapes. XTTS's GPT2 (transformers 5.x)
+does not pass ``cache_position``, so we rely on HF's ``StaticLayer`` self-managing
+its write index (an internal ``cumulative_length`` + ``index_copy_``). Net effect:
+the prefill graph and the single-token decode graph each compile exactly once and
+every later step is a graph cache hit — no per-step recompiles, O(1) tokens
+embedded per step (attention is over the fixed padded cache). Cap generation with
+``--max-audio-tokens`` to bound ``max_cache_len``.
 
 Requires the optional ``coqui-tts`` + ``torchaudio`` dependencies and the
 CPML-gated coqui/XTTS-v2 weights (``COQUI_TOS_AGREED=1``; set ``HF_TOKEN`` or a
