@@ -19,6 +19,7 @@ permissions:
   id-token: write
   packages: write
   checks: write
+  pull-requests: write
 
 jobs:
   build-image:
@@ -83,3 +84,9 @@ jobs:
     secrets: inherit
     with:
       release_tag: ${{ needs.release.outputs.release_tag }}
+
+  bump-version:
+    needs: [ release-forge, release ]
+    if: ${{ success() && !inputs.should_overwrite_release }}
+    uses: ./.github/workflows/call-bump-version.yml
+    secrets: inherit

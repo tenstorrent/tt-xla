@@ -237,6 +237,18 @@ class DynamicTorchModelTester(TorchModelTester):
 
         return weight_fn
 
+    def _get_activation_shard_spec_function(self):
+        """Activation sharding-constraint function from the loader.
+
+        Returns the loader's ``load_activation_shard_spec`` (model ->
+        {module: output_partition_spec}) if it exposes one; the device runner
+        applies these as forward hooks. Tensor-parallel only.
+        """
+        if self.parallelism != Parallelism.TENSOR_PARALLEL:
+            return None
+        fn = getattr(self.dynamic_loader.loader, "load_activation_shard_spec", None)
+        return fn if callable(fn) else None
+
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
 
