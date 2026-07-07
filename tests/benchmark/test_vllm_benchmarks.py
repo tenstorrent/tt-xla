@@ -273,6 +273,10 @@ TP_CONFIGS = [
         _gemma4_tp_config("google/gemma-4-31B-it", 32, optimization_level=1),
         id="gemma4-31b-it-tp-opt1",
     ),
+    pytest.param(
+        _gemma4_tp_config("google/gemma-4-31B-it", 32, optimization_level=2),
+        id="gemma4-31b-it-tp-opt2",
+    ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
