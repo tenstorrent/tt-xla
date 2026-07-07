@@ -489,8 +489,7 @@ ModuleBuilder::buildModule(
         input_shardings, output_shardings, output_types,
         std::move(output_memory_kinds), std::move(output_memory_kinds_sizes),
         std::move(optimized_mlir_code), std::move(compile_options));
-  } else if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
-             compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+  } else if (is_codegen_cpp || is_codegen_py) {
     return buildModuleForTTNNCodegen(
         mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
         std::move(ttnn_mlir), std::move(executable_name),
@@ -1365,6 +1364,8 @@ ModuleBuilder::buildModuleForTTNNCodegen(
   // it by hash.
   if (compile_options.backend == BackendRuntime::TTNNCodegenPy &&
       !graph_hash.empty()) {
+    TT_FATAL(compile_options.export_path.has_value(),
+             "export_path compile option is not set.");
     std::filesystem::path graph_dir(*compile_options.export_path);
     std::string mesh_str;
     for (size_t i = 0; i < mesh_shape.size(); ++i) {
