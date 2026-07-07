@@ -1390,15 +1390,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # Build the prefill SDPA attention mask. The mask encodes per-user
-        # ``num_computed_tokens`` so the same compiled graph services both
-        # cold prefill (zeros) and cached prefill — torch.compile with
-        # NoGuards bakes Python branches at trace time, so we cannot switch
-        # on a runtime flag. Skipped for the decode bucket (suffix=1) where
-        # attn_mask stays ``None`` and the decode kernel handles the pattern
-        # via ``cache_position``.
+        # Build the prefill SDPA attention mask.
+        #
+        # PROTOTYPE (option 1): only CACHED prefill (num_computed > 0) needs the
+        # mask -- it attends the paged prefix over the full slab. COLD prefill
+        # (all num_computed == 0) leaves attn_mask None so the SDPA path attends
+        # its own freshly-computed K/V directly with native causal (see
+        # attention._compute_full_attention), avoiding the redundant paged
+        # gather whose full-slab read-back degenerates the first token. Cold
+        # (mask None) and cached (mask set) are distinct traced graphs, both
+        # precompiled in warmup -> no runtime recompile. Decode (suffix == 1)
+        # keeps attn_mask None and the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
-        if padded_total_num_scheduled_tokens > 1:
+        is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
+        if padded_total_num_scheduled_tokens > 1 and not is_cold_prefill:
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
             # Mask batch must equal the query batch (target_num_reqs, the
             # request-count bucket) -- not the fixed max -- else SDPA asserts
@@ -2457,6 +2462,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # page-table-stick assert on unsupported layouts).
         prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
 
+        # Cold prefill (attn_mask None -> native causal over the layer's own
+        # freshly-computed K/V) is a DISTINCT traced graph from cached prefill
+        # (attn_mask set -> full-slab gather). Warm both so a warm cache hit
+        # never recompiles mid-serving (the #5132 trigger). Cold applies only
+        # to prefill buckets and never combines with prefix_chunk (chunked
+        # implies a cached prefix, i.e. not cold).
+        cold_options = [True, False]
+
         configs = [
             {
                 "num_tokens": num_tokens,
@@ -2464,6 +2477,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "all_greedy": all_greedy,
                 "apply_grammar": apply_grammar,
                 "prefix_chunk": prefix_chunk,
+                "cold": cold,
             }
             for (
                 num_reqs,
@@ -2471,16 +2485,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 all_greedy,
                 apply_grammar,
                 prefix_chunk,
+                cold,
             ) in product(
                 num_reqs_options,
                 num_tokens_paddings,
                 all_greedy_options,
                 apply_grammar_options,
                 prefix_chunk_options,
+                cold_options,
             )
             # The cached-prefix variant only applies to prefill buckets; the
             # decode bucket (num_tokens == 1) always takes the standard path.
             if not (prefix_chunk and num_tokens == 1)
+            # Cold is prefill-only and never chunked.
+            and not (cold and num_tokens == 1)
+            and not (cold and prefix_chunk)
         ]
 
         for config in configs:
@@ -2548,6 +2567,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         all_greedy = config["all_greedy"]
         apply_grammar = config["apply_grammar"]
         prefix_chunk = config.get("prefix_chunk", False)
+        # cold => leave attn_mask None so the native-causal (direct K/V) prefill
+        # graph is compiled, mirroring runtime cold prefill in _model_prefill.
+        cold = config.get("cold", False)
         hsize = self.model_config.get_hidden_size()
 
         dummy_inputs = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
@@ -2566,7 +2588,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_mask = None
-        if num_tokens > 1:
+        if num_tokens > 1 and not cold:
             # Mask batch must match the dummy query batch (num_reqs). Clamp to
             # the max-model-len request bucket the buffers are keyed on.
             mask_num_reqs = min(num_reqs, self.num_reqs_max_model_len)

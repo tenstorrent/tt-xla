@@ -576,7 +576,31 @@ class TTAttentionBackendImpl(AttentionImpl):
             # Back to [users, tokens, num_heads, head_size].
             return chunked_out.transpose(-3, -2)
 
-        if has_paged_cache:
+        # PROTOTYPE (option 1): cold prefill (attn_mask is None) attends its own
+        # freshly-computed K/V directly -- like main / the no-paged-cache path --
+        # instead of gathering the full slab back out of the paged cache. The
+        # prompt's K/V is already in inputs.key/value (and was just written to
+        # the cache for later decode), so the gather is redundant work whose
+        # full-slab read-back degenerates the first token (token 0) for some
+        # models (Llama-3.2-3B). Native causal over the aligned prompt is
+        # numerically correct AND cheaper. Shared-KV layers have no local K/V,
+        # so they must still gather. Cached-prefix hits (attn_mask set) keep the
+        # full-slab always-mask gather.
+        cold_direct = (
+            has_paged_cache
+            and attn_metadata.attn_mask is None
+            and not shared_kv_mode
+        )
+        if cold_direct:
+            query_for_sdpa = inputs.query.transpose(-3, -2)
+            key_for_sdpa = inputs.key.transpose(-3, -2)
+            value_for_sdpa = inputs.value.transpose(-3, -2)
+            sdpa_kwargs = {
+                "is_causal": True,
+                "attn_mask": None,
+                "scale": self.scale,
+            }
+        elif has_paged_cache:
             # Full gather (no trim): shape stays constant across cold/cached
             # prefill so the traced graph is reusable. The mask -inf's out
             # both the causal upper-triangle and any K/V slots past the
