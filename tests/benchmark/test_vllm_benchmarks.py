@@ -139,8 +139,6 @@ def _gemma4_tp_config(model: str, batch_size: int, optimization_level: int = 0):
         model,
         batch_size,
         gpu_memory_utilization=0.2,
-        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
-        optimization_level=1,
         enable_tensor_parallel=True,
         min_context_len=32,
         enable_const_eval=True,
@@ -149,6 +147,7 @@ def _gemma4_tp_config(model: str, batch_size: int, optimization_level: int = 0):
             False if optimization_level == 0 else True
         ),  # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
         flat_model_io=True,
+        # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
         optimization_level=optimization_level,
     )
     cfg.limit_mm_per_prompt = {"image": 0, "video": 0, "audio": 0}
