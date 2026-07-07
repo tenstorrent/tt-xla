@@ -22,28 +22,33 @@ Detection (pure git + path + YAML parsing, no model imports):
        ``utils.py``) -> potentially affects every model, so we emit ``[]`` (add
        nothing beyond today's suite);
      - model-scoped otherwise.
-3. Map each model-scoped file to the torch loader dir(s) it affects, by
-   path-component prefix in either direction (file inside a model subtree, or a
-   shared file above several loaders). Loader dirs are discovered by walking for
-   ``**/pytorch/loader.py`` (same rule as tests/runner/utils/dynamic_loader.py);
-   their ``<model_path>`` (relative dir, always ending in ``/pytorch``) is the
-   leading segment of the pytest test id ``<model_path>-<variant>-...`` and is
-   used verbatim as a ``-k`` term.
+3. Map each model-scoped file to the loader dir(s) it affects, by path-component
+   prefix in either direction (file inside a model subtree, or a shared file
+   above several loaders). Loader dirs are discovered by walking for
+   ``**/pytorch/loader.py`` and ``**/jax/loader.py`` (same rule as
+   tests/runner/utils/dynamic_loader.py); their ``<model_path>`` (relative dir,
+   always ending in ``/pytorch`` or ``/jax``) is the leading segment of the
+   pytest test id ``<model_path>-<variant>-...`` and is used verbatim as a
+   ``-k`` term.
 4. Resolve each changed model_path's arch set from ``supported_archs`` in the
    tests/runner/test_config/**/*.yaml configs (union over all config keys that
    start with ``<model_path>-``), defaulting to ``[n150, p150]`` for
    new/unconfigured models (matches tests/runner/conftest.py default_archs).
-5. Group changed models by arch and emit one matrix entry per arch, each with an
-   arch-only ``test-mark`` (so xfail/unspecified/new changed models are
-   collectable) and a ``contains`` (``-k``) listing that arch's changed models.
+5. Split changed models by framework (torch vs jax, from the ``/pytorch`` or
+   ``/jax`` leaf) and, within each framework, group by arch. Emit one matrix
+   entry per (framework, arch): torch entries target ``test_all_models_torch``,
+   jax entries target ``test_all_models_jax`` (models are only collected under
+   their framework's test function). Each entry uses an arch-only ``test-mark``
+   (so xfail/unspecified/new changed models are collectable) and a ``contains``
+   (``-k``) listing that (framework, arch)'s changed models.
 
-NOTE (v1 scope):
-  - Torch models only. The extended suite is torch-only (test_all_models_torch);
-    JAX loaders (``**/jax/loader.py``) are intentionally not emitted here.
+NOTE:
   - No runner-availability filtering: whatever arch a changed model declares is
     emitted, including scarce runners (galaxy-wh-6u, *blackhole, n300, p150).
   - The arch-only marker does not constrain parallelism, so all run-mode/
     parallelism param combos of a changed model on a supported arch are run.
+  - Torch tests are forked for process isolation (see tests/runner issue #795);
+    jax tests are not.
 
 Usage:
     python gen_changed_models_matrix.py \
@@ -65,11 +70,26 @@ import yaml
 # added in this uplift). Mirrors tests/runner/conftest.py default_archs.
 DEFAULT_ARCHS = ["n150", "p150"]
 
-# Archs whose torch tests run single-chip and are forked for process isolation,
-# mirroring model-test-extended.json's n150 entry.
+# Archs whose single-chip tests are forked for process isolation, mirroring
+# model-test-extended.json's n150 entry. Only applied to torch (see issue #795);
+# jax tests are not forked.
 FORKED_ARCHS = {"n150", "p150"}
 
-TEST_DIR = "./tests/runner/test_models.py::test_all_models_torch"
+# Per-framework matrix wiring, keyed by the loader-dir leaf segment. ``dir``
+# selects the test function that collects that framework's models; ``forked``
+# gates the --forked flag.
+FRAMEWORKS = {
+    "pytorch": {
+        "dir": "./tests/runner/test_models.py::test_all_models_torch",
+        "name": "changed_forge_models",
+        "forked": True,
+    },
+    "jax": {
+        "dir": "./tests/runner/test_models.py::test_all_models_jax",
+        "name": "changed_forge_models_jax",
+        "forked": False,
+    },
+}
 
 
 def _components(path: str):
@@ -92,16 +112,17 @@ def get_changed_files(repo: str, old: str, new: str):
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
-def discover_torch_model_paths(repo: str):
-    """Discover torch loader dirs, returned as repo-relative model_paths.
+def discover_model_paths(repo: str):
+    """Discover torch and jax loader dirs, returned as repo-relative model_paths.
 
-    A model_path is ``relpath(dirname(pytorch/loader.py), repo)`` -- e.g.
-    ``gpt2/pytorch``, ``llama/causal_lm/pytorch``. Matches the discovery rule in
-    tests/runner/utils/dynamic_loader.py (basename == "pytorch" and loader.py).
+    A model_path is ``relpath(dirname(<framework>/loader.py), repo)`` -- e.g.
+    ``gpt2/pytorch``, ``llama/causal_lm/pytorch``, ``gpt2/causal_lm/jax``. Matches
+    the discovery rule in tests/runner/utils/dynamic_loader.py (basename in
+    {"pytorch", "jax"} and loader.py present).
     """
     model_paths = []
     for root, _dirs, files in os.walk(repo):
-        if os.path.basename(root) == "pytorch" and "loader.py" in files:
+        if os.path.basename(root) in FRAMEWORKS and "loader.py" in files:
             model_paths.append(os.path.relpath(root, repo).replace(os.sep, "/"))
     return sorted(set(model_paths))
 
@@ -160,8 +181,9 @@ def archs_for_model(model_path: str, key_archs):
     return sorted(archs) if archs else list(DEFAULT_ARCHS)
 
 
-def build_matrix(changed_model_paths, key_archs):
-    """Group changed model_paths by arch and build matrix entries."""
+def build_matrix(changed_model_paths, key_archs, framework):
+    """Group one framework's changed model_paths by arch into matrix entries."""
+    spec = FRAMEWORKS[framework]
     arch_to_models = {}
     for mp in sorted(changed_model_paths):
         for arch in archs_for_model(mp, key_archs):
@@ -172,13 +194,13 @@ def build_matrix(changed_model_paths, key_archs):
         contains = " or ".join(sorted(arch_to_models[arch]))
         entry = {
             "runs-on": arch,
-            "name": "changed_forge_models",
-            "dir": TEST_DIR,
+            "name": spec["name"],
+            "dir": spec["dir"],
             "test-mark": arch,
             "contains": contains,
             "forge-models": True,
         }
-        if arch in FORKED_ARCHS:
+        if spec["forked"] and arch in FORKED_ARCHS:
             entry["forked"] = True
         matrix.append(entry)
     return matrix
@@ -202,17 +224,22 @@ def compute_matrix(repo, old, new, config_dir):
         print("No model-scoped changes; emitting []", file=sys.stderr)
         return []
 
-    model_paths = discover_torch_model_paths(repo)
+    model_paths = discover_model_paths(repo)
     changed = set()
     for path in model_scoped:
         changed.update(affected_model_paths(path, model_paths))
 
     if not changed:
-        print("No torch models affected by changes; emitting []", file=sys.stderr)
+        print("No models affected by changes; emitting []", file=sys.stderr)
         return []
 
     key_archs = load_supported_archs(config_dir)
-    return build_matrix(changed, key_archs)
+    matrix = []
+    for framework in FRAMEWORKS:
+        # Framework of a model_path is its leaf segment (.../pytorch or .../jax).
+        fw_models = {mp for mp in changed if mp.rsplit("/", 1)[-1] == framework}
+        matrix.extend(build_matrix(fw_models, key_archs, framework))
+    return matrix
 
 
 def main():
