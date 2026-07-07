@@ -433,14 +433,19 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
     // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
-    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
-    // (4, 8) directly.
+    // reshaped to the 2D executable mesh (the MGD solver fails); open the 2D
+    // shape directly.
+    // The physical BH galaxy is (8, 4) (single_bh_galaxy_mesh_graph_descriptor:
+    // device_topology [8,4]); open the parent as (8, 4) so the logical mesh
+    // aligns with the physical topology and the EP-4 dispatch ring (cluster_axis=1,
+    // the size-4 axis) maps to the physical size-4 RING axis. Opening a transposed
+    // (4, 8) instead interleaves each EP ring across every-other physical row
+    // (the size-8 axis), which breaks the FABRIC_1D_RING dispatch (fabric NWID ->
+    // moe_compute tilize CWFW hang on the odd-physical-row rings).
     if (m_devices.size() == 32) {
       LOG_F(WARNING, "32-device galaxy: opening the parent mesh directly as "
-                     "(4, 8); the 1D {1, N} -> (4, 8) reshape fails in the MGD "
-                     "solver. See "
-                     "https://github.com/tenstorrent/tt-metal/issues/43210");
-      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+                     "(8, 4) to match the physical topology.");
+      m_parent_mesh = getOrCreateMeshDevice({8, 4});
     } else {
       m_parent_mesh =
           getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
@@ -546,14 +551,26 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  // [Workaround] Galaxy lacks a both-axis wrap, so
-  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
-  // TopologyMapper; force FABRIC_1D there.
+  // The 32-device galaxy runs the fused-MoE decode collectives (all_to_all_dispatch_metadata,
+  // moe_compute) which are 1D-fabric ops: their per-axis multicast uses the tt_fabric::linear::
+  // API, which routes only on a 1D fabric. Use FABRIC_1D_RING (Topology::Ring) — this is the
+  // config tt-metal's own E2E MoE test uses on a 4x8 galaxy
+  // (test_moe_gpt_e2e.py::test_full_pipeline_multi_iter: 4x8, FABRIC_1D_RING, cluster_axis=0).
+  // The MoE test must therefore dispatch along a 1D ring axis (cluster_axis=0). FABRIC_2D gave
+  // 2D directional connections but the linear:: multicast doesn't route on a 2D fabric (the a2a
+  // dispatch semaphore never completes -> hang); explicitly forcing FABRIC_1D_RING is accepted
+  // here (the TORUS_XY rejection only came from computeMeshFabricConfig auto-deducing RING+RING).
   if (m_devices.size() == 32) {
-    LOG_F(
-        WARNING,
-        "Auto-overriding fabric config to FABRIC_1D for the 32-device galaxy; "
-        "this is a workaround, not expected behaviour.");
+    // EXPERIMENT (2026-07-07): FABRIC_1D (Linear) instead of FABRIC_1D_RING. Both are
+    // 1D fabrics (the linear:: multicast routes on either, unlike FABRIC_2D which
+    // caused issue #7). FABRIC_1D_RING (TORUS_XY / Ring) hung at a2a token delivery for
+    // every dispatch config (EP-4 and EP-8); FABRIC_1D (LINE / Linear) drops the ring
+    // wraparound edge — testing whether that edge is where token payloads wedge (NWID).
+    // The moe_compute combine topology is set to Linear to match (TTNNResolveComposites.cpp).
+    // Revert to FABRIC_1D_RING (+ combine Topology::Ring) for the reference path.
+    LOG_F(WARNING,
+          "Using FABRIC_1D (Linear) for the 32-device galaxy (EXPERIMENT: Ring "
+          "wraparound-edge test; combine topology pinned to Linear to match).");
     return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
                                          {}};
   }

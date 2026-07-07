@@ -167,6 +167,12 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "gpt_oss_120b_tp_moe_fused_galaxy",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_moe_fused_galaxy",
+        "runs-on": "galaxy-bh",
+        "skip": true
+      },
+      {
         "name": "gpt_oss_120b_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_qb2",
         "runs-on": "qb2-blackhole"

@@ -2009,11 +2009,22 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
 
 
 def _galaxy_mesh_config_fn(model_loader, num_devices):
-    """4x8 wormhole_galaxy mesh"""
+    """(8,4) galaxy mesh matching the physical BH galaxy topology (device_topology
+    [8,4]). Axes are ("batch", "model"): batch=axis0 (size 8, DP + expert EP /
+    cluster_axis=0), model=axis1 (size 4, attention TP). This dispatches the EP ring
+    along the physical size-8 RING axis (EP-8).
+
+    EXPERIMENT (2026-07-07): every FABRIC_1D_RING config tried so far dispatched EP-4
+    along the size-4 axis (both (4,8)/ca=0 and (8,4)/ca=1) — the a2a completed but the
+    tilize starved for tokens (fabric NWID). EP-8 along the size-8 axis is the one
+    dispatch axis never exercised on FABRIC_1D_RING: the earlier EP-8 attempt (issue
+    #7) was on the broken FABRIC_2D. If the size-4-ring dispatch is what fails to
+    deliver tokens, EP-8 on the size-8 ring may clear it. Off tt-metal's gpt_oss
+    reference (which is EP-4); purely diagnostic."""
 
     if num_devices != 32:
-        raise ValueError("wormhole_galaxy benchmarks expect 32 devices (4x8 mesh).")
-    return (4, 8), ("batch", "model")
+        raise ValueError("galaxy benchmarks expect 32 devices (8x4 mesh).")
+    return (8, 4), ("batch", "model")
 
 
 def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
@@ -2126,6 +2137,137 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         experimental_kv_cache_dtype=None,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
+
+
+def _gpt_oss_120b_moe_fused_galaxy_shard_spec_fn(model_loader, model):
+    """Shard specs for the tt_moe_fused decode path on the (8,4) galaxy mesh.
+
+    Specs are BY NAME, so they are independent of which physical axis each name
+    maps to (set in _galaxy_mesh_config_fn). Expert weights are EP-sharded along
+    the "batch" axis ONLY (the cluster axis, registered as cluster_axis=0) and
+    replicated along "model"; attention is TP on "model"; inputs/KV are sharded on
+    "batch" (the cluster axis the tokens dispatch along). The fused tt.moe_decode
+    kernel synthesizes its expert_mapping from a single cluster axis and dispatches
+    along it via the tt_fabric::linear:: (1D-fabric) multicast, so that axis must be
+    a 1D ring on the galaxy (FABRIC_1D_RING).
+
+    With the current mesh mapping ("batch"=axis0=size 8, "model"=axis1=size 4) this
+    is EP-8 / TP-4 (the size-8-axis dispatch experiment, 2026-07-07). Swapping the
+    mesh_config axis names back to ("model","batch") + cluster_axis=1 restores the
+    reference-aligned EP-4 / TP-8 (test_moe_gpt_e2e.py: FABRIC_1D_RING, cluster_axis
+    on the size-4 axis) without touching these specs.
+    """
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        # EP - 4: experts shard along "batch" (cluster_axis=0) only and replicate
+        # along "model"; tt.moe_decode dispatches along this single 1D-ring axis.
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("batch", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("batch", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("batch", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("batch", None)
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+    return shard_specs
+
+
+# Exercises the tt_moe_fused experts backend for GPT-OSS-120B on the (8,4) Blackhole
+# galaxy mesh: prefill routes to the dense bmm (tt_dense_experts_forward) and the
+# single-token-per-sequence decode step emits the tt.moe_decode composite, which
+# tt-mlir lowers to the fused all_to_all_dispatch + moe_compute decode kernel.
+#
+# Mesh is 2D (8, 4) = ("batch", "model"): EP - 8 for experts + DP over "batch" (axis0,
+# size 8, cluster_axis=0) and TP - 4 over "model" (axis1, size 4) for attention. This
+# dispatches the EP ring along the physical size-8 RING axis. NOTE this is a DIAGNOSTIC
+# divergence from tt-metal's reference (test_moe_gpt_e2e.py uses EP-4 / cluster_axis on
+# the size-4 axis): every FABRIC_1D_RING config tried so far was EP-4 along the size-4
+# axis and the tilize starved for tokens; EP-8 along the size-8 ring is the one dispatch
+# axis never tried on FABRIC_1D_RING (the old EP-8 was on the broken FABRIC_2D, issue #7).
+# The fused decode collectives (all_to_all_dispatch_metadata, moe_compute) dispatch via
+# the tt_fabric::linear:: (1D-fabric) multicast, so the EP/dispatch axis must be a 1D
+# ring; the galaxy is brought up on FABRIC_1D_RING (client_instance.cc) and tokens are
+# sharded on "batch" (the cluster axis they dispatch along). GPT-OSS
+# packs its fused gate_up weight interleaved and uses the clamped SwiGLU, so
+# use_interleaved=True + activation "swiglu" are required. Weights use bfp_bf8:
+# the fused decode input-prep path cannot device-to-device typecast bfp_bf4
+# expert weights (to_layout rejects the ROW_MAJOR typecast).
+#
+# BRINGUP: fused MoE decode on the galaxy is a multi-issue bringup. tt-xla + tt-mlir +
+# tt-metal fixes land issues #1-#6 (see MOE_FUSED_DECODE_GALAXY_BRINGUP.md). Issue #7
+# (the a2a dispatch collective never completing -> moe_compute finish deadlock) was
+# specific to the earlier FABRIC_2D + cluster_axis=1 (EP-8) choice, which is outside
+# tt-metal's tested envelope; a native watcher repro confirmed FABRIC_1D_RING +
+# cluster_axis=0 lets the a2a dispatch complete (no hang). This test now uses that
+# tested-path config. Also see MARK_ARGUMENT_UINT32_TYPECAST_BUGREPORT.md and
+# MOE_DECODE_EXPERT_MAPPING_2D_MESH_BUGREPORT.md. Excluded via "skip": true in
+# perf-bench-matrix.json until the full decode validates end-to-end.
+def test_gpt_oss_120b_tp_moe_fused_galaxy(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_MOE_FUSED_BACKEND_NAME, register_tt_moe_backend
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Decode feeds the experts one token per sequence, so the flattened (logical)
+    # token count is the batch size; pin the prefill/decode threshold to it so
+    # prefill (batch * seq) stays on the dense path while decode emits
+    # tt.moe_decode.
+    bs = batch_size if batch_size is not None else 32
+    register_tt_moe_backend(
+        cluster_axis=0,  # experts EP-sharded along "batch" = axis 0 (size-8) of the (8,4) mesh = EP-8 dispatch along the physical size-8 RING
+        use_interleaved=True,
+        moe_decode_activation="swiglu",
+        moe_decode_token_threshold=bs,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=num_layers,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            mesh_config_fn=_galaxy_mesh_config_fn,
+            shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
+            input_output_sharding_spec=("batch", None),
+            kv_cache_sharding_spec=("batch", "model", None, None),
+            trace_enabled=False,
+            optimization_level=1,
+            experimental_weight_dtype="bfp_bf8",
+            experimental_kv_cache_dtype=None,
+            experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
+            required_pcc=0.90,
+        )
+    finally:
+        # Restore default experts config so the global flags don't leak into
+        # other tests that share this process.
+        register_tt_moe_backend()
 
 
 def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):

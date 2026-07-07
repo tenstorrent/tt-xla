@@ -281,9 +281,22 @@ struct PopulateArgumentAttrsFromTTMark final
       // Set argument name for this argument
       funcOp.setArgAttr(argIndex, c_name_attr_name, nameStrAttr);
     }
-    // Remove the custom call op and replace it with the input
-    // as the information is now embedded in the function argument attributes
-    rewriter.replaceOp(op, input);
+    // Remove the custom call op and replace it with the input as the
+    // information is now embedded in the function argument attributes.
+    //
+    // tt.mark_argument is an identity annotation, but torch-xla lowers its custom
+    // call with a signless-int result for an unsigned-int operand (e.g. a ui32
+    // operand with an i32 result). Forwarding the operand directly would feed a
+    // ui32 value into consumers typed against the i32 result and break
+    // element-type verification at the first shape-only op (see
+    // MARK_ARGUMENT_UINT32_TYPECAST_BUGREPORT.md). When the operand and result
+    // types differ, insert a stablehlo.convert so the folded IR stays well-typed.
+    mlir::Value replacement = input;
+    if (input.getType() != op.getResult(0).getType()) {
+      replacement = rewriter.create<mlir::stablehlo::ConvertOp>(
+          op.getLoc(), op.getResult(0).getType(), input);
+    }
+    rewriter.replaceOp(op, replacement);
 
     return mlir::success();
   }
