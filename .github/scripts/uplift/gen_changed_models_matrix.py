@@ -194,7 +194,7 @@ def build_matrix(changed_model_paths, key_archs, framework):
         contains = " or ".join(sorted(arch_to_models[arch]))
         entry = {
             "runs-on": arch,
-            "name": spec["name"],
+            "name": f"{spec['name']}_{arch}",
             "dir": spec["dir"],
             "test-mark": arch,
             "contains": contains,
