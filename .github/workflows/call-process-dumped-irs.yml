@@ -51,7 +51,7 @@ jobs:
       ir_count: ${{ steps.check-dumped-irs.outputs.ir_count }}
       ir_jobs: ${{ steps.check-dumped-irs.outputs.ir_jobs }}
     env:
-      MAX_PARALLEL_JOBS: 20
+      MAX_PARALLEL_JOBS: 10
     steps:
       - name: Check for dumped IRs
         id: check-dumped-irs
@@ -59,40 +59,36 @@ jobs:
         run: |
           echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
           # Get artifacts for this run
-          if [ -n "${{ inputs.model_filter }}" ]; then
-            echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
-            gh run download ${{ inputs.dumped_irs_run_id }} \
-              --repo ${{ github.repository }} \
-              --pattern "ir-dumps-*" \
-              --dir collected_irs
+          echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
+          gh run download ${{ inputs.dumped_irs_run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "ir-dumps-*" \
+            --dir collected_irs
 
-            model_filter="${{ inputs.model_filter }}"
-            echo "Applying model filter: $model_filter"
+          model_filter="${{ inputs.model_filter }}"
+          echo "Applying model filter: $model_filter"
 
-            # Collect first-level model directories under collected_irs
-            mapfile -t model_dirs < <(find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort)
-            total_models=${#model_dirs[@]}
+          # Collect first-level model directories under collected_irs
+          mapfile -t model_dirs < <(find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort)
+          total_models=${#model_dirs[@]}
 
-            # Count models whose directory name matches the filter
-            matching_count=0
-            for model_dir in "${model_dirs[@]}"; do
-            if [[ "$model_dir" == *"$model_filter"* ]]; then
+          # Count models whose directory name matches the filter
+          matching_count=0
+          for model_dir in "${model_dirs[@]}"; do
+            if [ -z "$model_filter" ] || [[ "$model_dir" == *"$model_filter"* ]]; then
               matching_count=$((matching_count + 1))
             fi
-            done
+          done
 
-            echo "Models matching filter '$model_filter': $matching_count/$total_models"
-            ir_count=$matching_count
-          else
-            artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
-              "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
-            # Check if any artifacts match the pattern "ir-dumps-*"
-            ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
-            echo "Found $ir_count dumped IR artifacts"
-          fi
+          echo "Models matching filter '$model_filter': $matching_count/$total_models"
+          ir_count=$matching_count
+
           if [ "$ir_count" -gt 0 ]; then
             echo "IR processing workflow will continue"
             echo "skip_ir_processing=false" >> "$GITHUB_OUTPUT"
+
+            # TODO: We should divide jobs based on length of processing, eg. ir count, not model count.
+
             if [ "$ir_count" -gt ${{ env.MAX_PARALLEL_JOBS }} ]; then
               echo "Number of irs is larger than max parallel jobs. Limiting to ${{ env.MAX_PARALLEL_JOBS }}."
               ir_count=${{ env.MAX_PARALLEL_JOBS }}
@@ -262,7 +258,9 @@ jobs:
           mv collected_irs_job_$job_index collected_irs
 
           echo "=== Final IRs for this job ==="
-          ls -la collected_irs/
+          ls -laR collected_irs/
+          echo "=== Size of IRs for this job ==="
+          du -h collected_irs
 
       - name: Run op-by-op tests
         shell: bash
