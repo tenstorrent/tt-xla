@@ -226,11 +226,6 @@ private:
   // Fabric config computed for the current mesh device.
   std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
-  // Fabric configs derived from the cached system descriptor. This avoids
-  // querying SystemMesh after the system-desc MetalContext has been released.
-  std::unordered_map<std::string, tt::runtime::MeshFabricConfig>
-      m_fabric_config_cache;
-
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;
 

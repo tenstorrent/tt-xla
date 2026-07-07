@@ -528,12 +528,10 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
 tt::runtime::MeshFabricConfig
 ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
-  const std::string cache_key = utils::to_string(mesh_shape);
-  auto cached_config = m_fabric_config_cache.find(cache_key);
-  if (cached_config != m_fabric_config_cache.end()) {
-    return cached_config->second;
-  }
-
+  // Avoid tt::runtime::computeMeshFabricConfig(SystemDesc, ...): that overload
+  // can query SystemMesh and initialize MetalContext during host-side compile.
+  // Instead, derive the needed topology inputs from the cached system descriptor
+  // and call the lower-level helper directly.
   // Distributed uses FABRIC_1D for now.
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
@@ -541,10 +539,8 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
     if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
         std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-      tt::runtime::MeshFabricConfig fabric_config{
-          tt::runtime::FabricConfig::FABRIC_2D, {}};
-      m_fabric_config_cache.emplace(cache_key, fabric_config);
-      return fabric_config;
+      return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
+                                           {}};
     }
 
     uint32_t num_devices = 1;
@@ -554,9 +550,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     tt::runtime::FabricConfig global =
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
-    tt::runtime::MeshFabricConfig fabric_config{global, {}};
-    m_fabric_config_cache.emplace(cache_key, fabric_config);
-    return fabric_config;
+    return tt::runtime::MeshFabricConfig{global, {}};
   }
 
   uint32_t num_devices = 1;
@@ -579,10 +573,8 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   }
 
   if (chip_channels.empty() && num_devices > 1) {
-    tt::runtime::MeshFabricConfig fabric_config{
-        tt::runtime::FabricConfig::FABRIC_1D, {}};
-    m_fabric_config_cache.emplace(cache_key, fabric_config);
-    return fabric_config;
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
   }
 
   std::vector<int> device_ids;
@@ -591,13 +583,10 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
     device_ids.push_back(m_system_descriptor->chip_desc_indices()->Get(i));
   }
 
-  // Use the cached system descriptor and cached device ordering instead of the
-  // SystemDesc overload, which calls SystemMesh and can initialize MetalContext.
-  tt::runtime::MeshFabricConfig fabric_config =
-      tt::runtime::common::computeMeshFabricConfig(chip_channels, mesh_shape,
-                                                   device_ids);
-  m_fabric_config_cache.emplace(cache_key, fabric_config);
-  return fabric_config;
+  // Pass plain vectors to the lower-level helper so no runtime topology lookup
+  // is needed.
+  return tt::runtime::common::computeMeshFabricConfig(chip_channels, mesh_shape,
+                                                      device_ids);
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(

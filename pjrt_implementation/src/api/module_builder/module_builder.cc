@@ -1089,9 +1089,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // Optimizer is enabled for optimization_level >= 1. This intentionally opens
-  // a real optimizer submesh only when the optimizer asks for a device pointer;
-  // the default optimization_level=0 compile path remains host-only.
+  // Optimizer is enabled for optimization_level >= 1. Passing devicePtr here
+  // intentionally opens a real optimizer submesh, which can initialize
+  // MetalContext during compile. The workaround path relies on the default
+  // optimization_level=0 to keep compile host-only.
   if (compile_options.optimization_level >= 1) {
     tt::runtime::Device submesh_for_optim =
         client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);

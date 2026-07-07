@@ -55,6 +55,8 @@ bool deferHostBufferTensorCreation() {
   return value != nullptr && value[0] != '\0' && value[0] != '0';
 }
 
+// Returns the byte size of the compact runtime tensor we stage in PJRT-owned
+// memory before materializing a TTNN/runtime host tensor.
 size_t tensorByteSize(const std::vector<std::uint32_t> &shape,
                       std::uint32_t element_size) {
   size_t num_elements = 1;
@@ -64,6 +66,8 @@ size_t tensorByteSize(const std::vector<std::uint32_t> &shape,
   return num_elements * element_size;
 }
 
+// Builds dense row-major strides for the compact staged buffer. These can differ
+// from the incoming PJRT byte strides, which describe the caller's source view.
 std::vector<std::uint32_t>
 calculateCompactStrides(const std::vector<std::uint32_t> &shape) {
   std::vector<std::uint32_t> strides(shape.size());
@@ -77,6 +81,7 @@ calculateCompactStrides(const std::vector<std::uint32_t> &shape) {
   return strides;
 }
 
+// Returns the number of bytes to copy for one logical PJRT element.
 size_t hostElementSize(PJRT_Buffer_Type data_type,
                        std::uint32_t runtime_element_size) {
   // PJRT complex host buffers are interleaved real/imag pairs.
@@ -85,6 +90,8 @@ size_t hostElementSize(PJRT_Buffer_Type data_type,
              : static_cast<size_t>(runtime_element_size);
 }
 
+// Walks an explicitly strided PJRT source view and writes logical elements into
+// compact row-major destination storage.
 void packStridedHostBufferRecursive(const std::byte *source, std::byte *dest,
                                     const std::int64_t *dims, size_t num_dims,
                                     const std::int64_t *byte_strides,
@@ -117,6 +124,8 @@ void packStridedHostBufferRecursive(const std::byte *source, std::byte *dest,
   }
 }
 
+// Copies the PJRT host buffer into compact staged storage. Compact inputs use a
+// single memcpy; explicit strided inputs are packed into logical tensor order.
 void packHostBuffer(const void *host_buffer, const std::int64_t *dims,
                     size_t num_dims, const std::int64_t *byte_strides,
                     size_t num_byte_strides, size_t host_element_size,
@@ -296,14 +305,20 @@ void BufferInstance::copyFromHost(
   tt::runtime::Tensor runtime_tensor;
 
   if (deferHostBufferTensorCreation()) {
+    // Stage the host buffer as compact, owned bytes so runtime tensor creation
+    // can be deferred until execution opens the mesh.
     std::vector<std::uint32_t> compact_strides = calculateCompactStrides(shape);
     size_t byte_size = tensorByteSize(shape, element_size);
+
     PendingHostTensor pending{std::vector<std::byte>(byte_size),
                               std::move(shape),
                               std::move(compact_strides),
                               element_size,
                               runtime_data_type};
     m_pending_host_tensor = std::move(pending);
+
+    // Copy the logical PJRT host buffer into the compact staged storage, packing
+    // explicit strided layouts when needed.
     packHostBuffer(host_buffer, dims, num_dims, byte_strides, num_byte_strides,
                    hostElementSize(m_data_type, element_size),
                    m_pending_host_tensor->data.data(), byte_size);
