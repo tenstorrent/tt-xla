@@ -309,7 +309,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
-            self.dp_size = mesh_shape[0]
+            # mesh_shape[0] ("batch" axis) is a real DP replica count only in DP
+            # modes; in pure-TP the batch axis is a TP axis, so dp_size stays 1.
+            # Feeding dp_size>1 into the paged-KV ops there mis-maps slots.
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                self.dp_size = mesh_shape[0]
             self.use_2d_mesh = 1 not in mesh_shape
             xs.set_global_mesh(self.mesh)
 
@@ -1673,16 +1680,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Pin model input shardings (batch dimension across the mesh) in
         DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL during both warmup and
          inference so both paths produce identical graphs and avoid recompilation."""
-        if self.parallel_mode not in (
+        if not self.enable_tensor_parallel and self.parallel_mode not in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
+        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
+        batch_axis = "batch" if self.use_2d_mesh else "model"
         if input_ids is not None:
-            safe_mark_sharding(input_ids, self.mesh, ("batch", None))
+            safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
-            safe_mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
-        safe_mark_sharding(position_ids, self.mesh, ("batch", None))
+            safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+        # position_ids: pin only for DP modes. Under pure-TP it perturbs GSPMD
+        # into a batch-axis reduce_scatter -> ttnn.rms_norm(k_norm) graph that
+        # hits a tt-mlir redundant-to_layout bug (TTNNDecomposeLayouts).
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
 
     def _prepare_model_call_tensors(
         self,
@@ -2902,6 +2918,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.max_num_reqs,
             )
             if self.enable_tensor_parallel:
+                # Match model.forward's hidden_states sharding ("batch" axis,
+                # from RowParallel down_proj); a mismatched axis silently
+                # corrupts the select output on a 2D mesh.
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
             elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
                 safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
@@ -3346,6 +3365,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
+        if self.enable_tensor_parallel and self.use_2d_mesh:
+            result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)

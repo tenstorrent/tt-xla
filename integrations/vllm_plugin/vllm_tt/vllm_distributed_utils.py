@@ -293,11 +293,8 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    # Weight is [output, input]: output on the "model" (TP) axis, and the input
-    # dim optionally on the "batch" axis for FSDP-style sharding (mirrors
-    # partition_parallel_lm_head).
-    batch_axis = "batch" if shard_weights_on_batch_axis else None
-    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
+    # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
+    safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -329,8 +326,7 @@ def partition_parallel_lm_head(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
-    batch_axis = "batch" if shard_weights_on_batch_axis else None
-    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
+    safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -339,21 +335,10 @@ def partition_vocab_parallel_embedding(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
-    # weight is [vocab, hidden]. Shard only the hidden dim so the embedding is
-    # split, never replicated; keep vocab un-sharded — sharding vocab makes the
-    # embedding gather need a CollectivePermute that tt-mlir can't lower yet
-    # (tt-mlir #3370). Use the "batch" (FSDP) axis when it is actually >1
-    # (DP+TP / 2D-TP); on a pure 1D-TP mesh "batch" is size 1, which would
-    # replicate the ~vocab x hidden table, so fall back to "model".
-    if hasattr(mesh, "shape"):
-        axis_sizes = mesh.shape()
-    else:
-        axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
-    batch_size = axis_sizes.get("batch", 1)
-    hidden_axis = (
-        "batch" if (shard_weights_on_batch_axis and batch_size > 1) else "model"
-    )
-    safe_mark_sharding(layer.weight, mesh, (None, hidden_axis))
+    # weight is [vocab, hidden]. Shard only the hidden dim on "model"; keep vocab
+    # un-sharded — sharding vocab makes the embedding gather need a
+    # CollectivePermute that tt-mlir can't lower yet (tt-mlir #3370).
+    safe_mark_sharding(layer.weight, mesh, (None, "model"))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
