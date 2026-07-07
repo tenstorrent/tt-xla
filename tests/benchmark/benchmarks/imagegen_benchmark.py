@@ -121,11 +121,20 @@ def benchmark_imagegen_torch_xla(
     samples_per_sec = total_samples / steady_state_time
 
     # Per-component forward+sync times from the pipeline's own instrumentation
-    # (steady-state pass).
+    # (steady-state pass). The schema is model-agnostic so the same harness
+    # serves every image-gen pipeline:
+    #   _perf = {
+    #       "components": {<name>: seconds, ...},   # scalar per-stage times
+    #       "steps": [seconds, ...],                # per heavy-net-step times
+    #       "step_metric_name": "unet_step" | "transformer_step",
+    #       "total": seconds,                       # full generate() wall time
+    #   }
     perf = pipeline._perf
-    unet_steps = perf["unet_steps"]
-    unet_step_mean_s = sum(unet_steps) / len(unet_steps)
-    tt_components_total = perf["te1"] + perf["te2"] + sum(unet_steps) + perf["vae"]
+    components = perf["components"]
+    steps = perf["steps"]
+    step_metric_name = perf["step_metric_name"]
+    step_mean_s = sum(steps) / len(steps) if steps else 0.0
+    tt_components_total = sum(components.values()) + sum(steps)
     cpu_overhead = max(0.0, perf["total"] - tt_components_total)
 
     metadata = get_benchmark_metadata()
@@ -149,25 +158,26 @@ def benchmark_imagegen_torch_xla(
         data_format="bfloat16",
         input_size=input_size,
     )
+    component_lines = "".join(
+        f"|   {name} (s):  {value:.3f}\n" for name, value in components.items()
+    )
     print(
         f"| Num inference steps: {num_inference_steps}\n"
         f"| Steady-state:\n"
-        f"|   Text encoder 1 (s):  {perf['te1']:.3f}\n"
-        f"|   Text encoder 2 (s):  {perf['te2']:.3f}\n"
-        f"|   UNet step mean (s):  {unet_step_mean_s:.3f}\n"
-        f"|   VAE (s):             {perf['vae']:.3f}\n"
+        f"{component_lines}"
+        f"|   {step_metric_name} mean (s):  {step_mean_s:.3f}\n"
         f"|   CPU overhead (s):    {cpu_overhead:.3f}"
     )
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
         {"measurement_name": "e2e_latency", "value": steady_state_time},
-        {"measurement_name": "text_encoder_1_s", "value": perf["te1"]},
-        {"measurement_name": "text_encoder_2_s", "value": perf["te2"]},
-        {"measurement_name": "unet_step_mean_s", "value": unet_step_mean_s},
-        {"measurement_name": "vae_s", "value": perf["vae"]},
+        {"measurement_name": f"{step_metric_name}_mean_s", "value": step_mean_s},
         {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
     ]
+    # One measurement per scalar component (e.g. text_encoder_1_s, vae_s).
+    for name, value in components.items():
+        custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
