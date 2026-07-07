@@ -88,7 +88,7 @@
       {
         "name": "flux1",
         "pytest": "tests/benchmark/test_imagegen.py::test_flux",
-        "runs-on": "lb-blackhole"
+        "runs-on": "qb2-blackhole"
       },
       {
         "name": "janus_pro_1b",
