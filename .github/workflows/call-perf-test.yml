@@ -189,7 +189,7 @@ jobs:
         # into --output-dir. An optional -k filter narrows the selection for manual runs.
         EXTRA=()
         if [ -n "$TEST_FILTER" ]; then EXTRA+=(-k "$TEST_FILTER"); fi
-        pytest -svv --confcutdir=tests/benchmark -m "${{ matrix.build.mark }}" \
+        pytest -svv tests/benchmark --confcutdir=tests/benchmark -m "${{ matrix.build.mark }}" \
           ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} \
           ${{ inputs.check_fusions && '--check-fusions' || '' }} \
           "${EXTRA[@]}" \
