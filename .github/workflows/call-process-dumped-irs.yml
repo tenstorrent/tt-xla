@@ -185,6 +185,24 @@ jobs:
             --pattern "ir-dumps-*" \
             --dir collected_irs
 
+      - name: Filter dumped IRs by model (if model_filter is provided)
+        shell: bash
+        if: ${{ inputs.model_filter && inputs.model_filter != '' }}
+        run: |
+          echo "=== Filtering dumped IRs by model filter '${{ inputs.model_filter }}' ==="
+          model_filter="${{ inputs.model_filter }}"
+          shopt -s nullglob
+          for job_dir in collected_irs/*/; do
+            for model_dir in "${job_dir}"*/; do
+              model_name="$(basename "$model_dir")"
+              if [[ "$model_name" != *"$model_filter"* ]]; then
+                echo "Removing model directory $model_dir as it does not match filter"
+                rm -rf "$model_dir"
+              fi
+            done
+          done
+          shopt -u nullglob
+
       - name: Verify downloaded IRs
         shell: bash
         run: |
