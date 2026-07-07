@@ -193,7 +193,7 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
   std::vector<tt::runtime::Tensor> tensors;
   tensors.reserve(shards.size());
 
-  for (BufferInstance *shard : shards) {
+  for (const BufferInstance *shard : shards) {
     tensors.emplace_back(shard->runtimeTensor());
   }
 

@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -394,14 +393,6 @@ ModuleBuilder::buildModule(
                                  ttnn_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
-  }
-
-  // Compilation is host-side. Keep mesh reshaping/opening out of the compile
-  // window unless explicitly requested for debugging.
-  if (current_mesh_shape.has_value() &&
-      current_mesh_shape.value() != mesh_shape &&
-      std::getenv("TT_PJRT_ENABLE_COMPILE_MESH_OPEN") != nullptr) {
-    client_instance->getOrCreateMeshDevice(mesh_shape);
   }
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has

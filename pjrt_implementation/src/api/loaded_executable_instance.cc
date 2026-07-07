@@ -16,7 +16,6 @@
 #include <mutex>
 #include <numeric>
 #include <optional>
-#include <string>
 #include <unordered_set>
 
 // tracy includes
@@ -43,10 +42,6 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
-
-namespace {
-
-} // namespace
 
 // Clears program cache on instance destroy.
 LoadedExecutableInstance::~LoadedExecutableInstance() {
@@ -148,9 +143,7 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
 
-  std::optional<tt::runtime::Device> device =
-      m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
-  return device;
+  return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }
 
 std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(

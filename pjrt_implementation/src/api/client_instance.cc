@@ -434,13 +434,6 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  // Mesh device requires physical hardware. Keep PJRT client creation and model
-  // compilation host-only by default; execution opens the mesh when needed.
-  if (!m_compile_only && envFlagEnabled("TT_PJRT_ENABLE_INITIAL_MESH_OPEN")) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
-  }
-
   return tt_pjrt_status::kSuccess;
 }
 
@@ -696,15 +689,12 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
       .traceRegionSize = traceRegionSize,
   };
 
-  tt::runtime::Device device = tt::runtime::openMeshDevice(options);
-  return device;
+  return tt::runtime::openMeshDevice(options);
 }
 
 void ClientInstance::closeParentMesh() {
   if (m_parent_mesh.has_value()) {
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
-    std::vector<uint32_t> parent_mesh_shape =
-        tt::runtime::getMeshShape(*m_parent_mesh);
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
     m_fabric_config.reset();
