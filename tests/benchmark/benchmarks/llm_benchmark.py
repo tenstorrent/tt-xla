@@ -471,6 +471,12 @@ def benchmark_llm_torch_xla(
         "optimization_level": optimization_level,
         "enable_trace": trace_enabled,
         "export_path": MODULE_EXPORT_PATH,
+        **({"dry_run": True} if os.environ.get("TTXLA_DRY_RUN") else {}),
+        # Capture real per-executable input tensors to <export_path>/tensors/argN.tensorbin
+        # (ttnn flatbuffer format) BEFORE submit, for faithful ttrt+watcher replay of the real
+        # decode hang. dumpInputs runs before the (hanging) submit, so inputs are captured even
+        # when the decode hangs.
+        **({"export_tensors": True} if os.environ.get("TTXLA_EXPORT_TENSORS") else {}),
         "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,

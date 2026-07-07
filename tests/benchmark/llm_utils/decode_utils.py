@@ -67,6 +67,17 @@ class LLMSamplingWrapper(torch.nn.Module):
         # Only take logits for last token in prefill.
         # This is a noop for decode.
         next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
+        # Pin decode token ids to uint32 on the XLA device so the compiled decode
+        # graph's input_ids placeholder is uint32, matching the dtype the device
+        # argmax actually materializes (the runtime tags device-produced 32-bit
+        # ints as uint32, and a Python .to(int32) is elided at the buffer level).
+        # An int32 placeholder instead forces an unsupported device->device
+        # ROW_MAJOR typecast (uint32->int32) when input_ids is re-bound each step.
+        # Requires the tt.mark_argument uint32 fix in shlo_input_role_propagation
+        # (see MARK_ARGUMENT_UINT32_TYPECAST_BUGREPORT.md). CPU keeps int64 since
+        # torch's embedding requires Long/Int indices.
+        if next_token_ids.device.type == "xla":
+            next_token_ids = next_token_ids.to(torch.uint32)
         next_token_ids_replicated = next_token_ids
         if self.mesh and self.output_sharding_spec:
             # Create two versions of next_token_ids, sharded and replicated.
