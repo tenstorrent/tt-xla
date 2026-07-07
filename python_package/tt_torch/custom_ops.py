@@ -2263,6 +2263,122 @@ def sampling_fake(
     return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
 
 
+@torch.library.custom_op(
+    "tt::indexer_score", mutates_args=[], device_types=["xla", "cpu"]
+)
+def indexer_score(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    weights: torch.Tensor,
+    chunk_start_idx: int = 0,
+) -> torch.Tensor:
+    """
+    DeepSeek Sparse Attention (DSA) lightning-indexer scorer, mirroring
+    ``ttnn.experimental.indexer_score`` semantics.
+
+    For every query position ``s`` and key position ``t``::
+
+        score[b, s, t] = sum_h relu(q[b, h, s, :] . k[b, t, :]) * weights[b, h, s]
+
+    Causality is controlled by ``chunk_start_idx``: key ``t`` is visible to query
+    ``s`` iff ``t <= chunk_start_idx + s``. Masked (future) positions are set to
+    ``-inf``.
+
+    On XLA this emits a ``stablehlo.custom_call @tt.indexer_score`` that tt-mlir
+    converts to a ``ttcore.composite`` named "indexer_score". On Blackhole the
+    composite is promoted to ``ttnn.experimental.indexer_score``; on Wormhole the
+    composite falls back to its primitive decomposition, which this CPU path
+    replicates as the golden reference.
+
+    Shapes use ``B`` (batch), ``Hi`` (indexer heads), ``Sq`` (queries), ``T``
+    (keys), and ``D`` (indexer head dim). The ttnn op is Blackhole-only and
+    requires ``B == 1``.
+
+    Args:
+        query:   [B, Hi, Sq, D].
+        key:     [B, 1, T, D]  (a single shared kv-head).
+        weights: [B, Hi, Sq, 1]  per-head gate scales.
+        chunk_start_idx: causal offset of the first query within the full key
+            sequence. Defaults to 0.
+
+    Returns:
+        Scores of shape [B, 1, Sq, T] with the same dtype as ``query``.
+    """
+    assert (
+        len(query.shape) == 4
+    ), "query must be a 4D tensor: [batch, num_heads, query_seq_len, head_dim]."
+    assert (
+        len(key.shape) == 4
+    ), "key must be a 4D tensor: [batch, 1, key_seq_len, head_dim]."
+    assert (
+        len(weights.shape) == 4
+    ), "weights must be a 4D tensor: [batch, num_heads, query_seq_len, 1]."
+
+    batch, num_heads, query_seq_len, head_dim = query.shape
+    key_seq_len = key.shape[2]
+
+    assert key.shape[0] == batch, "query and key must have the same batch size."
+    assert key.shape[1] == 1, "key must have a single kv-head (dim 1 must be 1)."
+    assert key.shape[-1] == head_dim, "key and query must have the same head dim."
+    assert weights.shape == torch.Size(
+        [batch, num_heads, query_seq_len, 1]
+    ), "weights shape must be [batch, num_heads, query_seq_len, 1]."
+    assert (
+        isinstance(chunk_start_idx, int) and chunk_start_idx >= 0
+    ), f"chunk_start_idx must be a non-negative integer, got {chunk_start_idx}."
+    assert (
+        query.device == key.device == weights.device
+    ), "query, key, and weights must be on the same device."
+
+    output_shape = torch.Size([batch, 1, query_seq_len, key_seq_len])
+
+    if query.device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [query, key, weights],
+            "tt.indexer_score",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes={"chunk_start_idx": str(chunk_start_idx)},
+        )
+
+    elif query.device.type == "cpu":
+        # Grouped QK^T: the single shared kv-head broadcasts across the indexer
+        # heads, so q[b, h, s, :] . k[b, 0, t, :] -> [B, Hi, Sq, T].
+        qk = torch.relu(torch.matmul(query, key.transpose(-2, -1)))
+
+        # Scale by the per-head gates (broadcast over the key dim) and sum over
+        # the indexer heads -> [B, 1, Sq, T].
+        score = (qk * weights).sum(dim=1, keepdim=True)
+
+        # Causal mask: key t is visible to query s iff t <= chunk_start_idx + s.
+        s_idx = torch.arange(query_seq_len, device=query.device).view(
+            1, 1, query_seq_len, 1
+        )
+        t_idx = torch.arange(key_seq_len, device=query.device).view(
+            1, 1, 1, key_seq_len
+        )
+        visible = t_idx <= (s_idx + chunk_start_idx)
+        neg_inf = torch.full_like(score, float("-inf"))
+        return torch.where(visible, score, neg_inf)
+
+    else:
+        raise ValueError(f"Unsupported device type: {query.device.type}")
+
+
+@indexer_score.register_fake
+def indexer_score_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    weights: torch.Tensor,
+    chunk_start_idx: int = 0,
+) -> torch.Tensor:
+    return torch.zeros(
+        (query.shape[0], 1, query.shape[2], key.shape[2]),
+        dtype=query.dtype,
+        device=query.device,
+    )
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

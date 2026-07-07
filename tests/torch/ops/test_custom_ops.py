@@ -2,10 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import numpy as np
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
+from benchmark.utils import compute_pcc
 from infra.utilities.types import Framework
+from torch_xla.distributed.spmd import Mesh
 
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
@@ -354,4 +358,155 @@ def test_paged_flash_mla_decode(
             scale,
         ],
         framework=Framework.TORCH,
+    )
+
+
+def _indexer_score_comparator(device_output, golden_output, args, kwargs):
+    """Compare tt.indexer_score outputs, accounting for the causal -inf mask.
+
+    Masked (future) key positions are ``-inf`` in the golden. Comparing them
+    directly would poison PCC (the mean of a tensor containing -inf is NaN), so
+    we (1) compute PCC over the visible (finite) positions only and (2) verify
+    the device drives the masked positions to something top-k could never select
+    (non-finite, or strictly below the smallest visible score).
+    """
+    device_output = device_output.cpu().to(torch.float32)
+    golden_output = golden_output.to(torch.float32)
+
+    masked = torch.isneginf(golden_output)
+    visible = ~masked
+
+    pcc = compute_pcc(golden_output[visible], device_output[visible])
+    assert pcc >= 0.99, f"indexer_score visible-position PCC too low: {pcc}"
+
+    if masked.any():
+        # Masked (future) positions must never surface as competitive scores: the
+        # device has to drive them non-finite or strictly below every visible
+        # score so a downstream top-k can never select them. (An all-reduce over
+        # the -inf mask on the sharded path may yield NaN on hardware; a NaN at a
+        # masked position is still "not selectable", so it is tolerated.)
+        visible_min = device_output[visible].min()
+        masked_vals = device_output[masked]
+        masked_out = (
+            torch.isneginf(masked_vals)
+            | torch.isnan(masked_vals)
+            | (masked_vals < visible_min)
+        )
+        assert torch.all(
+            masked_out
+        ), "indexer_score failed to mask future key positions on device."
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "num_heads, query_seq_len, key_seq_len, head_dim, chunk_start_idx",
+    # Every case uses a distinct (num_heads, Sq, T, D) shape. Two programs that
+    # share operand shapes but differ only in chunk_start_idx (a custom-call
+    # frontend attribute) alias in torch_xla's compiled-executable cache, so
+    # keeping shapes unique keeps each parametrization independent.
+    [
+        # Causal square (chunk_start_idx=0): strict lower-triangular visibility.
+        (4, 32, 32, 64, 0),
+        (8, 32, 32, 128, 0),
+        # More keys than queries with a chunk offset (prefill of a later chunk).
+        (4, 32, 64, 64, 16),
+        (8, 64, 128, 128, 32),
+        # Fully visible: chunk_start_idx >= key_seq_len leaves no masking.
+        (12, 32, 32, 96, 100),
+        # Larger indexer-head count / sequence.
+        (16, 64, 64, 128, 0),
+    ],
+)
+def test_indexer_score(
+    num_heads, query_seq_len, key_seq_len, head_dim, chunk_start_idx
+):
+    # ttnn.experimental.indexer_score requires batch == 1.
+    batch = 1
+
+    query = torch.randn(batch, num_heads, query_seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch, 1, key_seq_len, head_dim, dtype=torch.bfloat16)
+    weights = torch.randn(batch, num_heads, query_seq_len, 1, dtype=torch.bfloat16)
+
+    run_op_test(
+        torch.ops.tt.indexer_score,
+        [query, key, weights, chunk_start_idx],
+        framework=Framework.TORCH,
+        custom_comparator=_indexer_score_comparator,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "num_heads, query_seq_len, key_seq_len, head_dim, chunk_start_idx",
+    # num_heads is divisible by 8 so the head split is valid for 2-, 4- and
+    # 8-device meshes. Each case has a distinct (num_heads, Sq, T, D) shape (see
+    # the note on test_indexer_score) so the executable cache never aliases two
+    # different chunk_start_idx values onto one program.
+    [
+        # Causal square (chunk_start_idx=0): masking is over Sq/T, both of which
+        # stay unsharded, so the head split does not perturb it.
+        (8, 32, 32, 64, 0),
+        # Prefill of a later chunk: more keys than queries, nonzero offset.
+        (8, 32, 64, 128, 16),
+        # More keys, larger head count, nonzero offset.
+        (16, 64, 128, 128, 32),
+        # Fully visible (no masking): chunk_start_idx >= key_seq_len.
+        (16, 32, 32, 128, 1000),
+        # Larger query/key sequence, causal square.
+        (8, 64, 64, 64, 0),
+    ],
+)
+def test_indexer_score_tensor_parallel(
+    num_heads, query_seq_len, key_seq_len, head_dim, chunk_start_idx
+):
+    """Tensor-parallel indexer_score, mirroring DeepSeek-V3.2 DSA sharding.
+
+    In production the lightning indexer's many heads are split across the
+    tensor-parallel ("model") axis while the single shared indexer key is
+    replicated (see the DeepSeek-V3.2-exp indexer sharding: ``wq_b``/
+    ``weights_proj`` are ``model``-sharded, ``wk``/``k_cache`` are not). The op
+    reduces over the head dim, so sharding it turns the head-sum into a
+    cross-device all-reduce.
+
+    Layout (batch is 1 as the ttnn op requires, so only the head axis is split):
+        query   [1, Hi, Sq, D] -> heads sharded on "model"
+        weights [1, Hi, Sq, 1] -> heads sharded on "model"
+        key     [1, 1,  T,  D] -> replicated (single shared kv-head)
+        output  [1, 1,  Sq, T] -> head dim reduced -> all-reduce -> replicated
+    """
+    num_devices = xr.global_runtime_device_count()
+    assert (
+        num_heads % num_devices == 0
+    ), f"num_heads ({num_heads}) must be divisible by device count ({num_devices})."
+
+    # ttnn.experimental.indexer_score requires batch == 1.
+    batch = 1
+
+    query = torch.randn(batch, num_heads, query_seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch, 1, key_seq_len, head_dim, dtype=torch.bfloat16)
+    weights = torch.randn(batch, num_heads, query_seq_len, 1, dtype=torch.bfloat16)
+
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(args, kwargs):
+        q, k, w = args[0], args[1], args[2]
+        return {
+            # Split the indexer heads across the tensor-parallel axis.
+            q: (None, "model", None, None),
+            w: (None, "model", None, None),
+            # The single shared kv-head is replicated across the heads.
+            k: (None, None, None, None),
+        }
+
+    run_op_test(
+        torch.ops.tt.indexer_score,
+        [query, key, weights, chunk_start_idx],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        custom_comparator=_indexer_score_comparator,
     )
