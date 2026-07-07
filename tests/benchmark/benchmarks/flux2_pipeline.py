@@ -43,7 +43,7 @@ from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
 
 class _DeviceDenoiser:
     """Routes the transformer to the TP-sharded model on TT; each call is one
-    denoise step, timed into ``perf["unet_steps"]``."""
+    denoise step, timed into ``perf["steps"]``."""
 
     def __init__(self, transformer, mesh, perf):
         self._dev = torch_xla.device()
@@ -70,13 +70,14 @@ class _DeviceDenoiser:
             result = type(out)(o.cpu() if torch.is_tensor(o) else o for o in out)
         else:
             result = out.cpu()
-        self._perf["unet_steps"].append(time.perf_counter() - t0)
+        self._perf["steps"].append(time.perf_counter() - t0)
         return result
 
 
 class _DeviceVAEDecoder:
     """Routes vae.decode() to TT (replicated), placed lazily. Decode time goes
-    into ``perf["vae"]``; raw pixels ([-1, 1]) are stashed on ``last_pixels`` so
+    into ``perf["components"]["vae"]``; raw pixels ([-1, 1]) are stashed on
+    ``last_pixels`` so
     the harness can save them without the pipeline's PIL postprocess."""
 
     def __init__(self, vae, mesh, perf):
@@ -101,7 +102,7 @@ class _DeviceVAEDecoder:
         out = self._compiled(latents.to(self._dev))
         torch_xla.sync()
         image = out.cpu() if torch.is_tensor(out) else out
-        self._perf["vae"] = time.perf_counter() - t0
+        self._perf["components"]["vae"] = time.perf_counter() - t0
         self.last_pixels = image
         return (image,)
 
@@ -154,11 +155,10 @@ class Flux2Pipeline_TT:
     ):
         dev = torch_xla.device()
         self._perf = {
-            "te1": None,
-            "unet_steps": [],
-            "vae": None,
+            "components": {},
+            "steps": [],
+            "step_metric_name": "transformer_step",
             "total": None,
-            "step_label": "Transformer",
         }
         t_total_start = time.perf_counter()
 
@@ -182,7 +182,7 @@ class Flux2Pipeline_TT:
             prompt_embeds = te_compiled(input_ids.to(dev), attention_mask.to(dev))
         torch_xla.sync()
         prompt_embeds = prompt_embeds.cpu()
-        self._perf["te1"] = time.perf_counter() - t0
+        self._perf["components"]["text_encoder"] = time.perf_counter() - t0
 
         # Free the 24B encoder from device before placing the 32B denoiser.
         self.pipe.text_encoder = text_encoder.to("cpu")
