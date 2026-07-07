@@ -370,6 +370,7 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+
   LoadedExecutableInstance *instance =
       LoadedExecutableInstance::unwrap(args->executable);
 

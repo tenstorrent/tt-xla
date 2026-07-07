@@ -395,6 +395,15 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  // If a parent mesh already exists from prior execution/optimizer setup and
+  // the compiler determines a different mesh shape, synchronize the client
+  // mesh. This does not create the initial mesh when compilation starts
+  // host-only because current_mesh_shape is empty in that case.
+  if (current_mesh_shape.has_value() &&
+      current_mesh_shape.value() != mesh_shape) {
+    client_instance->getOrCreateMeshDevice(mesh_shape);
+  }
+
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
   // a name, otherwise some default string like the current one.
   std::string executable_name = "tt_executable";
@@ -1080,10 +1089,16 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // optimization_level > 0 may run tt-mlir optimizer passes that can use a
-  // device pointer. Do not pass a real Metal mesh during host-side compile:
-  // doing so can initialize MetalContext and reintroduce compile-time device
-  // lifecycle issues.
+  // Optimizer is enabled for optimization_level >= 1. This intentionally opens
+  // a real optimizer submesh only when the optimizer asks for a device pointer;
+  // the default optimization_level=0 compile path remains host-only.
+  if (compile_options.optimization_level >= 1) {
+    tt::runtime::Device submesh_for_optim =
+        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
+    options.devicePtr =
+        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
+            submesh_for_optim.handle);
+  }
 
   // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
   // backends until the pipeline restructuring on TT-MLIR side is done.

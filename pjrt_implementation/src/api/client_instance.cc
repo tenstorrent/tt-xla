@@ -64,11 +64,9 @@ static void releaseMetalContextIfRequested(const char *env_name) {
   }
 
   if (tt::tt_metal::detail::ReleaseOwnership == nullptr) {
-    std::fprintf(stderr,
-                 "[PJRT_METAL_CONTEXT] %s set, but ReleaseOwnership symbol is "
-                 "not available\n",
-                 env_name);
-    std::fflush(stderr);
+    LOG_F(WARNING,
+          "%s set, but ReleaseOwnership symbol is not available",
+          env_name);
     return;
   }
 
@@ -436,6 +434,15 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
+  const bool defer_initial_mesh_open =
+      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE");
+  // Original behavior opens the default 1xN mesh during client initialization;
+  // workaround mode defers that open until after compile.
+  if (!m_compile_only && !defer_initial_mesh_open) {
+    m_parent_mesh =
+        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+  }
+
   return tt_pjrt_status::kSuccess;
 }
 
@@ -504,8 +511,9 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
       executable_image->toExecutableInstance(std::move(addressable_devices),
                                              this);
 
-  if (!m_compile_only &&
-      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE")) {
+  const bool preopen_runtime_mesh_after_compile =
+      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE");
+  if (!m_compile_only && preopen_runtime_mesh_after_compile) {
     const std::vector<std::uint32_t> &mesh_shape =
         executable_image->getDevicesMeshShape();
     getOrCreateMeshDevice(mesh_shape);
