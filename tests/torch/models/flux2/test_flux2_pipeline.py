@@ -184,7 +184,7 @@ class Flux2TTPipeline:
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.large
-@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name="Flux2_Pipeline",
