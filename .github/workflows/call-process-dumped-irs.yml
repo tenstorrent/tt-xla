@@ -33,6 +33,10 @@ on:
         required: false
         type: boolean
         default: false
+      model_filter:
+        description: 'Optional filter for specific models to process'
+        required: false
+        type: string
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -55,11 +59,37 @@ jobs:
         run: |
           echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
           # Get artifacts for this run
-          artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
-            "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
-          # Check if any artifacts match the pattern "ir-dumps-*"
-          ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
-          echo "Found $ir_count dumped IR artifacts"
+          if [ -n "${{ inputs.model_filter }}" ]; then
+            echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
+            gh run download ${{ inputs.dumped_irs_run_id }} \
+              --repo ${{ github.repository }} \
+              --pattern "ir-dumps-*" \
+              --dir collected_irs
+
+            model_filter="${{ inputs.model_filter }}"
+            echo "Applying model filter: $model_filter"
+
+            # Collect first-level model directories under collected_irs
+            mapfile -t model_dirs < <(find collected_irs -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+            total_models=${#model_dirs[@]}
+
+            # Count models whose directory name matches the filter
+            matching_count=0
+            for model_dir in "${model_dirs[@]}"; do
+            if [[ "$model_dir" == *"$model_filter"* ]]; then
+              matching_count=$((matching_count + 1))
+            fi
+            done
+
+            echo "Models matching filter '$model_filter': $matching_count/$total_models"
+            ir_count=$matching_count
+          else
+            artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
+              "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
+            # Check if any artifacts match the pattern "ir-dumps-*"
+            ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
+            echo "Found $ir_count dumped IR artifacts"
+          fi
           if [ "$ir_count" -gt 0 ]; then
             echo "IR processing workflow will continue"
             echo "skip_ir_processing=false" >> "$GITHUB_OUTPUT"
