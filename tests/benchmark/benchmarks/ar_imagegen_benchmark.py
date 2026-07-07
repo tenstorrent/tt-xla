@@ -2,24 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Generic text-to-image (diffusion) benchmark harness for torch-xla / TT.
+"""Autoregressive text-to-image benchmark harness for torch-xla / TT.
 
-Mirrors the structure of ``vision_benchmark.py``: the per-model configuration
-lives in ``test_imagegen.py`` and this module owns the reusable measurement
-logic. Diffusion pipelines don't fit the single-forward vision harness — each
-generation is a multi-step denoising loop — so this harness uses a two-pass
-scheme:
+Sibling of ``imagegen_benchmark.py``, but for *autoregressive* image-token
+models (e.g. Janus-Pro) rather than diffusion pipelines. The diffusion harness
+is hard-wired to per-step denoising metrics (``te1``/``te2``/``unet_steps``/
+``vae``); an AR pipeline instead has a prompt prefill, a long token-by-token
+decode loop, and a final vision decode, so it needs its own ``_perf`` schema and
+reports decode *tokens/second* as the headline throughput.
 
-  - Pass 1 (warmup): a single-step ``generate()`` call — enough to trigger
-    the first-forward compile of every component.
-  - Pass 2 (steady-state): a full ``generate(num_inference_steps)`` call;
-    every forward is a cache hit. This is the pass whose image is saved and
-    whose latency drives the reported throughput.
+Two-pass scheme (same idea as the diffusion harness):
+
+  - Pass 1 (warmup): a full ``generate()`` — for an AR model the graph compiles
+    happen lazily inside the loop (prefill graph on step 0, decode graph on
+    step 1, vision-decode graph at the end); a full pass is the simplest way to
+    compile every graph at the exact shapes the steady-state pass reuses.
+  - Pass 2 (steady-state): a full ``generate()`` where every forward is a cache
+    hit; this is the pass whose image is saved and whose timing is reported.
 
 Per-model wiring provides a ``build_pipeline_fn`` that returns
-``(pipeline, generate_fn)``; this module sets the XLA compile options,
-builds the pipeline (which compiles the heavy net for TT), runs the two passes
-and emits a standardized benchmark result.
+``(pipeline, generate_fn)``; this module sets the XLA compile options, builds
+the pipeline, runs the two passes and emits a standardized benchmark result.
+The pipeline must populate ``pipeline._perf`` each ``generate()`` call with the
+keys ``prefill``, ``decode_steps`` (list), ``vision_decode`` and ``total``.
 """
 
 import socket
@@ -41,31 +46,30 @@ xr.set_device_type("TT")
 MODULE_EXPORT_PATH = "modules"
 
 
-def benchmark_imagegen_torch_xla(
+def benchmark_ar_imagegen_torch_xla(
     build_pipeline_fn,
     model_info_name,
     prompt,
-    num_inference_steps,
-    height,
-    width,
+    num_image_tokens,
+    image_size,
     optimization_level,
     trace_enabled,
     ttnn_perf_metrics_output_file,
     display_name=None,
     output_image_path=None,
 ):
-    """Benchmark a text-to-image diffusion pipeline on the TT backend.
+    """Benchmark an autoregressive text-to-image pipeline on the TT backend.
 
     Args:
         build_pipeline_fn: ``build_pipeline_fn(compile_options) -> (pipeline, generate_fn)``.
-            ``compile_options`` is forwarded so the pipeline can merge instead
-            of overwriting if it needs to switch any option inline.
-            ``generate_fn(prompt, num_inference_steps) -> image tensor (B, 3, H, W)``
-            runs one full text-to-image generation.
+            ``compile_options`` is forwarded so the pipeline can merge instead of
+            overwrite if it needs to switch an option inline.
+            ``generate_fn(prompt, num_image_tokens) -> image tensor (B, 3, H, W)``
+            runs one full text-to-image generation and populates ``pipeline._perf``.
         model_info_name: Model name for identification and reporting.
         prompt: Text prompt to generate from.
-        num_inference_steps: Number of denoising steps per generation.
-        height, width: Output image dimensions.
+        num_image_tokens: Number of image tokens generated per image (AR loop length).
+        image_size: Output image height/width (square).
         optimization_level: tt-mlir optimization level for compilation.
         trace_enabled: Whether to enable tracing.
         ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
@@ -92,23 +96,22 @@ def benchmark_imagegen_torch_xla(
     }
     torch_xla.set_custom_compile_options(options)
 
-    # Build + compile the pipeline (heavy net registers the "tt" backend and is
-    # moved to the XLA device here; actual kernel compilation happens lazily on
+    # Build the pipeline (registers the "tt" backend; kernels compile lazily on
     # the first forward, i.e. during the warmup pass below).
     pipeline, generate_fn = build_pipeline_fn(options)
 
-    # Pass 1 (warmup): 1 step is enough to trigger the first-forward compile
-    # of every component.
+    # Pass 1 (warmup): a full generation compiles every graph (prefill, decode,
+    # vision decode) at the shapes the steady-state pass reuses.
     print("Starting warmup pass (includes compile)...")
     warmup_start = time.perf_counter()
-    generate_fn(prompt, 1)
+    generate_fn(prompt, num_image_tokens)
     warmup_time = time.perf_counter() - warmup_start
     print(f"Warmup pass: {warmup_time:.3f}s")
 
-    # Pass 2 (steady-state): steady-state generation; this image is the saved one.
+    # Pass 2 (steady-state): every forward is a cache hit; this image is saved.
     print("Starting steady-state pass...")
     steady_state_start = time.perf_counter()
-    steady_state_image = generate_fn(prompt, num_inference_steps)
+    steady_state_image = generate_fn(prompt, num_image_tokens)
     steady_state_time = time.perf_counter() - steady_state_start
     print(f"Steady-state pass: {steady_state_time:.3f}s")
 
@@ -116,32 +119,29 @@ def benchmark_imagegen_torch_xla(
         save_image(steady_state_image, output_image_path)
         print(f"Saved output image to {output_image_path}")
 
-    # Throughput is reported on the steady-state pass. One image per run.
+    # One image per run.
     total_samples = 1
     samples_per_sec = total_samples / steady_state_time
 
-    # Per-component forward+sync times from the pipeline's own instrumentation
-    # (steady-state pass). The schema is model-agnostic so the same harness
-    # serves every image-gen pipeline:
-    #   _perf = {
-    #       "components": {<name>: seconds, ...},   # scalar per-stage times
-    #       "steps": [seconds, ...],                # per heavy-net-step times
-    #       "step_metric_name": "unet_step" | "transformer_step",
-    #       "total": seconds,                       # full generate() wall time
-    #   }
+    # Per-stage times from the pipeline's own instrumentation (steady-state pass).
     perf = pipeline._perf
-    components = perf["components"]
-    steps = perf["steps"]
-    step_metric_name = perf["step_metric_name"]
-    step_mean_s = sum(steps) / len(steps) if steps else 0.0
-    tt_components_total = sum(components.values()) + sum(steps)
-    cpu_overhead = max(0.0, perf["total"] - tt_components_total)
+    prefill_s = perf["prefill"]
+    decode_steps = perf["decode_steps"]
+    vision_decode_s = perf["vision_decode"]
+    decode_step_mean_s = sum(decode_steps) / len(decode_steps) if decode_steps else 0.0
+    decode_total_s = sum(decode_steps)
+    # Headline AR throughput: image tokens emitted by the decode loop per second.
+    decode_tokens_per_second = (
+        len(decode_steps) / decode_total_s if decode_total_s > 0 else 0.0
+    )
+    tt_stages_total = prefill_s + decode_total_s + vision_decode_s
+    cpu_overhead = max(0.0, perf["total"] - tt_stages_total)
 
     metadata = get_benchmark_metadata()
     full_model_name = model_info_name
     model_type = "Image Generation, Text-to-Image"
     dataset_name = "Text Prompt"
-    input_size = (3, height, width)
+    input_size = (3, image_size, image_size)
 
     print_benchmark_results(
         model_title=full_model_name,
@@ -158,26 +158,28 @@ def benchmark_imagegen_torch_xla(
         data_format="bfloat16",
         input_size=input_size,
     )
-    component_lines = "".join(
-        f"|   {name} (s):  {value:.3f}\n" for name, value in components.items()
-    )
     print(
-        f"| Num inference steps: {num_inference_steps}\n"
+        f"| Num image tokens: {num_image_tokens}\n"
         f"| Steady-state:\n"
-        f"{component_lines}"
-        f"|   {step_metric_name} mean (s):  {step_mean_s:.3f}\n"
-        f"|   CPU overhead (s):    {cpu_overhead:.3f}"
+        f"|   Prefill (s):             {prefill_s:.3f}\n"
+        f"|   Decode step mean (s):    {decode_step_mean_s:.4f}\n"
+        f"|   Decode tokens/s:         {decode_tokens_per_second:.2f}\n"
+        f"|   Vision decode (s):       {vision_decode_s:.3f}\n"
+        f"|   CPU overhead (s):        {cpu_overhead:.3f}"
     )
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
         {"measurement_name": "e2e_latency", "value": steady_state_time},
-        {"measurement_name": f"{step_metric_name}_mean_s", "value": step_mean_s},
+        {"measurement_name": "prefill_s", "value": prefill_s},
+        {"measurement_name": "decode_step_mean_s", "value": decode_step_mean_s},
+        {
+            "measurement_name": "decode_tokens_per_second",
+            "value": decode_tokens_per_second,
+        },
+        {"measurement_name": "vision_decode_s", "value": vision_decode_s},
         {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
     ]
-    # One measurement per scalar component (e.g. text_encoder_1_s, vae_s).
-    for name, value in components.items():
-        custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
@@ -186,7 +188,7 @@ def benchmark_imagegen_torch_xla(
         num_layers=-1,
         batch_size=1,
         input_size=input_size,
-        loop_count=num_inference_steps,
+        loop_count=num_image_tokens,
         data_format="bfloat16",
         total_time=steady_state_time,
         total_samples=total_samples,
