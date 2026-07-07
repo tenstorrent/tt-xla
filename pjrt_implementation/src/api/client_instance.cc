@@ -546,18 +546,14 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // [Workaround] Galaxy lacks a both-axis wrap, so
   // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
-  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
-  // Wormhole) have the wrap, so keep their auto-detected fabric.
-  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
-                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
-                          ::tt::target::Arch::Blackhole;
-  if (is_blackhole && m_devices.size() == 32) {
-    LOG_F(WARNING,
-          "Auto-overriding fabric config to FABRIC_1D for the "
-          "32-device Blackhole galaxy (UBB); this is a workaround, not "
-          "expected behaviour.");
+  // TopologyMapper; force FABRIC_1D there.
+  if (m_devices.size() == 32) {
+    LOG_F(
+        WARNING,
+        "Auto-overriding fabric config to FABRIC_1D for the 32-device galaxy; "
+        "this is a workaround, not expected behaviour.");
     return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
                                          {}};
   }

@@ -362,6 +362,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
         ("TTFusedMoE", partition_fused_moe),
+        ("TTSharedFusedMoE", partition_fused_moe),
     ]
 )
 
