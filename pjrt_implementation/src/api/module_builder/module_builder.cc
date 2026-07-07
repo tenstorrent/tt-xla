@@ -395,9 +395,10 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  // tt-xla creates 1D mesh by default, so if compiler determines a different
-  // mesh shape, we need to update the mesh in the client instance to match the
-  // compiler determined mesh shape.
+  // If a parent mesh already exists from prior execution/optimizer setup and
+  // the compiler determines a different mesh shape, synchronize the client
+  // mesh. This does not create the initial mesh when compilation starts
+  // host-only because current_mesh_shape is empty in that case.
   if (current_mesh_shape.has_value() &&
       current_mesh_shape.value() != mesh_shape) {
     client_instance->getOrCreateMeshDevice(mesh_shape);
@@ -1088,9 +1089,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // Use the `options.devicePtr` to pass the device pointer to the optimizer in
-  // order to avoid closing and reopening the device afterwards.
-  // Optimizer is enabled for optimization_level >= 1
+  // Optimizer is enabled for optimization_level >= 1. Passing devicePtr here
+  // intentionally opens a real optimizer submesh, which can initialize
+  // MetalContext during compile. The workaround path relies on the default
+  // optimization_level=0 to keep compile host-only.
   if (compile_options.optimization_level >= 1) {
     tt::runtime::Device submesh_for_optim =
         client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);

@@ -12,6 +12,8 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <map>
 #include <optional>
@@ -22,6 +24,7 @@
 // tt-mlir includes
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "ttmlir/Target/Common/types_generated.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
@@ -36,7 +39,39 @@
 #include "utils/logging.h"
 #include "utils/utils.h"
 
+namespace tt::tt_metal::detail {
+// Keep this weak so PJRT does not take a hard build/link dependency on
+// tt-metal public headers just to release an optional MetalContext instance.
+void ReleaseOwnership() __attribute__((weak));
+}
+
+namespace tt::runtime::common {
+tt::runtime::MeshFabricConfig computeMeshFabricConfig(
+    const std::vector<::tt::target::ChipChannel> &chipChannels,
+    const std::vector<uint32_t> &meshShape, const std::vector<int> &deviceIds);
+}
+
 namespace tt::pjrt {
+
+static bool envFlagEnabled(const char *name) {
+  const char *value = std::getenv(name);
+  return value != nullptr && value[0] != '\0' && value[0] != '0';
+}
+
+static void releaseMetalContextIfRequested(const char *env_name) {
+  if (!envFlagEnabled(env_name)) {
+    return;
+  }
+
+  if (tt::tt_metal::detail::ReleaseOwnership == nullptr) {
+    LOG_F(WARNING,
+          "%s set, but ReleaseOwnership symbol is not available",
+          env_name);
+    return;
+  }
+
+  tt::tt_metal::detail::ReleaseOwnership();
+}
 
 static std::string getRankBindingPath(const std::string &metal_home) {
   static std::unordered_map<std::string, std::string> rank_binding_paths = {
@@ -363,6 +398,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
           m_cached_system_descriptor_path.c_str());
     return tt_pjrt_status::kInternal;
   }
+  // Required for host-only compile: system descriptor discovery can initialize
+  // MetalContext, and without this release it remains alive through compile.
+  releaseMetalContextIfRequested(
+      "TT_PJRT_RELEASE_METAL_CONTEXT_AFTER_SYSTEM_DESC");
 
   size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
   m_devices.reserve(devices_count);
@@ -395,8 +434,11 @@ tt_pjrt_status ClientInstance::populateDevices() {
     return tt_pjrt_status::kInternal;
   }
 
-  // Mesh device requires physical hardware; skip in compile-only mode.
-  if (!m_compile_only) {
+  const bool defer_initial_mesh_open =
+      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE");
+  // Original behavior opens the default 1xN mesh during client initialization;
+  // workaround mode defers that open until after compile.
+  if (!m_compile_only && !defer_initial_mesh_open) {
     m_parent_mesh =
         getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
   }
@@ -469,6 +511,14 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
       executable_image->toExecutableInstance(std::move(addressable_devices),
                                              this);
 
+  const bool preopen_runtime_mesh_after_compile =
+      envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE");
+  if (!m_compile_only && preopen_runtime_mesh_after_compile) {
+    const std::vector<std::uint32_t> &mesh_shape =
+        executable_image->getDevicesMeshShape();
+    getOrCreateMeshDevice(mesh_shape);
+  }
+
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
   *out_executable = executable.release();
@@ -478,6 +528,10 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
 
 tt::runtime::MeshFabricConfig
 ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
+  // Avoid tt::runtime::computeMeshFabricConfig(SystemDesc, ...): that overload
+  // can query SystemMesh and initialize MetalContext during host-side compile.
+  // Instead, derive the needed topology inputs from the cached system descriptor
+  // and call the lower-level helper directly.
   // Distributed uses FABRIC_1D for now.
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
@@ -498,7 +552,41 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+
+  uint32_t num_devices = 1;
+  for (auto dim : mesh_shape) {
+    num_devices *= dim;
+  }
+
+  TT_FATAL(m_system_descriptor->chip_desc_indices()->size() >= num_devices,
+           "System descriptor has fewer devices than requested mesh shape: "
+           "devices={}, requested={}",
+           m_system_descriptor->chip_desc_indices()->size(), num_devices);
+
+  std::vector<::tt::target::ChipChannel> chip_channels;
+  const auto *fb_channels = m_system_descriptor->chip_channels();
+  if (fb_channels) {
+    chip_channels.reserve(fb_channels->size());
+    for (const auto *channel : *fb_channels) {
+      chip_channels.push_back(*channel);
+    }
+  }
+
+  if (chip_channels.empty() && num_devices > 1) {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
+  }
+
+  std::vector<int> device_ids;
+  device_ids.reserve(num_devices);
+  for (uint32_t i = 0; i < num_devices; ++i) {
+    device_ids.push_back(m_system_descriptor->chip_desc_indices()->Get(i));
+  }
+
+  // Pass plain vectors to the lower-level helper so no runtime topology lookup
+  // is needed.
+  return tt::runtime::common::computeMeshFabricConfig(chip_channels, mesh_shape,
+                                                      device_ids);
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
