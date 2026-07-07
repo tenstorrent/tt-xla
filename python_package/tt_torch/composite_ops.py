@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from typing import List, Optional, Union
 
 import torch
@@ -251,6 +252,15 @@ def composite_scaled_dot_product_attention(
     )
 
     if attn_mask is not None:
+        # Fused SDPA adds the mask to the scores, and ttnn.scaled_dot_product_attention
+        # accepts only a float mask (BF16/BFP8/BFP4), so convert a bool mask to additive
+        # form (True -> 0, False -> -inf). Gated by the same flag that allows capturing
+        # a bool mask in _check_sdpa_constraints.
+        if (
+            os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
+            and attn_mask.dtype == torch.bool
+        ):
+            attn_mask = torch.where(attn_mask, 0.0, float("-inf")).to(query.dtype)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
@@ -473,12 +483,24 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
         )
         return False
 
-    # Check all inputs are bfloat16
-    tensor_args = list(node.args) + [
-        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
-    ]
+    # By default all inputs (including attn_mask) are gated on bf16, so a bool mask
+    # skips the composite. Catching bool masks by default regressed perf (issue #5426),
+    # so it is opt-in via TT_XLA_CATCH_BOOL_MASK_SDPA for models with no perf concern
+    # at the moment.
+    # When set, gate only Q/K/V (positional or named); the bool mask is converted to
+    # additive form in the composite.
+    if os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1":
+        tensor_args = list(node.args[:3]) + [
+            node.kwargs[name]
+            for name in ("query", "key", "value")
+            if name in node.kwargs
+        ]
+    else:
+        tensor_args = list(node.args) + [
+            v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
+        ]
     for arg in tensor_args:
-        if hasattr(arg, "meta"):
+        if isinstance(arg, torch.fx.Node) and hasattr(arg, "meta"):
             val = arg.meta.get("example_value", None)
             if val is not None and val.dtype != torch.bfloat16:
                 logger.debug(
