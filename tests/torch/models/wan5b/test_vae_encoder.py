@@ -32,7 +32,6 @@ from .shared import (
 COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
-    all_reduce_workaround_enabled=False,
 )
 
 
