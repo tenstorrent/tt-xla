@@ -40,6 +40,8 @@
 #include "utils/utils.h"
 
 namespace tt::tt_metal::detail {
+// Keep this weak so PJRT does not take a hard build/link dependency on
+// tt-metal public headers just to release an optional MetalContext instance.
 void ReleaseOwnership() __attribute__((weak));
 }
 

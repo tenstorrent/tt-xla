@@ -11,7 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
-#include <cstdio>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -55,44 +55,100 @@ bool deferHostBufferTensorCreation() {
   return value != nullptr && value[0] != '\0' && value[0] != '0';
 }
 
-bool traceDeferredHostBuffer() {
-  const char *value = std::getenv("TT_PJRT_TRACE_DEFER_HOST_BUFFER");
-  return value != nullptr && value[0] != '\0' && value[0] != '0';
+size_t tensorByteSize(const std::vector<std::uint32_t> &shape,
+                      std::uint32_t element_size) {
+  size_t num_elements = 1;
+  for (std::uint32_t dim : shape) {
+    num_elements *= static_cast<size_t>(dim);
+  }
+  return num_elements * element_size;
 }
 
-bool hasCompactHostLayout(const std::int64_t *dims, size_t num_dims,
-                          const std::int64_t *byte_strides,
-                          size_t num_byte_strides,
-                          std::uint32_t element_size) {
-  if (num_byte_strides == 0) {
-    return true;
+std::vector<std::uint32_t>
+calculateCompactStrides(const std::vector<std::uint32_t> &shape) {
+  std::vector<std::uint32_t> strides(shape.size());
+  std::uint32_t stride = 1;
+  for (size_t reverse_index = 0; reverse_index < shape.size();
+       ++reverse_index) {
+    size_t dim_index = shape.size() - 1 - reverse_index;
+    strides[dim_index] = stride;
+    stride *= shape[dim_index];
   }
-  if (num_byte_strides != num_dims) {
-    return false;
-  }
-
-  std::int64_t expected_stride = static_cast<std::int64_t>(element_size);
-  for (size_t reverse_index = 0; reverse_index < num_dims; ++reverse_index) {
-    size_t dim_index = num_dims - 1 - reverse_index;
-    if (byte_strides[dim_index] != expected_stride) {
-      return false;
-    }
-    expected_stride *= dims[dim_index];
-  }
-  return true;
+  return strides;
 }
 
-void traceDeferredHostBufferFallback(const char *reason, size_t num_dims,
-                                     size_t num_byte_strides,
-                                     size_t byte_size) {
-  if (!traceDeferredHostBuffer()) {
+size_t hostElementSize(PJRT_Buffer_Type data_type,
+                       std::uint32_t runtime_element_size) {
+  // PJRT complex host buffers are interleaved real/imag pairs.
+  return data_type_utils::isComplexPJRTType(data_type)
+             ? static_cast<size_t>(runtime_element_size) * 2
+             : static_cast<size_t>(runtime_element_size);
+}
+
+void packStridedHostBufferRecursive(const std::byte *source, std::byte *dest,
+                                    const std::int64_t *dims, size_t num_dims,
+                                    const std::int64_t *byte_strides,
+                                    size_t dim_index,
+                                    std::int64_t source_offset,
+                                    size_t &linear_index,
+                                    size_t host_element_size) {
+  if (dim_index == num_dims) {
+    std::memcpy(dest + linear_index * host_element_size,
+                source + source_offset, host_element_size);
+    ++linear_index;
     return;
   }
-  std::fprintf(stderr,
-               "[PJRT_DEFER_HOST_BUFFER] fallback reason=%s num_dims=%zu "
-               "num_byte_strides=%zu byte_size=%zu\n",
-               reason, num_dims, num_byte_strides, byte_size);
-  std::fflush(stderr);
+
+  TT_FATAL(dims[dim_index] >= 0, "Tensor dimensions must be non-negative");
+  if (dim_index + 1 == num_dims &&
+      byte_strides[dim_index] == static_cast<std::int64_t>(host_element_size)) {
+    size_t num_bytes = static_cast<size_t>(dims[dim_index]) * host_element_size;
+    std::memcpy(dest + linear_index * host_element_size,
+                source + source_offset, num_bytes);
+    linear_index += static_cast<size_t>(dims[dim_index]);
+    return;
+  }
+
+  for (std::int64_t i = 0; i < dims[dim_index]; ++i) {
+    packStridedHostBufferRecursive(
+        source, dest, dims, num_dims, byte_strides, dim_index + 1,
+        source_offset + i * byte_strides[dim_index], linear_index,
+        host_element_size);
+  }
+}
+
+void packHostBuffer(const void *host_buffer, const std::int64_t *dims,
+                    size_t num_dims, const std::int64_t *byte_strides,
+                    size_t num_byte_strides, size_t host_element_size,
+                    std::byte *dest, size_t dest_size) {
+  if (dest_size == 0) {
+    return;
+  }
+
+  TT_FATAL(host_buffer != nullptr,
+           "Cannot defer non-empty host buffer with null host pointer");
+
+  if (num_byte_strides == 0) {
+    std::memcpy(dest, host_buffer, dest_size);
+    return;
+  }
+
+  TT_FATAL(num_byte_strides == num_dims,
+           "num_byte_strides must be 0 or equal to num_dims: "
+           "num_byte_strides={}, num_dims={}",
+           num_byte_strides, num_dims);
+
+  for (size_t i = 0; i < num_byte_strides; ++i) {
+    TT_FATAL(byte_strides[i] >= 0,
+             "Negative host byte strides are not supported: byte_strides[{}]={}",
+             i, byte_strides[i]);
+  }
+
+  size_t linear_index = 0;
+  packStridedHostBufferRecursive(
+      reinterpret_cast<const std::byte *>(host_buffer), dest, dims, num_dims,
+      byte_strides, /*dim_index=*/0, /*source_offset=*/0, linear_index,
+      host_element_size);
 }
 
 } // namespace
@@ -233,29 +289,24 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
-  std::vector<std::uint32_t> strides =
-      calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
   tt::runtime::Tensor runtime_tensor;
 
-  size_t byte_size = logicalTensorSize();
-  bool can_defer_host_tensor =
-      deferHostBufferTensorCreation() &&
-      hasCompactHostLayout(dims, num_dims, byte_strides, num_byte_strides,
-                           element_size);
-  if (can_defer_host_tensor) {
-    PendingHostTensor pending{
-        std::vector<std::byte>(byte_size), std::move(shape), std::move(strides),
-        element_size, runtime_data_type};
+  if (deferHostBufferTensorCreation()) {
+    std::vector<std::uint32_t> compact_strides = calculateCompactStrides(shape);
+    size_t byte_size = tensorByteSize(shape, element_size);
+    PendingHostTensor pending{std::vector<std::byte>(byte_size),
+                              std::move(shape),
+                              std::move(compact_strides),
+                              element_size,
+                              runtime_data_type};
     m_pending_host_tensor = std::move(pending);
-    if (byte_size != 0) {
-      TT_FATAL(host_buffer != nullptr,
-               "Cannot defer non-empty host buffer with null host pointer");
-      std::memcpy(m_pending_host_tensor->data.data(), host_buffer, byte_size);
-    }
+    packHostBuffer(host_buffer, dims, num_dims, byte_strides, num_byte_strides,
+                   hostElementSize(m_data_type, element_size),
+                   m_pending_host_tensor->data.data(), byte_size);
 
     // PJRT owns the staged bytes now, so the caller can release its buffer.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
@@ -265,10 +316,8 @@ void BufferInstance::copyFromHost(
     return;
   }
 
-  if (deferHostBufferTensorCreation()) {
-    traceDeferredHostBufferFallback("non_compact_or_invalid_strides", num_dims,
-                                    num_byte_strides, byte_size);
-  }
+  std::vector<std::uint32_t> strides =
+      calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
   // In distributed runtime, we always create owned host tensor because we
   // cannot alias the host buffer.
@@ -361,6 +410,12 @@ void BufferInstance::materializeHostTensorIfNeeded() {
   if (!m_pending_host_tensor.has_value()) {
     return;
   }
+
+  ClientInstance *client = GlobalClientInstanceSingleton::getClientInstance();
+  TT_FATAL(client != nullptr && client->parentMesh().has_value(),
+           "Deferred host tensor materialization requires an open runtime "
+           "mesh. Materializing before execution can implicitly initialize "
+           "MetalContext during host-only compile setup.");
 
   PendingHostTensor pending = std::move(*m_pending_host_tensor);
   m_pending_host_tensor.reset();
