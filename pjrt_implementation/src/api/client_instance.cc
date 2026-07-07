@@ -12,7 +12,6 @@
 
 // c++ standard library includes
 #include <cstddef>
-#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -57,27 +56,6 @@ static bool envFlagEnabled(const char *name) {
   return value != nullptr && value[0] != '\0' && value[0] != '0';
 }
 
-static void pjrtPhaseTrace(const char *message) {
-  if (!envFlagEnabled("TT_PJRT_TRACE_PHASES")) {
-    return;
-  }
-  std::fprintf(stderr, "[PJRT_PHASE] %s\n", message);
-  std::fflush(stderr);
-}
-
-static void pjrtPhaseTracef(const char *fmt, ...) {
-  if (!envFlagEnabled("TT_PJRT_TRACE_PHASES")) {
-    return;
-  }
-  std::fprintf(stderr, "[PJRT_PHASE] ");
-  va_list args;
-  va_start(args, fmt);
-  std::vfprintf(stderr, fmt, args);
-  va_end(args);
-  std::fprintf(stderr, "\n");
-  std::fflush(stderr);
-}
-
 static void releaseMetalContextIfRequested(const char *env_name) {
   if (!envFlagEnabled(env_name)) {
     return;
@@ -92,9 +70,6 @@ static void releaseMetalContextIfRequested(const char *env_name) {
     return;
   }
 
-  std::fprintf(stderr, "[PJRT_METAL_CONTEXT] releasing MetalContext (%s)\n",
-               env_name);
-  std::fflush(stderr);
   tt::tt_metal::detail::ReleaseOwnership();
 }
 
@@ -397,8 +372,6 @@ void ClientInstance::bindApi(PJRT_Api *api) {
 
 tt_pjrt_status ClientInstance::populateDevices() {
 
-  pjrtPhaseTrace("populateDevices ENTER");
-
   // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
   // or else querying system desc will fail in metal init due to fabric init
   // bugs
@@ -429,8 +402,6 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // MetalContext, and without this release it remains alive through compile.
   releaseMetalContextIfRequested(
       "TT_PJRT_RELEASE_METAL_CONTEXT_AFTER_SYSTEM_DESC");
-  pjrtPhaseTrace(
-      "populateDevices system desc cached; pre-compile MetalContext release point passed");
 
   size_t devices_count = m_system_descriptor->chip_desc_indices()->size();
   m_devices.reserve(devices_count);
@@ -466,15 +437,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // Mesh device requires physical hardware. Keep PJRT client creation and model
   // compilation host-only by default; execution opens the mesh when needed.
   if (!m_compile_only && envFlagEnabled("TT_PJRT_ENABLE_INITIAL_MESH_OPEN")) {
-    pjrtPhaseTracef("populateDevices initial mesh open target=[1,%zu]",
-                    m_devices.size());
     m_parent_mesh =
         getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
-  } else {
-    pjrtPhaseTrace("populateDevices initial mesh open skipped/deferred");
   }
 
-  pjrtPhaseTrace("populateDevices EXIT");
   return tt_pjrt_status::kSuccess;
 }
 
@@ -508,7 +474,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
     const std::unordered_map<std::string, std::string> &compile_options,
     const std::optional<std::vector<int64_t>> &replica_device_ids) {
 
-  pjrtPhaseTrace("compileMlirProgram ENTER host-side compile");
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
@@ -516,8 +481,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
                                     compile_options, this);
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
-    pjrtPhaseTracef("compileMlirProgram EXIT status=%d",
-                    static_cast<int>(status));
     return status;
   }
 
@@ -533,7 +496,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
         addressable_devices.push_back(m_addressable_devices_raw[device_id]);
       } else {
         LOG_F(ERROR, "Invalid device ID %ld in DeviceAssignment", device_id);
-        pjrtPhaseTrace("compileMlirProgram EXIT invalid replica device id");
         return tt_pjrt_status::kInvalidArgument;
       }
     }
@@ -551,8 +513,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
       envFlagEnabled("TT_PJRT_PREOPEN_RUNTIME_MESH_AFTER_COMPILE")) {
     const std::vector<std::uint32_t> &mesh_shape =
         executable_image->getDevicesMeshShape();
-    pjrtPhaseTracef("compileMlirProgram preopen runtime mesh target=%s",
-                    utils::to_string(mesh_shape).c_str());
     getOrCreateMeshDevice(mesh_shape);
   }
 
@@ -560,7 +520,6 @@ tt_pjrt_status ClientInstance::compileMlirProgram(
   // responsible for calling `PJRT_LoadedExecutable_Destroy` on the executable.
   *out_executable = executable.release();
 
-  pjrtPhaseTrace("compileMlirProgram EXIT success; executable created");
   return tt_pjrt_status::kSuccess;
 }
 
@@ -641,12 +600,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
     const std::vector<uint32_t> &target_mesh_shape) {
 
-  pjrtPhaseTracef("getOrCreateMeshDevice request target=%s has_parent=%d",
-                  utils::to_string(target_mesh_shape).c_str(),
-                  static_cast<int>(m_parent_mesh.has_value()));
   if (!m_parent_mesh.has_value()) {
-    pjrtPhaseTracef("getOrCreateMeshDevice opening new parent target=%s",
-                    utils::to_string(target_mesh_shape).c_str());
     m_parent_mesh = openMeshDevice(target_mesh_shape);
     return *m_parent_mesh;
   }
@@ -666,8 +620,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
            "ClientInstance::getOrCreateMeshDevice - reusing "
            "already opened mesh device %s",
            utils::to_string(parent_mesh_shape).c_str());
-    pjrtPhaseTracef("getOrCreateMeshDevice reuse current=%s",
-                    utils::to_string(parent_mesh_shape).c_str());
     return *m_parent_mesh;
   }
 
@@ -676,9 +628,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
          "reshaping mesh device - %s -> %s",
          utils::to_string(parent_mesh_shape).c_str(),
          utils::to_string(target_mesh_shape).c_str());
-  pjrtPhaseTracef("getOrCreateMeshDevice reshape close current=%s target=%s",
-                  utils::to_string(parent_mesh_shape).c_str(),
-                  utils::to_string(target_mesh_shape).c_str());
 
   // Move tensors to host before closing the mesh. This ensures buffers don't
   // hold references to deallocated tensors after mesh close, which could cause
@@ -697,8 +646,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
   // some issues when testing sub-meshes, so for now we are always closing and
   // re-opening the whole mesh.
   closeMeshDevice();
-  pjrtPhaseTracef("getOrCreateMeshDevice reshape reopen target=%s",
-                  utils::to_string(target_mesh_shape).c_str());
   m_parent_mesh = openMeshDevice(target_mesh_shape);
 
   return *m_parent_mesh;
@@ -712,8 +659,6 @@ void ClientInstance::closeMeshDevice() {
 
 tt::runtime::Device
 ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
-  pjrtPhaseTracef("openMeshDevice ENTER target=%s",
-                  utils::to_string(mesh_shape).c_str());
   // Compute fabric config based on the system descriptor and mesh shape.
   // NOTE: it looks like metal context is being reinitialized each time we
   // open/close the device, so we need to set the fabric config each time
@@ -752,8 +697,6 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   };
 
   tt::runtime::Device device = tt::runtime::openMeshDevice(options);
-  pjrtPhaseTracef("openMeshDevice EXIT target=%s",
-                  utils::to_string(mesh_shape).c_str());
   return device;
 }
 
@@ -762,13 +705,9 @@ void ClientInstance::closeParentMesh() {
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
     std::vector<uint32_t> parent_mesh_shape =
         tt::runtime::getMeshShape(*m_parent_mesh);
-    pjrtPhaseTracef("closeParentMesh ENTER shape=%s",
-                    utils::to_string(parent_mesh_shape).c_str());
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
     m_fabric_config.reset();
-    pjrtPhaseTracef("closeParentMesh EXIT shape=%s",
-                    utils::to_string(parent_mesh_shape).c_str());
   }
 }
 
@@ -967,7 +906,6 @@ onClientAddressableMemories(PJRT_Client_AddressableMemories_Args *args) {
 PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
-  pjrtPhaseTrace("PJRT_Client_Compile ENTER");
 
   // Parse compile options and extract both custom options and replica device
   // IDs
@@ -978,8 +916,6 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
           args->compile_options, args->compile_options_size,
           compile_options_map, replica_device_ids);
   if (!tt_pjrt_status_is_ok(compile_options_status)) {
-    pjrtPhaseTracef("PJRT_Client_Compile EXIT options status=%d",
-                    static_cast<int>(compile_options_status));
     return *ErrorInstance::makeError(compile_options_status).release();
   }
 
@@ -990,7 +926,6 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
           "Program code format \"%s\" is not supported, only MLIR format is "
           "currently supported",
           args->program->format);
-    pjrtPhaseTrace("PJRT_Client_Compile EXIT unsupported format");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
@@ -1001,8 +936,6 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
       compile_options_map, replica_device_ids);
 
-  pjrtPhaseTracef("PJRT_Client_Compile EXIT status=%d",
-                  static_cast<int>(compile_status));
   return *ErrorInstance::makeError(compile_status).release();
 }
 

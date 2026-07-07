@@ -82,19 +82,6 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
-static bool pjrtPhaseTraceEnabled() {
-  const char *value = std::getenv("TT_PJRT_TRACE_PHASES");
-  return value != nullptr && value[0] != '\0' && value[0] != '0';
-}
-
-static void pjrtPhaseTrace(const char *message) {
-  if (!pjrtPhaseTraceEnabled()) {
-    return;
-  }
-  std::fprintf(stderr, "[PJRT_PHASE] %s\n", message);
-  std::fflush(stderr);
-}
-
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -414,12 +401,7 @@ ModuleBuilder::buildModule(
   if (current_mesh_shape.has_value() &&
       current_mesh_shape.value() != mesh_shape &&
       std::getenv("TT_PJRT_ENABLE_COMPILE_MESH_OPEN") != nullptr) {
-    pjrtPhaseTrace(
-        "ModuleBuilder compile-time mesh open ENTER (TT_PJRT_ENABLE_COMPILE_MESH_OPEN)");
     client_instance->getOrCreateMeshDevice(mesh_shape);
-    pjrtPhaseTrace("ModuleBuilder compile-time mesh open EXIT");
-  } else {
-    pjrtPhaseTrace("ModuleBuilder compile-time mesh open skipped");
   }
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
@@ -1107,21 +1089,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // By default, let tt-mlir's optimizer use its mock op-model device instead
-  // of opening/passing a real Metal mesh during host-side compilation.
-  if (compile_options.optimization_level >= 1 &&
-      std::getenv("TT_PJRT_ENABLE_COMPILE_OPTIMIZER_DEVICE") != nullptr) {
-    pjrtPhaseTrace(
-        "ModuleBuilder compile optimizer real device ENTER (TT_PJRT_ENABLE_COMPILE_OPTIMIZER_DEVICE)");
-    tt::runtime::Device submesh_for_optim =
-        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-    options.devicePtr =
-        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-            submesh_for_optim.handle);
-    pjrtPhaseTrace("ModuleBuilder compile optimizer real device EXIT");
-  } else {
-    pjrtPhaseTrace("ModuleBuilder compile optimizer real device skipped");
-  }
+  // optimization_level > 0 may run tt-mlir optimizer passes that can use a
+  // device pointer. Do not pass a real Metal mesh during host-side compile:
+  // doing so can initialize MetalContext and reintroduce compile-time device
+  // lifecycle issues.
 
   // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
   // backends until the pipeline restructuring on TT-MLIR side is done.
