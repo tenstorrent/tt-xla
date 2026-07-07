@@ -100,6 +100,9 @@ def test_imagegen(
     ),
     strict=False,
 )
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_playground_v2_5(output_file, request):
     from benchmarks.playground_v2_5_pipeline import (
         PlaygroundV25Config,
@@ -147,6 +150,9 @@ def test_playground_v2_5(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_sdxl_lightning(output_file, request):
     from benchmarks.sdxl_lightning_pipeline import (
         SDXLLightningConfig,

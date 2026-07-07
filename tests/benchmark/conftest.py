@@ -49,6 +49,17 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--output-dir",
+        action="store",
+        default=None,
+        help=(
+            "Directory to save one benchmark result JSON per test, named from the "
+            "sanitized pytest node id. Takes precedence over --output-file; use this "
+            "when a single pytest invocation runs many benchmarks (grouped perf jobs)."
+        ),
+    )
+
+    parser.addoption(
         "--num-layers",
         action="store",
         default=None,
@@ -107,6 +118,18 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def output_file(request):
+    # When --output-dir is set, each test writes its own file (named from the sanitized
+    # node id) so one pytest invocation can run many benchmarks. Otherwise fall back to
+    # the single --output-file path. All benchmark writers consume this fixture unchanged.
+    output_dir = request.config.getoption("--output-dir")
+    if output_dir:
+        import os
+
+        from utils import sanitize_filename
+
+        os.makedirs(output_dir, exist_ok=True)
+        node_id = request.node.nodeid.replace("[", "_").replace("]", "_")
+        return os.path.join(output_dir, f"{sanitize_filename(node_id)}.json")
     return request.config.getoption("--output-file")
 
 

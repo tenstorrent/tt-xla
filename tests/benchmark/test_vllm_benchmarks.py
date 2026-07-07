@@ -148,36 +148,108 @@ def _gemma4_tp_config(model: str, batch_size: int):
 
 SINGLE_DEVICE_CONFIGS = [
     # Llama
-    pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
-    pytest.param(_config("meta-llama/Llama-3.2-3B-Instruct"), id="llama-3.2-3b"),
-    pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
+    pytest.param(
+        _config("meta-llama/Llama-3.2-1B-Instruct"),
+        id="llama-3.2-1b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("meta-llama/Llama-3.2-3B-Instruct"),
+        id="llama-3.2-3b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("meta-llama/Llama-3.1-8B-Instruct"),
+        id="llama-3.1-8b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # Qwen 2.5
-    pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
-    pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
-    pytest.param(_config("Qwen/Qwen2.5-3B-Instruct"), id="qwen2.5-3b-instruct"),
-    pytest.param(_config("Qwen/Qwen2.5-7B-Instruct"), id="qwen2.5-7b-instruct"),
+    pytest.param(
+        _config("Qwen/Qwen2.5-0.5B-Instruct"),
+        id="qwen2.5-0.5b-instruct",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen2.5-1.5B-Instruct"),
+        id="qwen2.5-1.5b-instruct",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen2.5-3B-Instruct"),
+        id="qwen2.5-3b-instruct",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen2.5-7B-Instruct"),
+        id="qwen2.5-7b-instruct",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # Qwen 3
-    pytest.param(_config("Qwen/Qwen3-0.6B"), id="qwen3-0.6b"),
-    pytest.param(_config("Qwen/Qwen3-1.7B"), id="qwen3-1.7b"),
-    pytest.param(_config("Qwen/Qwen3-4B"), id="qwen3-4b"),
-    pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
+    pytest.param(
+        _config("Qwen/Qwen3-0.6B"),
+        id="qwen3-0.6b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen3-1.7B"),
+        id="qwen3-1.7b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen3-4B"),
+        id="qwen3-4b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("Qwen/Qwen3-8B"),
+        id="qwen3-8b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
     # Phi
-    pytest.param(_config("microsoft/phi-1", gpu_memory_utilization=0.30), id="phi-1"),
     pytest.param(
-        _config("microsoft/phi-1_5", gpu_memory_utilization=0.30), id="phi-1_5"
+        _config("microsoft/phi-1", gpu_memory_utilization=0.30),
+        id="phi-1",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
     ),
-    pytest.param(_config("microsoft/phi-2", gpu_memory_utilization=0.30), id="phi-2"),
+    pytest.param(
+        _config("microsoft/phi-1_5", gpu_memory_utilization=0.30),
+        id="phi-1_5",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("microsoft/phi-2", gpu_memory_utilization=0.30),
+        id="phi-2",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # Falcon 3
-    pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
-    pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
-    pytest.param(_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-base"),
+    pytest.param(
+        _config("tiiuae/Falcon3-1B-Base"),
+        id="falcon3-1b-base",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("tiiuae/Falcon3-3B-Base"),
+        id="falcon3-3b-base",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _config("tiiuae/Falcon3-7B-Base"),
+        id="falcon3-7b-base",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # Mistral
     pytest.param(
-        _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
+        _config("mistralai/Mistral-7B-Instruct-v0.3"),
+        id="mistral-7b-instruct",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
     ),
-    pytest.param(_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b"),
+    pytest.param(
+        _config("mistralai/Ministral-8B-Instruct-2410"),
+        id="ministral-8b",
+        marks=[pytest.mark.n150, pytest.mark.p150, pytest.mark.nightly],
+    ),
     # OPT (vLLM-only fast canary; not part of the torch-xla matrix)
     pytest.param(_config("facebook/opt-125m"), id="opt-125m"),
 ]
@@ -193,47 +265,71 @@ TP_CONFIGS = [
             mesh_shape=[2, 4],
         ),
         id="falcon3-7b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("tiiuae/Falcon3-10B-Base", 32, mesh_shape=[2, 4]),
         id="falcon3-10b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]), id="qwen3-8b-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4]),
+        id="qwen3-8b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
+    ),
     pytest.param(
         _tp_config("Qwen/Qwen3-8B", 32, mesh_shape=[2, 4], optimization_level=1),
         id="qwen3-8b-tp-opt1",
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen3-14B", 32, mesh_shape=[2, 4]), id="qwen3-14b-tp"
+        _tp_config("Qwen/Qwen3-14B", 32, mesh_shape=[2, 4]),
+        id="qwen3-14b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen3-32B", 32, mesh_shape=[2, 4]), id="qwen3-32b-tp"
+        _tp_config("Qwen/Qwen3-32B", 32, mesh_shape=[2, 4]),
+        id="qwen3-32b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
-    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
+    pytest.param(
+        _gemma4_tp_config("google/gemma-4-31B-it", 32),
+        id="gemma4-31b-it-tp",
+        marks=[pytest.mark.qb2_blackhole, pytest.mark.nightly],
+    ),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-32B", 32),
+        id="qwen3-32b-qb2-tp",
+        marks=[pytest.mark.qb2_blackhole, pytest.mark.nightly],
+    ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 32, mesh_shape=[2, 4]),
         id="qwen2.5-14b-instruct-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32, mesh_shape=[2, 4]),
         id="qwen2.5-coder-32b-instruct-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("mistralai/Ministral-8B-Instruct-2410", 32, mesh_shape=[2, 4]),
         id="ministral-8b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32, mesh_shape=[2, 4]),
         id="mistral-nemo-instruct-2407-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32, mesh_shape=[2, 4]),
         id="mistral-small-24b-instruct-2501-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config("meta-llama/Llama-3.1-8B-Instruct", 32, mesh_shape=[2, 4]),
         id="llama-3.1-8b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     pytest.param(
         _tp_config(
@@ -245,6 +341,7 @@ TP_CONFIGS = [
             experimental_weight_dtype="bfp_bf8",
         ),
         id="llama-3.1-70b-tp",
+        marks=[pytest.mark.n300_llmbox, pytest.mark.nightly],
     ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
@@ -318,6 +415,10 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.push
 def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
     _run_vllm_embedding_benchmark(
         _embedding_config(
@@ -328,6 +429,9 @@ def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_vllm_bge_m3_batch1(output_file, request):
     _run_vllm_embedding_benchmark(
         _embedding_config("BAAI/bge-m3", 1),
@@ -336,6 +440,9 @@ def test_vllm_bge_m3_batch1(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_vllm_bge_m3_batch32(output_file, request):
     _run_vllm_embedding_benchmark(
         _embedding_config("BAAI/bge-m3", 32),

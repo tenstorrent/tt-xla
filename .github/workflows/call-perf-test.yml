@@ -29,11 +29,11 @@ on:
         required: false
         type: string
         default: ''
-      skip-device-perf:
-        description: "Skip device performance measurement"
+      test_filter:
+        description: "Optional pytest -k expression to further narrow the marked selection (used by manual runs)"
         required: false
-        type: boolean
-        default: true
+        type: string
+        default: ''
       regression_check:
         description: "Enable perf metrics regression testing"
         required: false
@@ -61,7 +61,7 @@ jobs:
 
     runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
 
-    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
+    name: "perf ${{ matrix.build.mark }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
@@ -111,8 +111,8 @@ jobs:
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+        # Each test writes its own JSON into this directory (see the output_file fixture).
         echo "perf_report_path=$(pwd)/perf_reports" >> "$GITHUB_OUTPUT"
-        echo "perf_report_json_file=$(pwd)/perf_reports/perf_report_$JOB_ID.json" >> "$GITHUB_OUTPUT"
 
     - name: Install gh CLI
       shell: bash
@@ -159,14 +159,6 @@ jobs:
         apt-get update -y -qq
         apt-get install -y -qq --no-install-recommends ${{ matrix.build.libreq }}
 
-    - name: Install Python dependencies
-      shell: bash
-      run: |
-        source venv/activate
-        if [ -n "${{ matrix.build.pyreq }}" ]; then
-          pip install ${{ matrix.build.pyreq }}
-        fi
-
     - name: Install custom torch_xla from workflow run
       if: ${{ inputs.torchxla_build_run_id != '' }}
       shell: bash
@@ -187,247 +179,88 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        TEST_FILTER: ${{ inputs.test_filter }}
       run: |
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
-        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
+        # Select the (hardware, lane) group by marker; each test writes its own report
+        # into --output-dir. An optional -k filter narrows the selection for manual runs.
+        EXTRA=()
+        if [ -n "$TEST_FILTER" ]; then EXTRA+=(-k "$TEST_FILTER"); fi
+        pytest -svv --confcutdir=tests/benchmark -m "${{ matrix.build.mark }}" \
+          ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} \
+          ${{ inputs.check_fusions && '--check-fusions' || '' }} \
+          "${EXTRA[@]}" \
+          --output-dir ${{ steps.strings.outputs.perf_report_path }}
 
-    - name: Dump stablehlo to report
-      id: dump-stablehlo
-      if: (success() || failure()) && !matrix.build.skip-stablehlo-dump
-      shell: bash
-      run: |
-        echo "Dump stablehlo to report"
-        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/stablehlo
-        stablehlo_artifact_name="stablehlo-mlir-${{ job.check_run_id }}"
-        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
-          cp ./modules/${{ matrix.build.name }}_stablehlo.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/stablehlo.mlir 2>/dev/null || true
-        else
-          cp ./modules/irs/shlo_*.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/ 2>/dev/null || true
-        fi
-        # Group StableHLO MLIR files under a folder named like the files but without the gN segment
-        stablehlo_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/stablehlo/shlo_*.mlir 2>/dev/null | head -n 1 || true)"
-        if [ -n "$stablehlo_first_file" ]; then
-          stablehlo_base_name="$(basename "$stablehlo_first_file")"
-          stablehlo_folder_name="$(echo "$stablehlo_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
-          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/stablehlo/${stablehlo_folder_name}"
-          mv ${{ steps.strings.outputs.perf_report_path }}/stablehlo/shlo_*.mlir "${{ steps.strings.outputs.perf_report_path }}/stablehlo/${stablehlo_folder_name}/"
-          stablehlo_artifact_name="stablehlo-mlir-${stablehlo_folder_name}"
-        fi
-        echo "artifact_name=${stablehlo_artifact_name}" >> "$GITHUB_OUTPUT"
-
+    # IR dumps: one job now runs many models, so bulk-upload all of this job's StableHLO
+    # IR at once. Each model's files are prefixed by its export name (shlo_<model>_...),
+    # so a report links to this bundle and its own files are found by that prefix.
     - name: Upload StableHLO MLIR
       id: upload-stablehlo-mlir
       uses: actions/upload-artifact@v6
-      if: (success() || failure()) && !matrix.build.skip-stablehlo-dump
+      if: success() || failure()
       with:
-        name: ${{ steps.dump-stablehlo.outputs.artifact_name }}
-        path: ${{ steps.strings.outputs.perf_report_path }}/stablehlo/
+        name: stablehlo-mlir-${{ steps.strings.outputs.job_id }}
+        path: modules/irs/shlo_*.mlir
         if-no-files-found: ignore
-
-    - name: Dump ttir to report
-      id: dump-ttir
-      if: (success() || failure()) && !matrix.build.skip-ttir-dump
-      shell: bash
-      run: |
-        echo "Dump ttir to report"
-        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttir
-        ttir_artifact_name="ttir-mlir-${{ job.check_run_id }}"
-        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
-          cp ./modules/${{ matrix.build.name }}_ttir.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir.mlir
-        else
-          cp ./modules/irs/ttir_*.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/
-        fi
-        # Group TTIR MLIR files under a folder named like the files but without the gN segment
-        ttir_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir_*.mlir 2>/dev/null | head -n 1 || true)"
-        if [ -n "$ttir_first_file" ]; then
-          ttir_base_name="$(basename "$ttir_first_file")"
-          ttir_folder_name="$(echo "$ttir_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
-          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/ttir/${ttir_folder_name}"
-          mv ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir_*.mlir "${{ steps.strings.outputs.perf_report_path }}/ttir/${ttir_folder_name}/"
-          ttir_artifact_name="ttir-mlir-${ttir_folder_name}"
-        fi
-        echo "artifact_name=${ttir_artifact_name}" >> "$GITHUB_OUTPUT"
 
     - name: Upload TTIR MLIR
       id: upload-ttir-mlir
       uses: actions/upload-artifact@v6
-      if: (success() || failure()) && !matrix.build.skip-ttir-dump
+      if: success() || failure()
       with:
-        name: ${{ steps.dump-ttir.outputs.artifact_name }}
-        path: ${{ steps.strings.outputs.perf_report_path }}/ttir/
+        name: ttir-mlir-${{ steps.strings.outputs.job_id }}
+        path: modules/irs/ttir_*.mlir
         if-no-files-found: ignore
-
-    - name: Dump ttnn to report
-      id: dump-ttnn
-      if: (success() || failure()) && !matrix.build.skip-ttnn-dump
-      shell: bash
-      run: |
-        echo "Dump ttnn to report"
-        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttnn
-        ttnn_artifact_name="ttnn-mlir-${{ job.check_run_id }}"
-        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
-          cp ./modules/${{ matrix.build.name }}_ttnn.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn.mlir
-        else
-          cp ./modules/irs/ttnn_*.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/
-        fi
-        # Group TTNN MLIR files under a folder named like the files but without the gN segment
-        ttnn_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn_*.mlir 2>/dev/null | head -n 1 || true)"
-        if [ -n "$ttnn_first_file" ]; then
-          ttnn_base_name="$(basename "$ttnn_first_file")"
-          ttnn_folder_name="$(echo "$ttnn_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
-          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/ttnn/${ttnn_folder_name}"
-          mv ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn_*.mlir "${{ steps.strings.outputs.perf_report_path }}/ttnn/${ttnn_folder_name}/"
-          ttnn_artifact_name="ttnn-mlir-${ttnn_folder_name}"
-        fi
-        echo "artifact_name=${ttnn_artifact_name}" >> "$GITHUB_OUTPUT"
 
     - name: Upload TTNN MLIR
       id: upload-ttnn-mlir
       uses: actions/upload-artifact@v6
-      if: (success() || failure()) && !matrix.build.skip-ttnn-dump
+      if: success() || failure()
       with:
-        name: ${{ steps.dump-ttnn.outputs.artifact_name }}
-        path: ${{ steps.strings.outputs.perf_report_path }}/ttnn/
+        name: ttnn-mlir-${{ steps.strings.outputs.job_id }}
+        path: modules/irs/ttnn_*.mlir
         if-no-files-found: ignore
 
-    # Device Performance Collection
-    - name: Find tt-mlir workflow run
-      id: find-run
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        source venv/activate
-        mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
-        echo "Found tt-mlir-commit: $mlir_sha"
-
-        RUN_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          "https://api.github.com/repos/tenstorrent/tt-mlir/actions/workflows/on-push.yml/runs?head_sha=${mlir_sha}&per_page=1" \
-          | jq -r '.workflow_runs[0].id')
-
-        if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-          echo "The tt-mlir commit doesn't contain a ttrt wheel artifact. Run the "On push" workflow on the commit in tt-mlir."
-          exit 1
-        fi
-
-        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-        echo "mlir_sha=$mlir_sha" >> $GITHUB_OUTPUT
-        echo "Workflow URL: https://github.com/tenstorrent/tt-mlir/actions/runs/$RUN_ID"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      uses: dawidd6/action-download-artifact@v11
-      with:
-        run_id: ${{ steps.find-run.outputs.run_id }}
-        name: "ttrt-whl-tracy"
-        repo: tenstorrent/tt-mlir
-        check_artifacts: true
-        path: ./
-        skip_unpack: true
-
-    - name: Extract ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        echo "Extracting ttrt wheel"
-        mkdir ttrt-whl-tracy
-        mv ttrt-whl-tracy.zip ttrt-whl-tracy/ttrt-whl-tracy.zip
-        unzip -q ttrt-whl-tracy/ttrt-whl-tracy.zip -d ttrt-whl-tracy
-
-    - name: Install ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        echo "Installing ttrt in separate venv"
-        python3.12 -m venv ttrt-venv
-        source ttrt-venv/bin/activate
-        apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
-        pip install ttrt-whl-tracy/ttrt*.whl --upgrade --extra-index-url https://download.pytorch.org/whl/cpu
-        pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-        pip install pandas==2.3.3
-
-    - name: Run Device Perf
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
-      shell: bash
-      run: |
-        source ttrt-venv/bin/activate
-        pip install pandas==2.3.3
-
-        echo "Save artifacts"
-        ttrt query --save-artifacts
-
-        echo "Copy binaries"
-        mkdir -p flatbuffers
-        cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
-
-        echo "Run ttrt perf"
-        if [[ "${{ matrix.build.runs-on }}" == "galaxy-wh-6u" ]]; then
-          ttrt perf flatbuffers --ignore-version --fabric-config fabric_1d_ring
-        else
-          ttrt perf flatbuffers --ignore-version
-        fi
-
-        echo "Write device perf to report"
-        python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
-
-        echo "Copy device perf CSVs"
-        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/device_perf
-        for dir in ttrt-artifacts/*/; do
-          binary_name=$(basename "$dir")
-          csv_file="$dir/perf/ops_perf_results_minus_const_eval_and_input_layout_conversions.csv"
-          if [ -f "$csv_file" ]; then
-            cp "$csv_file" "${{ steps.strings.outputs.perf_report_path }}/device_perf/${binary_name}.csv"
-            echo "Copied $csv_file to ${binary_name}.csv"
-          fi
-        done
-
-    - name: Upload Device Perf
-      id: upload-device-perf
-      uses: actions/upload-artifact@v6
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
-      with:
-        name: device-perf-${{ steps.strings.outputs.job_id }}
-        path: ${{ steps.strings.outputs.perf_report_path }}/device_perf/
-        if-no-files-found: warn
-
-    - name: Add config fields to perf report
+    - name: Add config fields to perf reports
       if: success() || failure()
       shell: bash
       run: |
-        PERF_REPORT_FILE="${{ steps.strings.outputs.perf_report_json_file }}"
-        STABLEHLO_URL="${{ !matrix.build.skip-stablehlo-dump && steps.upload-stablehlo-mlir.outputs.artifact-url || '' }}"
-        TTIR_URL="${{ !matrix.build.skip-ttir-dump && steps.upload-ttir-mlir.outputs.artifact-url || '' }}"
-        TTNN_URL="${{ !matrix.build.skip-ttnn-dump && steps.upload-ttnn-mlir.outputs.artifact-url || '' }}"
-        DEVICE_PERF_URL="${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' && steps.upload-device-perf.outputs.artifact-url || '' }}"
-        MLIR_SHA="${{ steps.find-run.outputs.mlir_sha || '' }}"
+        REPORT_DIR="${{ steps.strings.outputs.perf_report_path }}"
+        # One IR bundle per job; every report in this job shares its URL (files inside are
+        # identified by their <model> filename prefix).
+        STABLEHLO_URL="${{ steps.upload-stablehlo-mlir.outputs.artifact-url || '' }}"
+        TTIR_URL="${{ steps.upload-ttir-mlir.outputs.artifact-url || '' }}"
+        TTNN_URL="${{ steps.upload-ttnn-mlir.outputs.artifact-url || '' }}"
         JOB_ID_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.strings.outputs.job_id }}"
 
-        if [ -f "$PERF_REPORT_FILE" ]; then
-          python3 tests/benchmark/scripts/extend_result_config.py "$PERF_REPORT_FILE" \
+        shopt -s nullglob
+        for report in "$REPORT_DIR"/*.json; do
+          python3 tests/benchmark/scripts/extend_result_config.py "$report" \
             ${STABLEHLO_URL:+--stablehlo-url "$STABLEHLO_URL"} \
             ${TTIR_URL:+--ttir-url "$TTIR_URL"} \
             ${TTNN_URL:+--ttnn-url "$TTNN_URL"} \
-            ${DEVICE_PERF_URL:+--device-perf-url "$DEVICE_PERF_URL"} \
-            ${MLIR_SHA:+--mlir-sha "$MLIR_SHA"} \
             --job-id-url "$JOB_ID_URL"
-        fi
+        done
 
     # Patch report fields that can't be properly set in benchmark scripts
     - name: Patch report fields
       if: success() || failure()
       shell: bash
       run: |
-        PERF_REPORT_FILE="${{ steps.strings.outputs.perf_report_json_file }}"
-        # Patch device_info.device_type from CI runner.
+        REPORT_DIR="${{ steps.strings.outputs.perf_report_path }}"
+        # Patch device_info.device_type from CI runner (uniform across the job's tests).
         MACHINE_TYPE="${{ matrix.build.runs-on-original }}"
-        if [ -f "$PERF_REPORT_FILE" ] && [ -n "$MACHINE_TYPE" ]; then
-          jq --arg mt "$MACHINE_TYPE" '.device_info.device_type = $mt' "$PERF_REPORT_FILE" > "${PERF_REPORT_FILE}.tmp" \
-            && mv "${PERF_REPORT_FILE}.tmp" "$PERF_REPORT_FILE"
-          echo "Patched device_info.device_type to '$MACHINE_TYPE' in $PERF_REPORT_FILE"
+        if [ -n "$MACHINE_TYPE" ]; then
+          shopt -s nullglob
+          for report in "$REPORT_DIR"/*.json; do
+            jq --arg mt "$MACHINE_TYPE" '.device_info.device_type = $mt' "$report" > "${report}.tmp" \
+              && mv "${report}.tmp" "$report"
+          done
+          echo "Patched device_info.device_type to '$MACHINE_TYPE' in $REPORT_DIR"
         fi
 
     - name: Upload Perf Report
@@ -438,14 +271,15 @@ jobs:
         path: ${{ steps.strings.outputs.perf_report_path }}
         if-no-files-found: ignore
 
-    # Perf / Accuracy Regression Check
-    - name: Set perf query strings
+    # Perf / Accuracy Regression Check (one report per test, so query + check per report)
+    - name: Set regression query strings
       id: set-query-strings
       if: inputs.regression_check
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "display_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.config.display_name')" >> $GITHUB_OUTPUT
-
+        # mode + baseline pipeline are uniform across the job (accuracy flag + hardware fixed).
         if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
           mode="accuracy"
           workflow_file="schedule-benchmark-experimental.yml"
@@ -454,28 +288,43 @@ jobs:
           workflow_file="schedule-nightly.yml"
         fi
         echo "mode=$mode" >> $GITHUB_OUTPUT
-        workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        workflow_id=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
           "https://api.github.com/repos/${{ github.repository }}/actions/workflows/${workflow_file}/runs?status=completed&branch=main&per_page=100" \
           | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
-        echo "device_type=${{ matrix.build.runs-on-original }}" >> $GITHUB_OUTPUT
-        echo "arch=$(jq -r '.device_info.arch // ""' ${{ steps.strings.outputs.perf_report_json_file }})" >> $GITHUB_OUTPUT
-
-    - name: Fetch previous perf results
-      id: prev-perf
+    - name: Configure AWS credentials for Superset
       if: inputs.regression_check
-      uses: ./.github/actions/superset-api
+      uses: aws-actions/configure-aws-credentials@v6
       with:
-        query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}","device_type":"${{ steps.set-query-strings.outputs.device_type }}"}'
+        role-to-assume: arn:aws:iam::533267429815:role/github-actions-api-gateway-role
+        aws-region: us-east-2
 
     - name: Check perf regression
       if: inputs.regression_check
       shell: bash
       run: |
-        python3 .github/scripts/check_regression.py \
-          --prev-report '${{ steps.prev-perf.outputs.response }}' \
-          --current-report ${{ steps.strings.outputs.perf_report_json_file }} \
-          --mode ${{ steps.set-query-strings.outputs.mode }}
+        python3 -m pip install boto3 requests
+        REPORT_DIR="${{ steps.strings.outputs.perf_report_path }}"
+        MODE="${{ steps.set-query-strings.outputs.mode }}"
+        PIPELINE_ID="${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}"
+        DEVICE_TYPE="${{ matrix.build.runs-on-original }}"
+        FAILED=0
+        shopt -s nullglob
+        for report in "$REPORT_DIR"/*.json; do
+          display_name=$(jq -r '.config.display_name' "$report")
+          arch=$(jq -r '.device_info.arch // ""' "$report")
+          params=$(jq -nc \
+            --arg dn "$display_name" --arg pid "$PIPELINE_ID" \
+            --arg arch "$arch" --arg dt "$DEVICE_TYPE" \
+            '{project:"tt-forge/tt-xla",display_name:$dn,github_pipeline_id:$pid,arch:$arch,device_type:$dt}')
+          prev=$(API_QUERY='benchmarks/last_measurement' API_QUERY_PARAMS="$params" \
+            python3 .github/actions/superset-api/call_api.py || echo '[]')
+          echo "Regression check ($MODE): $display_name"
+          python3 .github/scripts/check_regression.py \
+            --prev-report "$prev" \
+            --current-report "$report" \
+            --mode "$MODE" || FAILED=1
+        done
+        exit $FAILED

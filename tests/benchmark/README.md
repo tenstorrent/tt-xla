@@ -132,4 +132,27 @@ Vision and encoder tests follow the same pattern — import the existing `ModelL
 
 ### Adding the test to CI
 
-In order for a new test to run in CI, it needs to be added to `.github/workflows/perf-bench-matrix.json`.
+Perf CI selects benchmarks by **pytest markers**, one job per `(hardware, lane)` group. To run a
+new test in CI, mark it with the hardware it runs on and the lane(s) it belongs to:
+
+```python
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+def test_my_model(output_file, request):
+    ...
+```
+
+- **Hardware marks:** `n150`, `p150`, `n300_llmbox`, `galaxy_wh_6u`, `qb2_blackhole`.
+- **Lane marks:** `nightly` (all perf), `push` (PR perf subset), `nightly_accuracy` (experimental
+  accuracy), `push_accuracy` (PR accuracy subset). Accuracy lanes run with `--accuracy-testing`.
+
+A test runs in a job when it carries **both** the job's hardware mark and its lane mark — e.g. the
+`n150 and nightly` job runs every test marked `n150` + `nightly`. For parametrized tests
+(`test_vllm_benchmark`), put the marks on each `pytest.param(..., marks=[...])`. The jobs themselves
+are listed in `.github/workflows/perf-bench-matrix.json` (one entry per `(hardware, lane)`); you only
+edit that file when introducing a brand-new hardware/lane group. After marking, verify selection with:
+
+```bash
+python tests/benchmark/scripts/verify_perf_marks.py
+```

@@ -64,7 +64,6 @@ def main():
     parser.add_argument("--stablehlo-url", help="URL for the StableHLO MLIR artifact")
     parser.add_argument("--ttir-url", help="URL for the TTIR MLIR artifact")
     parser.add_argument("--ttnn-url", help="URL for the TTNN MLIR artifact")
-    parser.add_argument("--mlir-sha", help="MLIR commit SHA")
     parser.add_argument("--device-perf-url", help="Device perf URL")
     parser.add_argument("--job-id-url", help="Job ID URL")
     parser.add_argument(
@@ -85,8 +84,6 @@ def main():
         config_fields["ttir_mlir_url"] = args.ttir_url
     if args.ttnn_url:
         config_fields["ttnn_mlir_url"] = args.ttnn_url
-    if args.mlir_sha:
-        config_fields["mlir_sha"] = args.mlir_sha
     if args.job_id_url:
         config_fields["job_id_url"] = args.job_id_url
     if args.device_perf_url:

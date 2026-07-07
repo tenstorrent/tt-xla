@@ -60,3 +60,6 @@ torchcodec
 
 # for CLIP metric in tests
 open_clip_torch==2.32.0
+
+# kimi_k2 / kimi_k2_5 perf benchmarks
+tiktoken

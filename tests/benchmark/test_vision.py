@@ -4,6 +4,7 @@
 
 import json
 
+import pytest
 import torch
 from benchmarks.vision_benchmark import benchmark_vision_torch_xla
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
@@ -95,6 +96,9 @@ def test_vision(
             json.dump(results, file, indent=2)
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_efficientnet(output_file, request):
     from third_party.tt_forge_models.efficientnet.pytorch.loader import (
         ModelLoader,
@@ -131,6 +135,9 @@ def test_efficientnet(output_file, request):
 
 
 # Trace disabled: PCC degradation (https://github.com/tenstorrent/tt-xla/issues/3931)
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_mnist(output_file, request):
     from third_party.tt_forge_models.mnist.image_classification.pytorch.loader import (
         ModelLoader,
@@ -168,6 +175,9 @@ def test_mnist(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_mobilenetv2(output_file, request):
     from third_party.tt_forge_models.mobilenetv2.pytorch.loader import (
         ModelLoader,
@@ -203,6 +213,10 @@ def test_mobilenetv2(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.push
 def test_resnet50(output_file, request):
     from third_party.tt_forge_models.resnet.pytorch.loader import (
         ModelLoader,
@@ -239,6 +253,9 @@ def test_resnet50(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_segformer(output_file, request):
     from third_party.tt_forge_models.segformer.semantic_segmentation.pytorch.loader import (
         ModelLoader,
@@ -278,6 +295,9 @@ def test_segformer(output_file, request):
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3933)
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_swin(output_file, request):
     from third_party.tt_forge_models.swin.image_classification.pytorch.loader import (
         ModelLoader,
@@ -354,6 +374,9 @@ def test_ufld(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_ufld_v2(output_file, request):
     from third_party.tt_forge_models.ultra_fast_lane_detection_v2.pytorch.loader import (
         ModelLoader,
@@ -392,6 +415,9 @@ def test_ufld_v2(output_file, request):
 
 
 # Trace disabled: PCC degradation (https://github.com/tenstorrent/tt-xla/issues/3932)
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_unet(output_file, request):
     from third_party.tt_forge_models.vgg19_unet.pytorch.loader import ModelLoader
 
@@ -426,6 +452,9 @@ def test_unet(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_vit(output_file, request):
     from third_party.tt_forge_models.vit.pytorch.loader import ModelLoader, ModelVariant
 
@@ -458,6 +487,9 @@ def test_vit(output_file, request):
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
 def test_vovnet(output_file, request):
     from third_party.tt_forge_models.vovnet.pytorch.loader import (
         ModelLoader,

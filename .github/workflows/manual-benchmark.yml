@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       test_filter:
-        description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
+        description: "Optional pytest -k expression to narrow the selection by test name (e.g. 'resnet' or 'resnet or vit')"
         required: false
         type: string
       runs-on-filter:
@@ -23,11 +23,6 @@ on:
           - galaxy-wh-6u
           - qb2-blackhole
         default: n150-perf
-      skip-device-perf:
-        description: "Skip device performance measurement"
-        required: false
-        type: boolean
-        default: true
       regression_check:
         description: "Enable perf metrics regression testing"
         required: false
@@ -82,32 +77,15 @@ jobs:
 
   set-inputs:
     runs-on: ubuntu-latest
-    outputs:
-      filter: ${{ steps.set-perf-benchmarks.outputs.filter }}
     steps:
-    - name: Set Inputs and Summary
-      id: set-perf-benchmarks
+    - name: Job summary
       shell: bash
       run: |
-        # Prepare the advanced filter for the perf benchmarks
-        echo "[" > adv_filter.json
-        if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
-          echo '{ "skip": false, "accuracy-testing": false }' >> adv_filter.json
-        else
-          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
-        fi
-        if [ -n "${{ inputs.test_filter }}" ]; then
-          echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
-        fi
-        echo "]" >> adv_filter.json
-        filter=$(cat adv_filter.json | jq -r -c '.')
-        echo "filter=$filter" >> $GITHUB_OUTPUT
-
-        # Set up the summary for the job
+        # Manual runs always use the perf (nightly) lane; the arch choice restricts hardware
+        # and test_filter narrows by test name via pytest -k.
         echo "### Perf benchmarks inputs" >> $GITHUB_STEP_SUMMARY
-        echo "Test filter: ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
+        echo "Test filter (-k): ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
         echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
-        echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
         echo "Perf regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY
         echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
 
@@ -117,12 +95,13 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: ${{ needs.set-inputs.outputs.filter }}
+      lane: nightly
+      hardware: ${{ inputs.runs-on-filter == 'All' && '' || inputs.runs-on-filter }}
+      test_filter: ${{ inputs.test_filter }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
-      skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}

@@ -263,6 +263,10 @@ def test_llm_tp(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_llama_3_2_1b(
     output_file,
     num_layers,
@@ -303,6 +307,10 @@ def test_llama_3_2_1b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_llama_3_2_3b(
     output_file,
     num_layers,
@@ -338,6 +346,10 @@ def test_llama_3_2_3b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_gemma_1_1_2b(
     output_file,
     num_layers,
@@ -372,6 +384,8 @@ def test_gemma_1_1_2b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.nightly_accuracy
 def test_gemma_2_2b(
     output_file,
     num_layers,
@@ -407,6 +421,10 @@ def test_gemma_2_2b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_phi1(
     output_file,
     num_layers,
@@ -442,6 +460,10 @@ def test_phi1(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_phi1_5(
     output_file,
     num_layers,
@@ -477,6 +499,10 @@ def test_phi1_5(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_phi2(
     output_file,
     num_layers,
@@ -512,6 +538,10 @@ def test_phi2(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_falcon3_1b(
     output_file,
     num_layers,
@@ -549,6 +579,10 @@ def test_falcon3_1b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_falcon3_3b(
     output_file,
     num_layers,
@@ -586,6 +620,10 @@ def test_falcon3_3b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_0_5b(
     output_file,
     num_layers,
@@ -622,6 +660,10 @@ def test_qwen_2_5_0_5b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_3_0_6b(
     output_file,
     num_layers,
@@ -656,6 +698,10 @@ def test_qwen_3_0_6b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_3_1_7b(
     output_file,
     num_layers,
@@ -691,6 +737,10 @@ def test_qwen_3_1_7b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_3_4b(
     output_file,
     num_layers,
@@ -726,6 +776,10 @@ def test_qwen_3_4b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_1_5b(
     output_file,
     num_layers,
@@ -760,6 +814,10 @@ def test_qwen_2_5_1_5b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_3b(
     output_file,
     num_layers,
@@ -795,6 +853,10 @@ def test_qwen_2_5_3b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_3_8b(
     output_file,
     num_layers,
@@ -829,6 +891,10 @@ def test_qwen_3_8b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_7b(
     output_file,
     num_layers,
@@ -962,6 +1028,10 @@ def test_mamba_2_8b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_falcon3_7b(
     output_file,
     num_layers,
@@ -999,6 +1069,10 @@ def test_falcon3_7b(
     )
 
 
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_mistral_7b(
     output_file,
     num_layers,
@@ -1034,6 +1108,10 @@ def test_mistral_7b(
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3934)
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_ministral_8b(
     output_file,
     num_layers,
@@ -1074,6 +1152,10 @@ def test_ministral_8b(
 # (still runs in nightly): device hang during uplift
 # (https://github.com/tenstorrent/tt-xla/issues/5282, fix in
 # https://github.com/tenstorrent/tt-metal/pull/47221). The accuracy entry still runs.
+@pytest.mark.n150
+@pytest.mark.p150
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_llama_3_1_8b(
     output_file,
     num_layers,
@@ -1110,6 +1192,8 @@ def test_llama_3_1_8b(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
@@ -1145,6 +1229,9 @@ def test_falcon3_7b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_falcon3_10b_tp(
     output_file,
     num_layers,
@@ -1180,6 +1267,10 @@ def test_falcon3_10b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
+@pytest.mark.push_accuracy
 def test_llama_3_1_8b_instruct_tp(
     output_file,
     num_layers,
@@ -1249,6 +1340,8 @@ def test_mistral_7b_tp(
 
 
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3935)
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_ministral_8b_tp(
     output_file,
     num_layers,
@@ -1280,6 +1373,8 @@ def test_ministral_8b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_mistral_nemo_instruct_2407_tp(
     output_file,
     num_layers,
@@ -1310,6 +1405,9 @@ def test_mistral_nemo_instruct_2407_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_mistral_small_24b_instruct_2501_tp(
     output_file,
     num_layers,
@@ -1340,6 +1438,8 @@ def test_mistral_small_24b_instruct_2501_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_14b_instruct_tp(
     output_file,
     num_layers,
@@ -1404,6 +1504,9 @@ def test_qwen_2_5_32b_instruct_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_2_5_coder_32b_instruct_tp(
     output_file,
     num_layers,
@@ -1502,6 +1605,8 @@ def test_qwen_3_1_7b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_qwen_3_8b_tp(
     output_file,
     num_layers,
@@ -1532,6 +1637,8 @@ def test_qwen_3_8b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_qwen_3_14b_tp(
     output_file,
     num_layers,
@@ -1562,6 +1669,9 @@ def test_qwen_3_14b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_qwen_3_32b_tp(
     output_file,
     num_layers,
@@ -1698,6 +1808,11 @@ def test_llama_3_8b_tp(
     )
 
 
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.nightly_accuracy
+@pytest.mark.push_accuracy
 def test_llama_3_1_70b_tp(
     output_file,
     num_layers,
@@ -1721,7 +1836,7 @@ def test_llama_3_1_70b_tp(
         num_layers=num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=batch_size,
+        batch_size=16 if accuracy_testing else batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         weight_dtype_overrides={
@@ -1756,6 +1871,8 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
 # The n300-llmbox perf entry (gpt_oss_20b_tp) is excluded from the onPR perf filter
 # (still runs in nightly): hangs on n300-llmbox (https://github.com/tenstorrent/tt-xla/issues/5151).
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly_accuracy
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1834,6 +1951,8 @@ def test_gpt_oss_20b_tp_d2m(
 
 # Excluded from the onPR perf filter (still runs in nightly): slice op requires
 # tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
+@pytest.mark.n300_llmbox
+@pytest.mark.nightly
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file,
     num_layers,
@@ -1871,6 +1990,9 @@ def test_gpt_oss_20b_tp_batch_size_1(
 
 # Excluded from the onPR perf filter (still runs in nightly): galaxy fabric "Failed
 # to add pinning constraints" (https://github.com/tenstorrent/tt-xla/issues/5210).
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_llama_3_1_70b_tp_galaxy(
     output_file,
     num_layers,
@@ -1901,6 +2023,9 @@ def test_llama_3_1_70b_tp_galaxy(
     )
 
 
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -1979,6 +2104,9 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
+@pytest.mark.nightly_accuracy
 def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     output_file,
     num_layers,
@@ -2018,6 +2146,8 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     )
 
 
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly_accuracy
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -2080,6 +2210,8 @@ def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_gpt_oss_120b_tp_qb2(
     output_file,
     num_layers,
@@ -2126,6 +2258,8 @@ def test_gpt_oss_120b_tp_qb2(
 
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 # This test only runs 2 layers so we expect to see incoherent output
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
 def test_kimi_k2_tp_galaxy_2_layers(
     output_file,
     num_layers,
@@ -2161,6 +2295,8 @@ def test_kimi_k2_tp_galaxy_2_layers(
 
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 # This test only runs 2 layers so we expect to see incoherent output
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
 def test_kimi_k2_5_tp_galaxy_2_layers(
     output_file,
     num_layers,
@@ -2195,6 +2331,8 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
 
 
 # This test only runs 2 layers so we expect to see incoherent output
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
     num_layers,
@@ -2230,6 +2368,8 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_falcon3_7b_tp_qb2(
     output_file,
     num_layers,
@@ -2260,6 +2400,8 @@ def test_falcon3_7b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_falcon3_10b_tp_qb2(
     output_file,
     num_layers,
@@ -2290,6 +2432,8 @@ def test_falcon3_10b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_llama_3_1_8b_instruct_tp_qb2(
     output_file,
     num_layers,
@@ -2320,6 +2464,8 @@ def test_llama_3_1_8b_instruct_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_ministral_8b_tp_qb2(
     output_file,
     num_layers,
@@ -2350,6 +2496,8 @@ def test_ministral_8b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_mistral_nemo_instruct_2407_tp_qb2(
     output_file,
     num_layers,
@@ -2380,6 +2528,8 @@ def test_mistral_nemo_instruct_2407_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_mistral_small_24b_instruct_2501_tp_qb2(
     output_file,
     num_layers,
@@ -2410,6 +2560,8 @@ def test_mistral_small_24b_instruct_2501_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_qwen_2_5_14b_instruct_tp_qb2(
     output_file,
     num_layers,
@@ -2440,6 +2592,8 @@ def test_qwen_2_5_14b_instruct_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_qwen_2_5_coder_32b_instruct_tp_qb2(
     output_file,
     num_layers,
@@ -2470,6 +2624,8 @@ def test_qwen_2_5_coder_32b_instruct_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_qwen_3_8b_tp_qb2(
     output_file,
     num_layers,
@@ -2500,6 +2656,8 @@ def test_qwen_3_8b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_qwen_3_14b_tp_qb2(
     output_file,
     num_layers,
@@ -2530,6 +2688,8 @@ def test_qwen_3_14b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_qwen_3_32b_tp_qb2(
     output_file,
     num_layers,
@@ -2560,6 +2720,8 @@ def test_qwen_3_32b_tp_qb2(
     )
 
 
+@pytest.mark.qb2_blackhole
+@pytest.mark.nightly
 def test_gpt_oss_20b_tp_qb2(
     output_file,
     num_layers,
@@ -2654,6 +2816,8 @@ def _deepseek_v3_1_shard_spec_fn(model_loader, model):
 
 
 # This test only runs 4 layers so we expect to see incoherent output
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
 def test_deepseek_v3_1_tp_galaxy_4_layers(
     output_file,
     num_layers,
@@ -2747,6 +2911,8 @@ def _glm_4_7_shard_spec_fn(model_loader, model):
 
 
 # This test only runs 4 layers so we expect to see incoherent output
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.nightly
 def test_glm_4_7_tp_galaxy_4_layers(
     output_file,
     num_layers,

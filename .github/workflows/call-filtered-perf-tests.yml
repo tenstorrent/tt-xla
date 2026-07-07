@@ -3,10 +3,20 @@ name: Perf Tests filtered (call)
 on:
   workflow_call:
     inputs:
-      adv_filter:
-        description: "Advanced JSON filter for selecting benchmarks to run"
+      lane:
+        description: "Lane to run: nightly, push, nightly_accuracy, or push_accuracy"
         required: true
         type: string
+      hardware:
+        description: "Optional comma-separated runs-on labels to restrict the lane (default: all hardware in the lane)"
+        required: false
+        type: string
+        default: ''
+      test_filter:
+        description: "Optional pytest -k expression to further narrow the selection"
+        required: false
+        type: string
+        default: ''
       sh-runner:
         description: "Use shared runner"
         required: false
@@ -35,11 +45,6 @@ on:
         required: false
         type: string
         default: ''
-      skip-device-perf:
-        description: "Skip device performance measurement"
-        required: false
-        type: boolean
-        default: false
       regression_check:
         description: "Enable perf metrics regression testing"
         required: false
@@ -72,23 +77,26 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Filter Matrix
+    - name: Select Matrix
       id: set-perf-benchmarks
       shell: bash
+      env:
+        HARDWARE: ${{ inputs.hardware }}
       run: |
-        echo '${{ inputs.adv_filter }}' > adv_filter.json
-        if ! jq empty adv_filter.json 2>/dev/null; then
-          echo "Error: Invalid JSON in adv_filter input"
-          exit 1
+        HW_ARGS=()
+        if [ -n "$HARDWARE" ]; then
+          IFS=',' read -ra HWS <<< "$HARDWARE"
+          for h in "${HWS[@]}"; do HW_ARGS+=(--hardware "$h"); done
         fi
 
         result=$(python .github/scripts/filter-test-matrix.py \
           .github/workflows/perf-bench-matrix.json \
-          adv_filter.json \
+          --lane "${{ inputs.lane }}" \
+          "${HW_ARGS[@]}" \
           ${{ inputs.sh-runner && '--sh-runner' || '' }})
 
-        echo $result
-        matrix=$(echo $result | jq -r -c '.matrix')
+        echo "$result"
+        matrix=$(echo "$result" | jq -r -c '.matrix')
         echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   run-perf-benchmarks:
@@ -103,6 +111,6 @@ jobs:
       artifact_suffix: ${{ inputs.artifact_suffix }}
       wheel_build: ${{ inputs.wheel_build }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
-      skip-device-perf: ${{ inputs.skip-device-perf || false }}
+      test_filter: ${{ inputs.test_filter }}
       regression_check: ${{ inputs.regression_check || false }}
       check_fusions: ${{ inputs.check_fusions }}
