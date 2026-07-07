@@ -10,7 +10,12 @@ batch is sharded on the "batch" (DP) axis.
 """
 import pytest
 import vllm
-from conftest import assert_output_coherent, check_host_memory
+from conftest import (
+    GROUNDED_BATCH_CHECKS,
+    assert_batch_grounded,
+    assert_output_coherent,
+    check_host_memory,
+)
 
 
 @pytest.mark.push
@@ -58,17 +63,13 @@ def test_data_tensor_parallel_generation_push(model_name: str):
 def test_data_tensor_parallel_generation_wider_batch(model_name: str):
     """Wider batch: per-replica batch == 2 (per-device first-dim > 1).
 
-    Forces cpu_sampling=True: the on-device sampler produces garbage under the
-    2D mesh when >1 sample is drawn per device (issue #4440). The tight-fit
-    test escapes it (batch == 1).
+    Greedy + grounded so per-slot prefill corruption is caught deterministically
+    (the stopword-ratio heuristic masked it). cpu_sampling=True isolates the
+    prefill path from the #4440 device sampler.
     """
-    prompts = [
-        "Continue in English: I like taking walks in the",
-        "Continue in English: The weather today is",
-        "Continue in English: My favourite season is",
-        "Continue in English: The best book I have read is",
-    ]
-    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
+    checks = GROUNDED_BATCH_CHECKS
+    prompts = [p for p, _ in checks]
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
     llm_args = {
         "model": model_name,
         "max_num_batched_tokens": 128,
@@ -85,11 +86,9 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
     llm = vllm.LLM(**llm_args)
 
     outputs = llm.generate(prompts, sampling_params)
-    assert len(outputs) == len(prompts)
-    for prompt, out in zip(prompts, outputs):
-        text = out.outputs[0].text
-        print(f"prompt: {prompt}, output: {text}")
-        assert_output_coherent(text)
+    for (prompt, _), out in zip(checks, outputs):
+        print(f"prompt: {prompt}, output: {out.outputs[0].text}")
+    assert_batch_grounded(outputs, checks)
 
     check_host_memory(model_name)
 

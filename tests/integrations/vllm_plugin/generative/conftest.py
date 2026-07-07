@@ -42,6 +42,38 @@ def assert_output_coherent(text: str) -> None:
     ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
 
 
+# Unambiguous greedy prompt->answer checks. Batched, they force >1 seq/device
+# (where TP/DP+TP prefill corrupts a slot); answers are landslides so a corrupted
+# slot fails but benign near-tie TP fp drift (#5520) does not.
+GROUNDED_BATCH_CHECKS = [
+    ("1 + 1 =", "2"),
+    ("The opposite of up is", "down"),
+    ("Roses are red, violets are", "blue"),
+    ("To be or not to be, that is the", "question"),
+]
+
+
+def assert_batch_grounded(outputs, checks=GROUNDED_BATCH_CHECKS) -> None:
+    """Greedy wide-batch correctness: each output contains its grounded answer
+    and isn't a degenerate repeat-loop. Detects per-slot prefill corruption
+    (garbage or 'answer-then-loop'); tolerant of the #5520 near-tie fp drift
+    since the answers are unambiguous."""
+    assert len(outputs) == len(checks), f"expected {len(checks)} outputs, got {len(outputs)}"
+    for (prompt, expected), out in zip(checks, outputs):
+        text = out.outputs[0].text
+        token_ids = out.outputs[0].token_ids
+        # Repeat-loop guard: degenerate loops (e.g. "down, up, down, up") sit far
+        # below a coherent continuation's unique-token ratio (~0.8).
+        uniq_ratio = len(set(token_ids)) / max(len(token_ids), 1)
+        assert uniq_ratio >= 0.5, (
+            f"degenerate/repetitive output for {prompt!r} "
+            f"(unique ratio {uniq_ratio:.2f}): {text!r}"
+        )
+        assert (
+            expected.lower() in text.lower()
+        ), f"expected {expected!r} for {prompt!r}, got {text!r}"
+
+
 def check_host_memory(model_name: str) -> float:
     """Assert child process RSS is below the known threshold for a model.
 
