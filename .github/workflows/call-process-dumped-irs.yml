@@ -200,6 +200,12 @@ jobs:
                 rm -rf "$model_dir"
               fi
             done
+
+            # Remove job directory if it became empty after filtering
+            if [ -z "$(find "$job_dir" -mindepth 1 -maxdepth 1 -type d -print -quit)" ]; then
+              echo "Removing empty job directory $job_dir"
+              rm -rf "$job_dir"
+            fi
           done
           shopt -u nullglob
 
