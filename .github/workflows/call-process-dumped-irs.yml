@@ -222,9 +222,8 @@ jobs:
           total_jobs=${{ needs.check_dumped_irs.outputs.ir_count }}
           echo "=== Splitting IRs for job $job_index of $total_jobs ==="
 
-          # Get all model directories (first-level subdirectories)
-          cd collected_irs
-          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
+          # Flatten and collect all model directories from all job subdirectories
+          mapfile -t model_dirs < <(find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort)
           total_models=${#model_dirs[@]}
 
           echo "Total models found: $total_models"
@@ -242,14 +241,14 @@ jobs:
           echo "This job will process models from index $start_idx to $((end_idx - 1))"
 
           # Create a new directory with only this job's models
-          cd ..
           mkdir -p collected_irs_job_$job_index
 
           for i in $(seq $start_idx $((end_idx - 1))); do
             if [ $i -lt $total_models ]; then
               model="${model_dirs[$i]}"
               echo "Including model: $model"
-              mv "collected_irs/$model" "collected_irs_job_$job_index/"
+              # Find and move the model directory from any job subdirectory
+              find collected_irs -mindepth 2 -maxdepth 2 -type d -name "$model" -exec mv {} "collected_irs_job_$job_index/" \;
             fi
           done
 
