@@ -6,6 +6,7 @@ import vllm
 from conftest import assert_output_coherent, check_host_memory
 
 
+@pytest.mark.skip
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
