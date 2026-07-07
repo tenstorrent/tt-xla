@@ -70,7 +70,7 @@ jobs:
             echo "Applying model filter: $model_filter"
 
             # Collect first-level model directories under collected_irs
-            mapfile -t model_dirs < <(find collected_irs -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+            mapfile -t model_dirs < <(find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort)
             total_models=${#model_dirs[@]}
 
             # Count models whose directory name matches the filter
