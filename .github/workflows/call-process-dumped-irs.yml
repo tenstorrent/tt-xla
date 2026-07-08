@@ -82,17 +82,10 @@ jobs:
             --pattern "ir-dumps-*" \
             --dir collected_irs
 
-          echo "=== Removing non-n150 job directories ==="
-          shopt -s nullglob
-          for job_dir in collected_irs/*/; do
-            job_name="$(basename "$job_dir")"
-            machine="$(printf '%s\n' "$job_name" | cut -d'-' -f5)"
-            if [ "$machine" != "n150" ]; then
-              echo "Removing $job_dir (machine=$machine)"
-              rm -rf "$job_dir"
-            fi
-          done
-          shopt -u nullglob
+          echo "=== Deduplicating models (prefer n150 copies) ==="
+          python3 .github/scripts/ir_process_analyzer.py dedupe \
+            --root collected_irs \
+            --preferred-machine n150
 
           echo "=== Removing .ttnn files from collected_irs ==="
           find collected_irs -type f -name "*.ttnn" -print -delete
@@ -189,17 +182,10 @@ jobs:
             --pattern "ir-dumps-*" \
             --dir collected_irs
 
-          echo "=== Removing non-n150 job directories ==="
-          shopt -s nullglob
-          for job_dir in collected_irs/*/; do
-            job_name="$(basename "$job_dir")"
-            machine="$(printf '%s\n' "$job_name" | cut -d'-' -f5)"
-            if [ "$machine" != "n150" ]; then
-              echo "Removing $job_dir (machine=$machine)"
-              rm -rf "$job_dir"
-            fi
-          done
-          shopt -u nullglob
+          echo "=== Deduplicating models (prefer n150 copies) ==="
+          python3 .github/scripts/ir_process_analyzer.py dedupe \
+            --root collected_irs \
+            --preferred-machine n150
 
           echo "=== Removing .ttnn files from collected_irs ==="
           find collected_irs -type f -name "*.ttnn" -print -delete

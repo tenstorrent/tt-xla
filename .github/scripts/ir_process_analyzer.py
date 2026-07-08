@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -21,25 +21,89 @@ def is_n150_job_dir(job_dir: Path) -> bool:
     return len(parts) >= 5 and parts[4] == "n150"
 
 
+def get_job_machine(job_dir: Path) -> str:
+    parts = job_dir.name.split("-")
+    if len(parts) >= 5:
+        return parts[4]
+    return ""
+
+
+def iter_model_dirs(root: Path):
+    for job_dir in sorted(root.iterdir()):
+        if not job_dir.is_dir():
+            continue
+        for model_dir in sorted(job_dir.iterdir()):
+            if model_dir.is_dir():
+                yield model_dir
+
+
+def get_irs_size_bytes(model_dir: Path) -> int:
+    irs_dir = model_dir / "irs"
+    size_bytes = 0
+    for file_path in irs_dir.rglob("*") if irs_dir.is_dir() else []:
+        if file_path.is_file():
+            size_bytes += file_path.stat().st_size
+    return size_bytes
+
+
+def choose_model_to_keep(entries: list[dict], preferred_machine: str) -> dict:
+    preferred = [entry for entry in entries if entry["machine"] == preferred_machine]
+    candidates = preferred if preferred else entries
+    return max(
+        candidates,
+        key=lambda entry: (entry["size_bytes"], entry["relative_path"]),
+    )
+
+
+def remove_duplicate_models(root: Path, preferred_machine: str) -> tuple[int, int]:
+    models_by_name: dict[str, list[dict]] = {}
+
+    for model_dir in iter_model_dirs(root):
+        job_dir = model_dir.parent
+        entry = {
+            "model_dir": model_dir,
+            "machine": get_job_machine(job_dir),
+            "relative_path": model_dir.relative_to(root).as_posix(),
+            "size_bytes": get_irs_size_bytes(model_dir),
+        }
+        models_by_name.setdefault(model_dir.name, []).append(entry)
+
+    duplicate_model_count = 0
+    removed_dir_count = 0
+
+    for model_name, entries in models_by_name.items():
+        if len(entries) <= 1:
+            continue
+
+        duplicate_model_count += 1
+        keep = choose_model_to_keep(entries, preferred_machine)
+        print(
+            f"Deduplicating model '{model_name}': keeping {keep['relative_path']} "
+            f"(machine={keep['machine']})"
+        )
+
+        for entry in entries:
+            if entry is keep:
+                continue
+            print(
+                f"Removing duplicate model directory {entry['relative_path']} "
+                f"(machine={entry['machine']})"
+            )
+            shutil.rmtree(entry["model_dir"])
+            removed_dir_count += 1
+
+    return duplicate_model_count, removed_dir_count
+
+
 def collect_model_directories(root: Path, model_filter: str) -> tuple[list[dict], int]:
-    all_model_dirs = [
-        model_dir
-        for job_dir in sorted(root.iterdir())
-        if job_dir.is_dir() and is_n150_job_dir(job_dir)
-        for model_dir in sorted(job_dir.iterdir())
-        if model_dir.is_dir()
-    ]
+    all_model_dirs = [model_dir for model_dir in iter_model_dirs(root)]
     models = []
 
     for model_dir in all_model_dirs:
         if model_filter and model_filter not in model_dir.name:
             continue
 
-        irs_dir = model_dir / "irs"
-        size_bytes = 0
-        for file_path in irs_dir.rglob("*") if irs_dir.is_dir() else []:
-            if file_path.is_file():
-                size_bytes += file_path.stat().st_size
+        size_bytes = get_irs_size_bytes(model_dir)
 
         models.append(
             {
@@ -232,6 +296,16 @@ def command_materialize(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_dedupe(args: argparse.Namespace) -> int:
+    duplicate_model_count, removed_dir_count = remove_duplicate_models(
+        args.root, args.preferred_machine
+    )
+    print(
+        f"Duplicate model groups: {duplicate_model_count}; removed directories: {removed_dir_count}"
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -260,6 +334,11 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--models-json", required=True)
     materialize_parser.add_argument("--estimated-seconds", type=int, required=True)
     materialize_parser.set_defaults(func=command_materialize)
+
+    dedupe_parser = subparsers.add_parser("dedupe")
+    dedupe_parser.add_argument("--root", type=Path, required=True)
+    dedupe_parser.add_argument("--preferred-machine", default="n150")
+    dedupe_parser.set_defaults(func=command_dedupe)
 
     return parser
 
