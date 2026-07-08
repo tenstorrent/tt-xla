@@ -67,8 +67,27 @@
         "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
       },
       {
+        "name": "stable_diffusion_1_5",
+        "pytest": "tests/benchmark/test_imagegen.py::test_stable_diffusion_1_5",
+        "runs-on": "n150"
+      },
+      {
+        "name": "stable_diffusion_3",
+        "pytest": "tests/benchmark/test_imagegen.py::test_stable_diffusion_3",
+        "runs-on": "n150"
+      },
+      {
         "name": "sdxl_lightning",
         "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
+      },
+      {
+        "name": "janus_pro_1b",
+        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
+      },
+      {
+        "name": "janus_pro_7b",
+        "runs-on": ["p150-perf"],
+        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b"
       },
       {
         "name": "bge_m3_encode",
@@ -627,6 +646,13 @@
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_mistral_small_3_1_24b_tp",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-3.1-24b-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
       },
       {
         "name": "vllm_llama_3_1_70b_qb2_tp",
