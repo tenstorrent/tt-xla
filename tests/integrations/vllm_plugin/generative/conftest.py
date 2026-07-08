@@ -58,7 +58,9 @@ def assert_batch_grounded(outputs, checks=GROUNDED_BATCH_CHECKS) -> None:
     and isn't a degenerate repeat-loop. Detects per-slot prefill corruption
     (garbage or 'answer-then-loop'); tolerant of the #5520 near-tie fp drift
     since the answers are unambiguous."""
-    assert len(outputs) == len(checks), f"expected {len(checks)} outputs, got {len(outputs)}"
+    assert len(outputs) == len(
+        checks
+    ), f"expected {len(checks)} outputs, got {len(outputs)}"
     for (prompt, expected), out in zip(checks, outputs):
         text = out.outputs[0].text
         token_ids = out.outputs[0].token_ids
