@@ -82,6 +82,9 @@ jobs:
             --pattern "ir-dumps-*" \
             --dir collected_irs
 
+          echo "Matched model names:"
+          find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort -u | grep '${{ inputs.model_filter }}' || true
+
           echo "=== Deduplicating models (prefer n150 copies) ==="
           python3 .github/scripts/ir_process_analyzer.py dedupe \
             --root collected_irs \
