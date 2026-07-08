@@ -116,6 +116,11 @@ def _run_decode_loop(decode_step, prefix_emb, cfg, start_token, n_steps, device)
             layer.cumulative_length = layer.cumulative_length.to(device)
             layer.device = device
 
+    if on_device:
+        # Compile through the tt backend, exactly as the pipeline does
+        # (self.decode_step.compile(backend="tt")). Without this the model runs
+        # in lazy-XLA mode, which fuses prefill+decode into one graph.
+        decode_step.compile(backend="tt")
     decode_step = decode_step.to(device)
 
     def mask(valid):
