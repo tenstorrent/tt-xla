@@ -22,7 +22,11 @@ Stages (matching ``Xtts.inference`` + ``Xtts.get_conditioning_latents``):
 
 Every learned nn.Module runs on TT. CPU is used only for what does not lower to
 device or is not a learned graph: the STFT/mel front-ends (complex FFT, problem
-#5216), text tokenization, greedy token sampling / loop control, and audio I/O.
+#5216), text tokenization, token sampling / loop control, and audio I/O. Token
+sampling and conditioning use the reference ``Xtts.inference`` params (sampling:
+temperature 0.75 / top_k 50 / top_p 0.85 / repetition_penalty 10.0; conditioning:
+gpt_cond_len 6 / chunk 6), so behavior matches the source except for running the
+learned modules on TT.
 
 The autoregressive audio-token loop (``gpt_codes``) is the only host-driven
 stage and it also runs the GPT2 trunk on TT. On CPU the original XTTS uses HF
@@ -83,6 +87,20 @@ DEFAULT_TEXT = (
 DEFAULT_LANGUAGE = "en"
 OUTPUT_SAMPLE_RATE = 24000
 
+# Reference autoregressive sampling params, matching ``Xtts.inference`` defaults
+# (coqui/XTTS-v2). The decode loop applies these host-side via HF's own logits
+# processors so token selection matches the reference generate() exactly.
+REF_TEMPERATURE = 0.75
+REF_TOP_K = 50
+REF_TOP_P = 0.85
+REF_REPETITION_PENALTY = 10.0
+# Reference conditioning params, matching ``Xtts.get_conditioning_latents``
+# defaults: gpt_cond_len == gpt_cond_chunk_len == 6 -> a single 6 s chunk, with
+# multi-chunk mean when they differ (see ``Xtts.get_gpt_cond_latents``).
+GPT_COND_LEN = 6
+GPT_COND_CHUNK_LEN = 6
+MIN_AUDIO_SECONDS = 0.33  # chunks shorter than this are skipped (reference)
+
 
 class XTTSConfig:
     def __init__(
@@ -91,6 +109,7 @@ class XTTSConfig:
         language: str = DEFAULT_LANGUAGE,
         speaker_wav: Optional[str] = None,
         max_audio_tokens: Optional[int] = None,
+        seed: int = 0,
     ):
         self.text = text
         self.language = language
@@ -100,6 +119,8 @@ class XTTSConfig:
         # Cap on generated audio tokens (each ~= 1024 output samples / 24 kHz);
         # keeps the single-compile TT decode loop demo-sized. None = model max.
         self.max_audio_tokens = max_audio_tokens
+        # Seed for the (stochastic) reference sampling, so runs are reproducible.
+        self.seed = seed
 
 
 class GptCachedStep(torch.nn.Module):
@@ -214,25 +235,45 @@ class XTTSPipeline:
         with torch.no_grad():
             return self.xtts.hifigan_decoder.speaker_encoder.torch_spec(audio16)
 
-    def _conditioning_mel(self, audio22: torch.Tensor) -> torch.Tensor:
-        """First ``gpt_cond_len`` s of reference -> conditioning mel (CPU)."""
+    def _conditioning_mels(self, audio22: torch.Tensor) -> list:
+        """Reference ``get_gpt_cond_latents`` chunking (perceiver path).
+
+        The first ``GPT_COND_LEN`` s of the reference are split into
+        ``GPT_COND_CHUNK_LEN``-second chunks; each chunk is turned into a mel on
+        CPU. The conditioning encoder then runs per chunk on TT and the results
+        are mean-averaged in ``run()`` -- exactly as ``Xtts.get_gpt_cond_latents``
+        averages per-chunk ``get_style_emb`` outputs. With the reference defaults
+        (6 == 6) this is a single 6 s chunk.
+        """
         from TTS.tts.models.xtts import wav_to_mel_cloning
 
-        cond_len = self._loader.GPT_COND_LEN
-        chunk = audio22[:, : 22050 * cond_len]
-        return wav_to_mel_cloning(
-            chunk,
-            mel_norms=self.xtts.mel_stats.cpu(),
-            n_fft=2048,
-            hop_length=256,
-            win_length=1024,
-            power=2,
-            normalized=False,
-            sample_rate=22050,
-            f_min=0,
-            f_max=8000,
-            n_mels=80,
-        )
+        audio = audio22[:, : 22050 * GPT_COND_LEN]
+        step = 22050 * GPT_COND_CHUNK_LEN
+        mels = []
+        for i in range(0, audio.shape[1], step):
+            chunk = audio[:, i : i + step]
+            if chunk.size(-1) < 22050 * MIN_AUDIO_SECONDS:
+                continue  # skip too-short trailing chunk (reference behavior)
+            mels.append(
+                wav_to_mel_cloning(
+                    chunk,
+                    mel_norms=self.xtts.mel_stats.cpu(),
+                    n_fft=2048,
+                    hop_length=256,
+                    win_length=1024,
+                    power=2,
+                    normalized=False,
+                    sample_rate=22050,
+                    f_min=0,
+                    f_max=8000,
+                    n_mels=80,
+                )
+            )
+        if not mels:
+            raise RuntimeError(
+                f"Reference audio too short (< {MIN_AUDIO_SECONDS:.2f}s) for conditioning."
+            )
+        return mels
 
     def _text_tokens(self) -> torch.Tensor:
         toks = self.xtts.tokenizer.encode(
@@ -282,10 +323,21 @@ class XTTSPipeline:
         """KV-cached, single-compile decode loop with the GPT2 trunk on TT.
 
         Prefills the conditioning+text prefix + [START] token into a StaticCache,
-        then greedily samples audio tokens one at a time; each step feeds only the
-        new token (O(1) work), the StaticCache keeps shapes constant, and the
-        decode graph is reused every step (no per-step recompiles).
+        then samples audio tokens one at a time using the same params as the
+        reference ``Xtts.inference`` (``do_sample=True``, temperature 0.75, top_k
+        50, top_p 0.85, repetition_penalty 10.0). Sampling is host-side via HF's
+        own logits processors, so token selection matches ``gpt.generate``; the TT
+        decode graph feeds only the new token (O(1) work) with constant shapes, so
+        it compiles once and is reused every step (no per-step recompiles).
         """
+        from transformers import (
+            LogitsProcessorList,
+            RepetitionPenaltyLogitsProcessor,
+            TemperatureLogitsWarper,
+            TopKLogitsWarper,
+            TopPLogitsWarper,
+        )
+
         device = xm.xla_device()
         gpt = self.xtts.gpt
 
@@ -307,6 +359,27 @@ class XTTSPipeline:
             m[:, :valid] = 1
             return m.to(device)
 
+        # Reference sampling stack: repetition penalty (processor) then the
+        # temperature/top-k/top-p warpers, in HF's generate() order. Applied on
+        # the CPU logits each step; the running audio-token sequence (starting
+        # with [START]) drives the repetition penalty, exactly like HF generate.
+        processors = LogitsProcessorList(
+            [
+                RepetitionPenaltyLogitsProcessor(penalty=REF_REPETITION_PENALTY),
+                TemperatureLogitsWarper(REF_TEMPERATURE),
+                TopKLogitsWarper(REF_TOP_K),
+                TopPLogitsWarper(REF_TOP_P),
+            ]
+        )
+        rng = torch.Generator().manual_seed(int(self.config.seed))
+        seq = [self.start_audio_token]  # running sequence for repetition penalty
+
+        def sample(logits_row_cpu):  # logits_row_cpu: [1, vocab] on CPU
+            input_ids = torch.tensor([seq], dtype=torch.long)
+            scores = processors(input_ids, logits_row_cpu.float())
+            probs = torch.softmax(scores, dim=-1)
+            return int(torch.multinomial(probs, num_samples=1, generator=rng).item())
+
         generated = []
         with torch.no_grad():
             # --- Prefill: [prefix, START(audio pos 0)] -> first audio token ---
@@ -317,7 +390,7 @@ class XTTSPipeline:
             logits = self.decode_step(
                 start_ids, pos0, mask(prefix_len + 1), cache, prefix_emb
             )
-            next_token = int(logits[:, -1, :].argmax(dim=-1).to("cpu").item())
+            next_token = sample(logits[:, -1, :].to("cpu"))
 
             cur = prefix_len + 1  # cache positions written so far
             # --- Decode loop: feed 1 token per step, audio position = step ---
@@ -325,10 +398,11 @@ class XTTSPipeline:
                 if next_token == self.stop_audio_token:
                     break
                 generated.append(next_token)
+                seq.append(next_token)  # extend history before sampling the next
                 tok = torch.tensor([[next_token]], dtype=torch.long, device=device)
                 pos = torch.tensor([step], dtype=torch.long, device=device)
                 logits = self.decode_step(tok, pos, mask(cur + 1), cache, None)
-                next_token = int(logits[:, -1, :].argmax(dim=-1).to("cpu").item())
+                next_token = sample(logits[:, -1, :].to("cpu"))
                 cur += 1
                 if step % 32 == 0:
                     logger.info(f"[gpt_codes] {step}/{max_tokens} tokens")
@@ -348,7 +422,7 @@ class XTTSPipeline:
             # --- CPU preprocessing ---
             audio22 = self._reference_audio_22k()
             speaker_mel = self._speaker_mel(audio22)
-            cond_mel = self._conditioning_mel(audio22)
+            cond_mels = self._conditioning_mels(audio22)
             text_tokens = self._text_tokens()
             text_len = torch.tensor([text_tokens.shape[-1]])
 
@@ -361,10 +435,13 @@ class XTTSPipeline:
             speaker_embedding = speaker_embedding.unsqueeze(-1)
 
             # --- gpt_cond_latent [TT] ---
+            # Per-chunk conditioning on TT, then mean over chunks (reference
+            # get_gpt_cond_latents). Each chunk's style_emb is [1, 1024, 32].
             logger.info("[STAGE] conditioning encoder (TT)")
             self.conditioning = self.conditioning.to(device)
-            conds = cpu(self.conditioning(tt(cond_mel)))  # [1, 1024, 32]
+            style_embs = [cpu(self.conditioning(tt(m))) for m in cond_mels]
             self.conditioning = self.conditioning.to("cpu")
+            conds = torch.stack(style_embs).mean(dim=0)  # [1, 1024, 32]
             gpt_cond_latent = conds.transpose(1, 2)  # [1, 32, 1024]
 
             # --- gpt_codes (autoregressive, GPT2 trunk on TT) ---
@@ -424,6 +501,7 @@ def run_xtts_pipeline(
     language: str = DEFAULT_LANGUAGE,
     speaker_wav: Optional[str] = None,
     max_audio_tokens: Optional[int] = None,
+    seed: int = 0,
 ):
     """Run the XTTS-v2 pipeline and write a WAV file. Returns the path."""
     # optimization_level 0: the memory-layout optimizer probes ttnn op
@@ -436,6 +514,7 @@ def run_xtts_pipeline(
         language=language,
         speaker_wav=speaker_wav,
         max_audio_tokens=max_audio_tokens,
+        seed=seed,
     )
     pipeline = XTTSPipeline(config)
     pipeline.setup()
@@ -461,6 +540,12 @@ if __name__ == "__main__":
         default=None,
         help="Cap on generated audio tokens (keeps the TT decode demo short)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed for the reference stochastic sampling (reproducible runs)",
+    )
     args = parser.parse_args()
 
     # torch_xla defaults to CPU; point it at the Tenstorrent device.
@@ -472,4 +557,5 @@ if __name__ == "__main__":
         language=args.language,
         speaker_wav=args.speaker_wav,
         max_audio_tokens=args.max_audio_tokens,
+        seed=args.seed,
     )
