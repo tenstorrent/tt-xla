@@ -1328,6 +1328,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
+        # A running (already-prefilled) request re-batched into a later prefill
+        # step contributes 0 new tokens. paged_fill_cache still writes its row,
+        # and since fill_page_table[row] points at that request's real blocks, it
+        # clobbers the KV written in the earlier step with padding. Under DP+TP
+        # such an inactive row lands inside the active range (row 0), not at the
+        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
+        # the null block (0); the read-path page_table keeps the real blocks.
+        zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
+        if len(zero_sched_rows) > 0:
+            if fill_page_table is page_table:
+                fill_page_table = page_table.clone()
+            fill_page_table[zero_sched_rows, :] = 0
+
         if use_max_model_len:
             cache_position_dev = self._cache_position_dev_max[target_num_reqs]
             page_table_dev = self._page_table_dev_max[target_num_reqs]
