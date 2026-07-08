@@ -2296,6 +2296,7 @@ def tt_lang_op(
     version_tag: str,
     shard_spec: str,
     out_indices: List[int],
+    sharding_rule: str = "",
 ) -> List[torch.Tensor]:
     """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
 
@@ -2304,6 +2305,13 @@ def tt_lang_op(
     ``frontend_attributes``. The custom call's results mirror the
     ``out``-tagged input tensors in shape and dtype, so the plugin sees
     the real (post-Shardy) types.
+
+    A non-empty ``sharding_rule`` is forwarded as the
+    ``xla.sdy.sharding_rule`` frontend attribute; tt-mlir's
+    ``register-custom-sharding-rule`` pass recognizes it and hands the
+    parsed ``sdy.op_sharding_rule`` to Shardy so the rule participates in
+    sharding inference. Build the string with
+    :func:`tt_torch.make_sharding_rule` or pass raw MLIR text.
 
     The op is registered only for the XLA dispatch key; calling it on a
     CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
@@ -2326,6 +2334,8 @@ def tt_lang_op(
     }
     if shard_spec:
         frontend_attributes["shard_spec"] = shard_spec
+    if sharding_rule:
+        frontend_attributes["xla.sdy.sharding_rule"] = sharding_rule
 
     result = stablehlo_custom_call.stablehlo_custom_call(
         list(tensors),
@@ -2347,6 +2357,7 @@ def _tt_lang_op_fake(
     version_tag: str,
     shard_spec: str,
     out_indices: List[int],
+    sharding_rule: str = "",
 ) -> List[torch.Tensor]:
     _validate_tt_lang_op_out_indices(out_indices, len(tensors))
     return [tensors[i].clone() for i in out_indices]
@@ -2360,6 +2371,7 @@ def tt_lang_op_dispatch(
     version_tag: str,
     shard_spec: str,
     out_indices: Sequence[int],
+    sharding_rule: str = "",
 ) -> List[torch.Tensor]:
     """Keyword-only wrapper around ``torch.ops.tt.tt_lang_op``.
 
@@ -2373,6 +2385,7 @@ def tt_lang_op_dispatch(
         version_tag,
         shard_spec,
         list(out_indices),
+        sharding_rule,
     )
 
 

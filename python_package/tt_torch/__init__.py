@@ -31,6 +31,7 @@ from .serialization import (
     parse_compiled_artifacts_from_cache_to_disk,
 )
 from .sharding import sharding_constraint_hook
+from .sharding_rule import make_sharding_rule
 
 # Sparse MLP for MoE models
 from .sparse_mlp import A2aSparseMLP, SparseMLP, enable_sparse_mlp
