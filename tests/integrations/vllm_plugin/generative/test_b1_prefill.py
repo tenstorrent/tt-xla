@@ -34,7 +34,7 @@ from vllm import AsyncEngineArgs, AsyncLLMEngine, SamplingParams
 from vllm.inputs import TokensPrompt
 from vllm.sampling_params import RequestOutputKind
 
-ISL = 1024  # b1 win grows with ISL
+ISL = 1000  # <=1023 so max_model_len can be 1024 -> 1024 token bucket (see _make_engine); b1 win grows with ISL
 SMALL = 8  # burst size (<= threshold -> the gap target)
 LARGE = 24  # batch size (> threshold -> stable b32 anchor)
 RAMP_MS = 100  # staggered inter-arrival
@@ -87,11 +87,23 @@ def _make_engine() -> AsyncLLMEngine:
     }
     args = AsyncEngineArgs(
         model="Qwen/Qwen3-8B",
-        # budget must cover max_model_len * max_num_seqs; small max_model_len keeps it cheap
-        max_model_len=2048,
-        max_num_batched_tokens=2048 * 32,
+        # The prefill token bucket is the smallest power of 2 >= min(
+        # max_num_batched_tokens, max_model_len) (exponential ladder, see
+        # _get_token_paddings), and the b_max prefill activation is
+        # max_num_seqs x bucket x intermediate x 4B. max_model_len=2048 -> a 2048
+        # bucket -> 32 x 2048 x 12288 x 4 = 3 GB, which OOM'd capture_model on the
+        # single-chip n150 (#5533). max_model_len=1024 drops to a 1024 bucket,
+        # halving the activation to 1.5 GB (needs ISL <= 1023). budget must still
+        # cover max_model_len * max_num_seqs.
+        max_model_len=1024,
+        max_num_batched_tokens=1024 * 32,
         max_num_seqs=32,
-        gpu_memory_utilization=0.3,
+        # KV cache is reserved at this fraction of DRAM up front. max_tokens=1 means
+        # the test barely uses KV, but at 0.3 the reservation (~3.9 GB) left the banks
+        # ~90% full, so the batch scenario's runtime b_max prefill activation OOM'd
+        # mid-serving (#5533). 0.1 still leaves KV for >600 seqs (test needs <=24) and
+        # frees the DRAM the activation needs.
+        gpu_memory_utilization=0.1,
         additional_config=additional_config,
     )
     return AsyncLLMEngine.from_engine_args(args)
