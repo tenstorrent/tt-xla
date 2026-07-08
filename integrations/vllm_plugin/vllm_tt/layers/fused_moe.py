@@ -26,12 +26,83 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
-from vllm.model_executor.layers.fused_moe.shared_fused_moe import SharedFusedMoE
+
+
+# Monkey-patch UnquantizedFusedMoEMethod to handle is_monolithic safely.
+# In vLLM 0.20.2, experts_cls can be None, which causes is_monolithic access to fail.
+def _patch_unquantized_moe_method():
+    try:
+        from vllm.model_executor.layers.fused_moe.oracle.unquantized import (
+            UnquantizedMoeBackend,
+        )
+        from vllm.model_executor.layers.fused_moe.unquantized_fused_moe_method import (
+            UnquantizedFusedMoEMethod,
+        )
+
+        # Override is_monolithic/apply_monolithic to handle missing kernel
+        # state on OOT paths (e.g. experts_cls=None, moe_kernel=None).
+        original_apply_monolithic = UnquantizedFusedMoEMethod.apply_monolithic
+
+        @property
+        def safe_is_monolithic(self):
+            # Escape hatch for CPU, which stays on the old monolithic path.
+            if self.unquantized_backend == UnquantizedMoeBackend.CPU:
+                return True
+            # If the modular kernel was not initialized, force monolithic mode
+            # and let apply_monolithic route to the TT layer fallback.
+            if self.moe_kernel is None:
+                return True
+            return self.moe_kernel.is_monolithic
+
+        def safe_apply_monolithic(self, layer, x, router_logits, input_ids=None):
+            if (
+                self.unquantized_backend != UnquantizedMoeBackend.CPU
+                and self.moe_kernel is None
+            ):
+                # TTFusedMoE exposes forward_native(hidden_states, router_logits)
+                # that does routing + experts in a TT-friendly way without
+                # relying on vLLM's internal moe kernel object.
+                if hasattr(layer, "forward_native"):
+                    return layer.forward_native(x, router_logits)
+            return original_apply_monolithic(self, layer, x, router_logits, input_ids)
+
+        UnquantizedFusedMoEMethod.is_monolithic = safe_is_monolithic
+        UnquantizedFusedMoEMethod.apply_monolithic = safe_apply_monolithic
+    except Exception:
+        # If patching fails, continue without it
+        pass
+
+
+_patch_unquantized_moe_method()
 
 
 @CustomOp.register_oot(name="FusedMoE")
 class TTFusedMoE(FusedMoE):
     """OOT FusedMoE specialised for the TT compile pipeline (see module docstring)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Avoid the generic vLLM custom-op trampoline (`vllm.moe_forward*`) in
+        # TT torch-xla compile, which can hit functionalization fallback asserts
+        # when executed via FX interpreter during graph extraction.
+        def _forward_entry_direct(
+            hidden_states,
+            router_logits,
+            shared_experts_input,
+            input_ids,
+            _layer_name,
+            _hidden_dim_unpadded,
+        ):
+            return self.runner._forward_impl(
+                self,
+                hidden_states,
+                router_logits,
+                shared_experts_input,
+                input_ids,
+            )
+
+        self.runner._forward_entry = _forward_entry_direct
 
     # vLLM FusedMoE → tt_torch.moe_backend expert-module interface adapter.
     @property
@@ -98,17 +169,3 @@ class TTFusedMoE(FusedMoE):
         else:
             out_flat = tt_dense_experts_forward(self, h_flat, topk_ids, topk_weights)
         return out_flat.view(orig_shape)
-
-
-@CustomOp.register_oot(name="SharedFusedMoE")
-class TTSharedFusedMoE(SharedFusedMoE, TTFusedMoE):
-    """
-    OOT implementation of the SharedFusedMoE class. Used by models that have
-    shared experts.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Our vLLM plugin doesn't support overlapping the shared experts'
-        # forward with the all2all dispatch, so we disable it.
-        self.use_overlapped = False
