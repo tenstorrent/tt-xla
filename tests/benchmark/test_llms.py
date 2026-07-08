@@ -1434,7 +1434,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         num_layers=2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=64,  # Decode pcc drops for batch 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/5558
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -1470,7 +1470,7 @@ def test_kimi_k2_6_tp_galaxy_2_layers(
         num_layers=2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -2035,7 +2035,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -2129,7 +2129,7 @@ def test_glm_4_7_tp_galaxy_4_layers(
         num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=64,  # Process silently terminates early for batch 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/5560
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=0,
