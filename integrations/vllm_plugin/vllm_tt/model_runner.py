@@ -2498,8 +2498,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # decode bucket (num_tokens == 1) always takes the standard path.
             if not (prefix_chunk and num_tokens == 1)
             # Cold is prefill-only and never chunked.
-            and not (cold and num_tokens == 1)
-            and not (cold and prefix_chunk)
+            and not (cold and num_tokens == 1) and not (cold and prefix_chunk)
         ]
 
         for config in configs:

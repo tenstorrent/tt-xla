@@ -587,9 +587,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         # so they must still gather. Cached-prefix hits (attn_mask set) keep the
         # full-slab always-mask gather.
         cold_direct = (
-            has_paged_cache
-            and attn_metadata.attn_mask is None
-            and not shared_kv_mode
+            has_paged_cache and attn_metadata.attn_mask is None and not shared_kv_mode
         )
         if cold_direct:
             query_for_sdpa = inputs.query.transpose(-3, -2)
