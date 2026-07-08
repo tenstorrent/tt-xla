@@ -390,6 +390,10 @@ test_config:
   motif_image_6B_preview/text_to_image/pytorch-Motif-Image-6B-Preview-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "DYNAMO_FAKE_TENSORS_FX_NODE: Dynamo failed to run FX node with fake tensors: aten.add.Tensor — two different devices xla:0, cpu"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -1566,6 +1570,10 @@ test_config:
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   huggyllama/pytorch-Llama_7B-single_device-inference:
     status: EXPECTED_PASSING

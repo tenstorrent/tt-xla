@@ -31,6 +31,7 @@ class TorchWorkload(Workload):
         static_argnames: Optional[Sequence[str]] = None,
         mesh: Optional[Mesh] = None,
         shard_spec_fn: Optional[Callable] = None,
+        activation_shard_spec_fn: Optional[Callable] = None,
     ) -> None:
 
         super().__init__(
@@ -44,6 +45,10 @@ class TorchWorkload(Workload):
         )
         self.mesh = mesh
         self.shard_spec_fn = shard_spec_fn
+        # Optional callable model -> {module: output_partition_spec}. Constrains
+        # intermediate ACTIVATIONS (applied as forward hooks by the device runner),
+        # complementing shard_spec_fn which shards weights.
+        self.activation_shard_spec_fn = activation_shard_spec_fn
         self._enable_xla_spmd_if_needed()
 
     # If model has shard specs and running on multichip mesh, then convert StableHLO
