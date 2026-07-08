@@ -85,6 +85,12 @@ class ModelTester(BaseTester, ABC):
         """Optional: returns shard specs function if required; otherwise None."""
         return None
 
+    def _get_activation_shard_spec_function(self) -> Optional[Callable]:
+        """Optional: returns an activation sharding-constraint function
+        (model -> {module: output_partition_spec}) if required; otherwise None.
+        Applied as forward hooks by the device runner."""
+        return None
+
     def _get_mesh(self) -> Optional[Mesh]:
         """Optional: returns mesh if required; otherwise None."""
         return None

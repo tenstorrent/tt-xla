@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -56,11 +58,36 @@ class TTConfig:
     # If unset, it resolves to scheduler_config.max_num_seqs.
     min_num_seqs: Optional[int] = None
 
+    # Maximum request-batch size for *prefill* compilation and tracing.
+    # When set to a value smaller than max_num_seqs, prefill graphs compile
+    # and trace at this batch shape instead of max_num_seqs. With
+    # enable_trace=True, each traced bucket keeps its peak activations
+    # resident in DRAM; capping prefill here is the primary knob for
+    # reducing prefill DRAM footprint. Decode is unaffected (always
+    # compiles at max_num_seqs). Must satisfy min_num_seqs <=
+    # max_prefill_num_seqs <= max_num_seqs. Defaults to max_num_seqs.
+    max_prefill_num_seqs: Optional[int] = None
+
     # b1-prefill batch threshold. When <= this many prefills are
     # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
     # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
     # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
     prefill_batch_threshold: int = 0
+
+    # KV-cache high-watermark for *fresh* prefill admission, as a fraction of
+    # the block pool (tt-xla: large-context concurrency thrash). AscendScheduler
+    # stops admitting NEW prefills once doing so would leave less than this
+    # fraction of the pool free, reserving headroom for in-flight requests to
+    # finish decoding instead of evicting (preempting) them and re-prefilling.
+    # Continuation chunks of already-started prefills and decode are NOT gated
+    # (decode may use the pool to 100%). A forward-progress guard always admits
+    # at least one prefill when nothing is running, so a single large prompt is
+    # never starved. 0.0 = off (legacy 1% watermark for all prefills).
+    # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
+    # Override at runtime with env var TTXLA_PREFILL_KV_WATERMARK_PERCENT (a
+    # percent, e.g. 25), which takes precedence over additional_config.
+    # Resolved/validated in TTPlatform.check_and_update_config.
+    prefill_kv_watermark: float = 0.25
 
     batch_size: int = 1
     enable_precompile_all: bool = True
@@ -306,18 +333,40 @@ class TTPlatform(Platform):
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
-        if tt_config.min_num_seqs is None:
-            additional_config["min_num_seqs"] = (
-                vllm_config.scheduler_config.max_num_seqs
+
+        max_num_seqs = vllm_config.scheduler_config.max_num_seqs
+
+        # Resolve/validate max_prefill_num_seqs first so min_num_seqs can default to it.
+        if tt_config.max_prefill_num_seqs is None:
+            additional_config["max_prefill_num_seqs"] = max_num_seqs
+            tt_config.max_prefill_num_seqs = additional_config["max_prefill_num_seqs"]
+        elif tt_config.max_prefill_num_seqs < 1:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= 1 for the TT backend."
             )
+        elif tt_config.max_prefill_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # Resolve/validate min_num_seqs after max_prefill_num_seqs.
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = tt_config.max_prefill_num_seqs
             tt_config.min_num_seqs = additional_config["min_num_seqs"]
         elif tt_config.min_num_seqs < 1:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
             )
-        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+        elif tt_config.min_num_seqs > max_num_seqs:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        if tt_config.max_prefill_num_seqs < tt_config.min_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= min_num_seqs "
                 "for the TT backend."
             )
 
@@ -329,6 +378,23 @@ class TTPlatform(Platform):
             raise ValueError(
                 "additional_config['prefill_batch_threshold'] must be >= 0."
             )
+
+        # Resolve prefill_kv_watermark to a concrete fraction the scheduler can
+        # read directly: default, then env override (percent), then validate.
+        # See TTConfig.prefill_kv_watermark.
+        if additional_config.get("prefill_kv_watermark") is None:
+            additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
+        env_wm = os.environ.get("TTXLA_PREFILL_KV_WATERMARK_PERCENT")
+        if env_wm is not None:
+            additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
+        wm = float(additional_config["prefill_kv_watermark"])
+        if not (0.0 <= wm < 1.0):
+            raise ValueError(
+                "prefill_kv_watermark (TTXLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
+                f"must be in [0, 1); got {wm}."
+            )
+        additional_config["prefill_kv_watermark"] = wm
+
         vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
