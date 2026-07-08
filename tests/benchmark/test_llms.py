@@ -2381,6 +2381,58 @@ def test_gpt_oss_120b_moe_fused_galaxy_pcc(
         register_tt_moe_backend()
 
 
+# Same device-vs-host fused-MoE PCC test as the 120B version, but for GPT-OSS-20B.
+# 20B has far fewer experts (32 vs 128), so there is much less weight to
+# pack/quantize -> a faster first correctness run on the (4,8) Wormhole galaxy.
+# Same mesh / cluster_axis=0 / tt_moe_fused config; reuses the by-name shard spec.
+def test_gpt_oss_20b_moe_fused_galaxy_pcc(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_MOE_FUSED_BACKEND_NAME, register_tt_moe_backend
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    bs = batch_size if batch_size is not None else 32
+    register_tt_moe_backend(
+        cluster_axis=0,  # experts EP-sharded along "batch" = axis 0 (size-4) of the (4,8) mesh
+        use_interleaved=True,
+        moe_decode_activation="swiglu",
+        moe_decode_token_threshold=bs,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    try:
+        run_llm_pcc(
+            ModelLoader,
+            variant,
+            num_layers=num_layers,
+            request=request,
+            batch_size=bs,
+            optimization_level=1,
+            mesh_config_fn=_galaxy_mesh_config_fn,
+            shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
+            input_output_sharding_spec=("batch", None),
+            kv_cache_sharding_spec=("batch", "model", None, None),
+            experimental_weight_dtype="bfp_bf8",
+            experimental_kv_cache_dtype=None,
+            experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
+            decode_only=decode_only,
+            required_pcc=0.90,
+        )
+    finally:
+        register_tt_moe_backend()
+
+
 def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
     return (1, 4), ("batch", "model")
 
