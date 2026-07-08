@@ -153,14 +153,16 @@ def test_encoder(
             json.dump(results, file, indent=2)
 
 
-def test_bert(output_file, num_layers, request):
+def test_bert(output_file, num_layers, batch_size, input_sequence_length, request):
     from third_party.tt_forge_models.bert.sentence_embedding_generation.pytorch.loader import (
         ModelLoader,
     )
 
     # Configuration
     data_format = "bfloat16"
-    input_sequence_length = 384
+    input_sequence_length = (
+        input_sequence_length if input_sequence_length is not None else 384
+    )
 
     # Load model with specified dtype
     loader = create_model_loader(ModelLoader, num_layers=num_layers)
@@ -205,7 +207,7 @@ def test_bert(output_file, num_layers, request):
         output_processor_fn=output_processor_fn,
         data_format=data_format,
         num_layers=num_layers,
-        batch_size=8,
+        batch_size=batch_size if batch_size is not None else 8,
         input_sequence_length=input_sequence_length,
         loop_count=32,
         optimization_level=2,

@@ -245,10 +245,10 @@ def benchmark_resnet_jax(
     return result
 
 
-def test_resnet_jax(output_file):
+def test_resnet_jax(output_file, batch_size):
     # Configuration
     variant = "microsoft/resnet-50"
-    batch_size = 8
+    batch_size = batch_size if batch_size is not None else 8
     loop_count = 32
     input_size = (3, 224, 224)
     data_format = "float32"

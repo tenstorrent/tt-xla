@@ -77,6 +77,12 @@ test_entries_torch_regular = [
 all_test_entries = test_entries_torch_regular + test_entries_jax
 
 
+def _ir_dump_root(request) -> str:
+    return request.config.getoption("--dump-irs-dir", default=None) or os.path.join(
+        PROJECT_ROOT, "collected_irs"
+    )
+
+
 def _run_model_test_impl(
     test_entry,
     run_mode: RunMode,
@@ -117,7 +123,7 @@ def _run_model_test_impl(
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
         if request.config.getoption("--dump-irs", default=False):
-            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+            ir_dump_path = os.path.join(_ir_dump_root(request), model_info.name)
 
         if compiler_config is None:
             compiler_config = CompilerConfig()
@@ -727,7 +733,7 @@ def test_all_models_op_by_op(
         text=True,
     )
 
-    artifacts_dir = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+    artifacts_dir = os.path.join(_ir_dump_root(request), model_info.name)
     matches = find_dumped_ir_files(artifacts_dir)
 
     results = []
