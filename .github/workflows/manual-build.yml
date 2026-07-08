@@ -1,0 +1,70 @@
+name: Manual Build Wheels
+
+# Build-only entry point (no tests). Dispatch this to build tt-xla wheels for a
+# branch/SHA and consume the resulting artifacts elsewhere — e.g. tt-shield forge
+# image builds, which resolve a tt-xla ref to its xla-whl-manylinux* (pjrt) and
+# vllm-tt-whl-release* artifacts.
+#
+# Mirrors manual-test.yml's build path (build-image -> build-ttxla) but skips the
+# test job. build_types defaults to 'release,manylinux' so a single dispatch emits
+# the full set the forge flow expects: xla-whl-manylinux*, vllm-tt-whl-release*,
+# and xla-whl-release*.
+
+run-name: 'Build ( ${{ inputs.build_types }} ) ${{ github.ref_name }}'
+
+concurrency:
+  group: manual-build-${{ github.ref }}-${{ inputs.build_types }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_types:
+        description: 'Build types (comma-separated): release,explorer,manylinux'
+        default: 'release,manylinux'
+        type: string
+        required: false
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      force_rebuild:
+        description: 'Force rebuild even if an artifact already exists for this commit'
+        type: boolean
+        required: false
+        default: false
+      artifact_sha:
+        description: 'tt-xla commit SHA to reuse pre-built artifacts from (leave empty to build fresh)'
+        required: false
+        type: string
+
+# call-build-docker.yml pushes images to ghcr and writes checks, so the caller
+# must grant these (matches manual-test.yml). Without this block the run hits a
+# startup_failure: "requesting 'checks: write, packages: write', but is only
+# allowed 'checks: none, packages: read'".
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      # 'all' also builds the manylinux docker image, needed when manylinux is requested
+      dockbuild: ${{ contains(inputs.build_types, 'manylinux') && 'all' || 'ci' }}
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      mlir_override: ${{ inputs.mlir_override }}
+      build_types: ${{ inputs.build_types }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      artifact_sha: ${{ inputs.artifact_sha }}

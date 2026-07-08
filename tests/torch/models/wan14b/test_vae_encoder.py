@@ -29,9 +29,10 @@ from .shared import (
     wan22_mesh,
 )
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
+    all_reduce_workaround_enabled=False,
 )
 
 
@@ -76,7 +77,7 @@ def _run(resolution: str, sharded: bool) -> None:
         graph=model,
         inputs=[x],
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
+        compiler_config=COMPILER_CONFIG,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
     )

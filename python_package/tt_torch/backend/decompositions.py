@@ -256,6 +256,19 @@ def squeeze(input, dims):
     return input.reshape(newshape)
 
 
+# A no-op view (e.g. `tensor.squeeze(dim)` where `dim` is not of size 1, or an
+# explicit alias) lowers to `prims.view_of`, an identity alias-view. Because it
+# is a non-ATen op whose output carries an alias annotation, `run_decompositions`
+# cannot functionalize it and compilation fails with
+# "Found a custom (non-ATen) operator whose output has alias annotations:
+# prims::view_of". This decomposition rewrites it to an identity reshape, which
+# lowers to a functionalizable `aten.view`. It is a pure no-op (same shape, same
+# data) so it cannot change numerics, and it only ever triggers on graphs that
+# would otherwise fail to compile. Ref: tt-xla #5375.
+def view_of(input):
+    return input.reshape(input.shape)
+
+
 def matmul(
     input: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] = None
 ):
@@ -408,6 +421,27 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
+def histc(input, bins=100, min=0, max=0):
+    """Decomposition for aten.histc via one_hot + sum."""
+    # torch.histc: equal bounds (min == max, including the 0/0 default) mean "use the
+    # tensor's own range"; if that range is degenerate (constant input), widen by 1
+    # on each side -- matching aten's reference kernel:
+    # https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/SummaryOps.cu#L331
+    if min == max:
+        lo, hi = input.min(), input.max()
+        same = (lo == hi).to(input.dtype)
+        lo, hi = lo - same, hi + same
+    else:
+        lo, hi = min, max
+    x = input.flatten()
+    # bin index of each value; clamp pulls v == hi into the last bin.
+    idx = torch.floor((x - lo) / (hi - lo) * bins).to(torch.long).clamp(0, bins - 1)
+    # values outside [lo, hi] and NaN (compares False) are not counted.
+    valid = (x >= lo) & (x <= hi)
+    onehot = torch.nn.functional.one_hot(idx, bins).to(input.dtype)
+    return (onehot * valid.unsqueeze(-1).to(input.dtype)).sum(dim=0)
+
+
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
@@ -441,10 +475,12 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        torch.ops.prims.view_of.default: view_of,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
         aten.sum.dim_IntList: sum_dim_IntList,
+        aten.histc.default: histc,
     }
 
 

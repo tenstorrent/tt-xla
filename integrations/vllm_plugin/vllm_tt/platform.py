@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -50,8 +52,40 @@ class TTConfig:
     enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
+
+    # Minimum request-batch size to preallocate and precompile for. This is
+    # used as the lower bound for request-count shape warmup.
+    # If unset, it resolves to scheduler_config.max_num_seqs.
+    min_num_seqs: Optional[int] = None
+
+    # b1-prefill batch threshold. When <= this many prefills are
+    # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
+    # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
+    # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
+    prefill_batch_threshold: int = 0
+
+    # KV-cache high-watermark for *fresh* prefill admission, as a fraction of
+    # the block pool (tt-xla: large-context concurrency thrash). AscendScheduler
+    # stops admitting NEW prefills once doing so would leave less than this
+    # fraction of the pool free, reserving headroom for in-flight requests to
+    # finish decoding instead of evicting (preempting) them and re-prefilling.
+    # Continuation chunks of already-started prefills and decode are NOT gated
+    # (decode may use the pool to 100%). A forward-progress guard always admits
+    # at least one prefill when nothing is running, so a single large prompt is
+    # never starved. 0.0 = off (legacy 1% watermark for all prefills).
+    # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
+    # Override at runtime with env var TTXLA_PREFILL_KV_WATERMARK_PERCENT (a
+    # percent, e.g. 25), which takes precedence over additional_config.
+    # Resolved/validated in TTPlatform.check_and_update_config.
+    prefill_kv_watermark: float = 0.25
+
     batch_size: int = 1
     enable_precompile_all: bool = True
+
+    # Per-step prefill chunk size (caps max_num_batched_tokens); 0 (default) =
+    # opt-out. When set, long prompts split into chunks of this many tokens,
+    # bounding compile time + peak prefill DRAM by the chunk, not max_model_len.
+    prefill_chunk_size: int = 0
 
     # Flag to enable data parallel execution of a model. It will require
     # - max_num_seqs > 1
@@ -62,8 +96,11 @@ class TTConfig:
     # TPU model loader to share the model across multiple devices.
     enable_tensor_parallel: bool = False
 
-    # Optimization level for tt-mlir compilation.
-    optimization_level: int = 0
+    # Optimization level (0, 1, or 2) that controls multiple optimization passes.
+    # Level 0 (default): All optimizations disabled
+    # Level 1: Basic optimizations (optimizer + Conv2d fusion)
+    # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
+    optimization_level: int = 1
 
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
@@ -192,6 +229,9 @@ class TTPlatform(Platform):
             raise NotImplementedError(
                 "Sparse Attention is not supported on TT devices."
             )
+        if attn_selector_config.use_mla:
+            logger.info("Using TT MLA Attention backend.")
+            return AttentionBackendEnum.FLASH_ATTN_MLA.get_path()
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
@@ -267,12 +307,56 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
-        additional_config = vllm_config.additional_config or {}
+        if vllm_config.additional_config is None:
+            vllm_config.additional_config = {}
+        additional_config = vllm_config.additional_config
+        tt_config = TTConfig(**additional_config)
         if "batch_size" in additional_config:
             logger.warning(
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = (
+                vllm_config.scheduler_config.max_num_seqs
+            )
+            tt_config.min_num_seqs = additional_config["min_num_seqs"]
+        elif tt_config.min_num_seqs < 1:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
+            )
+        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # b1-prefill batch threshold: resolve default (0 = off)
+        # and persist so the AscendScheduler sees a concrete value; validate >= 0.
+        if additional_config.get("prefill_batch_threshold") is None:
+            additional_config["prefill_batch_threshold"] = 0
+        elif int(additional_config["prefill_batch_threshold"]) < 0:
+            raise ValueError(
+                "additional_config['prefill_batch_threshold'] must be >= 0."
+            )
+
+        # Resolve prefill_kv_watermark to a concrete fraction the scheduler can
+        # read directly: default, then env override (percent), then validate.
+        # See TTConfig.prefill_kv_watermark.
+        if additional_config.get("prefill_kv_watermark") is None:
+            additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
+        env_wm = os.environ.get("TTXLA_PREFILL_KV_WATERMARK_PERCENT")
+        if env_wm is not None:
+            additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
+        wm = float(additional_config["prefill_kv_watermark"])
+        if not (0.0 <= wm < 1.0):
+            raise ValueError(
+                "prefill_kv_watermark (TTXLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
+                f"must be in [0, 1); got {wm}."
+            )
+        additional_config["prefill_kv_watermark"] = wm
+
+        vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
@@ -329,7 +413,7 @@ class TTPlatform(Platform):
             )
             model_config.dtype = torch.bfloat16
 
-        from .attention import TTAttentionBackend
+        from .attention_impls.attention import TTAttentionBackend
 
         cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config
@@ -361,11 +445,44 @@ class TTPlatform(Platform):
                 "prefill and prefix caching to be disabled."
             )
             vllm_config.scheduler_config.enable_chunked_prefill = False
-            vllm_config.scheduler_config.chunked_prefill_enabled = False
+            vllm_config.scheduler_config.tt_chunked_prefill_enabled = False
             vllm_config.scheduler_config.max_num_batched_tokens = max(
                 vllm_config.model_config.max_model_len,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
+        elif model_config is not None and model_config.runner_type != "pooling":
+            # Opt-in via prefill_chunk_size. tt_chunked_prefill_enabled is a
+            # TT-only attr (vLLM has no such field) gating the TT path; vLLM's
+            # enable_chunked_prefill defaults True and can't stand in for it.
+            chunk_size = int(additional_config.get("prefill_chunk_size", 0))
+            if chunk_size > 0:
+                # PER-SEQUENCE cap bounding the prefill activation + token-padding
+                # ladder, not a batch-wide sum. Floor at one block for alignment.
+                per_seq_chunk = max(chunk_size, cache_config.block_size)
+
+                # Per-step batch-wide budget: one chunk per user, so scale by
+                # max_num_seqs to batch all users' same-stage chunks in one step.
+                budget = per_seq_chunk * scheduler_config.max_num_seqs
+                logger.info(
+                    "[TT] Chunked prefill: per-seq chunk %d, "
+                    "max_num_batched_tokens %d -> %d (= chunk x max_num_seqs %d) "
+                    "so up to %d users prefill per step.",
+                    per_seq_chunk,
+                    scheduler_config.max_num_batched_tokens,
+                    budget,
+                    scheduler_config.max_num_seqs,
+                    scheduler_config.max_num_seqs,
+                )
+                scheduler_config.enable_chunked_prefill = True
+                scheduler_config.tt_chunked_prefill_enabled = True
+                # TT-internal per-sequence chunk cap, read by AscendScheduler
+                # (per-request chunk sizing) and TTModelRunner (bucket ladder).
+                scheduler_config.tt_prefill_chunk_size = per_seq_chunk
+                # Derived value: a user-supplied max_num_batched_tokens is
+                # intentionally overridden here (logged above).
+                scheduler_config.max_num_batched_tokens = budget
+                scheduler_config.max_num_encoder_input_tokens = budget
+                scheduler_config.encoder_cache_size = budget
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
