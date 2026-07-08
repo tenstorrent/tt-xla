@@ -459,13 +459,13 @@ jobs:
         ir_root="collected_irs"
         max_bytes=$((200 * 1024 * 1024))
 
-        echo "=== Removing .ttnn files from collected_irs ==="
-        find collected_irs -type f -name "*.ttnn" -print -delete
-
         if [[ ! -d "$ir_root" ]]; then
           echo "$ir_root/ does not exist, nothing to prune"
           exit 0
         fi
+
+        echo "=== Removing .ttnn files from collected_irs ==="
+        find collected_irs -type f -name "*.ttnn" -print -delete
 
         for dir in "$ir_root"/*/; do
           size_bytes=$(du -sb "$dir" | cut -f1)
