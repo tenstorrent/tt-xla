@@ -23,6 +23,7 @@ import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from benchmarks.llm_benchmark import (
+    DEFAULT_INPUT_PROMPT,
     MODULE_EXPORT_PATH,
     _shard_kv_cache,
     construct_inputs,
@@ -223,7 +224,7 @@ def run_llm_pcc_e2e(
 
     device_prefill_logits = []
     if not decode_only:
-        logger.info("PCC test: running device prefill...")
+        print("PCC test: running device prefill...")
         device_prefill_logits, _ = generate_and_benchmark(
             compiled_logits,
             input_args,
@@ -249,7 +250,7 @@ def run_llm_pcc_e2e(
                     input_args["input_ids"], mesh, input_output_sharding_spec
                 )
 
-    logger.info("PCC test: running device first-decode...")
+    print("PCC test: running device first-decode...")
     device_decode_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
@@ -274,7 +275,7 @@ def run_llm_pcc_e2e(
         prefill_rel_l2 = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
         results["prefill_pcc"] = prefill_pcc
         results["prefill_rel_l2"] = prefill_rel_l2
-        logger.info(
+        print(
             f"Prefill PCC = {prefill_pcc:.6f} (required {required_pcc}), "
             f"rel_l2 = {prefill_rel_l2:.6e}"
         )
@@ -285,9 +286,46 @@ def run_llm_pcc_e2e(
     decode_rel_l2 = compute_rel_l2(cpu_output_logits[-1][0], output_logits[-1][0])
     results["decode_pcc"] = decode_pcc
     results["decode_rel_l2"] = decode_rel_l2
-    logger.info(
+    print(
         f"Decode PCC = {decode_pcc:.6f} (required {required_pcc}), "
         f"rel_l2 = {decode_rel_l2:.6e}"
+    )
+
+    # ------------------------------------------------------------------
+    # Human-readable host vs device outputs (predicted tokens -> text).
+    # The batch is the prompt tiled batch_size times (identical rows), so row 0
+    # is representative. "next token" at a step = argmax of the last position.
+    # Printed before the asserts so the outputs are visible even on a PCC failure.
+    # ------------------------------------------------------------------
+    def _next_token(step_logits):
+        tid = int(step_logits[0, -1, :].to(torch.float32).argmax(dim=-1).item())
+        return tid, tokenizer.decode([tid])
+
+    print(
+        f"[{display_name}] outputs (HOST=CPU reference, DEVICE=tt); "
+        f"input prompt (tiled x{batch_size}): {DEFAULT_INPUT_PROMPT!r}"
+    )
+    host_prefill_txt = device_prefill_txt = ""
+    if not decode_only:
+        h_id, host_prefill_txt = _next_token(cpu_output_logits[0])
+        d_id, device_prefill_txt = _next_token(output_logits[0])
+        print(
+            f"  PREFILL next-token  HOST: id={h_id} {host_prefill_txt!r}   "
+            f"DEVICE: id={d_id} {device_prefill_txt!r}   match={h_id == d_id}"
+        )
+    h_id2, host_decode_txt = _next_token(cpu_output_logits[-1])
+    d_id2, device_decode_txt = _next_token(output_logits[-1])
+    print(
+        f"  DECODE  next-token  HOST: id={h_id2} {host_decode_txt!r}   "
+        f"DEVICE: id={d_id2} {device_decode_txt!r}   match={h_id2 == d_id2}"
+    )
+    print(
+        "  HOST   text: "
+        f"{(DEFAULT_INPUT_PROMPT + host_prefill_txt + host_decode_txt)!r}"
+    )
+    print(
+        "  DEVICE text: "
+        f"{(DEFAULT_INPUT_PROMPT + device_prefill_txt + device_decode_txt)!r}"
     )
 
     if not decode_only:
@@ -298,7 +336,7 @@ def run_llm_pcc_e2e(
         decode_pcc >= required_pcc
     ), f"Decode PCC failed: {decode_pcc:.6f} < {required_pcc}"
 
-    logger.info(
+    print(
         f"[{display_name}] device-vs-host PCC PASSED "
         f"(prefill={results.get('prefill_pcc', 'n/a')}, decode={decode_pcc:.6f})"
     )
