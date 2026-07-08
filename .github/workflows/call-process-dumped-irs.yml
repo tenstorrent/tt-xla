@@ -94,6 +94,9 @@ jobs:
           done
           shopt -u nullglob
 
+          echo "=== Removing .ttnn files from collected_irs ==="
+          find collected_irs -type f -name "*.ttnn" -print -delete
+
           time_per_job=${{ inputs.target_time_min }}
           target_job_seconds=$((time_per_job * 60))
           model_filter="${{ inputs.model_filter }}"
@@ -197,6 +200,9 @@ jobs:
             fi
           done
           shopt -u nullglob
+
+          echo "=== Removing .ttnn files from collected_irs ==="
+          find collected_irs -type f -name "*.ttnn" -print -delete
 
       - name: Verify downloaded IRs
         shell: bash
