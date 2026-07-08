@@ -398,6 +398,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if resolved_min_num_reqs is None:
             resolved_min_num_reqs = self.max_num_reqs
         self.min_num_reqs = resolved_min_num_reqs
+        # Prefill graphs compile at this batch shape; decode always uses
+        # max_num_reqs. Defaults to max_num_reqs when not configured so
+        # the feature is a transparent no-op unless explicitly enabled.
+        self.max_prefill_num_reqs = (
+            self.tt_config.max_prefill_num_seqs
+            if self.tt_config.max_prefill_num_seqs is not None
+            else self.max_num_reqs
+        )
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -569,7 +577,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self._input_ids_dev = {
             (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
             for num_tokens in self.num_tokens_paddings
         }
         self._position_ids_dev = {
@@ -581,30 +593,50 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ),
                 torch.int32,
             )
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
             for num_tokens in self.num_tokens_paddings
         }
         self._logits_indices_dev = {
             num_reqs: _alloc_dev((num_reqs,), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
         }
         self._page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._fill_page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._cache_position_dev_max = {
             num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         # Chunked-prefill prefix offset: persistent [1] int32 dev buffer so the
         # value can change per step under a captured trace without recompiling.
@@ -633,7 +665,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Fail fast at startup if any per-step buffer can't be looked up by a
         # row count _prepare_inputs will request (before SMEM clamping).
-        _reachable_num_reqs = {self.min_num_reqs, self.max_num_reqs}
+        _reachable_num_reqs = {
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            self.max_num_reqs,
+        }
         for _name, _keys in {
             "input_ids": {k[0] for k in self._input_ids_dev},
             "position_ids": {k[0] for k in self._position_ids_dev},
@@ -706,6 +742,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.batch_idx_max_reqs = torch.arange(
             self.max_num_reqs, dtype=torch.int32, device="cpu"
         ).to(self.device)
+        # Reuse max tensor when prefill ceiling == decode ceiling; allocate a
+        # separate tensor when max_prefill_num_reqs < max_num_reqs so the
+        # traced graph sees the correct (smaller) batch dimension.
+        self.batch_idx_max_prefill_reqs = (
+            self.batch_idx_max_reqs
+            if self.max_prefill_num_reqs == self.max_num_reqs
+            else torch.arange(
+                self.max_prefill_num_reqs, dtype=torch.int32, device="cpu"
+            ).to(self.device)
+        )
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1159,6 +1205,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 end_index = num_reqs
 
+        # Reconcile with the prefill row cap: if this is a prefill pass (any
+        # request has > 1 scheduled token) and the SMEM-trimmed batch still
+        # exceeds max_prefill_num_reqs, trim again. The multi-pass loop
+        # (start_index → end_index in sample_tokens) then picks up the
+        # remaining requests on the next iteration.
+        # Decode passes (all tokens == 1) always run at max_num_reqs and are
+        # not subject to this cap.
+        _prefill_cap = self.max_prefill_num_reqs
+        if (
+            len(num_scheduled_tokens_per_req) > _prefill_cap
+            and max(num_scheduled_tokens_per_req) > 1
+        ):
+            num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:_prefill_cap]
+            end_index = start_index + _prefill_cap
+
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -1170,7 +1231,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         actual_num_reqs = num_reqs
 
         # Decode always runs with max request shape. For prefill, keep runtime
-        # request shape aligned with warmup by selecting min or max bucket.
+        # request shape aligned with warmup by selecting min or max prefill bucket.
         is_decode_step = max_num_scheduled_tokens_all_reqs == 1
         if is_decode_step:
             target_num_reqs = self.max_num_reqs
@@ -1178,7 +1239,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             target_num_reqs = (
                 self.min_num_reqs
                 if actual_num_reqs <= self.min_num_reqs
-                else self.max_num_reqs
+                else self.max_prefill_num_reqs
             )
 
         # Compute the padded total number of scheduled tokens so that all requests
@@ -1372,7 +1433,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         batch_idx = (
             self.batch_idx_min_reqs
             if target_num_reqs == self.min_num_reqs
-            else self.batch_idx_max_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if target_num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
         )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
@@ -2207,7 +2272,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         batch_idx = (
             self.batch_idx_min_reqs
             if num_reqs == self.min_num_reqs
-            else self.batch_idx_max_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
         )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
@@ -2332,7 +2401,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             num_tokens, dtype=torch.int32, device="cpu"
                         )
                         # Align placeholders and actual num mm_embeddings.
-                        placeholders_ids[:items_size] = hf_config.image_token_index
+                        # `image_token_id` was renamed from `image_token_index`;
+                        # fall back to the old name for configs that use it.
+                        image_token_id = getattr(
+                            hf_config,
+                            "image_token_id",
+                            getattr(hf_config, "image_token_index", None),
+                        )
+                        assert image_token_id is not None, (
+                            "hf_config has neither image_token_id nor "
+                            "image_token_index"
+                        )
+                        placeholders_ids[:items_size] = image_token_id
 
                         placeholders_ids = placeholders_ids.to(self.device)
 
@@ -2462,7 +2542,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"decode_only is set, only compiling decode path with num_tokens=1"
             )
 
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
+        num_reqs_options = sorted(
+            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs}
+        )
 
         # Compile the cached-prefix (chunked SDPA op) graph in addition to the
         # standard one, but only when the op is usable; otherwise the first
@@ -2504,6 +2586,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
                 logger.debug(
                     f"Skipping config={config} because decode path only supports max_num_reqs={self.max_num_reqs}"
+                )
+                continue
+            if (
+                config["num_tokens"] != 1
+                and config["num_reqs"] > self.max_prefill_num_reqs
+            ):
+                logger.debug(
+                    f"Skipping config={config} because prefill is capped at max_prefill_num_reqs={self.max_prefill_num_reqs}"
                 )
                 continue
 
@@ -2585,7 +2675,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         batch_idx = (
             self.batch_idx_min_reqs
             if num_reqs == self.min_num_reqs
-            else self.batch_idx_max_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
         )
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
@@ -2896,9 +2990,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 torch_xla.sync()
 
         # Largest-first, as in _precompile_model_fused, to avoid fragmentation (#5522).
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs}, reverse=True)
+        num_reqs_options = sorted(
+            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs},
+            reverse=True,
+        )
         for warmup_num_reqs in num_reqs_options:
             for num_tokens in reversed(self.num_tokens_paddings):
+                # Decode (num_tokens == 1) only at max_num_reqs; prefill capped
+                # at max_prefill_num_reqs to match _precompile_model_fused.
+                if num_tokens == 1 and warmup_num_reqs != self.max_num_reqs:
+                    continue
+                if num_tokens != 1 and warmup_num_reqs > self.max_prefill_num_reqs:
+                    continue
                 _run_backbone_dummies(num_tokens, warmup_num_reqs, prefix_chunk=False)
                 # Precompile the cached-prefix graph for prompt chunks
                 # (num_tokens > 1) so it isn't compiled on the first continuation.

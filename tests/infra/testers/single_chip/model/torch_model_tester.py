@@ -145,6 +145,7 @@ class TorchModelTester(ModelTester):
             kwargs=kwargs,
             mesh=self._get_mesh(),
             shard_spec_fn=self._get_shard_specs_function(),
+            activation_shard_spec_fn=self._get_activation_shard_spec_function(),
         )
 
         if self._parallelism == Parallelism.TENSOR_PARALLEL:
@@ -398,6 +399,7 @@ class TorchModelTester(ModelTester):
                 "export_path": emitpy_export_path,
                 "export_tensors": "true",
                 "dry_run": "false",
+                "target_module": "true",
             }
             torch_xla.set_custom_compile_options(emitpy_options)
 
