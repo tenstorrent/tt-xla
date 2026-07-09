@@ -1,0 +1,9 @@
+########## [1/4 14:11:17] COMPONENT PCC (6 variants) ##########
+[1] components exit: 0
+########## [2/4 14:25:06] DECODE RECOMPILE ASSERT ##########
+[2] decode exit: 0
+########## [3/4 14:26:50] E2E PIPELINE ##########
+[3] e2e exit: 0
+########## [4/4 14:31:16] BENCHMARK (gpt_decode) ##########
+[4] bench exit: 0
+########## ALL DONE 14:32:17 ##########
