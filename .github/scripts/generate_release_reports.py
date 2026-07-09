@@ -166,7 +166,9 @@ for perf_file, architecture in PERF_SOURCES:
 
 
 # Drop vLLM entries
-perf_data = [r for r in perf_data if "vllm" not in (r.get("Display name") or "").lower()]
+perf_data = [
+    r for r in perf_data if "vllm" not in (r.get("Display name") or "").lower()
+]
 
 # Keep the tables ordered by model name. Python's sort is stable, so rows that
 # share a model name keep their source order (n150 before p150).
