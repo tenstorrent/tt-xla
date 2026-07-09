@@ -191,6 +191,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        dp_size: int = 1,
         chunk_start_idx: torch.Tensor | None = None,
         batch_idx: torch.Tensor | None = None,
         num_users: Optional[int] = None,
@@ -202,6 +203,9 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        # Number of batch shards; used by paged_fill_cache to rebase batch_idx
+        # into per-shard local ids.
+        self.dp_size = dp_size
         self.chunk_start_idx = chunk_start_idx
         self.num_users = num_users
         self.batch_idx = batch_idx
@@ -493,9 +497,16 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # batch_idx is now built on CPU at setup time (#5154, done upstream)
+            # and passed via metadata rather than constructed in-graph per call.
             batch_idxs = attn_metadata.batch_idx
             assert batch_idxs is not None, "batch_idx must be provided for prefill."
-
+            # paged_fill_cache expects batch_idx local to each batch shard, but
+            # it's sharded — so % local_batch rebases it to local ids (no-op
+            # when dp_size == 1).
+            if attn_metadata.dp_size > 1:
+                local_batch = key_for_update.shape[0] // attn_metadata.dp_size
+                batch_idxs = batch_idxs % local_batch
             k_cache = torch.ops.tt.paged_fill_cache(
                 k_cache,
                 key_for_update,
