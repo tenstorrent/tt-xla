@@ -29,15 +29,6 @@ import gc
 import pytest
 import vllm
 
-# bf16 query over a bfp8 KV cache trips the un-relaxed TTIR
-# PagedScaledDotProductAttentionDecodeOp verifier at engine warmup. The TTNN
-# verifier already allows it (tt-mlir #8668); the TTIR one was never mirrored.
-# Fix tracked in tt-mlir #8988; un-xfail once it lands and is pinned.
-_BFP8_KV_XFAIL = pytest.mark.xfail(
-    reason="bf16 query over bfp8 KV cache trips TTIR SDPA decode verifier (tt-mlir #8988)",
-    strict=True,
-)
-
 
 def _shutdown(llm) -> None:
     """Release the TT device before the next engine is built.
@@ -115,7 +106,6 @@ def _generate(max_num_batched_tokens: int) -> str:
     return text, token_ids
 
 
-@_BFP8_KV_XFAIL
 @pytest.mark.nightly
 @pytest.mark.single_device
 def test_chunked_prefill_matches_single_chunk():
@@ -155,7 +145,6 @@ def test_chunked_prefill_matches_single_chunk():
     )
 
 
-@_BFP8_KV_XFAIL
 @pytest.mark.nightly
 @pytest.mark.single_device
 def test_chunk_budget_decoupled_from_max_model_len():
