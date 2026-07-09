@@ -11,7 +11,6 @@ from conftest import (
 )
 
 
-@pytest.mark.skip
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
@@ -31,6 +30,7 @@ def test_tensor_parallel_generation_n300(model_name: str):
             "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
