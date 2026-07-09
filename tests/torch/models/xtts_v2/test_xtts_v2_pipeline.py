@@ -8,7 +8,7 @@ Drives the full ``Xtts.inference`` path with every learned nn.Module on TT via
 the reusable pipeline in
 ``third_party/tt_forge_models/xtts_v2/pytorch/pipeline.py`` (speaker encoder +
 conditioning + GPT decode loop + GPT latents + HiFi-GAN, chained on device; only
-the STFT/mel front-ends, tokenizer and token sampling stay on CPU). Mirrors the
+the mel front-ends, tokenizer and token sampling stay on CPU). Mirrors the
 SDXL-Lightning e2e test: run the pipeline and assert the output artifact is valid
 (a finite, non-empty 24 kHz waveform), rather than a full-waveform PCC — the e2e
 PCC vs CPU is low (~0.35, tracked in #5117) and not the property under test here.
