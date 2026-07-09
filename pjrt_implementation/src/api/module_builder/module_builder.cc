@@ -1005,8 +1005,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
   }
 
-  options.enableFusingConv2dWithMultiplyPattern =
-      compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
       compile_options.experimental_enable_permute_matmul_fusion;
 
