@@ -75,6 +75,12 @@ jobs:
         shell: bash
         run: |
           echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
+          artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
+            "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
+          # Check if any artifacts match the pattern "ir-dumps-*"
+          art_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
+          echo "Found $art_count artifacts matching 'ir-dumps-*'"
+
           # Get artifacts for this run
           echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
           gh run download ${{ inputs.dumped_irs_run_id }} \
@@ -82,6 +88,7 @@ jobs:
             --pattern "ir-dumps-*" \
             --dir collected_irs
 
+          echo "Downloaded collected_irs: $(find collected_irs -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
           echo "Matched model names:"
           find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' | sort -u | grep '${{ inputs.model_filter }}' || true
 
@@ -238,12 +245,12 @@ jobs:
             --folder=collected_irs \
             --ir-file-prefix="irs/shlo_compiler" \
             --json-report \
-            --json-report-file=op_by_op_report.json
+            --json-report-file=op_by_op_report-${{ job.check_run_id }}.json
 
       - name: Upload op-by-op test report
         uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: op-by-op-report-${{ matrix.job_index }}-${{ job.check_run_id }}
-          path: op_by_op_report.json
+          path: op_by_op_report-${{ job.check_run_id }}.json
           if-no-files-found: 'warn'
