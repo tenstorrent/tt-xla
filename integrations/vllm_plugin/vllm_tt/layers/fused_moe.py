@@ -26,54 +26,43 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+from vllm.model_executor.layers.fused_moe.oracle.unquantized import (
+    UnquantizedMoeBackend,
+)
+from vllm.model_executor.layers.fused_moe.unquantized_fused_moe_method import (
+    UnquantizedFusedMoEMethod,
+)
 
 
-# Monkey-patch UnquantizedFusedMoEMethod to handle is_monolithic safely.
-# In vLLM 0.20.2, experts_cls can be None, which causes is_monolithic access to fail.
-def _patch_unquantized_moe_method():
-    try:
-        from vllm.model_executor.layers.fused_moe.oracle.unquantized import (
-            UnquantizedMoeBackend,
-        )
-        from vllm.model_executor.layers.fused_moe.unquantized_fused_moe_method import (
-            UnquantizedFusedMoEMethod,
-        )
+class TTUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+    """TT-scoped override for unquantized FusedMoE method behavior.
 
-        # Override is_monolithic/apply_monolithic to handle missing kernel
-        # state on OOT paths (e.g. experts_cls=None, moe_kernel=None).
-        original_apply_monolithic = UnquantizedFusedMoEMethod.apply_monolithic
+    Keeps the fallback logic local to TT FusedMoE instances instead of
+    monkey-patching vLLM globally.
+    """
 
-        @property
-        def safe_is_monolithic(self):
-            # Escape hatch for CPU, which stays on the old monolithic path.
-            if self.unquantized_backend == UnquantizedMoeBackend.CPU:
-                return True
-            # If the modular kernel was not initialized, force monolithic mode
-            # and let apply_monolithic route to the TT layer fallback.
-            if self.moe_kernel is None:
-                return True
-            return self.moe_kernel.is_monolithic
+    @property
+    def is_monolithic(self) -> bool:
+        # Escape hatch for CPU, which stays on the old monolithic path.
+        if self.unquantized_backend == UnquantizedMoeBackend.CPU:
+            return True
+        # If the modular kernel was not initialized, force monolithic mode and
+        # let apply_monolithic route to the TT layer fallback.
+        if self.moe_kernel is None:
+            return True
+        return self.moe_kernel.is_monolithic
 
-        def safe_apply_monolithic(self, layer, x, router_logits, input_ids=None):
-            if (
-                self.unquantized_backend != UnquantizedMoeBackend.CPU
-                and self.moe_kernel is None
-            ):
-                # TTFusedMoE exposes forward_native(hidden_states, router_logits)
-                # that does routing + experts in a TT-friendly way without
-                # relying on vLLM's internal moe kernel object.
-                if hasattr(layer, "forward_native"):
-                    return layer.forward_native(x, router_logits)
-            return original_apply_monolithic(self, layer, x, router_logits, input_ids)
-
-        UnquantizedFusedMoEMethod.is_monolithic = safe_is_monolithic
-        UnquantizedFusedMoEMethod.apply_monolithic = safe_apply_monolithic
-    except Exception:
-        # If patching fails, continue without it
-        pass
-
-
-_patch_unquantized_moe_method()
+    def apply_monolithic(self, layer, x, router_logits, input_ids=None):
+        if (
+            self.unquantized_backend != UnquantizedMoeBackend.CPU
+            and self.moe_kernel is None
+            and hasattr(layer, "forward_native")
+        ):
+            # TTFusedMoE exposes forward_native(hidden_states, router_logits)
+            # that does routing + experts in a TT-friendly way without
+            # relying on vLLM's internal moe kernel object.
+            return layer.forward_native(x, router_logits)
+        return super().apply_monolithic(layer, x, router_logits, input_ids)
 
 
 @CustomOp.register_oot(name="FusedMoE")
@@ -82,6 +71,28 @@ class TTFusedMoE(FusedMoE):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Use a TT-scoped quant method override rather than monkey-patching
+        # UnquantizedFusedMoEMethod globally.
+        if isinstance(self.quant_method, UnquantizedFusedMoEMethod) and not isinstance(
+            self.quant_method, TTUnquantizedFusedMoEMethod
+        ):
+            tt_method = TTUnquantizedFusedMoEMethod(self.moe_config)
+
+            # Preserve runtime state initialized by vLLM on the original method.
+            for attr in (
+                "moe_kernel",
+                "moe_quant_config",
+                "cpu_fused_moe",
+                "unquantized_backend",
+                "experts_cls",
+            ):
+                if hasattr(self.quant_method, attr):
+                    setattr(tt_method, attr, getattr(self.quant_method, attr))
+
+            self.quant_method = tt_method
+            self.base_quant_method = tt_method
+            self.runner.quant_method = tt_method
 
         # Avoid the generic vLLM custom-op trampoline (`vllm.moe_forward*`) in
         # TT torch-xla compile, which can hit functionalization fallback asserts
