@@ -58,6 +58,16 @@ class TTConfig:
     # If unset, it resolves to scheduler_config.max_num_seqs.
     min_num_seqs: Optional[int] = None
 
+    # Maximum request-batch size for *prefill* compilation and tracing.
+    # When set to a value smaller than max_num_seqs, prefill graphs compile
+    # and trace at this batch shape instead of max_num_seqs. With
+    # enable_trace=True, each traced bucket keeps its peak activations
+    # resident in DRAM; capping prefill here is the primary knob for
+    # reducing prefill DRAM footprint. Decode is unaffected (always
+    # compiles at max_num_seqs). Must satisfy min_num_seqs <=
+    # max_prefill_num_seqs <= max_num_seqs. Defaults to max_num_seqs.
+    max_prefill_num_seqs: Optional[int] = None
+
     # b1-prefill batch threshold. When <= this many prefills are
     # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
     # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
@@ -155,9 +165,17 @@ class TTConfig:
     use_2d_mesh: bool = True
 
     # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
-    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # execution. When None, use_2d_mesh / parallel_mode determine the shape.
     # When set, it overrides use_2d_mesh.
     mesh_shape: Optional[list[int]] = None
+
+    # When True, weight partition specs include the "batch" (DP) axis —
+    # FSDP-style sharding that saves memory at the cost of extra communication.
+    # When False (default), weights are sharded only on the "model" (TP) axis
+    # and replicated across DP replicas (classic DP+TP), which incurs fewer
+    # CCLs. Enable batch-axis sharding only for models that otherwise don't fit
+    # on a machine.
+    shard_weights_on_batch_axis: bool = False
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
@@ -316,18 +334,40 @@ class TTPlatform(Platform):
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
-        if tt_config.min_num_seqs is None:
-            additional_config["min_num_seqs"] = (
-                vllm_config.scheduler_config.max_num_seqs
+
+        max_num_seqs = vllm_config.scheduler_config.max_num_seqs
+
+        # Resolve/validate max_prefill_num_seqs first so min_num_seqs can default to it.
+        if tt_config.max_prefill_num_seqs is None:
+            additional_config["max_prefill_num_seqs"] = max_num_seqs
+            tt_config.max_prefill_num_seqs = additional_config["max_prefill_num_seqs"]
+        elif tt_config.max_prefill_num_seqs < 1:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= 1 for the TT backend."
             )
+        elif tt_config.max_prefill_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # Resolve/validate min_num_seqs after max_prefill_num_seqs.
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = tt_config.max_prefill_num_seqs
             tt_config.min_num_seqs = additional_config["min_num_seqs"]
         elif tt_config.min_num_seqs < 1:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
             )
-        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+        elif tt_config.min_num_seqs > max_num_seqs:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        if tt_config.max_prefill_num_seqs < tt_config.min_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= min_num_seqs "
                 "for the TT backend."
             )
 
