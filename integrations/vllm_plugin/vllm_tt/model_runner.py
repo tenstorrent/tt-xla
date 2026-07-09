@@ -1560,7 +1560,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # keeps attn_mask None and the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
         is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
-        if padded_total_num_scheduled_tokens > 1 and not is_cold_prefill:
+        # Data parallel has no masked cached-prefix prefill graph (see
+        # _precompile_model_fused); keep it on the cold / direct SDPA path.
+        if (
+            padded_total_num_scheduled_tokens > 1
+            and not is_cold_prefill
+            and not self.enable_data_parallel
+        ):
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
             # Mask batch must equal the query batch (target_num_reqs, the
             # request-count bucket) -- not the fixed max -- else SDPA asserts
@@ -2383,8 +2389,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Match runtime: prefill buckets carry a constant-shape attn_mask so
         # the traced graph picks up the SDPA-with-mask code path; decode
         # bucket (num_tokens=1) leaves mask=None and uses the decode kernel.
+        # Data parallel stays on the cold / direct SDPA path (no masked graph).
         attn_mask = None
-        if num_tokens > 1:
+        if num_tokens > 1 and not self.enable_data_parallel:
             attn_mask = _build_prefill_attn_mask(
                 num_computed=np.zeros(num_reqs, dtype=np.int32),
                 suffix_len=num_tokens,
@@ -2685,8 +2692,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (attn_mask set -> full-slab gather). Warm both so a warm cache hit
         # never recompiles mid-serving (the #5132 trigger). Cold applies only
         # to prefill buckets and never combines with prefix_chunk (chunked
-        # implies a cached prefix, i.e. not cold).
-        cold_options = [True, False]
+        # implies a cached prefix, i.e. not cold). Data parallel has no masked
+        # cached-prefix prefill graph (see _prepare_inputs), so warm cold only.
+        cold_options = [True] if self.enable_data_parallel else [True, False]
 
         configs = [
             {
@@ -2817,7 +2825,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_mask = None
-        if num_tokens > 1 and not cold:
+        if num_tokens > 1 and not cold and not self.enable_data_parallel:
             # Mask batch must match the dummy query batch (num_reqs). Clamp to
             # the max-model-len request bucket the buffers are keyed on.
             mask_num_reqs = min(num_reqs, self.num_reqs_max_model_len)
