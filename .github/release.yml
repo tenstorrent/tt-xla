@@ -4,10 +4,12 @@
 changelog:
   exclude:
     # Keep automated dependency/version uplift PRs out of "What's Changed".
-    # `uplift*` matches any label with the "uplift" prefix
-    # (uplift, uplift-mlir, uplift-forge-models, ...).
+    # NOTE: exclude.labels does NOT support glob/wildcards (only categories.labels
+    # does), so each uplift label must be listed explicitly by exact name.
     labels:
-      - "uplift*"
+      - "uplift"
+      - "uplift-mlir"
+      - "uplift-forge-models"
   categories:
     - title: What's Changed
       labels:
