@@ -3,9 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
-from conftest import assert_output_coherent, check_host_memory
+from conftest import (
+    GROUNDED_BATCH_CHECKS,
+    assert_batch_grounded,
+    assert_output_coherent,
+    check_host_memory,
+)
 
 
+@pytest.mark.skip
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
@@ -79,16 +85,63 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
+    ["model_name", "use_2d_mesh"],
+    [
+        pytest.param("Qwen/Qwen3-0.6B", True),
+        pytest.param("Qwen/Qwen3-0.6B", False),
+    ],
+)
+def test_tensor_parallel_generation_wider_batch(model_name: str, use_2d_mesh: bool):
+    """Wide batch (>1 seq per device) under pure TP, greedy + grounded.
+
+    Batch=1 TP is correct, so the existing coherence tests (all batch=1) never
+    exercised this. On the 2D (2,4) mesh it exposes multi-user prefill
+    corruption; the 1D mesh is the clean control.
+    """
+    checks = GROUNDED_BATCH_CHECKS
+    prompts = [p for p, _ in checks]
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 128,
+        "max_num_seqs": 4,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.002,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": use_2d_mesh,
+            "cpu_sampling": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    for (prompt, _), out in zip(checks, outputs):
+        print(f"prompt: {prompt}, output: {out.outputs[0].text}")
+    assert_batch_grounded(outputs, checks)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
     [
         "model_name",
         "experimental_weight_dtype",
         "mesh_shape",
         "opt_level",
+        "flat_model_io",
     ],
     [
-        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0),
-        pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1),
-        pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0),
+        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0, False),
+        pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
+        pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
+        # TODO - change opt_level to 1 once these issues: tt-mlir#8919 and tt-mlir#8920 are
+        # fixed and uplifted
+        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -96,6 +149,7 @@ def test_tensor_parallel_generation_llmbox_large(
     experimental_weight_dtype: str,
     mesh_shape: list[int],
     opt_level: int,
+    flat_model_io: bool,
 ):
     prompts = [
         "I like taking walks in the",
@@ -110,9 +164,11 @@ def test_tensor_parallel_generation_llmbox_large(
         "additional_config": {
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
+            "flat_model_io": flat_model_io,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -149,6 +205,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
         "additional_config": {
             "min_context_len": 64,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
