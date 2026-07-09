@@ -13,6 +13,7 @@ from vllm.model_executor.custom_op import PluggableLayer
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper
 from vllm.v1.attention.backend import AttentionBackend, AttentionLayer, MLAAttentionImpl
+from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
 
 from ..logger import tt_init_logger
 from .attention import TTAttentionMetadataBuilder, TTMetadata
@@ -21,6 +22,43 @@ if TYPE_CHECKING:
     from vllm.config import VllmConfig
 
 logger = tt_init_logger(__name__)
+
+
+class _TTNoopMLAPrefillBackend(MLAPrefillBackend):
+    """No-op MLA prefill backend used only to satisfy MLAAttention init on TT.
+
+    TT's OOT MLA path calls ``impl.forward(...)`` directly and does not use
+    vLLM's prefill backend object. This class prevents constructor-time backend
+    assertions on platforms where FlashAttention MLA prefill is unavailable.
+    """
+
+    @staticmethod
+    def get_name() -> str:
+        return "TT_NOOP_MLA_PREFILL"
+
+    def run_prefill_new_tokens(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        return_softmax_lse: bool,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        raise RuntimeError(
+            "TT no-op MLA prefill backend should not be executed. "
+            "TTMLAAttention routes prefill via TT ops directly."
+        )
+
+    def run_prefill_context_chunk(
+        self,
+        chunk_idx: int,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        raise RuntimeError(
+            "TT no-op MLA prefill backend should not be executed. "
+            "TTMLAAttention routes prefill via TT ops directly."
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -426,14 +464,24 @@ class TTMLAAttention(MLAAttention):
 @MultiHeadLatentAttentionWrapper.register_oot
 class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
     def __init__(self, *args, **kwargs):
+        import vllm.model_executor.layers.attention.mla_attention as _mla_attn_module
         import vllm.model_executor.layers.mla as _mla_module
 
         orig_cls = _mla_module.MLAAttention
+        orig_get_mla_prefill_backend = getattr(
+            _mla_attn_module, "get_mla_prefill_backend", None
+        )
         _mla_module.MLAAttention = TTMLAAttention
+        if orig_get_mla_prefill_backend is not None:
+            _mla_attn_module.get_mla_prefill_backend = (
+                lambda _vllm_config: _TTNoopMLAPrefillBackend
+            )
         try:
             super().__init__(*args, **kwargs)
         finally:
             _mla_module.MLAAttention = orig_cls
+            if orig_get_mla_prefill_backend is not None:
+                _mla_attn_module.get_mla_prefill_backend = orig_get_mla_prefill_backend
         logger.info(
             "[TT] Installed TTMLAAttention (prefix=%s) — MLA prefill uses "
             "torch.ops.tt.flash_mla_prefill; decode uses "
