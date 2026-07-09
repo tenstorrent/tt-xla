@@ -168,6 +168,7 @@ def pytest_collection_modifyitems(config, items):
     Also deselect tests explicitly marked with EXCLUDE_MODEL so they do not run.
     """
     arch = config.getoption("--arch")
+    emitpy = config.getoption("--emitpy")
 
     # Merge torch and jax test configs once outside the loop
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
@@ -181,7 +182,12 @@ def pytest_collection_modifyitems(config, items):
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
 
-        meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
+        # --emitpy runs prefix the id. Strip it so the
+        # config lookup matches the mode-agnostic YAML keys. emitpy=True then lets
+        # ModelTestConfig apply any emitpy_overrides on top of the base entry.
+        nodeid = nodeid.removeprefix("emitpy-")
+
+        meta = ModelTestConfig(combined_test_config.get(nodeid), arch, emitpy=emitpy)
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.
