@@ -108,8 +108,7 @@ def test_encoder(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running encoder benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -120,8 +119,7 @@ def test_encoder(
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_encoder_torch_xla(
         model=model,
@@ -495,6 +493,70 @@ def test_bge_m3(output_file, request):
         loop_count=32,
         optimization_level=0,
         required_pcc=0.97,
+    )
+
+
+def test_xtts_v2(output_file, request):
+    """Benchmark XTTS-v2 (coqui/XTTS-v2) — the GPT2 KV-cached decode step.
+
+    XTTS-v2 is a multilingual TTS model with no single traceable forward. Its
+    per-token audio-code decode step (``GptDecodeWrapper``) is the graph the
+    autoregressive loop reuses every token, so it is the throughput-determining
+    kernel — the closest single-forward analog to VibeVoice's LM-backbone step.
+    Benchmarking it through the generic encoder harness reports that step's
+    device throughput + PCC vs CPU. The model stays float32 (XTTS submodules do
+    not cast uniformly to bf16). The full e2e pipeline is covered functionally by
+    ``tests/torch/models/xtts_v2/test_xtts_v2_pipeline.py``; e2e-latency perf has
+    no shared harness yet and is tracked as a follow-up.
+
+    Needs the loader's ``coqui-tts`` + ``torchaudio`` deps (declared as ``pyreq``
+    in the perf matrix) and the CPML-gated weights (``COQUI_TOS_AGREED=1``).
+    """
+    import os
+
+    from third_party.tt_forge_models.xtts_v2.pytorch import ModelLoader, ModelVariant
+
+    os.environ.setdefault("COQUI_TOS_AGREED", "1")
+
+    def inputs_to_device(inputs, device):
+        """Move tensor entries to device; pass non-tensors through."""
+        return {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in inputs.items()
+        }
+
+    # XTTS stays float32 (mixed-dtype submodules); opt_level 0 matches the decode
+    # path the e2e pipeline runs (the layout optimizer can OOM with weights
+    # resident). One token per step, so the "sequence length" is 1.
+    data_format = "float32"
+    batch_size = 1
+
+    # Same loader instance backs both the model and the decode inputs.
+    loader = ModelLoader(variant=ModelVariant.GPT_DECODE)
+    model_info_name = loader.get_model_info().name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model()
+
+    load_inputs_fn = lambda batch_size: loader.load_inputs()
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    output_processor_fn = lambda out, inputs: out
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="xtts_v2_gpt_decode",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=1,
+        loop_count=32,
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.99,
     )
 
 

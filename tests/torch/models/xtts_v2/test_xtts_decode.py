@@ -2,33 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Standalone bring-up test for the XTTS-v2 autoregressive decode step.
+"""Standalone bring-up test for the XTTS-v2 autoregressive decode loop.
 
-The end-to-end pipeline (``examples/pytorch/xtts_pipeline.py``) drives the GPT2
-audio-token loop on TT with a pre-allocated HF ``StaticCache`` so the single
-decode graph compiles once and is reused every step (see the pipeline docstring).
-This test pins down the two properties that claim depends on, directly against
-the shipped ``GptCachedStep``:
+The e2e pipeline (``third_party/tt_forge_models/xtts_v2/pytorch/pipeline.py``)
+drives the GPT2 audio-token loop on TT with a pre-allocated HF ``StaticCache`` so
+the decode graph compiles once and is reused every step. This test asserts the two
+properties it relies on, against the shipped ``GptCachedStep``:
 
-    1. Correctness -- each decode step's logits match the same step run on CPU
-       (per-step PCC), i.e. the on-device KV-cached step is numerically faithful
-       to the eager CPU decode.
-    2. Single-compile -- running many decode steps does NOT recompile per step.
-       The compile count is flat from the second decode step onward (the first
-       decode step compiles the reused graph; every later step is a cache hit).
+    1. Correctness -- each decode step's logits match the same step on CPU
+       (per-step PCC).
+    2. Single-compile -- running many steps does NOT recompile per step; the
+       compile count is flat from the second decode step on (first step compiles
+       the graph, every later step is a cache hit).
 
-The component runner (``xtts_v2/pytorch-gpt_decode-single_device-inference``)
-PCC-checks one decode step in isolation; this test additionally exercises the
-*loop* to prove the no-recompile property, which a single fixed-shape forward
-cannot show.
+The runner (``xtts_v2/pytorch-gpt_decode-single_device-inference``) PCC-checks one
+decode step in isolation; this adds the *loop* and the no-recompile check, which a
+single fixed-shape forward cannot show.
 
 Skipped unless the optional ``coqui-tts`` / ``torchaudio`` deps, the CPML-gated
 weights, and a TT device are all available.
 """
 
-import importlib.util
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -58,17 +53,6 @@ def _pcc(a: torch.Tensor, b: torch.Tensor) -> float:
     if denom == 0:
         return float("nan")
     return float((va @ vb) / denom)
-
-
-def _load_example_module():
-    """Import ``examples/pytorch/xtts_pipeline.py`` (not a package) by path."""
-    path = _REPO_ROOT / "examples" / "pytorch" / "xtts_pipeline.py"
-    if str(_REPO_ROOT) not in sys.path:
-        sys.path.insert(0, str(_REPO_ROOT))
-    spec = importlib.util.spec_from_file_location("xtts_pipeline_example", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _run_decode_loop(decode_step, prefix_emb, cfg, start_token, n_steps, device):
@@ -198,7 +182,7 @@ def test_decode_step_matches_cpu_and_single_compiles(xtts):
     torch_xla = pytest.importorskip("torch_xla")
     import torch_xla.runtime as xr
 
-    example = _load_example_module()
+    from third_party.tt_forge_models.xtts_v2.pytorch.src.model import GptCachedStep
 
     loader = xtts
     model = loader._xtts
@@ -216,7 +200,7 @@ def test_decode_step_matches_cpu_and_single_compiles(xtts):
 
     # --- CPU golden ---
     cpu_logits, _ = _run_decode_loop(
-        example.GptCachedStep(model).eval(),
+        GptCachedStep(model).eval(),
         prefix_emb,
         cfg,
         start_token,
@@ -232,7 +216,7 @@ def test_decode_step_matches_cpu_and_single_compiles(xtts):
     import torch_xla.core.xla_model as xm
 
     tt_logits, compile_counts = _run_decode_loop(
-        example.GptCachedStep(model).eval(),
+        GptCachedStep(model).eval(),
         prefix_emb,
         cfg,
         start_token,

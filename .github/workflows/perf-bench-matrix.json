@@ -95,6 +95,12 @@
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
       },
       {
+        "name": "xtts_v2",
+        "pyreq": "coqui-tts torchaudio==2.10.0",
+        "pytest": "tests/benchmark/test_encoders.py::test_xtts_v2",
+        "runs-on": "n150-perf"
+      },
+      {
         "name": "vllm_bge_m3_encode_batch1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch1]",
         "vllm": true,
