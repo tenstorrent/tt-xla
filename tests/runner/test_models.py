@@ -77,6 +77,37 @@ test_entries_torch_regular = [
 all_test_entries = test_entries_torch_regular + test_entries_jax
 
 
+def pytest_generate_tests(metafunc):
+    """Give --emitpy runs of test_all_models_torch a distinct test id.
+
+    EmitPy runs do extra per-test work and their durations are significantly longer
+    than the normal run, so they need unique designators to differentiate them in
+    .test_durations (used for timeout estimation and split balancing). When --emitpy
+    is set we prefix the id with "emitpy". The prefix is stripped in
+    pytest_collection_modifyitems before looking up the (mode-agnostic) YAML config.
+
+    Only applies to functions that declare the emitpy_mode parameter (currently
+    just test_all_models_torch). The fixturenames guard keeps this a no-op for the
+    other functions in this module, which would otherwise error on parametrize.
+    """
+    if metafunc.config.getoption("--emitpy") and "emitpy_mode" in metafunc.fixturenames:
+        # Value is unused, only ids= affects the designator.
+        metafunc.parametrize("emitpy_mode", [None], ids=["emitpy"])
+
+
+@pytest.fixture
+def emitpy_mode(request):
+    """Fallback provider for the emitpy_mode argument on non-emitpy runs.
+
+    Tests that may run with the emitpy flag must declare emitpy_mode, so pytest
+    needs a value for it on every run. On --emitpy runs pytest_generate_tests
+    parametrizes it directly (and this fixture is bypassed). On normal runs it
+    isn't parametrized, so this supplies the default value. The value itself is
+    never read by the test.
+    """
+    return getattr(request, "param", None)
+
+
 def _run_model_test_impl(
     test_entry,
     run_mode: RunMode,
@@ -343,6 +374,7 @@ def test_all_models_torch(
     request,
     captured_output_fixture,
     clear_torchxla_computation_cache,
+    emitpy_mode,
 ):
     """PyTorch model test - delegates to shared implementation."""
     _run_model_test_impl(
