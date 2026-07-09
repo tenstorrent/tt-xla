@@ -95,7 +95,8 @@ test_config:
 
   yolov3/pytorch-Base-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "datasets.exceptions.DatasetGenerationError: An error occurred while generating the dataset, error in datasets"
     markers: ["extended"]
 
   yolov4/pytorch-Base-single_device-inference:
