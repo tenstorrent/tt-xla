@@ -502,8 +502,7 @@ def test_xtts_v2(output_file, request):
     XTTS-v2 is a multilingual TTS model with no single traceable forward. Its
     per-token audio-code decode step (``GptDecodeWrapper``) is the graph the
     autoregressive loop reuses every token, so it is the throughput-determining
-    kernel — the closest single-forward analog to VibeVoice's LM-backbone step.
-    Benchmarking it through the generic encoder harness reports that step's
+    kernel. Benchmarking it through the generic encoder harness reports that step's
     device throughput + PCC vs CPU. The model stays float32 (XTTS submodules do
     not cast uniformly to bf16). The full e2e pipeline is covered functionally by
     ``tests/torch/models/xtts_v2/test_xtts_v2_pipeline.py``.
