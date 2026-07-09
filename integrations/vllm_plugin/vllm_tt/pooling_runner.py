@@ -27,7 +27,9 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -1008,10 +1010,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1408,6 +1409,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.model.compile(backend="tt", dynamic=False)
         logger.info(f"Compiled model: \n{self.model}")
 
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
+
     def reload_weights(self) -> None:
         assert (
             getattr(self, "model", None) is not None
@@ -1466,10 +1472,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_users=num_reqs,
         )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
 
         with (
             self.maybe_select_dummy_loras(
@@ -1753,6 +1758,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _get_req_paddings(min_req_size: int, max_req_size: int) -> list[int]:
