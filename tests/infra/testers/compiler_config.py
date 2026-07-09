@@ -34,6 +34,12 @@ class CompilerConfig:
     # Enables experimental KV cache dtype override in MLIR optimizer passes.
     experimental_kv_cache_dtype: Optional[str] = None
 
+    # Enable activation dtype lowering around CCL ops (matmul -> reduce_scatter
+    # all_gather -> consumer). Pattern-matches Llama-style sub-graphs
+    # (O-proj+residual, MLP). Default off; flip on
+    # per-model after validating model accuracy doesn't degrade.
+    enable_activation_dtype_lowering: bool = False
+
     # Override math fidelity for all ttnn operations exposing compute kernel
     # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
     # "ttnn_default" - means that we don't override math_fidelity in comiler,
@@ -81,10 +87,6 @@ class CompilerConfig:
     # Only effective when optimization_level >= 1 (optimizer must be enabled)
     enable_create_d2m_subgraphs: bool = False
 
-    # Enable the all_reduce decomposition workaround which breaks all_reduce down
-    # into reduce_scatter + all_gather (or all_gather + local reduce).
-    all_reduce_workaround_enabled: bool = True
-
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -102,6 +104,9 @@ class CompilerConfig:
 
         if self.experimental_kv_cache_dtype is not None:
             options["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
+
+        if self.enable_activation_dtype_lowering:
+            options["enable_activation_dtype_lowering"] = "true"
 
         if self.math_fidelity is not None:
             options["math_fidelity"] = self.math_fidelity
@@ -137,9 +142,6 @@ class CompilerConfig:
                     f"is enabled, got optimization_level={self.optimization_level}"
                 )
             options["enable_create_d2m_subgraphs"] = "true"
-
-        if not self.all_reduce_workaround_enabled:
-            options["all_reduce_workaround_enabled"] = "false"
 
         return options
 
