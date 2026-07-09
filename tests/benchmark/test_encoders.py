@@ -506,8 +506,7 @@ def test_xtts_v2(output_file, request):
     Benchmarking it through the generic encoder harness reports that step's
     device throughput + PCC vs CPU. The model stays float32 (XTTS submodules do
     not cast uniformly to bf16). The full e2e pipeline is covered functionally by
-    ``tests/torch/models/xtts_v2/test_xtts_v2_pipeline.py``; e2e-latency perf has
-    no shared harness yet and is tracked as a follow-up.
+    ``tests/torch/models/xtts_v2/test_xtts_v2_pipeline.py``.
 
     Needs the loader's ``coqui-tts`` + ``torchaudio`` deps (declared as ``pyreq``
     in the perf matrix) and the CPML-gated weights (``COQUI_TOS_AGREED=1``).
