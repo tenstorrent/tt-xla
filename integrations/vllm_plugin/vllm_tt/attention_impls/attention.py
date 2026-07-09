@@ -277,7 +277,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         output: torch.Tensor | None = None,
         output_scale: torch.Tensor | None = None,
         output_block_scale: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+    ) -> None:
         """Forward pass with TT attention.
 
         Args:
@@ -288,16 +288,11 @@ class TTAttentionBackendImpl(AttentionImpl):
                     - now [2, batch_size, max_seq_len, num_kv_heads, head_size]
             attn_metadata: Metadata for attention.
         Returns:
+            Use pre-allocated output buffer to return the result.
             shape = [num_tokens, num_heads * head_size]
-
-        query/key/value/output tensors have additional dimension 'batch_size'
-        for batched inputs.
-            query: shape = [batch_size, num_tokens, num_heads * head_size]
-            key: shape = [batch_size, num_tokens, num_kv_heads * head_size]
-            value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
-            output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
         assert attn_metadata is not None, "TT attention requires metadata."
+        assert output is not None, "TT attention requires an output buffer."
         output_buffer = output
 
         # Prepare inputs and metadata
@@ -328,17 +323,14 @@ class TTAttentionBackendImpl(AttentionImpl):
                 inputs, kv_cache, attn_metadata
             )
 
-        # Reshape final output to match expected flattened shape [num_users*num_tokens, num_heads * head_size].
+        # Reshape final output to match vLLM expected flattened shape
+        # [num_users*num_tokens, num_heads * head_size].
         finalized_output = attn_output.reshape(-1, self.num_heads * self.head_size)
 
         # vLLM passes a preallocated output buffer and expects attention impls
-        # to materialize results into it. Returning only a new tensor makes the
-        # custom attention path look side-effect-free to FX and can be DCE'd.
-        if output_buffer is not None:
-            output_buffer.copy_(finalized_output.reshape_as(output_buffer))
-            return output_buffer
-
-        return finalized_output
+        # to materialize results into it.
+        output_buffer.copy_(finalized_output.reshape_as(output_buffer))
+        return
 
     def _normalize_to_attention_format(
         self,
