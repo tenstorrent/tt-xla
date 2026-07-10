@@ -14,6 +14,28 @@ from benchmarks.vllm_benchmark import (
 )
 from utils import resolve_display_name, sanitize_model_name
 
+
+def _accuracy_unsupported_reason(config, accuracy_testing):
+    """Return a skip reason if accuracy testing is unsupported for this config.
+
+    vLLM accuracy runs CPU-generate the HF reference on demand; for
+    tensor-parallel configs that means models up to 70B, which is infeasible on
+    the CI host. No TP accuracy entries exist in the CI matrix — TP accuracy is
+    covered by the custom test_llms.py jobs. Guard manual TP accuracy runs so
+    they fail with a clear message instead of hanging on a 70B CPU load.
+    """
+    if not accuracy_testing:
+        return None
+    if config.additional_config.get("enable_tensor_parallel", False):
+        return (
+            "vLLM tensor-parallel accuracy testing is not supported: it would "
+            "CPU-generate a multi-billion-parameter HF reference on the test "
+            "host. Use single-device vLLM accuracy, or the test_llms.py "
+            "tensor-parallel accuracy jobs."
+        )
+    return None
+
+
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
 # batch_size). CI re-runs the same matrix with different sampling
 # configs by setting these env vars (one knob per re-run):
@@ -290,13 +312,6 @@ def _run_vllm_benchmark(config, output_file, request, accuracy_testing=False):
         "export_model_name", sanitize_model_name(display_name)
     )
 
-    if accuracy_testing:
-        # Accuracy testing sends a 128-token prompt + 1 generated token = 129.
-        # vllm_tt precompiles at powers-of-2; 256 is the next power of 2 above
-        # 128, so the KV cache (8 blocks × 32 = 256) exactly covers the largest
-        # compile shape.
-        config.max_model_len = max(config.max_model_len, 256)
-
     results = benchmark_vllm(config, display_name, accuracy_testing=accuracy_testing)
 
     if output_file:
@@ -416,6 +431,9 @@ def test_vllm_benchmark(config, output_file, request, accuracy_testing):
 
 
 def test_vllm_tp_benchmark(config, output_file, request, accuracy_testing):
+    reason = _accuracy_unsupported_reason(config, accuracy_testing)
+    if reason:
+        pytest.skip(reason)
     _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 

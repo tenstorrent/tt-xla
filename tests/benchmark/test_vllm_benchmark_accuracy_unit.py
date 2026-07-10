@@ -36,3 +36,28 @@ def test_asserts_on_short_window():
     out = _make_output([{5: -0.1}, {7: -0.5}])
     with pytest.raises(AssertionError):
         _extract_decode_predictions(out, 3)
+
+
+from benchmarks.vllm_benchmark import VLLMBenchmarkConfig
+from test_vllm_benchmarks import _accuracy_unsupported_reason
+
+
+def test_guard_allows_single_device_accuracy():
+    cfg = VLLMBenchmarkConfig(model="Qwen/Qwen3-0.6B")
+    assert _accuracy_unsupported_reason(cfg, True) is None
+
+
+def test_guard_blocks_tensor_parallel_accuracy():
+    cfg = VLLMBenchmarkConfig(
+        model="meta-llama/Llama-3.1-70B-Instruct",
+        additional_config={"enable_tensor_parallel": True},
+    )
+    assert _accuracy_unsupported_reason(cfg, True) is not None
+
+
+def test_guard_noop_when_accuracy_disabled():
+    cfg = VLLMBenchmarkConfig(
+        model="meta-llama/Llama-3.1-70B-Instruct",
+        additional_config={"enable_tensor_parallel": True},
+    )
+    assert _accuracy_unsupported_reason(cfg, False) is None
