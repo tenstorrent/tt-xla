@@ -181,7 +181,8 @@ class Flux2Pipeline_TT:
         t0 = time.perf_counter()
         with torch.no_grad():
             prompt_embeds = te_compiled(input_ids.to(dev), attention_mask.to(dev))
-        torch_xla.sync()
+        # .cpu() forces execution and blocks until the embeds are on host, so it
+        # is the sync point that ends this component's timer.
         prompt_embeds = prompt_embeds.cpu()
         self._perf["components"]["text_encoder"] = time.perf_counter() - t0
 
