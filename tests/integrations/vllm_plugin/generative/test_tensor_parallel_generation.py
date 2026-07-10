@@ -180,7 +180,7 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
     ["model_name", "experimental_weight_dtype", "mesh_shape", "opt_level"],
-    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 0)],
+    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 1)],
 )
 def test_tensor_parallel_generation_galaxy_wh_6u_large(
     model_name: str,
@@ -220,6 +220,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 @pytest.mark.parametrize(
     ["mesh_shape", "opt_level"],
     [
+        # opt_level=1 exceeds the SDPA decode tree-reduction limit (tt-mlir#9007).
         pytest.param([1, 4], 0, marks=pytest.mark.bhqb),
         pytest.param([8, 4], 0, marks=pytest.mark.bh_galaxy),
     ],
