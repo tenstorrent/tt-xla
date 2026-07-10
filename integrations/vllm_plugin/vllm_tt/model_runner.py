@@ -112,6 +112,7 @@ from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
     prev_power_of_2,
+    teacher_forced_token,
 )
 
 
@@ -2074,8 +2075,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for i in discard_sampled_tokens_req_indices:
                 valid_sampled_token_ids[i].clear()
 
-            # Append sampled tokens
+            # Append sampled tokens. For accuracy runs, teacher-force the decode
+            # by overriding the sampled token with the reference ground-truth
+            # token (via SamplingParams.extra_args). The override happens AFTER
+            # gather_logprobs above, so `logprobs_lists` still carries the true
+            # device argmax (what accuracy scores), while the next decode input
+            # and recorded output become ground truth. No-op in production.
             for i, req_state, seq_len in request_seq_lens:
+                sampling_params = req_state.sampling_params
+                forced = teacher_forced_token(
+                    sampling_params.extra_args if sampling_params is not None else None,
+                    len(req_state.output_token_ids),
+                )
+                if forced is not None:
+                    valid_sampled_token_ids[i][0] = forced
                 token_id = valid_sampled_token_ids[i][0]
                 self.input_batch.token_ids_cpu[i, seq_len] = token_id
                 req_state.output_token_ids.append(token_id)
