@@ -164,6 +164,12 @@ for perf_file, architecture in PERF_SOURCES:
         r["Hardware"] = ARCHITECTURE_TO_HARDWARE[architecture]
     perf_data += rows
 
+
+# Drop vLLM entries
+perf_data = [
+    r for r in perf_data if "vllm" not in (r.get("Display name") or "").lower()
+]
+
 # Keep the tables ordered by model name. Python's sort is stable, so rows that
 # share a model name keep their source order (n150 before p150).
 perf_data.sort(key=lambda r: r["Model"])
