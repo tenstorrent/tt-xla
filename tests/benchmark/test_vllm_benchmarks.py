@@ -50,7 +50,10 @@ def _config(
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
-    fp32_dest_acc_en: bool | None = False,
+    # None => leave the compute-kernel-config knob unset so compiler
+    # can set the default value or leave it up to ttnn.
+    # Only set this deliberately, never as a frontend default.
+    fp32_dest_acc_en: bool | None = None,
     **additional_config_extra,
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
@@ -119,8 +122,8 @@ def _tp_config(
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
         optimization_level=optimization_level,
-        # Keep TP configs as-is: the single-device alignment defaults
-        # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
+        # Keep TP configs as-is: the single-device alignment default
+        # (bfp_bf8 weight dtype) does not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,

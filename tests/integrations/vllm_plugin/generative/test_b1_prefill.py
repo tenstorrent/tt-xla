@@ -80,7 +80,6 @@ def _make_engine() -> AsyncLLMEngine:
         "cpu_sampling": False,
         "optimization_level": 1,
         "enable_trace": False,  # prefill-focused; trace is a decode opt
-        "fp32_dest_acc_en": False,
         "num_hidden_layers": 1,  # single layer: nightly ~2 min; b1/b32 selection is depth-independent
         "min_num_seqs": 1,  # b1-prefill: also compile the [1, n] graph
         "prefill_batch_threshold": 16,  # route a burst of <=16 pending prefills to b1
