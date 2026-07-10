@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import vllm
+from llm_utils.token_accuracy import TokenAccuracy
 from utils import (
     align_arch,
     create_benchmark_result,
@@ -17,7 +18,13 @@ from utils import (
     print_benchmark_results,
 )
 
+# Accuracy testing: total reference sequence length. Split in half — the first
+# _ACCURACY_PREFILL_TOKENS are the prompt (prefill), the remaining tokens are
+# generated with teacher forcing and scored (decode). Prompt + generated =
+# _ACCURACY_TOTAL_LENGTH, which must fit max_model_len; 128 is a power of two so
+# no bump is needed (the KV cache covers it exactly).
 _ACCURACY_TOTAL_LENGTH = 128
+_ACCURACY_PREFILL_TOKENS = _ACCURACY_TOTAL_LENGTH // 2  # 64
 
 DEFAULT_PROMPT = (
     "Here is an exhaustive list of the best practices for writing clean code:"
@@ -229,17 +236,44 @@ def _assert_no_preemptions(llm: vllm.LLM):
     assert False, "vllm:num_preemptions metric not found in engine metrics."
 
 
+def _extract_decode_predictions(
+    output: vllm.RequestOutput, expected_count: int
+) -> List[int]:
+    """Per-step device argmax token ids from a teacher-forced accuracy run.
+
+    With teacher forcing, `output.outputs[0].token_ids` are the injected
+    ground-truth tokens, so the device's own predictions must be read from the
+    per-step sample logprobs (each step's highest-logprob token is the device
+    argmax). Asserts the full decode window is present so a backend that
+    silently drops logprobs fails loudly instead of reporting a false 0%
+    accuracy regression (PR review item #2).
+    """
+    step_logprobs = output.outputs[0].logprobs
+    assert step_logprobs is not None, (
+        "No decode logprobs returned; the vLLM backend must honor "
+        "SamplingParams(logprobs=1) for accuracy testing."
+    )
+    assert len(step_logprobs) == expected_count, (
+        f"Expected {expected_count} decode-step logprobs, got "
+        f"{len(step_logprobs)}. Backend returned an incomplete decode window."
+    )
+    predicted_tokens = []
+    for pos_logprobs in step_logprobs:
+        top1_token = max(pos_logprobs, key=lambda k: pos_logprobs[k].logprob)
+        predicted_tokens.append(top1_token)
+    return predicted_tokens
+
+
 def benchmark_vllm(
     config: VLLMBenchmarkConfig,
     display_name: str,
     accuracy_testing: bool = False,
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
-    from llm_utils.reference_generator import (
-        _REFERENCE_DIR,
-        generate_reference_outputs,
-    )
-    from llm_utils.token_accuracy import TokenAccuracy
+    # reference_generator is imported lazily: it transitively imports
+    # tt_torch / torch_xla via llm_utils.decode_utils, which we don't want to
+    # pull in at benchmark module-load time (only needed on .refpt regen).
+    from llm_utils.reference_generator import _REFERENCE_DIR, generate_reference_outputs
 
     token_accuracy = None
     if accuracy_testing:
@@ -261,15 +295,10 @@ def benchmark_vllm(
             )
             print(f"Reference generation complete: {output_file}")
 
-        # Bump max_model_len so the full 128-token prompt + 1 generated token fits.
-        # 256 is the next power of 2 above 128; vllm_tt precompiles at powers of 2
-        # so the KV cache (8 blocks × 32 = 256) exactly covers the largest shape.
-        config.max_model_len = max(config.max_model_len, 256)
-        half = _ACCURACY_TOTAL_LENGTH // 2
         token_accuracy = TokenAccuracy(
             model_name=model_name_for_accuracy,
-            max_prefill_tokens=half,
-            max_decode_tokens=half,
+            max_prefill_tokens=_ACCURACY_PREFILL_TOKENS,
+            max_decode_tokens=_ACCURACY_PREFILL_TOKENS,
         )
 
     llm = _create_llm(config)
@@ -348,40 +377,38 @@ def benchmark_vllm(
     evaluation_score = 0.0
 
     if accuracy_testing:
-        full_sequence = (
-            token_accuracy.input_prompt.tolist()
-            + token_accuracy.reference_tokens.tolist()
-        )
-        split_point = len(token_accuracy.input_prompt)
+        # Teacher-forced decode through vLLM: prompt with the prefill half, then
+        # generate the decode half. The vllm_tt runner overrides each sampled
+        # token with the ground-truth token (via extra_args), so every decode
+        # step sees the reference context — exactly like llm_benchmark.py. The
+        # device's own argmax per step survives in `logprobs` (gathered before
+        # the override), which is what we score. Prediction 0 comes from the
+        # prefill forward; predictions 1..N-1 come from the decode kernel.
+        input_prompt_tokens = token_accuracy.input_prompt.tolist()
+        ground_truth_tokens = token_accuracy.reference_tokens.tolist()
+        num_decode = len(ground_truth_tokens)
 
         accuracy_params = vllm.SamplingParams(
-            max_tokens=1,
+            max_tokens=num_decode,
             ignore_eos=True,
             temperature=0.0,
-            prompt_logprobs=5,
+            logprobs=1,
+            extra_args={"teacher_forcing_tokens": ground_truth_tokens},
         )
         print(
-            f"\nRunning accuracy test ({len(full_sequence)}-token sequence, "
+            f"\nRunning accuracy test (prompt={len(input_prompt_tokens)} tokens, "
+            f"teacher-forced decode={num_decode} tokens, "
             f"batch_size={config.batch_size})..."
         )
         accuracy_outputs = llm.generate(
-            [{"prompt_token_ids": full_sequence}] * config.batch_size,
+            [{"prompt_token_ids": input_prompt_tokens}] * config.batch_size,
             accuracy_params,
         )
 
         all_top1 = []
         all_top5 = []
         for output in accuracy_outputs:
-            prompt_logprobs = output.prompt_logprobs
-            predicted_tokens = []
-            for i in range(split_point, len(full_sequence)):
-                logprobs_at_pos = prompt_logprobs[i]
-                if logprobs_at_pos is None:
-                    continue
-                top1_token = max(
-                    logprobs_at_pos, key=lambda k: logprobs_at_pos[k].logprob
-                )
-                predicted_tokens.append(top1_token)
+            predicted_tokens = _extract_decode_predictions(output, num_decode)
             top1, top5 = token_accuracy.compute_accuracy(predicted_tokens)
             all_top1.append(top1)
             all_top5.append(top5)
