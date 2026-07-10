@@ -78,8 +78,8 @@ class _DeviceDenoiser:
         }
         t0 = time.perf_counter()
         out = self._compiled(**moved)
-        torch_xla.sync()
-        # cpu cast forces a sync — the timer ends after the result lands on host.
+        # .cpu() is the sync point: it forces the pending graph to execute and
+        # only returns once the result lands on host, so the timer ends there.
         if isinstance(out, (tuple, list)):
             result = type(out)(o.cpu() if torch.is_tensor(o) else o for o in out)
         else:
@@ -110,9 +110,10 @@ class _DeviceVAEDecoder:
                 lambda z: vae.decode(z, return_dict=False)[0], backend="tt"
             )
         t0 = time.perf_counter()
+        # .cpu() forces the graph to execute and blocks until the result is on
+        # host — the compiled lambda always returns a tensor, so no guard needed.
         out = self._compiled(latents.to(self._dev))
-        torch_xla.sync()
-        image = out.cpu() if torch.is_tensor(out) else out
+        image = out.cpu()
         self._perf["components"]["vae"] = time.perf_counter() - t0
         self.last_pixels = image
         return (image,)
