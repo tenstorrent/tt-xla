@@ -137,7 +137,8 @@ def test_tensor_parallel_generation_wider_batch(model_name: str, use_2d_mesh: bo
         pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
         # opt_level=1 produces garbage output (#4325).
         pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
-        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 1, True),
+        # opt_level=1 fails: MoE all_to_all_dispatch requires row-major layout (tt-mlir#8920).
+        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
