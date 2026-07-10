@@ -34,7 +34,7 @@ from vllm import AsyncEngineArgs, AsyncLLMEngine, SamplingParams
 from vllm.inputs import TokensPrompt
 from vllm.sampling_params import RequestOutputKind
 
-ISL = 1024  # b1 win grows with ISL
+ISL = 1000  # <=1023 so max_model_len can be 1024 -> 1024 token bucket (see _make_engine); b1 win grows with ISL
 SMALL = 8  # burst size (<= threshold -> the gap target)
 LARGE = 24  # batch size (> threshold -> stable b32 anchor)
 RAMP_MS = 100  # staggered inter-arrival
@@ -87,11 +87,13 @@ def _make_engine() -> AsyncLLMEngine:
     }
     args = AsyncEngineArgs(
         model="Qwen/Qwen3-8B",
-        # budget must cover max_model_len * max_num_seqs; small max_model_len keeps it cheap
-        max_model_len=2048,
-        max_num_batched_tokens=2048 * 32,
+        # max_model_len=1024 (not 2048) and gpu_memory_utilization=0.1 (not 0.3)
+        # keep the b_max prefill activation and KV reservation within N150 DRAM.
+        # See #5533 for the sizing rationale. (needs ISL <= 1023)
+        max_model_len=1024,
+        max_num_batched_tokens=1024 * 32,
         max_num_seqs=32,
-        gpu_memory_utilization=0.3,
+        gpu_memory_utilization=0.1,
         additional_config=additional_config,
     )
     return AsyncLLMEngine.from_engine_args(args)
