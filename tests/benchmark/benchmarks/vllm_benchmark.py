@@ -264,6 +264,28 @@ def _extract_decode_predictions(
     return predicted_tokens
 
 
+def _print_prediction_preview(
+    tokenizer, golden_ids: List[int], predicted_tokens: List[int], top1_accuracy: float
+) -> None:
+    """Print reference (golden) vs device per-position argmax as text.
+
+    Both token streams are teacher-forced per-position predictions (each is
+    "what the model's argmax was at position i given the ground-truth prefix"),
+    not autoregressive continuations. The fraction of matching tokens equals
+    TOP1, so this lets the reported TOP1 number be eyeballed against the text.
+    """
+    total = min(len(golden_ids), len(predicted_tokens))
+    matches = sum(
+        1 for g, p in zip(golden_ids[:total], predicted_tokens[:total]) if g == p
+    )
+    print(
+        f"\n  [accuracy preview] user 0: {matches}/{total} tokens match "
+        f"(TOP1={top1_accuracy*100:.2f}%)"
+    )
+    print(f"  [golden] {tokenizer.decode(golden_ids[:total])!r}")
+    print(f"  [device] {tokenizer.decode(predicted_tokens[:total])!r}")
+
+
 def benchmark_vllm(
     config: VLLMBenchmarkConfig,
     display_name: str,
@@ -405,13 +427,21 @@ def benchmark_vllm(
             accuracy_params,
         )
 
+        tokenizer = llm.get_tokenizer()
+        golden_ids = token_accuracy.top1_tokens.tolist()
         all_top1 = []
         all_top5 = []
-        for output in accuracy_outputs:
+        for user_idx, output in enumerate(accuracy_outputs):
             predicted_tokens = _extract_decode_predictions(output, num_decode)
             top1, top5 = token_accuracy.compute_accuracy(predicted_tokens)
             all_top1.append(top1)
             all_top5.append(top5)
+            # Visual sanity check on the first user: decode the reference
+            # (golden) per-position argmax vs the device per-position argmax.
+            # Both are teacher-forced predictions (not free-running text), so
+            # the fraction of matching tokens should roughly equal TOP1.
+            if user_idx == 0:
+                _print_prediction_preview(tokenizer, golden_ids, predicted_tokens, top1)
 
         all_top1 = np.array(all_top1)
         all_top5 = np.array(all_top5)
