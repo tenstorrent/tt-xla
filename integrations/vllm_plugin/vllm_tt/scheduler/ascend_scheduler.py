@@ -203,10 +203,21 @@ class AscendScheduler(Scheduler):
                 num_computed_tokens = (
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
-                assert num_computed_tokens <= request.num_tokens
+                assert num_computed_tokens <= request.num_tokens, (
+                    f"Invalid token accounting for request {request.request_id}: "
+                    f"computed={num_computed_tokens} "
+                    f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                    f"> total_tokens={request.num_tokens}"
+                )
 
                 if request.prefill_stats is not None:
-                    assert num_computed_tokens <= request.num_prompt_tokens
+                    assert num_computed_tokens <= request.num_prompt_tokens, (
+                        f"Invalid prefill token accounting for request {request.request_id}: "
+                        f"computed={num_computed_tokens} "
+                        f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                        f"> prompt_tokens={request.num_prompt_tokens} "
+                        f"(total_tokens={request.num_tokens})"
+                    )
                     request.prefill_stats.set(
                         num_prompt_tokens=request.num_prompt_tokens,
                         num_local_cached_tokens=num_new_local_computed_tokens,

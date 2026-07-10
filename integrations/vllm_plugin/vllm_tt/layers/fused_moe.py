@@ -94,9 +94,14 @@ class TTFusedMoE(FusedMoE):
             self.base_quant_method = tt_method
             self.runner.quant_method = tt_method
 
-        # Avoid the generic vLLM custom-op trampoline (`vllm.moe_forward*`) in
-        # TT torch-xla compile, which can hit functionalization fallback asserts
-        # when executed via FX interpreter during graph extraction.
+        # vLLM::MoERunner calling sequence:
+        # forward
+        # └── _forward_entry
+        #     └── vllm.moe_forward or vllm.moe_forward_shared (custom op)
+        #         └── _forward_impl
+        #
+        # Override the runner's custom-op entry point to dispatch directly to the
+        # TT MoE implementation.
         def _forward_entry_direct(
             hidden_states,
             router_logits,

@@ -330,7 +330,6 @@ class TTAttentionBackendImpl(AttentionImpl):
         # vLLM passes a preallocated output buffer and expects attention impls
         # to materialize results into it.
         output_buffer.copy_(finalized_output.reshape_as(output_buffer))
-        return
 
     def _normalize_to_attention_format(
         self,

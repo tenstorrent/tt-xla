@@ -321,7 +321,6 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             kv_cache.copy_(filled_cache)
 
         output.copy_(out)
-        return
 
     def _forward_decode(
         self,
@@ -383,7 +382,6 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # Reshape to vLLM's output contract: [tokens, N * V]
         out = out.reshape(users, self.num_heads * self.v_head_dim)
         output.copy_(out)
-        return
 
 
 class TTMLAAttention(MLAAttention):
