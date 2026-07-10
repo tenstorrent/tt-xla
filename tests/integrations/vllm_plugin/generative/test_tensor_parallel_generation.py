@@ -267,6 +267,7 @@ def test_tensor_parallel_generation_gemma4_31b(
 @pytest.mark.parametrize(
     ["model_name", "opt_level"],
     [
+        # opt_level=1 OOMs in the mm-encoder precompile (tt-mlir#9006).
         pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", 0),
         pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506", 0),
     ],
