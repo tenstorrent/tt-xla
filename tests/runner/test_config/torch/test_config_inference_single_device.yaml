@@ -775,13 +775,13 @@ test_config:
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8167537277595653. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING

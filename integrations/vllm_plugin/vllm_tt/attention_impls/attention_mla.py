@@ -153,7 +153,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         layer: "MLAAttention",
         output: Optional[torch.Tensor] = None,
         **kwargs,
-    ) -> torch.Tensor:
+    ) -> None:
         """MLA attention on TT (prefill and paged decode).
         Dispatches on token count per user: prefill (S > 1) attends against the
         freshly built local latent K via tt::flash_mla_prefill; decode (S == 1)
@@ -168,6 +168,9 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             output:      [tokens, num_heads * v_head_dim]   (write target)
         Returns the written output tensor.
         """
+        assert (
+            output is not None
+        ), "TTMLAAttentionBackendImpl.forward requires an output tensor."
         q_nope, q_pe = q
 
         is_prefill = self._infer_is_prefill(q_nope, attn_metadata)
@@ -213,7 +216,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         k_lat = torch.cat([kv_c.unsqueeze(2), k_pe_v], dim=-1)  # [b, S, 1, L+R]
 
         if is_prefill:
-            return self._forward_prefill(
+            self._forward_prefill(
                 q_lat,
                 k_lat,
                 kv_cache,
@@ -226,7 +229,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 output,
             )
         else:
-            return self._forward_decode(
+            self._forward_decode(
                 q_lat,
                 k_lat,
                 kv_cache,
@@ -267,7 +270,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> None:
         q_for_kernel = q_lat.transpose(1, 2).contiguous()  # [b, N, S, L+R]
         k_for_kernel = k_lat.transpose(1, 2).contiguous()  # [b, 1, S, L+R]
 
@@ -317,10 +320,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 )
             kv_cache.copy_(filled_cache)
 
-        if output is not None:
-            output.copy_(out)
-            return output
-        return out
+        output.copy_(out)
 
     def _forward_decode(
         self,
@@ -333,7 +333,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> None:
         """
         Paged MLA decode on TT (one token per user, S = 1).
         Shapes:
@@ -381,10 +381,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
 
         # Reshape to vLLM's output contract: [tokens, N * V]
         out = out.reshape(users, self.num_heads * self.v_head_dim)
-        if output is not None:
-            output.copy_(out)
-            return output
-        return out
+        output.copy_(out)
 
 
 class TTMLAAttention(MLAAttention):

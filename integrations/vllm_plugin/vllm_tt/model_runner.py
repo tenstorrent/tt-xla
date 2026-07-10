@@ -31,6 +31,9 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -2224,9 +2227,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Cache attention layer names so we don't rebuild the per-layer
         # attn_metadata dict every step.
-        attn_layers = get_layers_from_vllm_config(self.vllm_config, Attention)
-        attn_layers |= get_layers_from_vllm_config(self.vllm_config, MLAAttention)
-        self._attention_layer_names = tuple(attn_layers.keys())
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
 
     def reload_weights(self) -> None:
         assert (
@@ -3866,6 +3870,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _adjust_min_token(min_token_size: int) -> int:
