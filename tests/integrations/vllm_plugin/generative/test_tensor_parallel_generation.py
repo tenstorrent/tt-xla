@@ -182,7 +182,7 @@ def test_tensor_parallel_generation_llmbox_large(
     ["model_name", "experimental_weight_dtype", "mesh_shape", "opt_level"],
     [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 1)],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(
+def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     model_name: str,
     experimental_weight_dtype: str,
     mesh_shape: list[int],
@@ -318,7 +318,9 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
     ["model_name", "opt_level"],
     [pytest.param("mistralai/Pixtral-Large-Instruct-2411", 0)],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str, opt_level: int):
+def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(
+    model_name: str, opt_level: int
+):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
     messages = [
         {
