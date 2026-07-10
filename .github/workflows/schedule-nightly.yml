@@ -188,6 +188,105 @@ jobs:
           path: nightly-reports/
           retention-days: 90
 
+  # Runs the vllm-nightly-log Claude skill after nightly_tests finishes and
+  # publishes model generation outputs to this job's GitHub Actions summary
+  # (sidebar: "vLLM nightly model outputs"). Unlike torch/jax, pytest's
+  # test-summary does not surface vLLM generations — this fills that gap.
+  vllm-nightly-log-report:
+    name: "vLLM nightly model outputs"
+    needs: [ nightly_tests ]
+    if: always() && needs.nightly_tests.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Run vllm-nightly-log skill via Claude
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+        run: |
+          mkdir -p vllm-nightly-logs
+          # NOTE: `--allowed-tools` is variadic and would absorb the prompt arg;
+          # use `--` to terminate options before the positional prompt.
+          # `< /dev/null` suppresses the 3s stdin-wait warning when running headless.
+          claude --print \
+                 --permission-mode bypassPermissions \
+                 --model claude-opus-4-7 \
+                 --max-turns 30 \
+                 --allowed-tools "Bash(gh api:*),Bash(gh auth:*),Bash(gh run view:*),Bash(gh run list:*),Bash(python:*),Bash(python3:*),Bash(mkdir:*),Bash(ls:*),Read,Write,Glob,Grep" \
+                 -- \
+                 "$(cat <<'PROMPT'
+          Use the `vllm-nightly-log` skill at
+          `.claude/skills/vllm-nightly-log/SKILL.md` for nightly run ID
+          `${{ github.run_id }}`.
+
+          The run ID is already provided — do NOT ask for it. Skip the
+          interactive run-ID question and proceed immediately.
+
+          Read the SKILL.md and follow it exactly. The skill will:
+            - confirm `gh` auth
+            - run
+              `.claude/skills/vllm-nightly-log/scripts/extract_vllm_outputs.py`
+              with run ID `${{ github.run_id }}` and write the log to
+              `vllm-nightly-logs/vllm-nightly-${{ github.run_id }}.log`
+            - summarize how many vLLM jobs / outputs were captured
+
+          After the log file is written, stop. Do NOT post GitHub comments,
+          create issues, or modify any files outside `vllm-nightly-logs/`.
+          PROMPT
+          )" < /dev/null
+
+      - name: Append log to job summary
+        run: |
+          LOG="vllm-nightly-logs/vllm-nightly-${{ github.run_id }}.log"
+          if [ ! -f "$LOG" ]; then
+            # Skill default path if Claude wrote to cwd instead
+            ALT="vllm-nightly-${{ github.run_id }}.log"
+            if [ -f "$ALT" ]; then
+              mkdir -p vllm-nightly-logs
+              mv "$ALT" "$LOG"
+            else
+              echo "::error::No vLLM nightly log was produced for run ${{ github.run_id }}"
+              exit 1
+            fi
+          fi
+          {
+            echo "## vLLM nightly model outputs"
+            echo
+            echo "Produced by \`.claude/skills/vllm-nightly-log\` for run \`${{ github.run_id }}\`."
+            echo
+            echo '```text'
+            cat "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: vllm-nightly-log-${{ github.run_id }}
+          path: vllm-nightly-logs/
+          retention-days: 90
+          if-no-files-found: warn
+
   release:
     uses: ./.github/workflows/call-release.yml
     needs: [ build-ttxla ]
