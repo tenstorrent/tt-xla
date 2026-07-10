@@ -43,16 +43,15 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "use_2d_mesh", "opt_level"],
+    ["model_name", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", True, 1),
-        pytest.param("Qwen/Qwen3-0.6B", False, 1),
+        pytest.param("Qwen/Qwen3-0.6B", True),
+        pytest.param("Qwen/Qwen3-0.6B", False),
     ],
 )
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     use_2d_mesh: bool,
-    opt_level: int,
 ):
     prompts = [
         "Continue in English: I like taking walks in the",
@@ -68,7 +67,6 @@ def test_tensor_parallel_generation_llmbox_small(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
