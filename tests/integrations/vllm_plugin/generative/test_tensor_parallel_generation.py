@@ -45,7 +45,7 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.parametrize(
     ["model_name", "use_2d_mesh", "opt_level"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", True, 0),
+        pytest.param("Qwen/Qwen3-0.6B", True, 1),
         pytest.param("Qwen/Qwen3-0.6B", False, 1),
     ],
 )
@@ -135,12 +135,10 @@ def test_tensor_parallel_generation_wider_batch(model_name: str, use_2d_mesh: bo
         "flat_model_io",
     ],
     [
-        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0, False),
+        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 1, False),
         pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
         pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
-        # TODO - change opt_level to 1 once these issues: tt-mlir#8919 and tt-mlir#8920 are
-        # fixed and uplifted
-        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
+        pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 1, True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(

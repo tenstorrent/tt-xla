@@ -32,8 +32,6 @@ def test_data_parallel_generation_n300_tight(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -74,8 +72,6 @@ def test_data_parallel_generation_n300_wider_batch(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -111,8 +107,6 @@ def test_data_parallel_generation_llmbox_padding(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -153,8 +147,6 @@ def test_data_parallel_generation_llmbox_tight(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
