@@ -186,7 +186,7 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" ]]; then
+        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" || "${{ matrix.build.dir }}" == "tests/integrations/vllm_plugin"* || "${{ matrix.build.dir }}" == "./tests/integrations/vllm_plugin"* ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_release_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ inputs.artifact_release_run_id }} \
             --repo ${{ github.repository }} \
