@@ -30,9 +30,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
             "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
-            # [TODO] - Investigate why this test fails with opt_level=1 on N300.
-            # Issue: https://github.com/tenstorrent/tt-xla/issues/5576
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
