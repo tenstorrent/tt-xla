@@ -578,13 +578,43 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         def _alloc_dev(shape, dtype):
             return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
 
-        self._input_ids_dev = {
-            (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
-            for num_reqs in {
+        # Row-count buckets that `_prepare_inputs` (and warmup) can request. The
+        # active batch is clamped to the SMEM seq limit of the path in use
+        # (`num_reqs_max_model_len` for max_model_len, `num_reqs_most_model_len`
+        # for most_model_len), so every per-batch buffer must be keyed by these
+        # clamped counts -- matching the page-table buffers below and the
+        # compiled warmup graphs. Keying by `max_num_reqs` instead over-sizes
+        # input_ids/logits_indices relative to the compiled decode shape and
+        # misses the page-table lookup whenever `num_reqs_max_model_len <
+        # max_num_reqs` (long context). See issue #5416.
+        self._max_len_num_reqs = set(
+            _bucket_num_reqs(
                 self.min_num_reqs,
                 self.max_prefill_num_reqs,
-                self.max_num_reqs,
-            }
+                self.num_reqs_max_model_len,
+            )
+        )
+        self._most_len_num_reqs = (
+            set(
+                _bucket_num_reqs(
+                    self.min_num_reqs,
+                    self.max_prefill_num_reqs,
+                    self.num_reqs_most_model_len,
+                )
+            )
+            if self.num_reqs_most_model_len is not None
+            else set()
+        )
+        self._reachable_num_reqs = _reachable_num_reqs(
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            self.num_reqs_max_model_len,
+            self.num_reqs_most_model_len,
+        )
+
+        self._input_ids_dev = {
+            (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
+            for num_reqs in self._reachable_num_reqs
             for num_tokens in self.num_tokens_paddings
         }
         self._position_ids_dev = {
@@ -596,20 +626,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ),
                 torch.int32,
             )
-            for num_reqs in {
-                self.min_num_reqs,
-                self.max_prefill_num_reqs,
-                self.max_num_reqs,
-            }
+            for num_reqs in self._reachable_num_reqs
             for num_tokens in self.num_tokens_paddings
         }
         self._logits_indices_dev = {
             num_reqs: _alloc_dev((num_reqs,), torch.int32)
-            for num_reqs in {
-                self.min_num_reqs,
-                self.max_prefill_num_reqs,
-                self.max_num_reqs,
-            }
+            for num_reqs in self._reachable_num_reqs
         }
         self._page_table_dev_max = {
             num_reqs: _alloc_dev(
@@ -666,23 +688,54 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
             }
 
-        # Fail fast at startup if any per-step buffer can't be looked up by a
-        # row count _prepare_inputs will request (before SMEM clamping).
-        _reachable_num_reqs = {
-            self.min_num_reqs,
-            self.max_prefill_num_reqs,
-            self.max_num_reqs,
+        # Persistent per-row-count batch indices for paged_fill_cache. Keyed by
+        # the same clamped counts as the page tables so its dim0 matches the
+        # DP-sharded K/V batch (paged_fill_cache verifies dim0 == per-device
+        # batch); a max_num_reqs-sized buffer would mismatch under long context.
+        self._batch_idx_dev = {
+            num_reqs: torch.arange(num_reqs, dtype=torch.int32, device="cpu").to(
+                self.device
+            )
+            for num_reqs in self._reachable_num_reqs
         }
-        for _name, _keys in {
-            "input_ids": {k[0] for k in self._input_ids_dev},
-            "position_ids": {k[0] for k in self._position_ids_dev},
-            "logits_indices": set(self._logits_indices_dev),
-            "page_table_dev_max": set(self._page_table_dev_max),
-            "cache_position_dev_max": set(self._cache_position_dev_max),
-        }.items():
-            assert _reachable_num_reqs <= _keys, (
+
+        # Fail fast at startup if any per-step buffer can't be looked up by a
+        # row count `_prepare_inputs` will request. Buffers shared across both
+        # attention paths must cover every reachable count; the per-path page
+        # tables only need their own path's clamped counts (see #5416).
+        _checks = {
+            "input_ids": (
+                {k[0] for k in self._input_ids_dev},
+                self._reachable_num_reqs,
+            ),
+            "position_ids": (
+                {k[0] for k in self._position_ids_dev},
+                self._reachable_num_reqs,
+            ),
+            "logits_indices": (set(self._logits_indices_dev), self._reachable_num_reqs),
+            "batch_idx": (set(self._batch_idx_dev), self._reachable_num_reqs),
+            "page_table_dev_max": (
+                set(self._page_table_dev_max),
+                self._max_len_num_reqs,
+            ),
+            "cache_position_dev_max": (
+                set(self._cache_position_dev_max),
+                self._max_len_num_reqs,
+            ),
+        }
+        if self.most_model_len is not None:
+            _checks["page_table_dev_most"] = (
+                set(self._page_table_dev_most),
+                self._most_len_num_reqs,
+            )
+            _checks["cache_position_dev_most"] = (
+                set(self._cache_position_dev_most),
+                self._most_len_num_reqs,
+            )
+        for _name, (_keys, _needed) in _checks.items():
+            assert _needed <= _keys, (
                 f"{_name} buffer keyed by {sorted(_keys)} is missing reachable "
-                f"row counts {sorted(_reachable_num_reqs - _keys)}"
+                f"row counts {sorted(_needed - _keys)}"
             )
 
         # Layer pairings for cross-layer KV sharing.
@@ -737,23 +790,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vllm_config.model_config.hf_config,
                 self.tt_config.num_hidden_layers,
             )
-        )
-
-        self.batch_idx_min_reqs = torch.arange(
-            self.min_num_reqs, dtype=torch.int32, device="cpu"
-        ).to(self.device)
-        self.batch_idx_max_reqs = torch.arange(
-            self.max_num_reqs, dtype=torch.int32, device="cpu"
-        ).to(self.device)
-        # Reuse max tensor when prefill ceiling == decode ceiling; allocate a
-        # separate tensor when max_prefill_num_reqs < max_num_reqs so the
-        # traced graph sees the correct (smaller) batch dimension.
-        self.batch_idx_max_prefill_reqs = (
-            self.batch_idx_max_reqs
-            if self.max_prefill_num_reqs == self.max_num_reqs
-            else torch.arange(
-                self.max_prefill_num_reqs, dtype=torch.int32, device="cpu"
-            ).to(self.device)
         )
 
     def _filter_weights_for_layer_override(self, weights_iterator):
@@ -1233,17 +1269,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = len(num_scheduled_tokens_per_req)
         actual_num_reqs = num_reqs
 
-        # Decode always runs with max request shape. For prefill, keep runtime
-        # request shape aligned with warmup by selecting min or max prefill bucket.
+        # Decode runs at the large (decode) bucket; prefill picks the small or
+        # large prefill bucket. Both are clamped to the SMEM seq limit of the
+        # active attention path (num_reqs_max_model_len / num_reqs_most_model_len)
+        # so the row count matches the page-table buffers and the compiled warmup
+        # graphs; using max_num_reqs would miss the buffer lookup and diverge from
+        # warmup whenever the clamp is active (long context, see #5416).
+        path_max_num_reqs = (
+            self.num_reqs_max_model_len
+            if use_max_model_len
+            else self.num_reqs_most_model_len
+        )
+        assert path_max_num_reqs is not None
         is_decode_step = max_num_scheduled_tokens_all_reqs == 1
-        if is_decode_step:
-            target_num_reqs = self.max_num_reqs
-        else:
-            target_num_reqs = (
-                self.min_num_reqs
-                if actual_num_reqs <= self.min_num_reqs
-                else self.max_prefill_num_reqs
-            )
+        target_num_reqs = _select_target_num_reqs(
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            path_max_num_reqs,
+            is_decode_step,
+            actual_num_reqs,
+        )
 
         # Compute the padded total number of scheduled tokens so that all requests
         # in the batch share a common, hardware-compatible sequence length.
@@ -1433,15 +1478,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
-        batch_idx = (
-            self.batch_idx_min_reqs
-            if target_num_reqs == self.min_num_reqs
-            else (
-                self.batch_idx_max_prefill_reqs
-                if target_num_reqs == self.max_prefill_num_reqs
-                else self.batch_idx_max_reqs
-            )
-        )
+        batch_idx = self._batch_idx_dev[target_num_reqs]
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -2273,15 +2310,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
-        batch_idx = (
-            self.batch_idx_min_reqs
-            if num_reqs == self.min_num_reqs
-            else (
-                self.batch_idx_max_prefill_reqs
-                if num_reqs == self.max_prefill_num_reqs
-                else self.batch_idx_max_reqs
-            )
-        )
+        batch_idx = self._batch_idx_dev[num_reqs]
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -2546,9 +2575,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"decode_only is set, only compiling decode path with num_tokens=1"
             )
 
-        num_reqs_options = sorted(
-            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs}
-        )
+        # The fused dummy inputs always use the max_model_len page table
+        # (max_num_blocks_per_req), so compile at that path's SMEM-clamped row
+        # counts to match the shapes `_prepare_inputs` produces at runtime (#5416).
+        num_reqs_options = sorted(self._max_len_num_reqs)
 
         # Compile the cached-prefix (chunked SDPA op) graph in addition to the
         # standard one, but only when the op is usable; otherwise the first
@@ -2586,18 +2616,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # clean DRAM arena, avoiding fragmentation OOMs at long context (#5522).
         configs.sort(key=lambda c: (c["num_reqs"], c["num_tokens"]), reverse=True)
 
+        # Buckets are SMEM-clamped (see num_reqs_options): decode compiles at the
+        # clamped decode bucket, prefill at the clamped prefill cap (#5416).
+        decode_num_reqs = self.num_reqs_max_model_len
+        prefill_cap = min(self.max_prefill_num_reqs, self.num_reqs_max_model_len)
         for config in configs:
-            if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
+            if config["num_tokens"] == 1 and config["num_reqs"] != decode_num_reqs:
                 logger.debug(
-                    f"Skipping config={config} because decode path only supports max_num_reqs={self.max_num_reqs}"
+                    f"Skipping config={config} because decode path only supports "
+                    f"num_reqs_max_model_len={decode_num_reqs}"
                 )
                 continue
-            if (
-                config["num_tokens"] != 1
-                and config["num_reqs"] > self.max_prefill_num_reqs
-            ):
+            if config["num_tokens"] != 1 and config["num_reqs"] > prefill_cap:
                 logger.debug(
-                    f"Skipping config={config} because prefill is capped at max_prefill_num_reqs={self.max_prefill_num_reqs}"
+                    f"Skipping config={config} because prefill is capped at "
+                    f"{prefill_cap} (min of max_prefill_num_reqs and SMEM limit)"
                 )
                 continue
 
@@ -2676,15 +2709,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
-        batch_idx = (
-            self.batch_idx_min_reqs
-            if num_reqs == self.min_num_reqs
-            else (
-                self.batch_idx_max_prefill_reqs
-                if num_reqs == self.max_prefill_num_reqs
-                else self.batch_idx_max_reqs
-            )
-        )
+        batch_idx = self._batch_idx_dev[num_reqs]
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -3928,6 +3953,70 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     index = bisect.bisect_left(paddings, x)
     assert index < len(paddings)
     return paddings[index]
+
+
+def _bucket_num_reqs(
+    min_num_reqs: int, max_prefill_num_reqs: int, path_max_num_reqs: int
+) -> tuple[int, int, int]:
+    """Return the ``(small_prefill, big_prefill, decode)`` row-count buckets for
+    one attention path.
+
+    A batch's row count is clamped to the SMEM sequence limit of the active path
+    (``path_max_num_reqs`` == ``num_reqs_max_model_len`` or
+    ``num_reqs_most_model_len``). Decode uses that limit; the prefill buckets are
+    ``min_num_reqs`` and ``max_prefill_num_reqs``, each clamped to it so neither
+    row count exceeds what SMEM holds. See issue #5416.
+    """
+    return (
+        min(min_num_reqs, path_max_num_reqs),
+        min(max_prefill_num_reqs, path_max_num_reqs),
+        path_max_num_reqs,
+    )
+
+
+def _reachable_num_reqs(
+    min_num_reqs: int,
+    max_prefill_num_reqs: int,
+    num_reqs_max_model_len: int,
+    num_reqs_most_model_len: Optional[int],
+) -> set[int]:
+    """All row-count buckets `_prepare_inputs` can request across both paths.
+
+    Per-batch device buffers must be keyed by exactly this set so every runtime
+    ``target_num_reqs`` resolves to a preallocated buffer.
+    """
+    reqs = set(
+        _bucket_num_reqs(min_num_reqs, max_prefill_num_reqs, num_reqs_max_model_len)
+    )
+    if num_reqs_most_model_len is not None:
+        reqs |= set(
+            _bucket_num_reqs(
+                min_num_reqs, max_prefill_num_reqs, num_reqs_most_model_len
+            )
+        )
+    return reqs
+
+
+def _select_target_num_reqs(
+    min_num_reqs: int,
+    max_prefill_num_reqs: int,
+    path_max_num_reqs: int,
+    is_decode_step: bool,
+    actual_num_reqs: int,
+) -> int:
+    """Pick the row-count bucket for a step on a given attention path.
+
+    Decode uses the SMEM-clamped decode bucket; prefill uses the small bucket
+    when it fits, else the big one. The result is always a member of
+    :func:`_reachable_num_reqs` for the same config, so it always hits a
+    preallocated buffer.
+    """
+    small, big, decode = _bucket_num_reqs(
+        min_num_reqs, max_prefill_num_reqs, path_max_num_reqs
+    )
+    if is_decode_step:
+        return decode
+    return small if actual_num_reqs <= small else big
 
 
 def _make_src_and_dst_indices(
