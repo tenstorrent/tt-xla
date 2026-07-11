@@ -181,14 +181,13 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "experimental_weight_dtype", "mesh_shape", "opt_level"],
-    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 1)],
+    ["model_name", "experimental_weight_dtype", "mesh_shape"],
+    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8])],
 )
 def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     model_name: str,
     experimental_weight_dtype: str,
     mesh_shape: list[int],
-    opt_level: int,
 ):
     inputs = ["How many days ago was Mistral founded?"]
 
@@ -205,7 +204,6 @@ def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
             "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -318,12 +316,10 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "opt_level"],
-    [pytest.param("mistralai/Pixtral-Large-Instruct-2411", 0)],
+    ["model_name"],
+    [pytest.param("mistralai/Pixtral-Large-Instruct-2411")],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(
-    model_name: str, opt_level: int
-):
+def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
     messages = [
         {
@@ -349,7 +345,6 @@ def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(
             "min_context_len": 1024,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
