@@ -109,8 +109,111 @@ jobs:
       forge_models_override: ${{ inputs.forge_models_override }}
       dump_irs: ${{ inputs.dump_irs }}
 
+  # After a vLLM Run Test finishes, run the vllm-nightly-log Claude skill with
+  # this workflow's run ID and publish model outputs to the job summary.
+  # Use this to validate the skill before wiring it into schedule-nightly.yml.
+  vllm-nightly-log-report:
+    name: "vLLM nightly model outputs"
+    needs: [ test ]
+    if: >-
+      always()
+      && needs.test.result != 'cancelled'
+      && (inputs.test_suite == 'vllm-model-tests-nightly.json'
+          || inputs.test_suite == 'vllm-model-tests.json')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Run vllm-nightly-log skill via Claude
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+        run: |
+          mkdir -p vllm-nightly-logs
+          # NOTE: `--allowed-tools` is variadic and would absorb the prompt arg;
+          # use `--` to terminate options before the positional prompt.
+          # `< /dev/null` suppresses the 3s stdin-wait warning when running headless.
+          claude --print \
+                 --permission-mode bypassPermissions \
+                 --model claude-opus-4-7 \
+                 --max-turns 30 \
+                 --allowed-tools "Bash(gh api:*),Bash(gh auth:*),Bash(gh run view:*),Bash(gh run list:*),Bash(python:*),Bash(python3:*),Bash(mkdir:*),Bash(ls:*),Read,Write,Glob,Grep" \
+                 -- \
+                 "$(cat <<'PROMPT'
+          Use the `vllm-nightly-log` skill at
+          `.claude/skills/vllm-nightly-log/SKILL.md` for run ID
+          `${{ github.run_id }}`.
+
+          The run ID is already provided — do NOT ask for it. Skip the
+          interactive run-ID question and proceed immediately.
+
+          Read the SKILL.md and follow it exactly. The skill will:
+            - confirm `gh` auth
+            - run
+              `.claude/skills/vllm-nightly-log/scripts/extract_vllm_outputs.py`
+              with run ID `${{ github.run_id }}` and write the log to
+              `vllm-nightly-logs/vllm-nightly-${{ github.run_id }}.log`
+            - summarize how many vLLM jobs / outputs were captured
+
+          After the log file is written, stop. Do NOT post GitHub comments,
+          create issues, or modify any files outside `vllm-nightly-logs/`.
+          PROMPT
+          )" < /dev/null
+
+      - name: Append log to job summary
+        run: |
+          LOG="vllm-nightly-logs/vllm-nightly-${{ github.run_id }}.log"
+          if [ ! -f "$LOG" ]; then
+            ALT="vllm-nightly-${{ github.run_id }}.log"
+            if [ -f "$ALT" ]; then
+              mkdir -p vllm-nightly-logs
+              mv "$ALT" "$LOG"
+            else
+              echo "::error::No vLLM nightly log was produced for run ${{ github.run_id }}"
+              exit 1
+            fi
+          fi
+          {
+            echo "## vLLM nightly model outputs"
+            echo
+            echo "Produced by \`.claude/skills/vllm-nightly-log\` for run \`${{ github.run_id }}\`."
+            echo
+            echo '```text'
+            cat "$LOG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: vllm-nightly-log-${{ github.run_id }}
+          path: vllm-nightly-logs/
+          retention-days: 90
+          if-no-files-found: warn
+
   process-irs:
-    if: always() && !cancelled()
+    # Only when dump_irs was requested — otherwise there are no ir-dumps-*
+    # artifacts and check_dumped_irs fails on `gh run download`.
+    if: always() && !cancelled() && inputs.dump_irs
     uses: ./.github/workflows/call-process-dumped-irs.yml
     needs: [ build-image, test ]
     secrets: inherit
