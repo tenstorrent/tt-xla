@@ -392,6 +392,7 @@ def paged_flash_mla_decode(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window: Optional[int] = None,
 ) -> torch.Tensor:
     """
     Paged flash Multi-head Latent Attention (MLA) decode, mirroring
@@ -417,13 +418,25 @@ def paged_flash_mla_decode(
                              [num_users, nqh, 1, max_seq_len]. Required when
                              ``is_causal`` is ``False``; must be ``None`` when
                              ``is_causal`` is ``True``.
-        attention_sink (opt):per-query-head sink logits.
+        attention_sink (opt):per-query-head sink logits ``[nqh]``. Folded into
+                             the softmax denominator (``out *= exp(lse) /
+                             (exp(lse) + exp(sink))``); ``-inf`` means no effect.
+                             The ttnn kernel requires this tensor to be
+                             ``bfloat16``.
     Args:
         head_dim_v: head dimension of V/output. When ``value`` is provided it
                     must equal ``value.shape[-1]``; when ``value`` is ``None`` it
                     must be ``<= key.shape[-1]``.
         is_causal:  Defaults to ``True``.
         scale:      Defaults to ``1 / sqrt(dh_qk)`` inside the ttnn op.
+        sliding_window: when set (and ``is_causal``), each user attends only the
+                    last ``sliding_window`` cache positions ``[cur_pos -
+                    sliding_window + 1, cur_pos]`` (DeepSeek-V4 SWA). ``None`` /
+                    ``0`` disables it (full causal history). On the ``xla`` path
+                    this is forwarded as the ``sliding_window_size`` frontend
+                    attribute, plumbed through tt-mlir to the ttnn kernel (it
+                    applies on the tt device); the ``cpu`` reference path below
+                    models it too.
     Returns:
         Output of shape [1, num_users, nqh, head_dim_v] with the same dtype as
         ``query``.
@@ -539,6 +552,8 @@ def paged_flash_mla_decode(
         }
         if scale is not None:
             frontend_attributes["scale"] = str(scale)
+        if sliding_window is not None and sliding_window > 0:
+            frontend_attributes["sliding_window_size"] = str(sliding_window)
 
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
@@ -549,9 +564,8 @@ def paged_flash_mla_decode(
         )
 
     elif device.type == "cpu":
-        # TODO(@hshah): Model the behavior of the op when an attention_sink is
-        # provided (the ttnn op folds per-head sink logits into the softmax
-        # denominator). The XLA path forwards attention_sink unchanged.
+        # Reference models both the sliding window (DeepSeek-V4 SWA) and the
+        # per-head attention-sink fold that the ttnn op performs internally.
         block_size = key.shape[-2]
         num_kv_heads = key.shape[-3]
         dh_qk = key.shape[-1]
@@ -592,6 +606,12 @@ def paged_flash_mla_decode(
             additive_mask = torch.zeros(num_users, 1, 1, max_seq_len, dtype=query.dtype)
             for i in range(num_users):
                 additive_mask[i, :, :, cur_pos_tensor[i] + 1 :] = float("-inf")
+                if sliding_window is not None and sliding_window > 0:
+                    # DeepSeek-V4 SWA: also drop positions to the LEFT of the
+                    # window start = max(cur_pos - sliding_window + 1, 0).
+                    lo = int(cur_pos_tensor[i]) - int(sliding_window) + 1
+                    if lo > 0:
+                        additive_mask[i, :, :, :lo] = float("-inf")
         else:
             additive_mask = attn_mask
 
@@ -607,6 +627,24 @@ def paged_flash_mla_decode(
             scale=scale_val,
             enable_gqa=True,
         )
+
+        if attention_sink is not None:
+            # Fold per-head sink logits into the softmax denominator exactly as
+            # the ttnn kernel does: out *= exp(lse) / (exp(lse) + exp(sink)),
+            # where lse is the (pre-sink) log-sum-exp of the scaled+masked
+            # logits. exp(a)/(exp(a)+exp(b)) == sigmoid(a - b), which is stable.
+            groups = num_q_heads // num_kv_heads
+            q_f = query_r.float()  # [users, nqh, 1, dh]
+            k_rep = gathered_key.float().repeat_interleave(
+                groups, dim=1
+            )  # [users, nqh, seq, dh]
+            scores = torch.einsum("uhod,uhsd->uhos", q_f, k_rep)  # [users,nqh,1,seq]
+            scores = scores * scale_val + additive_mask.float()
+            lse = torch.logsumexp(scores, dim=-1)  # [users, nqh, 1]
+            sink = attention_sink.float().reshape(1, num_q_heads, 1)
+            factor = torch.sigmoid(lse - sink)  # exp(lse)/(exp(lse)+exp(sink))
+            out = out * factor.unsqueeze(-1).to(out.dtype)
+
         return out.reshape(1, num_users, num_q_heads, head_dim_v)
     else:
         raise ValueError(f"Unsupported device type: {device.type}")
@@ -624,6 +662,7 @@ def paged_flash_mla_decode_fake(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros(
         (query.shape[0], query.shape[1], query.shape[2], head_dim_v),

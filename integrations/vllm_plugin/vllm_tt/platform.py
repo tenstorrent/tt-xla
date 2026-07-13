@@ -236,6 +236,27 @@ class TTPlatform(Platform):
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
+    @staticmethod
+    def _current_model_architectures() -> list[str]:
+        """Model architectures from the current vLLM config.
+
+        ``AttentionSelectorConfig`` carries no model architecture, so a
+        DeepSeek-V4 layer (which sets ``use_sparse=True``) cannot be told apart
+        from DeepSeek-V3.2 (also sparse-MLA) from the selector args alone. The
+        architecture is read from the config that is current while the backend
+        is being selected (best-effort; empty list if unavailable)."""
+        try:
+            from vllm.config import get_current_vllm_config
+
+            cfg = get_current_vllm_config()
+            return list(getattr(cfg.model_config.hf_config, "architectures", []) or [])
+        except Exception:
+            return []
+
+    @classmethod
+    def _is_deepseek_v4(cls) -> bool:
+        return "DeepseekV4ForCausalLM" in cls._current_model_architectures()
+
     @classmethod
     def get_attn_backend_cls(
         cls,
@@ -244,6 +265,14 @@ class TTPlatform(Platform):
         num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
+            # DeepSeek-V4 is a sparse-MLA architecture; route it to the TT DSV4
+            # backend (SWA-only today). Other sparse-MLA models are unsupported.
+            if cls._is_deepseek_v4():
+                logger.info("Using TT DeepSeek-V4 SWA attention backend.")
+                return (
+                    "vllm_tt.attention_impls.attention_dsv4."
+                    "TTDeepseekV4AttentionBackend"
+                )
             raise NotImplementedError(
                 "Sparse Attention is not supported on TT devices."
             )

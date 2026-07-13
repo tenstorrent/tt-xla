@@ -151,6 +151,63 @@ class TTFusedMoE(FusedMoE):
             f"TTFusedMoE: activation {self.activation} not supported"
         )
 
+    def _route_native(self, logits_flat):
+        """Router for models without a ``custom_routing_function``.
+
+        Standard ``softmax`` + top-k for most models; DeepSeek-V4's
+        ``sqrtsoftplus`` scoring (+ optional ``noaux_tc`` bias and
+        ``routed_scaling_factor``) is reproduced here in torch because vLLM's
+        own sqrtsoftplus path is a CUDA-only custom op
+        (``ops.topk_hash_softplus_sqrt`` → ``_moe_C.topk_softplus_sqrt``) with
+        no device-agnostic fallback.
+        """
+        scoring_func = getattr(self, "scoring_func", "softmax")
+        if scoring_func == "sqrtsoftplus":
+            return self._route_sqrtsoftplus(logits_flat)
+        # Default: softmax over experts, then top-k (+ optional renormalize).
+        scores = F.softmax(logits_flat.float(), dim=-1)
+        topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
+        if self.renormalize:
+            renorm = topk_weights.sum(dim=-1, keepdim=True).clamp(min=1e-9)
+            topk_weights = topk_weights / renorm
+        return topk_weights, topk_ids
+
+    def _route_sqrtsoftplus(self, logits_flat):
+        """DeepSeek-V4 routing: ``scores = sqrt(softplus(logits))``.
+
+        With ``noaux_tc`` the top-k experts are chosen by ``scores + bias`` but
+        weighted by the *unbiased* scores (mirrors vLLM's ``grouped_topk`` /
+        ``fused_topk_bias`` structure), then renormalized and multiplied by
+        ``routed_scaling_factor``.
+
+        WARNING: the reference implementation is the CUDA kernel
+        ``_moe_C.topk_softplus_sqrt``, which cannot run or be diffed on TT.
+        These weights must be validated against a GPU reference before DSV4 MoE
+        numerics can be trusted.
+        """
+        if getattr(self, "hash_indices_table", None) is not None:
+            raise NotImplementedError(
+                "DeepSeek-V4 hash-based MoE routing (early layers, tid2eid) is "
+                "not supported on TT yet: it needs per-token input_ids threaded "
+                "into forward_native and validation against the CUDA "
+                "topk_softplus_sqrt kernel."
+            )
+        scores = F.softplus(logits_flat.float()).sqrt()
+        bias = getattr(self, "e_score_correction_bias", None)
+        if bias is not None:
+            biased = scores + bias.to(scores.dtype).unsqueeze(0)
+            topk_ids = torch.topk(biased, self.top_k, dim=-1).indices
+            topk_weights = scores.gather(-1, topk_ids)
+        else:
+            topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
+        if self.renormalize:
+            renorm = topk_weights.sum(dim=-1, keepdim=True).clamp(min=1e-9)
+            topk_weights = topk_weights / renorm
+        rsf = getattr(self, "routed_scaling_factor", 1.0) or 1.0
+        if rsf != 1.0:
+            topk_weights = topk_weights * rsf
+        return topk_weights, topk_ids
+
     def forward_native(self, hidden_states, router_logits):
         # Lazy import keeps tt_torch.moe_backend out of the import-time cycle.
         from tt_torch import tt_dense_experts_forward, tt_experts_forward
@@ -168,11 +225,7 @@ class TTFusedMoE(FusedMoE):
                 h_flat, logits_flat, self.top_k, self.renormalize
             )
         else:
-            scores = F.softmax(logits_flat.float(), dim=-1)
-            topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
-            if self.renormalize:
-                renorm = topk_weights.sum(dim=-1, keepdim=True).clamp(min=1e-9)
-                topk_weights = topk_weights / renorm
+            topk_weights, topk_ids = self._route_native(logits_flat)
 
         topk_weights = topk_weights.to(h_flat.dtype)
         # Expert-parallel tt-moe is only valid on a genuine 2D mesh (both axes

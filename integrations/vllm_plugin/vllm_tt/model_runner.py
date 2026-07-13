@@ -154,6 +154,21 @@ def _get_layer_kv_cache_spec(
     return kv_cache_spec
 
 
+def _dsv4_layer_classes():
+    """(DeepseekV4SWACache, DeepseekV4MLAAttention) for isinstance checks, or
+    (None, None) when the installed vLLM has no DeepSeek-V4 support. Imported
+    lazily so the plugin still loads on vLLM builds without DSV4."""
+    try:
+        from vllm.model_executor.layers.deepseek_v4_attention import (
+            DeepseekV4MLAAttention,
+        )
+        from vllm.v1.attention.backends.mla.sparse_swa import DeepseekV4SWACache
+
+        return DeepseekV4SWACache, DeepseekV4MLAAttention
+    except Exception:
+        return None, None
+
+
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 
@@ -1034,6 +1049,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         block_size = self.vllm_config.cache_config.block_size
         cache_dtype_str = self.vllm_config.cache_config.cache_dtype
 
+        dsv4_swa_cache_cls, dsv4_mla_attn_cls = _dsv4_layer_classes()
+
         kv_cache_spec: dict[str, KVCacheSpec] = {}
         for layer_name, attn_module in layers.items():
             # Classic Attention path
@@ -1093,6 +1110,40 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     dtype=self.kv_cache_spec_dtype,
                     cache_dtype_str=cache_dtype_str,
                 )
+            # DeepSeek-V4 direct-MLA path. The wrapper owns a separate
+            # DeepseekV4SWACache layer that holds the paged SWA latent cache; the
+            # DeepseekV4MLAAttention layer itself has no own cache when
+            # compress_ratio <= 1. Both are AttentionLayerBase but neither is
+            # Attention/MLAAttention, so they reach here.
+            elif dsv4_swa_cache_cls is not None and isinstance(
+                attn_module, dsv4_swa_cache_cls
+            ):
+                # Emit a bf16 MLA-latent spec (num_kv_heads=1,
+                # head_size=head_dim, block_size=64). Deliberately NOT the
+                # module's own get_kv_cache_spec, which returns the upstream
+                # uint8 / fp8_ds_mla (584 B) layout: the TT DSV4 impl reads a
+                # bf16 (num_blocks, 1, block_size, head_dim) cache (weights are
+                # dequantized to bf16 at load).
+                kv_cache_spec[layer_name] = MLAAttentionSpec(
+                    block_size=attn_module.block_size,
+                    num_kv_heads=1,
+                    head_size=attn_module.head_dim,
+                    dtype=self.kv_cache_spec_dtype,
+                    cache_dtype_str=cache_dtype_str,
+                )
+            elif dsv4_mla_attn_cls is not None and isinstance(
+                attn_module, dsv4_mla_attn_cls
+            ):
+                # SWA-only (compress_ratio <= 1): no own cache — the SWA cache
+                # layer above holds it. Compressed branches (C4A/C128A) would
+                # need a second KV cache group, which is not supported yet.
+                if getattr(attn_module, "compress_ratio", 1) > 1:
+                    raise NotImplementedError(
+                        "DeepSeek-V4 compressed attention (compress_ratio="
+                        f"{attn_module.compress_ratio}) is not supported on TT "
+                        "yet; only SWA-only (compress_ratio <= 1) layers work."
+                    )
+                continue
             else:
                 continue
 

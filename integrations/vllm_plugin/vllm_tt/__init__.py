@@ -15,6 +15,17 @@ register_backend(
     backend=AttentionBackendEnum.FLASH_ATTN_MLA,
     class_path="vllm_tt.attention_impls.attention_mla.TTMLAAttentionBackend",
 )
+# DeepSeek-V4 sliding-window (SWA-only) attention. DSV4 is a sparse-MLA model,
+# so we override vLLM's sparse-MLA enum slot (FLASHMLA_SPARSE) — mirroring how
+# the dense MLA backend overrides FLASH_ATTN_MLA above. This is a lazy override
+# (register_backend only stores the class path; the module is imported on first
+# get_class()), so it is dormant until a DSV4 model routes to it. NOTE: routing
+# DSV4 vs DeepSeek-V3.2 (both sparse-MLA) through get_attn_backend_cls needs the
+# model-architecture gating described in DSV4_TT_Next_Steps.md §3.1.
+register_backend(
+    backend=AttentionBackendEnum.FLASHMLA_SPARSE,
+    class_path="vllm_tt.attention_impls.attention_dsv4.TTDeepseekV4AttentionBackend",
+)
 
 
 def register():
