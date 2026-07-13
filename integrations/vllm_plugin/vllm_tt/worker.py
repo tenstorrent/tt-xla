@@ -203,6 +203,27 @@ class TTWorker:
             return self._DEFAULT_DEVICE_DRAM_BYTES
         return bytes_val
 
+    def get_device_info(self) -> dict:
+        """Report the TT device info this worker sees, for benchmark metadata.
+
+        Reads the same PJRT runtime attributes as ``_get_device_dram_bytes``.
+        ``device_count`` is the real chip count from the runtime, not
+        ``world_size`` (which is forced to 1 under SPMD, where a single worker
+        drives all chips).
+        """
+        arch = ""
+        device_count = 1
+        try:
+            attrs = xr.global_runtime_device_attributes()
+            if attrs:
+                arch = str(attrs[0].get("device_arch", ""))
+                device_count = len(attrs)
+            else:
+                device_count = xr.global_runtime_device_count()
+        except Exception as e:
+            logger.warning("get_device_info: could not read device attributes (%s)", e)
+        return {"arch": arch, "device_count": max(int(device_count), 1)}
+
     def determine_available_memory(self) -> int:
         if self.model_config.runner_type == "pooling":
             return int(11596411699)

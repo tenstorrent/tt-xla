@@ -5,7 +5,6 @@
 import socket
 import time
 from dataclasses import dataclass, field
-from multiprocessing import get_context
 from typing import Any, Dict, List, Optional, Tuple
 
 import vllm
@@ -69,54 +68,30 @@ class VLLMEmbeddingBenchmarkConfig:
     loop_count: int = 32
 
 
-def _probe_device_info_worker(queue) -> None:
-    """Subprocess worker: query TT runtime attrs and return (arch, count)."""
-    arch = ""
-    device_count = 1
-    try:
-        import torch_xla.runtime as xr
-
-        xr.set_device_type("TT")
-        attrs = xr.global_runtime_device_attributes()
-        if attrs:
-            arch = align_arch(str(attrs[0].get("device_arch", "")).lower())
-            device_count = len(attrs)
-        else:
-            device_count = xr.global_runtime_device_count()
-    except Exception:
-        # Keep defaults on probe failure.
-        pass
-
-    queue.put((arch, max(int(device_count), 1)))
-
-
-def _probe_device_info_before_engine(
+def _get_device_info_from_engine(
+    llm: vllm.LLM,
     additional_config: Dict[str, Any],
 ) -> Tuple[str, int, Optional[Tuple[int, int]]]:
     """
-    Read real TT device info before vLLM starts its engine process.
+    Read real TT device info from the live vLLM engine's worker(s).
 
     Returns:
         (arch, device_count, mesh_shape)
     """
     arch = ""
     device_count = 1
+    try:
+        results = llm.collective_rpc("get_device_info")
+        if results and results[0]:
+            info = results[0]
+            arch = align_arch(str(info.get("arch", "")).lower())
+            device_count = max(int(info.get("device_count", 1)), 1)
+    except Exception as e:
+        print(
+            f"Warning: could not read TT device info from engine ({e}); using defaults."
+        )
+
     mesh_shape = None
-    ctx = get_context("spawn")
-    queue = ctx.Queue(maxsize=1)
-    proc = ctx.Process(target=_probe_device_info_worker, args=(queue,))
-    proc.start()
-    proc.join(timeout=20)
-
-    if proc.is_alive():
-        proc.terminate()
-        proc.join(timeout=5)
-        print("Warning: timed out while probing TT device info; using defaults.")
-    elif proc.exitcode == 0 and not queue.empty():
-        arch, device_count = queue.get()
-    else:
-        print("Warning: TT device probe subprocess failed; using defaults.")
-
     if additional_config.get("enable_tensor_parallel", False):
         configured_mesh = additional_config.get("mesh_shape")
         if isinstance(configured_mesh, (list, tuple)) and len(configured_mesh) == 2:
@@ -266,10 +241,10 @@ def benchmark_vllm(
         temperature=config.temperature,
     )
 
-    arch, device_count, mesh_shape = _probe_device_info_before_engine(
-        config.additional_config
-    )
     llm = _create_llm(config)
+    arch, device_count, mesh_shape = _get_device_info_from_engine(
+        llm, config.additional_config
+    )
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
@@ -391,8 +366,6 @@ def benchmark_vllm_embedding(
     """Run a vLLM embedding benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
 
-    arch, device_count, _ = _probe_device_info_before_engine(config.additional_config)
-
     llm_args: Dict[str, Any] = {
         "model": config.model,
         "max_model_len": config.max_model_len,
@@ -405,6 +378,8 @@ def benchmark_vllm_embedding(
     print(f"Creating vLLM embedding engine for {config.model} ...")
     print(f"  LLM args: {llm_args}")
     llm = vllm.LLM(**llm_args)
+
+    arch, device_count, _ = _get_device_info_from_engine(llm, config.additional_config)
 
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
