@@ -402,7 +402,7 @@ def test_fibo_vae_decoder(output_file, request):
         optimization_level=2,
         experimental_enable_dram_space_saving_optimization=True,
         enable_trace=True,
-        math_fidelity="hifi2",
+        experimental_weight_dtype="bfp_bf8",
     )
 
     display_name = resolve_display_name(request=request, fallback=model_info_name)
