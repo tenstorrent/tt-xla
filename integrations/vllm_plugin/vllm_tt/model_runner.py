@@ -1547,17 +1547,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        # Build the prefill SDPA attention mask.
-        #
-        # PROTOTYPE (option 1): only CACHED prefill (num_computed > 0) needs the
-        # mask -- it attends the paged prefix over the full slab. COLD prefill
-        # (all num_computed == 0) leaves attn_mask None so the SDPA path attends
-        # its own freshly-computed K/V directly with native causal (see
-        # attention._compute_full_attention), avoiding the redundant paged
-        # gather whose full-slab read-back degenerates the first token. Cold
-        # (mask None) and cached (mask set) are distinct traced graphs, both
-        # precompiled in warmup -> no runtime recompile. Decode (suffix == 1)
-        # keeps attn_mask None and the decode kernel handles causality.
+        # Build the prefill SDPA mask. Only CACHED prefill (num_computed > 0)
+        # needs it; COLD prefill (all num_computed == 0) leaves attn_mask None
+        # and attends its own freshly-computed K/V directly -- see
+        # attention._compute_full_attention for the cold/cached split and why.
+        # Cold and cached are distinct traced graphs, both precompiled in warmup
+        # -> no runtime recompile. Decode (suffix == 1) keeps attn_mask None and
+        # the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
         is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
         # Data parallel has no masked cached-prefix prefill graph (see
@@ -2687,13 +2683,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # page-table-stick assert on unsupported layouts).
         prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
 
-        # Cold prefill (attn_mask None -> native causal over the layer's own
-        # freshly-computed K/V) is a DISTINCT traced graph from cached prefill
-        # (attn_mask set -> full-slab gather). Warm both so a warm cache hit
-        # never recompiles mid-serving (the #5132 trigger). Cold applies only
-        # to prefill buckets and never combines with prefix_chunk (chunked
-        # implies a cached prefix, i.e. not cold). Data parallel has no masked
-        # cached-prefix prefill graph (see _prepare_inputs), so warm cold only.
+        # Warm both the cold and cached prefill graphs (distinct traced graphs;
+        # see attention._compute_full_attention) so a warm cache hit never
+        # recompiles mid-serving (the #5132 trigger). Cold applies only to
+        # prefill buckets and never combines with prefix_chunk (chunked implies
+        # a cached prefix). Data parallel has no masked cached-prefix graph, so
+        # warm cold only.
         cold_options = [True] if self.enable_data_parallel else [True, False]
 
         configs = [
