@@ -11,7 +11,7 @@ flow, mirroring diffusers ``ZImagePipeline.__call__``:
     FlowMatchEulerDiscreteScheduler) -> AutoencoderKL decode -> PIL image.
 
 Each component compiles with the ``tt`` backend and runs on a single
-Blackhole chip. Source inference parameters (prompt, 1280x720, 4 steps,
+Blackhole chip. Source inference parameters (prompt, 1280x720, 50 steps,
 guidance_scale=4.0) are used so the run produces a realistic image, matching
 the pattern of the FLUX.1 / FLUX.2 / Janus-Pro component-based model tests.
 """
@@ -29,13 +29,7 @@ import torch_xla.runtime as xr
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
 from infra import RunMode
-from utils import (
-    BringupStatus,
-    Category,
-    ModelGroup,
-    TTArch,
-    get_torch_device_arch,
-)
+from utils import BringupStatus, Category, ModelGroup, TTArch, get_torch_device_arch
 
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     CFG_NORMALIZATION,
@@ -56,7 +50,6 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     load_transformer,
     load_vae,
 )
-
 
 # --- diffusers.pipelines.z_image.pipeline_z_image helpers (inlined) ---------
 
@@ -267,9 +260,7 @@ class ZImagePipeline:
                 pos = self._transformer_step(latent_input, timestep_input, cap_pos)
 
                 if do_cfg:
-                    neg = self._transformer_step(
-                        latent_input, timestep_input, cap_neg
-                    )
+                    neg = self._transformer_step(latent_input, timestep_input, cap_neg)
                     pred = pos + guidance_scale * (pos - neg)
                     if cfg_normalization and float(cfg_normalization) > 0.0:
                         ori = torch.linalg.vector_norm(pos)
