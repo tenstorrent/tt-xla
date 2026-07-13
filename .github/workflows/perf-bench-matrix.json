@@ -96,7 +96,7 @@
       },
       {
         "name": "xtts_v2",
-        "pyreq": "coqui-tts torchaudio==2.10.0",
+        "pyreq": "coqui-tts torchaudio==2.11.0",
         "pytest": "tests/benchmark/test_encoders.py::test_xtts_v2",
         "runs-on": "n150-perf"
       },
