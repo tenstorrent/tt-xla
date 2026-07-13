@@ -607,9 +607,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             }
         elif has_paged_cache:
             # Full gather (no trim): shape stays constant across cold/cached
-            # prefill so the traced graph is reusable. The mask -inf's out
-            # both the causal upper-triangle and any K/V slots past the
-            # user's logical sequence end.
+            # prefill so the traced graph is reusable; attn_metadata.attn_mask
+            # handles causality and the padded tail (see _build_prefill_attn_mask).
             key_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[0], attn_metadata.page_table
             )
@@ -676,8 +675,8 @@ class TTAttentionBackendImpl(AttentionImpl):
         return the full slab ``[users, num_kv_heads, num_blocks * block_size,
         head_size]``. We intentionally do NOT trim to a logical prompt
         length: keeping a constant shape per bucket lets warmup and runtime
-        share a single traced graph, and the prefill ``attn_mask`` -inf's
-        out positions past the user's actual sequence end.
+        share a single traced graph; the prefill mask masks the padded tail
+        (see ``_build_prefill_attn_mask``).
 
         Uses torch.gather (supported by TT backend) instead of index_select
         (which lowers to ttir.embedding and breaks trace mode).
