@@ -1556,8 +1556,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
         is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
-        # Data parallel has no masked cached-prefix prefill graph (see
-        # _precompile_model_fused); keep it on the cold / direct SDPA path.
+        # Data parallel is always cold (no masked cached-prefix graph; see
+        # _precompile_model_fused).
         if (
             padded_total_num_scheduled_tokens > 1
             and not is_cold_prefill
@@ -2385,7 +2385,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Match runtime: prefill buckets carry a constant-shape attn_mask so
         # the traced graph picks up the SDPA-with-mask code path; decode
         # bucket (num_tokens=1) leaves mask=None and uses the decode kernel.
-        # Data parallel stays on the cold / direct SDPA path (no masked graph).
+        # Data parallel is always cold (see _precompile_model_fused).
         attn_mask = None
         if num_tokens > 1 and not self.enable_data_parallel:
             attn_mask = _build_prefill_attn_mask(
