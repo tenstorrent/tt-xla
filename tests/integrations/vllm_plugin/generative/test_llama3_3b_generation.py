@@ -48,7 +48,6 @@ def test_llama3_3b_generation_trace():
             "enable_trace": True,
             "enable_const_eval": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": 1,
         },
     }
     llm = vllm.LLM(**llm_args)

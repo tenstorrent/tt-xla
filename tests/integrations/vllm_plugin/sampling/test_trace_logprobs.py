@@ -48,7 +48,6 @@ def test_opt125m_trace_logprobs():
             "enable_trace": True,
             "enable_const_eval": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": 1,
         },
     )
     sp = vllm.SamplingParams(temperature=0, max_tokens=8, logprobs=1)
