@@ -31,6 +31,9 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -104,7 +107,7 @@ from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
-from .vllm_distributed_utils import safe_mark_sharding, shard_model
+from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
@@ -252,24 +255,85 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_decode_fused_graphs = self.tt_config.enable_decode_fused_graphs
 
         # SPMD Related
+        self.num_devices = xr.global_runtime_device_count()
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
-
-        if self.enable_tensor_parallel:
-            num_devices = xr.global_runtime_device_count()
-            mesh_shape = determine_mesh_shape(
-                num_devices, self.tt_config.use_2d_mesh, self.tt_config.mesh_shape
+        self.max_num_reqs = scheduler_config.max_num_seqs
+        if self.enable_tensor_parallel and self.num_devices == 1:
+            logger.warning(
+                "Tensor parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
             )
-            device_ids = np.array(range(num_devices))
+            self.enable_tensor_parallel = False
+
+        # Data parallel
+        self.enable_data_parallel = self.tt_config.enable_data_parallel
+        if self.enable_data_parallel:
+            if self.max_num_reqs <= 1:
+                logger.warning(
+                    f"Data parallel execution requires max_num_reqs > 1 but got {self.max_num_reqs}. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+            if self.num_devices == 1:
+                logger.warning(
+                    "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, so the chosen mode matches the mesh that
+            # determine_mesh_shape will actually build.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            if self.use_2d_mesh or explicit_2d_mesh:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+            else:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
+
+        # dp_size = size of the mesh's "batch" axis (# DP replicas processing
+        # different sentences). 1 in pure-TP or DISABLED. Used below for the
+        # max_num_reqs divisibility adjustment and in _prepare_inputs.
+        self.dp_size = 1
+        if self.parallel_mode != ParallelismMode.DISABLED:
+            # An explicit tt_config.mesh_shape (e.g. gemma4-31b) overrides the
+            # mode-derived shape; otherwise it is derived from parallel_mode.
+            mesh_shape = determine_mesh_shape(
+                self.num_devices, self.parallel_mode, self.tt_config.mesh_shape
+            )
+            device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
-            # A mesh with a size-1 axis is effectively 1D; downstream sharding
-            # treats only genuinely 2D meshes as 2D.
+            # mesh_shape[0] ("batch" axis) is a real DP replica count only in DP
+            # modes; in pure-TP the batch axis is a TP axis, so dp_size stays 1.
+            # Feeding dp_size>1 into the paged-KV ops there mis-maps slots.
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                self.dp_size = mesh_shape[0]
             self.use_2d_mesh = 1 not in mesh_shape
-            # Register as the global SPMD mesh so tt_torch.moe_backend's
-            # _mesh_info() can resolve the expert-parallel cluster axis (the
-            # tt_moe EP path reads get_global_mesh()).
             xs.set_global_mesh(self.mesh)
+
+        if self.enable_data_parallel and self.dp_size > 1:
+            remainder = self.max_num_reqs % self.dp_size
+            if remainder != 0:
+                adjusted_max_num_reqs = self.max_num_reqs + self.dp_size - remainder
+                logger.warning(
+                    "Data parallel requires max_num_reqs divisible by dp_size. "
+                    "Adjusting max_num_reqs from %d to %d.",
+                    self.max_num_reqs,
+                    adjusted_max_num_reqs,
+                )
+                self.max_num_reqs = adjusted_max_num_reqs
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -328,11 +392,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.most_model_len is not None
             else None
         )
-        self.max_num_reqs = scheduler_config.max_num_seqs
+        # InputBatch needs to work with sampling tensors greater than padding
+        # to avoid dynamic shapes. Also, avoid suboptimal alignment.
+        # self.max_num_reqs is already set above (and rounded to a multiple of
+        # dp_size for the data-parallel modes); resolve the prefill request-count
+        # bucketing lower bound (#5363) relative to it.
         resolved_min_num_reqs = self.tt_config.min_num_seqs
         if resolved_min_num_reqs is None:
             resolved_min_num_reqs = self.max_num_reqs
         self.min_num_reqs = resolved_min_num_reqs
+        # Prefill graphs compile at this batch shape; decode always uses
+        # max_num_reqs. Defaults to max_num_reqs when not configured so
+        # the feature is a transparent no-op unless explicitly enabled.
+        self.max_prefill_num_reqs = (
+            self.tt_config.max_prefill_num_seqs
+            if self.tt_config.max_prefill_num_seqs is not None
+            else self.max_num_reqs
+        )
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -504,7 +580,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self._input_ids_dev = {
             (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
             for num_tokens in self.num_tokens_paddings
         }
         self._position_ids_dev = {
@@ -516,30 +596,50 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ),
                 torch.int32,
             )
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
             for num_tokens in self.num_tokens_paddings
         }
         self._logits_indices_dev = {
             num_reqs: _alloc_dev((num_reqs,), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.max_num_reqs,
+            }
         }
         self._page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._fill_page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._cache_position_dev_max = {
             num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         # Chunked-prefill prefix offset: persistent [1] int32 dev buffer so the
         # value can change per step under a captured trace without recompiling.
@@ -568,7 +668,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Fail fast at startup if any per-step buffer can't be looked up by a
         # row count _prepare_inputs will request (before SMEM clamping).
-        _reachable_num_reqs = {self.min_num_reqs, self.max_num_reqs}
+        _reachable_num_reqs = {
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            self.max_num_reqs,
+        }
         for _name, _keys in {
             "input_ids": {k[0] for k in self._input_ids_dev},
             "position_ids": {k[0] for k in self._position_ids_dev},
@@ -641,6 +745,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.batch_idx_max_reqs = torch.arange(
             self.max_num_reqs, dtype=torch.int32, device="cpu"
         ).to(self.device)
+        # Reuse max tensor when prefill ceiling == decode ceiling; allocate a
+        # separate tensor when max_prefill_num_reqs < max_num_reqs so the
+        # traced graph sees the correct (smaller) batch dimension.
+        self.batch_idx_max_prefill_reqs = (
+            self.batch_idx_max_reqs
+            if self.max_prefill_num_reqs == self.max_num_reqs
+            else torch.arange(
+                self.max_prefill_num_reqs, dtype=torch.int32, device="cpu"
+            ).to(self.device)
+        )
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -766,6 +880,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # sets of requests), this optimization becomes very inefficient.
 
         for req_id in unscheduled_req_ids:
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                # Each device writes only its own slot's KV; re-adding a request
+                # at a different slot breaks request -> device affinity and
+                # corrupts decode. Keep it at its current slot (downstream must
+                # tolerate a missing num_scheduled_tokens entry).
+                continue
             req_index = self.input_batch.remove_request(req_id)
             assert req_index is not None
             removed_req_indices.append(req_index)
@@ -1059,7 +1182,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i in range(start_index, num_reqs):
             req_id = self.input_batch.req_ids[i]
             assert req_id is not None
-            num_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            num_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
             if (
                 not use_max_model_len
                 and self.most_model_len is not None
@@ -1085,6 +1208,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 end_index = num_reqs
 
+        # Reconcile with the prefill row cap: if this is a prefill pass (any
+        # request has > 1 scheduled token) and the SMEM-trimmed batch still
+        # exceeds max_prefill_num_reqs, trim again. The multi-pass loop
+        # (start_index → end_index in sample_tokens) then picks up the
+        # remaining requests on the next iteration.
+        # Decode passes (all tokens == 1) always run at max_num_reqs and are
+        # not subject to this cap.
+        _prefill_cap = self.max_prefill_num_reqs
+        if (
+            len(num_scheduled_tokens_per_req) > _prefill_cap
+            and max(num_scheduled_tokens_per_req) > 1
+        ):
+            num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:_prefill_cap]
+            end_index = start_index + _prefill_cap
+
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -1096,7 +1234,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         actual_num_reqs = num_reqs
 
         # Decode always runs with max request shape. For prefill, keep runtime
-        # request shape aligned with warmup by selecting min or max bucket.
+        # request shape aligned with warmup by selecting min or max prefill bucket.
         is_decode_step = max_num_scheduled_tokens_all_reqs == 1
         if is_decode_step:
             target_num_reqs = self.max_num_reqs
@@ -1104,7 +1242,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             target_num_reqs = (
                 self.min_num_reqs
                 if actual_num_reqs <= self.min_num_reqs
-                else self.max_num_reqs
+                else self.max_prefill_num_reqs
             )
 
         # Compute the padded total number of scheduled tokens so that all requests
@@ -1254,6 +1392,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
+        # A running (already-prefilled) request re-batched into a later prefill
+        # step contributes 0 new tokens. paged_fill_cache still writes its row,
+        # and since fill_page_table[row] points at that request's real blocks, it
+        # clobbers the KV written in the earlier step with padding. Under DP+TP
+        # such an inactive row lands inside the active range (row 0), not at the
+        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
+        # the null block (0); the read-path page_table keeps the real blocks.
+        zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
+        if len(zero_sched_rows) > 0:
+            if fill_page_table is page_table:
+                fill_page_table = page_table.clone()
+            fill_page_table[zero_sched_rows, :] = 0
+
         if use_max_model_len:
             cache_position_dev = self._cache_position_dev_max[target_num_reqs]
             page_table_dev = self._page_table_dev_max[target_num_reqs]
@@ -1281,6 +1432,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position = cache_position_dev
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
+
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if target_num_reqs == self.min_num_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if target_num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
+        )
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs. batch_idx feeds paged_fill_cache, whose verifier
+            # requires its dim0 to equal the per-device batch.
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+            if fill_page_table is not page_table:
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         # Cached-prefix prefill chunk (L > 1 and num_computed > 0): attends over
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
@@ -1315,12 +1489,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if target_num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=target_num_reqs,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -1437,9 +1608,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the masked_scatter in `_merge_multimodal_embeddings`. The padded
         # width is derived from the max per-request scheduled tokens, matching
         # how `_prepare_inputs` sizes `input_ids`.
+        # DP keeps descheduled requests in input_batch, so a req_id may be
+        # absent from num_scheduled_tokens; treat as 0 (default=0 guards max()).
         max_num_scheduled_tokens = max(
-            scheduler_output.num_scheduled_tokens[rid]
-            for rid in self.input_batch.req_ids
+            (
+                scheduler_output.num_scheduled_tokens.get(rid, 0)
+                for rid in self.input_batch.req_ids
+            ),
+            default=0,
         )
         padded_width = _get_padded_token_len(
             self.num_tokens_paddings, max_num_scheduled_tokens
@@ -1453,7 +1629,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_embeds = list[torch.Tensor]()
 
         for req_idx, req_id in enumerate(self.input_batch.req_ids):
-            num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            num_scheduled_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            # Descheduled this step (kept in input_batch by the DP _update_states
+            # skip): no tokens to gather embeddings for.
+            if num_scheduled_tokens == 0:
+                continue
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
 
@@ -1578,23 +1758,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids: torch.Tensor,
         inputs_embeds: torch.Tensor | None,
     ) -> None:
-        """Pin the model input shardings (batch dim across the mesh). Applied in
-        BOTH the warmup (_dummy_run) and execution (sample_tokens) paths so their
-        graphs match;
-        otherwise warmup shards these inputs while execution leaves them
-        replicated, and the backbone recompiles at the first real step for any
-        shardable batch. Also keeps large prefill traces from splitting into a
-        secondary sync that drops mhlo.spmd_output_sharding (which trips
-        shlo_clean_for_xla_ingestion)."""
-        if not self.enable_tensor_parallel:
+        """Pin model input shardings (batch dimension across the mesh) in
+        DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL during both warmup and
+         inference so both paths produce identical graphs and avoid recompilation."""
+        if not self.enable_tensor_parallel and self.parallel_mode not in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
             return
-        # 2D mesh: model batch dim -> "batch" axis (data-parallel).
-        # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
+        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
         batch_axis = "batch" if self.use_2d_mesh else "model"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+        # position_ids: pin only for DP modes. Under pure-TP it perturbs GSPMD
+        # into a batch-axis reduce_scatter -> ttnn.rms_norm(k_norm) graph that
+        # hits a tt-mlir redundant-to_layout bug (TTNNDecomposeLayouts).
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1852,7 +2037,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             req_state = self.requests[req_id]
             seq_len = (
                 req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens[req_id]
+                + scheduler_output.num_scheduled_tokens.get(req_id, 0)
             )
             if seq_len >= req_state.num_tokens:
                 request_seq_lens.append((i, req_state, seq_len))
@@ -1984,8 +2169,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
+                    # shard_weights_on_batch_axis (FSDP-style) is a DP+TP-only
+                    # knob; in pure-TP the "batch" axis is itself a TP axis, so
+                    # weights must always be sharded on it there.
+                    shard_on_batch_axis = (
+                        self.tt_config.shard_weights_on_batch_axis
+                        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                        else True
+                    )
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(model, self.mesh, shard_on_batch_axis)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -2034,9 +2227,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Cache attention layer names so we don't rebuild the per-layer
         # attn_metadata dict every step.
-        attn_layers = get_layers_from_vllm_config(self.vllm_config, Attention)
-        attn_layers |= get_layers_from_vllm_config(self.vllm_config, MLAAttention)
-        self._attention_layer_names = tuple(attn_layers.keys())
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
 
     def reload_weights(self) -> None:
         assert (
@@ -2060,13 +2254,44 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
 
+        # num_reqs (not self.max_num_reqs) so the position_ids shape matches the
+        # prefill request-count bucket being warmed up (#5363).
         position_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
             self.device
         )
+
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            if input_ids is not None:
+                safe_mark_sharding(input_ids, self.mesh, ("batch", None))
+            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
+
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if num_reqs == self.min_num_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
+        )
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs (batch_idx feeds paged_fill_cache).
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
 
         # prefix_chunk=True precompiles the cached-prefix prefill graph: chunk_start_idx
         # routes attention through the chunked SDPA op. Only reached when the op is
@@ -2087,13 +2312,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            dp_size=self.dp_size,
             fill_page_table=fill_page_table,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=num_reqs,
         )
 
@@ -2183,7 +2405,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             num_tokens, dtype=torch.int32, device="cpu"
                         )
                         # Align placeholders and actual num mm_embeddings.
-                        placeholders_ids[:items_size] = hf_config.image_token_index
+                        # `image_token_id` was renamed from `image_token_index`;
+                        # fall back to the old name for configs that use it.
+                        image_token_id = getattr(
+                            hf_config,
+                            "image_token_id",
+                            getattr(hf_config, "image_token_index", None),
+                        )
+                        assert image_token_id is not None, (
+                            "hf_config has neither image_token_id nor "
+                            "image_token_index"
+                        )
+                        placeholders_ids[:items_size] = image_token_id
 
                         placeholders_ids = placeholders_ids.to(self.device)
 
@@ -2288,6 +2521,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     bitmasks,
                 )
 
+            # cpu_sampling path: sample on host to avoid feeding CPU tensors to the tt.sampling kernel.
             selected_token_ids = self.sample_from_logits_cpu(logits, sampling_metadata)
 
         return hidden_states, logits, selected_token_ids, kv_connector_output
@@ -2312,7 +2546,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"decode_only is set, only compiling decode path with num_tokens=1"
             )
 
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
+        num_reqs_options = sorted(
+            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs}
+        )
 
         # Compile the cached-prefix (chunked SDPA op) graph in addition to the
         # standard one, but only when the op is usable; otherwise the first
@@ -2354,6 +2590,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
                 logger.debug(
                     f"Skipping config={config} because decode path only supports max_num_reqs={self.max_num_reqs}"
+                )
+                continue
+            if (
+                config["num_tokens"] != 1
+                and config["num_reqs"] > self.max_prefill_num_reqs
+            ):
+                logger.debug(
+                    f"Skipping config={config} because prefill is capped at max_prefill_num_reqs={self.max_prefill_num_reqs}"
                 )
                 continue
 
@@ -2432,6 +2676,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if num_reqs == self.min_num_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
+        )
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # batch_idx feeds paged_fill_cache; shard it on "batch" like
+            # page_table / cache_position so its per-device dim0 matches the
+            # DP-sharded K/V input.
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+
         # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
         # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
         # attention through the chunked op, and a distinct fill_page_table tensor
@@ -2450,12 +2714,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx,
-            batch_idx=(
-                self.batch_idx_min_reqs
-                if num_reqs == self.min_num_reqs
-                else self.batch_idx_max_reqs
-            ),
+            batch_idx=batch_idx,
             num_users=num_reqs,
         )
         per_layer_attn_metadata = dict.fromkeys(
@@ -2733,9 +2994,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 torch_xla.sync()
 
         # Largest-first, as in _precompile_model_fused, to avoid fragmentation (#5522).
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs}, reverse=True)
+        num_reqs_options = sorted(
+            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs},
+            reverse=True,
+        )
         for warmup_num_reqs in num_reqs_options:
             for num_tokens in reversed(self.num_tokens_paddings):
+                # Decode (num_tokens == 1) only at max_num_reqs; prefill capped
+                # at max_prefill_num_reqs to match _precompile_model_fused.
+                if num_tokens == 1 and warmup_num_reqs != self.max_num_reqs:
+                    continue
+                if num_tokens != 1 and warmup_num_reqs > self.max_prefill_num_reqs:
+                    continue
                 _run_backbone_dummies(num_tokens, warmup_num_reqs, prefix_chunk=False)
                 # Precompile the cached-prefix graph for prompt chunks
                 # (num_tokens > 1) so it isn't compiled on the first continuation.
@@ -2767,11 +3037,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            # Match model.forward's hidden_states sharding ("batch" axis,
-            # from RowParallel down_proj). A mismatched axis here silently
-            # corrupts the select output on (2,2) 2D mesh.
             if self.enable_tensor_parallel:
+                # Match model.forward's hidden_states sharding ("batch" axis,
+                # from RowParallel down_proj); a mismatched axis silently
+                # corrupts the select output on a 2D mesh.
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
+            elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+                safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
 
             self.select_hidden_states_compiled(dummy_hidden, indices)
 
@@ -3161,7 +3433,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.enable_tensor_parallel:
+        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
+            # each device writes its own K/V slice via paged_update_cache. The
+            # TP-only spec puts block_size on the DP axis and fails
+            # ttir.paged_update_cache. Tracked as a follow-up.
+            pass
+        elif self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
@@ -3207,10 +3485,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        # Only emit the sharding constraint on 2D mesh — under 1D mesh the
-        # `tt.sharding_constraint @mesh` op lands in a sub-graph that doesn't
-        # otherwise reference @mesh, which trips "unknown mesh: @mesh" in
-        # shlo_compiler.
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
@@ -3596,6 +3870,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _adjust_min_token(min_token_size: int) -> int:

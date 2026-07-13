@@ -129,7 +129,7 @@ public:
       const std::string_view &mlir_code,
       const std::string &system_descriptor_path,
       const std::unordered_map<std::string, std::string> &compile_options,
-      tt::pjrt::ClientInstance *client_instance);
+      tt::pjrt::ClientInstance *client_instance, size_t target_num_devices = 1);
 
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
   // Could be used to extract mesh attribute from the module so we can use it as
@@ -200,12 +200,11 @@ private:
   tt_pjrt_status runCompilerStableHLOPipeline(
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<int64_t> &result_presharded,
-      const std::vector<mlir::tt::sharding_utils::MeshSharding>
-          &output_shardings,
       const std::optional<std::string> &export_path,
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
-          std::nullopt);
+          std::nullopt,
+      size_t target_num_devices = 1);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
@@ -327,13 +326,45 @@ private:
       const std::vector<PJRT_Buffer_Type> &output_types,
       std::vector<const char *> &&output_memory_kinds,
       std::vector<size_t> &&output_memory_kinds_sizes,
-      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
+      std::string &&optimized_mlir_code, const std::string &graph_hash,
+      CompileOptions &&compile_options);
+
+  // Builds the executable for Python codegen load mode: resolves the saved
+  // graph directory by hash and restores the mesh shape / device count from its
+  // module_key (which SHLO->TTIR would otherwise materialize), then points the
+  // executable at that directory instead of compiling.
+  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+  buildModuleForTTNNCodegenLoad(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      std::string &&original_mlir_code, NumArgumentsResult &&num_arguments,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
+      const std::vector<PJRT_Buffer_Type> &output_types,
+      std::string &&optimized_mlir_code, const std::string &graph_hash,
+      CompileOptions &&compile_options);
 
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
   // independently of the frontend. In the future, this will also prepare
   // everything to generate an .so file for execution.
   tt_pjrt_status performCodegen(std::string_view ttnn_mlir,
                                 const CompileOptions &compile_options);
+
+  // Computes a stable identity for the graph: hex sha256 (truncated) of the
+  // module's textual form, printed without debug info so it doesn't pick up
+  // run-specific locations.
+  static std::string
+  computeGraphHash(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Finds the saved graph directory under export_path whose module_key matches
+  // the current graph hash, restoring the mesh shape and device count saved at
+  // emit time.
+  static tt_pjrt_status
+  resolveCodegenLoadDir(const CompileOptions &compile_options,
+                        const std::string &graph_hash, std::string &matched_dir,
+                        std::vector<std::uint32_t> &mesh_shape,
+                        size_t &num_devices);
 
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;

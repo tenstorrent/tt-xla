@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import torch
+import torch.nn as nn
 import torch_xla.core.xla_builder as xb
 import torch_xla.experimental.custom_kernel  # noqa: F401
 
@@ -14,7 +15,11 @@ from torch.library import impl
 
 # from torch_xla._internal.jax_workarounds import requires_jax
 from torch_xla.experimental.custom_kernel import XLA_LIB
-from vllm.config import VllmConfig
+from vllm.config import CacheConfig, VllmConfig
+from vllm.model_executor.layers.attention.attention import Attention
+from vllm.model_executor.layers.attention.encoder_only_attention import (
+    create_encoder_only_attention_backend,
+)
 from vllm.utils.math_utils import cdiv, next_power_of_2
 from vllm.v1.attention.backend import (
     AttentionBackend,
@@ -22,6 +27,8 @@ from vllm.v1.attention.backend import (
     AttentionLayer,
     AttentionType,
 )
+from vllm.v1.attention.selector import get_attn_backend
+from vllm.v1.kv_cache_interface import KVCacheSpec
 
 from ..logger import tt_init_logger
 
@@ -191,6 +198,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        dp_size: int = 1,
         chunk_start_idx: torch.Tensor | None = None,
         batch_idx: torch.Tensor | None = None,
         num_users: Optional[int] = None,
@@ -202,6 +210,9 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        # Number of batch shards; used by paged_fill_cache to rebase batch_idx
+        # into per-shard local ids.
+        self.dp_size = dp_size
         self.chunk_start_idx = chunk_start_idx
         self.num_users = num_users
         self.batch_idx = batch_idx
@@ -270,7 +281,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         output: torch.Tensor | None = None,
         output_scale: torch.Tensor | None = None,
         output_block_scale: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+    ) -> None:
         """Forward pass with TT attention.
 
         Args:
@@ -281,16 +292,13 @@ class TTAttentionBackendImpl(AttentionImpl):
                     - now [2, batch_size, max_seq_len, num_kv_heads, head_size]
             attn_metadata: Metadata for attention.
         Returns:
+            Use pre-allocated output buffer to return the result.
             shape = [num_tokens, num_heads * head_size]
-
-        query/key/value/output tensors have additional dimension 'batch_size'
-        for batched inputs.
-            query: shape = [batch_size, num_tokens, num_heads * head_size]
-            key: shape = [batch_size, num_tokens, num_kv_heads * head_size]
-            value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
-            output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
         assert attn_metadata is not None, "TT attention requires metadata."
+        assert output is not None, "TT attention requires an output buffer."
+        output_buffer = output
+
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
@@ -313,12 +321,62 @@ class TTAttentionBackendImpl(AttentionImpl):
             assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             # Pass kv_cache so shared-KV layers can gather K/V from the target
             # layer's paged cache (see ``_compute_full_attention`` docstring).
-            output = self._compute_full_attention(inputs, kv_cache, attn_metadata)
+            attn_output = self._compute_full_attention(inputs, kv_cache, attn_metadata)
         else:
-            output = self._compute_decode_attention(inputs, kv_cache, attn_metadata)
+            attn_output = self._compute_decode_attention(
+                inputs, kv_cache, attn_metadata
+            )
 
-        # Finalize output shape to match original input
-        return self._finalize_output(output, inputs)
+        # Reshape final output to match vLLM expected flattened shape
+        # [num_users*num_tokens, num_heads * head_size].
+        finalized_output = attn_output.reshape(-1, self.num_heads * self.head_size)
+
+        # vLLM passes a preallocated output buffer and expects attention impls
+        # to materialize results into it.
+        output_buffer.copy_(finalized_output.reshape_as(output_buffer))
+
+    def _normalize_to_attention_format(
+        self,
+        tensor: torch.Tensor,
+        tensor_name: str,
+        expected_num_heads: int,
+        expected_head_size: int,
+        num_users: int,
+    ) -> torch.Tensor:
+        """Normalize a tensor to [users, tokens, heads, head_size] format.
+
+        The leading dimension is always treated as flattened tokens
+        (batch_size * num_tokens), never as an explicit batch axis.
+        """
+        if tensor.ndim < 2:
+            raise ValueError(
+                f"{tensor_name} must have rank >= 2, got shape={tuple(tensor.shape)}"
+            )
+
+        expected_hidden = expected_num_heads * expected_head_size
+        if tensor.ndim == 2 and tensor.shape[-1] == expected_hidden:
+            normalized = tensor.reshape(-1, expected_num_heads, expected_head_size)
+        elif (
+            tensor.ndim == 3
+            and tensor.shape[-2] == expected_num_heads
+            and tensor.shape[-1] == expected_head_size
+        ):
+            normalized = tensor
+        else:
+            raise ValueError(
+                f"{tensor_name} must be either a flattened-token tensor with "
+                f"shape[-1] == {expected_hidden} or a head-shaped tensor with "
+                f"shape[-2:] == ({expected_num_heads}, {expected_head_size}); "
+                f"got shape={tuple(tensor.shape)}"
+            )
+
+        total_tokens = normalized.shape[0]
+        if total_tokens % num_users != 0:
+            raise ValueError(
+                f"{tensor_name} total tokens ({total_tokens}) must be divisible "
+                f"by num_users ({num_users})"
+            )
+        return normalized.reshape(num_users, -1, expected_num_heads, expected_head_size)
 
     def _prepare_inputs(
         self,
@@ -335,42 +393,40 @@ class TTAttentionBackendImpl(AttentionImpl):
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 
-        if orig_query_ndim == 3:
-            assert query.shape[0] == num_users, (
-                f"query batch dim ({query.shape[0]}) and cache_position num_users "
-                f"({num_users}) mismatch."
-            )
-            assert (
-                key.shape == value.shape
-            ), "key and value shape mismatch for batched inputs."
-        elif orig_query_ndim == 2:
-            # Reshape query to [users, tokens_per_user, hidden_size]
-            query = self._reshape_query(query, num_users)
-            key, value = self._reshape_key_value(key, value, num_users)
-        else:
+        query = self._normalize_to_attention_format(
+            query,
+            "query",
+            self.num_heads,
+            self.head_size,
+            num_users,
+        )
+        key = self._normalize_to_attention_format(
+            key,
+            "key",
+            self.num_kv_heads,
+            self.head_size,
+            num_users,
+        )
+        value = self._normalize_to_attention_format(
+            value,
+            "value",
+            self.num_kv_heads,
+            self.head_size,
+            num_users,
+        )
+
+        if key.shape != value.shape:
             raise ValueError(
-                f"Unsupported query ndim: {orig_query_ndim}, expected 2 or 3."
+                f"key and value must match after normalization, got "
+                f"key={tuple(key.shape)} value={tuple(value.shape)}"
             )
 
         users_kv = key.shape[0]
         query_num_tokens = query.shape[1]
         kv_num_tokens = key.shape[1]
-        hidden_size = query.shape[2]
 
         # Determine prefill vs decode mode
         is_prefill = query_num_tokens > 1
-
-        # Reshape Q/K/V to [batch(users), tokens, num_heads, head_size]
-        query, key, value = self._reshape_to_attention_format(
-            query,
-            key,
-            value,
-            num_users,
-            users_kv,
-            query_num_tokens,
-            kv_num_tokens,
-            hidden_size,
-        )
 
         # Create named tuple for inputs
         AttentionInputs = namedtuple(
@@ -402,68 +458,6 @@ class TTAttentionBackendImpl(AttentionImpl):
             kv_num_tokens=kv_num_tokens,
         )
 
-    def _reshape_query(self, query: torch.Tensor, num_users: int):
-        """Reshape query tensor to [users, tokens_per_user, hidden] format."""
-        # [total_tokens, hidden] (vLLM style)
-        total_tokens = query.shape[0]
-        hidden_size = query.shape[1]
-        users = num_users
-        assert (
-            total_tokens % users == 0
-        ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
-        query_num_tokens = total_tokens // users  # tokens per user
-        query = query.view(users, query_num_tokens, hidden_size)
-
-        return query
-
-    def _reshape_key_value(self, key: torch.Tensor, value: torch.Tensor, users: int):
-        """Reshape key and value tensors to [users_kv, kv_num_tokens, hidden] format."""
-        total_k_tokens = key.shape[0]
-        kv_hidden_size = key.shape[1]
-        users_kv = users  # Assume same users as query
-        assert (
-            total_k_tokens % users_kv == 0
-        ), f"total_k_tokens ({total_k_tokens}) not divisible by users_kv ({users_kv})."
-        kv_num_tokens = total_k_tokens // users_kv
-        key = key.view(users_kv, kv_num_tokens, kv_hidden_size)
-
-        total_v_tokens = value.shape[0]
-        v_hidden_size = value.shape[1]
-        users_v = users_kv
-        assert (
-            total_v_tokens % users_v == 0
-        ), f"total_v_tokens ({total_v_tokens}) not divisible by users_v ({users_v})."
-        v_num_tokens = total_v_tokens // users_v
-        assert v_num_tokens == kv_num_tokens, "key/value token count mismatch."
-        value = value.view(users_v, v_num_tokens, v_hidden_size)
-
-        return key, value
-
-    def _reshape_to_attention_format(
-        self,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        users: int,
-        users_kv: int,
-        query_num_tokens: int,
-        kv_num_tokens: int,
-        hidden_size: int,
-    ):
-        """Reshape Q/K/V tensors to [batch(users), tokens, num_heads, head_size] format."""
-        num_heads = hidden_size // self.head_size
-        assert hidden_size % self.head_size == 0
-
-        query = query.reshape(users, query_num_tokens, num_heads, self.head_size)
-        key = key.reshape(
-            users_kv, kv_num_tokens, key.shape[-1] // self.head_size, self.head_size
-        )
-        value = value.reshape(
-            users_kv, kv_num_tokens, value.shape[-1] // self.head_size, self.head_size
-        )
-
-        return query, key, value
-
     def _handle_paged_attention(
         self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ):
@@ -493,9 +487,16 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # batch_idx is now built on CPU at setup time (#5154, done upstream)
+            # and passed via metadata rather than constructed in-graph per call.
             batch_idxs = attn_metadata.batch_idx
             assert batch_idxs is not None, "batch_idx must be provided for prefill."
-
+            # paged_fill_cache expects batch_idx local to each batch shard, but
+            # it's sharded — so % local_batch rebases it to local ids (no-op
+            # when dp_size == 1).
+            if attn_metadata.dp_size > 1:
+                local_batch = key_for_update.shape[0] // attn_metadata.dp_size
+                batch_idxs = batch_idxs % local_batch
             k_cache = torch.ops.tt.paged_fill_cache(
                 k_cache,
                 key_for_update,
@@ -666,17 +667,6 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         return out
 
-    def _finalize_output(self, output: torch.Tensor, inputs) -> torch.Tensor:
-        """Finalize output shape to match original input dimensions."""
-        hidden_size = inputs.orig_query_shape[-1]
-
-        # Output from both prefill and decode: [users, tokens, num_heads, head_size]
-        if inputs.orig_query_ndim == 3:
-            return output.reshape(inputs.users, inputs.query_num_tokens, hidden_size)
-        else:
-            total_tokens = inputs.users * inputs.query_num_tokens
-            return output.reshape(total_tokens, hidden_size)
-
 
 def write_to_kv_cache(
     key: torch.Tensor,
@@ -779,3 +769,135 @@ def get_page_size_bytes(
     return (
         block_size * num_combined_kv_heads * padded_head_size * kv_cache_dtype_bits // 8
     )
+
+
+class TTAttention(Attention):
+    """TT wrapper around vLLM Attention with explicit shape handling.
+
+    This class is patched into vLLM at startup and keeps the base Attention
+    behavior while normalizing query/key/value inputs to flattened 2D hidden
+    representations before dispatch. The output is validated and reshaped back
+    to the original query shape.
+    """
+
+    def __init__(self, num_heads: int, head_size: int, scale: float, **kwargs) -> None:
+        super().__init__(
+            num_heads=num_heads, head_size=head_size, scale=scale, **kwargs
+        )
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        output_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        query_shape = query.shape
+
+        def _reshape_to_2d(
+            tensor: torch.Tensor | None,
+            tensor_name: str,
+            expected_heads: int,
+            expected_head_size: int,
+        ) -> torch.Tensor | None:
+            if tensor is None:
+                return None
+
+            if tensor.ndim < 2:
+                raise ValueError(
+                    f"{tensor_name} must have rank >= 2, got shape={tuple(tensor.shape)}"
+                )
+
+            expected_hidden = expected_heads * expected_head_size
+            if tensor.shape[-1] == expected_hidden:
+                return tensor.reshape(-1, expected_hidden)
+
+            if (
+                tensor.shape[-2] == expected_heads
+                and tensor.shape[-1] == expected_head_size
+            ):
+                return tensor.reshape(-1, expected_hidden)
+
+            raise ValueError(
+                f"{tensor_name} must satisfy one of: "
+                f"shape[-1] == {expected_hidden} or "
+                f"shape[-2:] == ({expected_heads}, {expected_head_size}); "
+                f"got shape={tuple(tensor.shape)}"
+            )
+
+        query_2d = _reshape_to_2d(
+            query,
+            "query",
+            self.num_heads,
+            self.head_size,
+        )
+        key_2d = _reshape_to_2d(
+            key,
+            "key",
+            self.num_kv_heads,
+            self.head_size,
+        )
+        value_2d = _reshape_to_2d(
+            value,
+            "value",
+            self.num_kv_heads,
+            self.head_size_v,
+        )
+
+        output_2d = super().forward(query_2d, key_2d, value_2d, output_shape)
+
+        if output_2d.numel() != query.numel():
+            raise ValueError(
+                "Cannot reshape attention output back to query shape: "
+                f"output_shape={tuple(output_2d.shape)}, "
+                f"query_shape={tuple(query_shape)}"
+            )
+
+        return output_2d.reshape(query_shape)
+
+
+class TTEncoderOnlyAttention(TTAttention):
+    """Encoder-only TT attention wrapper with explicit backend selection.
+
+    This variant builds an encoder-only backend via
+    ``create_encoder_only_attention_backend(get_attn_backend(...))`` and
+    enforces ``AttentionType.ENCODER_ONLY`` semantics. It inherits TTAttention
+    shape handling and declares no KV cache support.
+    """
+
+    def __init__(
+        self,
+        num_heads: int,
+        head_size: int,
+        scale: float,
+        cache_config: CacheConfig | None = None,
+        attn_type: str | None = None,
+        **kwargs,
+    ) -> None:
+        dtype = torch.get_default_dtype()
+        kv_cache_dtype = (
+            cache_config.cache_dtype if cache_config is not None else "auto"
+        )
+        underlying_attn_backend = get_attn_backend(
+            head_size,
+            dtype,
+            kv_cache_dtype,
+            attn_type=AttentionType.ENCODER_ONLY,
+        )
+        attn_backend = create_encoder_only_attention_backend(underlying_attn_backend)
+        if attn_type is not None:
+            assert (
+                attn_type == AttentionType.ENCODER_ONLY
+            ), "TTEncoderOnlyAttention only supports AttentionType.ENCODER_ONLY"
+        super().__init__(
+            num_heads=num_heads,
+            head_size=head_size,
+            scale=scale,
+            cache_config=cache_config,
+            attn_backend=attn_backend,
+            attn_type=AttentionType.ENCODER_ONLY,
+            **kwargs,
+        )
+
+    def get_kv_cache_spec(self, vllm_config: VllmConfig) -> KVCacheSpec | None:
+        return None

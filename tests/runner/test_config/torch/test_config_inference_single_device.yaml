@@ -95,7 +95,8 @@ test_config:
 
   yolov3/pytorch-Base-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "datasets.exceptions.DatasetGenerationError: An error occurred while generating the dataset, error in datasets"
     markers: ["extended"]
 
   yolov4/pytorch-Base-single_device-inference:
@@ -774,13 +775,13 @@ test_config:
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8167537277595653. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING

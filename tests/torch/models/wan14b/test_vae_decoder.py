@@ -35,7 +35,6 @@ COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
     enable_trace=True,
-    all_reduce_workaround_enabled=False,
 )
 
 
