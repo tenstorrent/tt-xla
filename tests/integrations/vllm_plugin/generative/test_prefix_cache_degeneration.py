@@ -1,56 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Reproducer for the TT cached-prefill greedy degeneration (empty output).
+"""Reproducer for the TT cached-prefill greedy degeneration (tt-xla #5132).
 
-Bug
----
-With **trace + prefix caching** enabled, a greedy (temperature=0) completion of
-the json-mode prompt generates the full answer on the **first** request (prefix
-cache MISS → cold prefill), then collapses to **zero output text** on any
-**subsequent identical** request (prefix cache HIT → cached prefill). So the
-cache-hit cached-prefill path is producing wrong/degenerate first-token logits.
-Greedy decoding of the same prompt must be deterministic and non-empty, so this
-is a correctness bug in the cached-prefill path, surfaced by trace + the long
-shared json-mode prefix.
-
-The trigger is the **cache hit**, not concurrency: a single cold request works
-(observed 51 text chunks); the very next identical request degenerates
-(0 text chunks), and so does a concurrent batch of identical prompts (row 0 is
-the cache miss and generates; rows 1-3 hit the prefix row 0 just inserted and
-degenerate → signature text=[51, 0, 0, 0]).
-
-The symptom resembles tt-xla #5116 (identical greedy rows diverge), but
-``fp32_dest_acc_en=True`` does NOT fix this one (verified), whereas it fixed
-#5116 — so this is likely a distinct root cause. Root cause is open.
-
-Relation to the benchmark failure (same underlying bug — chain verified):
-This is the Falcon3-7B `xgrammar_bench --structured-output-ratio 0.0` failure in
-tt-inference-server CI (tt-shield run 27117648384; tt-inference-server #3951),
-which reports "Never received a valid chunk to calculate TTFT". Every link
-matches: the CI server is warm (it serves a suite of benchmarks first) so every
-json-mode request is a cache hit; the degeneration is greedy-specific (at
-default/random sampling the warm hit generates fine) and the CI bench is vLLM
-v0.13.0 which defaulted to greedy. The only gap is that the bench error needs
-**zero `choices` chunks** while this 0.19.1 server emits **one empty-text chunk**
-(choices=1, text=0) for the same zero-token completion — a vLLM frontend-version
-artifact: the v0.13.0 server emitted "only a usage summary and [DONE]" (0
-chunks → fail), the 0.19.1 server emits an empty stop chunk (→ the bench scores
-it success). Verified by driving the genuine bench client
-(async_request_openai_completions) against a warm source server: it reports
-success here because the 0.19.1 frontend always emits >=1 chunk. The numerical
-bug to fix is the warm cache-hit greedy degeneration, fully reproduced here;
-reproducing the literal zero-chunk error would need the old v0.13.0 server
-frontend.
-
-The prompt must be the **exact** json-mode-eval[0] string (below) — a paraphrase
-does not trigger it. ``enable_trace=True`` is required (trace off is stable),
-and the collapse is greedy-specific (``temperature=0``).
-
-This test fails on the buggy build (the warm request produces empty output); it
-passes once the cached-prefill path is fixed. Prefix caching and trace stay
-enabled — the fix is a correct prefill, not disabling features.
+A greedy (temperature=0) completion of the exact json-mode-eval[0] prompt (below)
+generates normally on a prefix-cache MISS but collapses to empty output on a
+subsequent cache HIT. Requires enable_trace=True and the exact prompt to trigger.
+The test fails on the buggy build and passes once the cached-prefill path is fixed.
 """
+
 import concurrent.futures
 import json
 import os

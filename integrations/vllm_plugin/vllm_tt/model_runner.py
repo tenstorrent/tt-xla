@@ -2825,7 +2825,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_mask = None
-        if num_tokens > 1 and not cold and not self.enable_data_parallel:
+        if num_tokens > 1 and not cold:
             # Mask batch must match the dummy query batch (num_reqs). Clamp to
             # the max-model-len request bucket the buffers are keyed on.
             mask_num_reqs = min(num_reqs, self.num_reqs_max_model_len)

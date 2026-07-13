@@ -171,15 +171,8 @@ def fill_cache_workaround(
 class TTMetadata:
     # Used in the TTAttentionBackendImpl
     cache_position: torch.Tensor
-    # Prefill SDPA mask. Shape: [num_users, 1, suffix_len, num_blocks*block_size],
-    # dtype matches Q (typically bfloat16). 0 where Q[i] should attend to K/V[j],
-    # -inf otherwise. Encodes the per-user causal pattern including any cached
-    # prefix offset (num_computed_tokens). None during decode.
     attn_mask: torch.Tensor
     page_table: torch.Tensor
-    # Only consumed by the decode kernel. SDPA prefill ignores this and reads
-    # the pattern from attn_mask instead — that branch passes is_causal=False
-    # so the mask is the single source of truth.
     is_causal: bool
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
@@ -587,16 +580,19 @@ class TTAttentionBackendImpl(AttentionImpl):
             # Back to [users, tokens, num_heads, head_size].
             return chunked_out.transpose(-3, -2)
 
-        # PROTOTYPE (option 1): cold prefill (attn_mask is None) attends its own
-        # freshly-computed K/V directly -- like main / the no-paged-cache path --
-        # instead of gathering the full slab back out of the paged cache. The
-        # prompt's K/V is already in inputs.key/value (and was just written to
-        # the cache for later decode), so the gather is redundant work whose
-        # full-slab read-back degenerates the first token (token 0) for some
-        # models (Llama-3.2-3B). Native causal over the aligned prompt is
-        # numerically correct AND cheaper. Shared-KV layers have no local K/V,
-        # so they must still gather. Cached-prefix hits (attn_mask set) keep the
-        # full-slab always-mask gather.
+        # Cold prefill (attn_mask is None) attends its own freshly-computed K/V
+        # directly -- like main / the no-paged-cache path -- instead of gathering
+        # the full slab back out of the paged cache. This is the same "no cached
+        # prefix" condition as model_runner's is_cold_prefill; here it is
+        # re-derived from attn_mask being None (model_runner signals cold-ness by
+        # leaving the mask unset) and additionally requires a paged cache and a
+        # non-shared-KV layer. The prompt's K/V is already in inputs.key/value
+        # (and was just written to the cache for later decode), so the gather is
+        # redundant work whose full-slab read-back degenerates the first token
+        # (token 0) for some models (Llama-3.2-3B). Native causal over the aligned
+        # prompt is numerically correct AND cheaper. Shared-KV layers have no
+        # local K/V, so they must still gather. Cached-prefix hits (attn_mask set)
+        # keep the full-slab always-mask gather.
         cold_direct = (
             has_paged_cache and attn_metadata.attn_mask is None and not shared_kv_mode
         )
