@@ -102,6 +102,7 @@ def benchmark_vision_torch_xla(
     extract_output_tensor_fn,
     display_name=None,
     required_pcc=0.97,
+    use_aot_autograd=None,
 ):
     """
     Benchmark a vision model using PyTorch and torch-xla.
@@ -159,8 +160,10 @@ def benchmark_vision_torch_xla(
 
     torch_xla.set_custom_compile_options(options)
 
-    # Compile model
-    framework_model.compile(backend="tt")
+    compile_kwargs = {}
+    if use_aot_autograd is not None:
+        compile_kwargs["options"] = {"tt_use_aot_autograd": use_aot_autograd}
+    framework_model.compile(backend="tt", **compile_kwargs)
 
     device = torch_xla.device()
 
