@@ -534,19 +534,20 @@ class TTAttentionBackendImpl(AttentionImpl):
     ) -> torch.Tensor:
         """Compute full attention during the prefill phase.
 
-        For generative models with paged KV cache (including KV-sharing
-        layers): gathers the full per-user K/V slab from the paged cache (no
-        trim — shape is fixed at ``num_blocks_per_user * block_size``) and
-        runs SDPA with an explicit ``attn_mask`` built in model_runner.
+        Two paths, each a distinct traced graph (no data-dependent control
+        flow):
 
-        The mask is the single source of truth for the causal/cached pattern:
-        ``is_causal`` is hard-coded to ``False`` so the trace never depends on
-        a Python branch and the same graph services cold prefill
-        (``num_computed_tokens=0``) and cached prefill identically.
-
-        For pooling models or profiling (no paged cache): falls back to
-        standard SDPA with inputs.key/value directly and the metadata's
-        ``is_causal``/``attn_mask`` settings.
+        - Cached-prefix hit (``attn_mask`` set) or KV-sharing layer (no local
+          K/V): gather the full per-user K/V slab from the paged cache (no trim
+          -- shape fixed at ``num_blocks_per_user * block_size``) and run masked
+          SDPA (``is_causal=False``); the mask carries the causal/cached pattern
+          (see ``_build_prefill_attn_mask``).
+        - Cold prefill (``attn_mask`` None) or no paged cache
+          (pooling/profiling): attend ``inputs.key/value`` directly with the
+          metadata's ``is_causal``/``attn_mask``. model_runner sets
+          ``is_causal = (attn_mask is None)``, so cold prefill gets native
+          causal. This skips the redundant paged gather whose full-slab
+          read-back degenerated the first token on some models (Llama-3.2-3B).
         """
         has_paged_cache = (
             isinstance(kv_cache, (list, tuple))
@@ -580,35 +581,16 @@ class TTAttentionBackendImpl(AttentionImpl):
             # Back to [users, tokens, num_heads, head_size].
             return chunked_out.transpose(-3, -2)
 
-        # Cold prefill (attn_mask is None) attends its own freshly-computed K/V
-        # directly -- like main / the no-paged-cache path -- instead of gathering
-        # the full slab back out of the paged cache. This is the same "no cached
-        # prefix" condition as model_runner's is_cold_prefill; here it is
-        # re-derived from attn_mask being None (model_runner signals cold-ness by
-        # leaving the mask unset) and additionally requires a paged cache and a
-        # non-shared-KV layer. The prompt's K/V is already in inputs.key/value
-        # (and was just written to the cache for later decode), so the gather is
-        # redundant work whose full-slab read-back degenerates the first token
-        # (token 0) for some models (Llama-3.2-3B). Native causal over the aligned
-        # prompt is numerically correct AND cheaper. Shared-KV layers have no
-        # local K/V, so they must still gather. Cached-prefix hits (attn_mask set)
-        # keep the full-slab always-mask gather.
-        cold_direct = (
-            has_paged_cache and attn_metadata.attn_mask is None and not shared_kv_mode
+        # Gather from the paged cache only for a cached-prefix hit (attn_mask
+        # set) or a shared-KV layer (no local K/V); cold prefill and the
+        # no-paged-cache path attend inputs.key/value directly. See the method
+        # docstring for why cold skips the gather.
+        must_gather = has_paged_cache and (
+            attn_metadata.attn_mask is not None or shared_kv_mode
         )
-        if cold_direct:
-            query_for_sdpa = inputs.query.transpose(-3, -2)
-            key_for_sdpa = inputs.key.transpose(-3, -2)
-            value_for_sdpa = inputs.value.transpose(-3, -2)
-            sdpa_kwargs = {
-                "is_causal": True,
-                "attn_mask": None,
-                "scale": self.scale,
-            }
-        elif has_paged_cache:
+        if must_gather:
             # Full gather (no trim): shape stays constant across cold/cached
-            # prefill so the traced graph is reusable; attn_metadata.attn_mask
-            # handles causality and the padded tail (see _build_prefill_attn_mask).
+            # prefill so the traced graph is reusable.
             key_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[0], attn_metadata.page_table
             )
