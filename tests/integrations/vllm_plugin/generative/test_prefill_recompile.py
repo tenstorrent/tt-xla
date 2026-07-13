@@ -40,6 +40,13 @@ WORKER_TIMEOUT = 1800
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    reason=(
+        "Uplift regression: chunked-prefill SDPA page_table tilized by tt-mlir "
+        "#8953's insertTiledFixup - https://github.com/tenstorrent/tt-xla/issues/5579"
+    ),
+    strict=False,
+)
 def test_no_prefill_recompile():
     # Isolate the in-process engine in a fresh child (see module docstring). A
     # clean subprocess — not os.fork()/pytest-forked — is required: the parent

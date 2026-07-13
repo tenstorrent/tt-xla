@@ -51,7 +51,7 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.19.1",
+        "vllm==0.20.2",
         "transformers==5.5.1",
         "fastapi[standard] >= 0.133.0, < 0.137.0",
     ],
