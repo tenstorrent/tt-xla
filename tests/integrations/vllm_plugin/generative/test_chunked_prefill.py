@@ -91,6 +91,9 @@ def _generate(max_num_batched_tokens: int) -> str:
             # length this is a single chunk (the oracle); with a small budget the
             # prompt is split into block-aligned chunks.
             "prefill_chunk_size": max_num_batched_tokens,
+            # opt1 retiles the page_table so the chunked-SDPA op aborts
+            # (page_table must stay ROW_MAJOR), so pin opt0.
+            "optimization_level": 0,
         },
     )
     sp = vllm.SamplingParams(temperature=0.0, max_tokens=_MAX_TOKENS, ignore_eos=True)
@@ -185,6 +188,8 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
             "prefill_chunk_size": chunk,
             "enable_const_eval": True,
             "min_context_len": 32,
+            # opt0 keeps the page_table ROW_MAJOR for chunked-SDPA (see _generate).
+            "optimization_level": 0,
         },
     )
     sp = vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens, ignore_eos=True)
