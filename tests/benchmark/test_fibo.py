@@ -61,7 +61,6 @@ COMPILER_CONFIG = CompilerConfig(
     optimization_level=2,
     experimental_enable_dram_space_saving_optimization=True,
     enable_trace=True,
-    fp32_dest_acc_en=False,
 )
 
 
