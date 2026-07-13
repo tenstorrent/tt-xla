@@ -314,6 +314,8 @@ class CMakeBuildPy(build_py):
             "Ninja",
             "-B",
             "build",
+            "-DCMAKE_BUILD_TYPE=Debug",
+            "-DTT_RUNTIME_DEBUG=ON",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
             "-DTTMLIR_ENABLE_BINDINGS_PYTHON=" + enable_explorer,
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,

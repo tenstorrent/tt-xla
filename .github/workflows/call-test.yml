@@ -411,7 +411,7 @@ jobs:
       run: |
         source venv/activate
         [[ -f topology_exports.sh ]] && source topology_exports.sh
-        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+        TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG TTXLA_LOGGER_LEVEL=DEBUG python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
           --junitxml=${{ steps.strings.outputs.test_report_path }} \
           --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
           --perf-id=${{ job.check_run_id }} \
