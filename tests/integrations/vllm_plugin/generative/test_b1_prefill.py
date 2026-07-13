@@ -73,12 +73,10 @@ def _distinct_prompt(seed: int):
 
 def _make_engine() -> AsyncLLMEngine:
     additional_config = {
-        "enable_const_eval": True,
         "min_context_len": 128,
         "experimental_weight_dtype": "bfp_bf8",
         "experimental_kv_cache_dtype": "bfp_bf8",
         "cpu_sampling": False,
-        "optimization_level": 1,
         "enable_trace": False,  # prefill-focused; trace is a decode opt
         "fp32_dest_acc_en": False,
         "num_hidden_layers": 1,  # single layer: nightly ~2 min; b1/b32 selection is depth-independent

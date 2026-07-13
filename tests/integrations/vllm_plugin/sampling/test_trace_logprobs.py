@@ -30,7 +30,6 @@ def test_opt125m_trace_logprobs():
         additional_config={
             "cpu_sampling": False,
             "enable_trace": True,
-            "enable_const_eval": True,
             "experimental_weight_dtype": "bfp_bf8",
         },
     )

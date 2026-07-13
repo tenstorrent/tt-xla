@@ -27,7 +27,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
         },

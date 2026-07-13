@@ -28,7 +28,6 @@ def test_generation_single_device_gemma4_e4b():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": False,
             "use_2d_mesh": False,
@@ -60,7 +59,6 @@ def test_generation_bhqb_gemma4_26b_a4b():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.1,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": True,
@@ -111,7 +109,6 @@ def test_generation_single_device_gemma4_e4b_image():
         "max_model_len": 512,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": False,
             "use_2d_mesh": False,
@@ -166,7 +163,6 @@ def test_generation_bhqb_gemma4_image(model_name, use_2d_mesh):
         "max_model_len": 1024,
         "gpu_memory_utilization": 0.1,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,

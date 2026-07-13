@@ -19,7 +19,6 @@ def test_llama3_3b_generation():
         "max_model_len": 128,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
         },
     }
@@ -46,7 +45,6 @@ def test_llama3_3b_generation_trace():
         "additional_config": {
             "cpu_sampling": False,
             "enable_trace": True,
-            "enable_const_eval": True,
             "experimental_weight_dtype": "bfp_bf8",
         },
     }
@@ -74,7 +72,6 @@ def test_llama3_3b_generation_trace_opt0():
         "additional_config": {
             "cpu_sampling": False,
             "enable_trace": True,
-            "enable_const_eval": True,
             "experimental_weight_dtype": "bfp_bf8",
             "optimization_level": 0,
         },
