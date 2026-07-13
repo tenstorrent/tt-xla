@@ -3,23 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression test for tt-xla #5416: per-batch buffer keying must be consistent.
 
-``TTModelRunner`` preallocates per-batch device buffers (input_ids, position_ids,
-logits_indices, batch_idx, page tables) keyed by request-count buckets, and
-``_prepare_inputs`` looks them up by a ``target_num_reqs`` chosen per step. The
-row count is clamped to the SMEM sequence limit of the active attention path
-(``num_reqs_max_model_len`` / ``num_reqs_most_model_len``), which drops below
-``max_num_seqs`` at long context.
+``TTModelRunner`` preallocates per-batch device buffers keyed by request-count
+buckets; ``_prepare_inputs`` looks them up by a per-step ``target_num_reqs``
+clamped to the active path's SMEM seq limit (``num_reqs_max_model_len`` /
+``num_reqs_most_model_len``), which drops below ``max_num_seqs`` at long context.
+Pre-fix the shared buffers were keyed by ``max_num_reqs`` while the page tables
+and warmup used the clamped count, so decode ran at the wrong row count and a
+distinct ``max_prefill_num_reqs`` hit a ``KeyError``.
 
-The bug: input_ids / position_ids / logits_indices / batch_idx were keyed by
-``max_num_reqs`` (and ``max_prefill_num_reqs``) while the page tables and the
-compiled warmup graphs used the SMEM-clamped ``num_reqs_max_model_len``. When
-``num_reqs_max_model_len < max_num_reqs`` the runtime decode row count silently
-disagreed with the page tables, and configs using a distinct
-``max_prefill_num_reqs`` hit a ``KeyError`` on the buffer lookup.
-
-These tests exercise the pure bucketing helpers (no TT device / model): every
-``target_num_reqs`` ``_prepare_inputs`` can request must be a preallocated buffer
-key, across the common case and the long-context clamp.
+These tests exercise the pure bucketing helpers (no device): every requestable
+``target_num_reqs`` must be a preallocated buffer key.
 """
 
 import pytest

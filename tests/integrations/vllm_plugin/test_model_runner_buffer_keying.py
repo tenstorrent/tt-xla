@@ -3,23 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """On-device regression for tt-xla #5416: buffer keying under the SMEM clamp.
 
-Companion to ``test_prepare_inputs_buffer_keying.py`` (which unit-tests the pure
-bucketing helpers). This one constructs a real ``TTModelRunner`` on device in a
-config where the SMEM sequence limit (``num_reqs_max_model_len``) falls below
-``max_num_seqs`` -- the long-context scenario from #5416 -- and asserts every
+Companion to ``test_prepare_inputs_buffer_keying.py`` (pure-helper unit tests).
+This builds a real ``TTModelRunner`` where the SMEM seq limit
+(``num_reqs_max_model_len``) falls below ``max_num_seqs`` and asserts every
 per-batch device buffer is keyed by the clamped count.
 
-The clamp normally needs a >128K-context model. To reproduce it cheaply on a
-small model we shrink the KV block size instead: ``get_max_num_seqs`` scales
-with ``block_size / max_model_len``, so ``block_size=8`` at the native 2048
-context gives a limit of 512 < ``max_num_seqs``. Chunked prefill is enabled so
-the batched-token budget assertion stays loose. The buffer-keying code under
-test is identical either way -- it only reads ``num_reqs_max_model_len``.
-
-Before the fix, ``_input_ids_dev`` / ``_position_ids_dev`` / ``_logits_indices_dev``
-/ ``batch_idx`` were keyed by ``max_num_reqs`` while the page tables and warmup
-used ``num_reqs_max_model_len``; a plain decode then ran at the wrong row count,
-and a distinct ``max_prefill_num_reqs`` produced a ``KeyError`` on the lookup.
+The clamp normally needs a >128K-context model; we reproduce it cheaply by
+shrinking the KV block size: ``get_max_num_seqs`` scales with
+``block_size / max_model_len``, so ``block_size=8`` at the native 2048 context
+gives a limit of 512 < ``max_num_seqs``.
 """
 
 import pytest

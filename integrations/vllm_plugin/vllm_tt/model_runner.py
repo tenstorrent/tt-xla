@@ -578,15 +578,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         def _alloc_dev(shape, dtype):
             return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
 
-        # Row-count buckets that `_prepare_inputs` (and warmup) can request. The
-        # active batch is clamped to the SMEM seq limit of the path in use
-        # (`num_reqs_max_model_len` for max_model_len, `num_reqs_most_model_len`
-        # for most_model_len), so every per-batch buffer must be keyed by these
-        # clamped counts -- matching the page-table buffers below and the
-        # compiled warmup graphs. Keying by `max_num_reqs` instead over-sizes
-        # input_ids/logits_indices relative to the compiled decode shape and
-        # misses the page-table lookup whenever `num_reqs_max_model_len <
-        # max_num_reqs` (long context). See issue #5416.
+        # Per-batch buffers are keyed by every reachable clamped row count (see
+        # `_reachable_num_reqs`); the per-path page tables below use only their
+        # own path's counts. #5416.
         self._max_len_num_reqs = set(
             _bucket_num_reqs(
                 self.min_num_reqs,
@@ -605,12 +599,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.num_reqs_most_model_len is not None
             else set()
         )
-        self._reachable_num_reqs = _reachable_num_reqs(
-            self.min_num_reqs,
-            self.max_prefill_num_reqs,
-            self.num_reqs_max_model_len,
-            self.num_reqs_most_model_len,
-        )
+        self._reachable_num_reqs = self._max_len_num_reqs | self._most_len_num_reqs
 
         self._input_ids_dev = {
             (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
@@ -688,10 +677,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
             }
 
-        # Persistent per-row-count batch indices for paged_fill_cache. Keyed by
-        # the same clamped counts as the page tables so its dim0 matches the
-        # DP-sharded K/V batch (paged_fill_cache verifies dim0 == per-device
-        # batch); a max_num_reqs-sized buffer would mismatch under long context.
+        # Persistent per-row-count batch indices for paged_fill_cache, keyed like
+        # the page tables so dim0 matches the DP-sharded K/V batch
+        # (paged_fill_cache asserts dim0 == per-device batch).
         self._batch_idx_dev = {
             num_reqs: torch.arange(num_reqs, dtype=torch.int32, device="cpu").to(
                 self.device
@@ -1269,12 +1257,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = len(num_scheduled_tokens_per_req)
         actual_num_reqs = num_reqs
 
-        # Decode runs at the large (decode) bucket; prefill picks the small or
-        # large prefill bucket. Both are clamped to the SMEM seq limit of the
-        # active attention path (num_reqs_max_model_len / num_reqs_most_model_len)
-        # so the row count matches the page-table buffers and the compiled warmup
-        # graphs; using max_num_reqs would miss the buffer lookup and diverge from
-        # warmup whenever the clamp is active (long context, see #5416).
+        # Row-count bucket for this step, clamped to the active path's SMEM seq
+        # limit (see `_select_target_num_reqs`). #5416.
         path_max_num_reqs = (
             self.num_reqs_max_model_len
             if use_max_model_len
@@ -2616,8 +2600,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # clean DRAM arena, avoiding fragmentation OOMs at long context (#5522).
         configs.sort(key=lambda c: (c["num_reqs"], c["num_tokens"]), reverse=True)
 
-        # Buckets are SMEM-clamped (see num_reqs_options): decode compiles at the
-        # clamped decode bucket, prefill at the clamped prefill cap (#5416).
         decode_num_reqs = self.num_reqs_max_model_len
         prefill_cap = min(self.max_prefill_num_reqs, self.num_reqs_max_model_len)
         for config in configs:
