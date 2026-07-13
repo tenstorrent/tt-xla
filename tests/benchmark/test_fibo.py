@@ -61,6 +61,7 @@ COMPILER_CONFIG = CompilerConfig(
     optimization_level=2,
     experimental_enable_dram_space_saving_optimization=True,
     enable_trace=True,
+    math_fidelity="hifi2",
 )
 
 
