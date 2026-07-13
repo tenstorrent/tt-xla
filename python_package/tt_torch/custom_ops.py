@@ -2379,6 +2379,89 @@ def indexer_score_fake(
     )
 
 
+@torch.library.custom_op(
+    "tt::topk_large_indices", mutates_args=[], device_types=["xla", "cpu"]
+)
+def topk_large_indices(input: torch.Tensor, k: int) -> torch.Tensor:
+    """
+    Experimental large-row top-k indices op, mirroring
+    ``ttnn.experimental.topk_large_indices`` semantics.
+
+    Returns the ``k`` indices of the largest elements along the last dimension of
+    ``input``, sorted in descending order of value::
+
+        indices = topk(input, k, dim=-1, largest=True, sorted=True).indices
+
+    The output has the same shape as ``input`` except the last dimension is ``k``,
+    and its element type is UINT32.
+
+    On XLA this emits a ``stablehlo.custom_call @tt.topk_large_indices`` that
+    tt-mlir converts to a ``ttcore.composite`` named "topk_large_indices". On
+    Blackhole the composite is promoted to ``ttnn.experimental.topk_large_indices``;
+    on other architectures the composite falls back to its primitive
+    decomposition (a ``ttir.topk`` keeping only the indices), which this CPU path
+    replicates as the golden reference.
+
+    Because the op returns only *indices*, ties (common in bf16, which has 8
+    mantissa bits) make the order of the tied indices unspecified: the device and
+    this reference may return the same index set in a different order, or pick a
+    different representative among equal values. Correctness is therefore defined
+    over the *values* the indices select, not the index labels themselves.
+
+    Constraints (tt-metal op restrictions):
+        * ``input`` must be a BFLOAT16 tensor of rank >= 1;
+        * the last dimension is the input row length and must be >= ``k``;
+        * ``k`` must be in [16, 2048] and a multiple of 16.
+
+    Args:
+        input: BFLOAT16 tensor ``[..., N]``.
+        k: number of indices to return.
+
+    Returns:
+        UINT32 indices tensor ``[..., k]``.
+    """
+    assert len(input.shape) >= 1, "input must have rank >= 1."
+    assert (
+        input.dtype == torch.bfloat16
+    ), f"input must be a bfloat16 tensor, got {input.dtype}."
+    assert isinstance(k, int), f"k must be an int, got {type(k)}."
+    assert (
+        16 <= k <= 2048 and k % 16 == 0
+    ), f"k must be in [16, 2048] and a multiple of 16, got {k}."
+    assert (
+        input.shape[-1] >= k
+    ), f"input's last dimension ({input.shape[-1]}) must be >= k ({k})."
+
+    output_shape = torch.Size(list(input.shape[:-1]) + [k])
+
+    if input.device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input],
+            "tt.topk_large_indices",
+            [output_shape],
+            [torch.uint32],
+            frontend_attributes={"k": str(k)},
+        )
+
+    elif input.device.type == "cpu":
+        # Golden: the top-k indices along the last dim, sorted descending, as
+        # uint32. Indices are in [0, N) so they fit in uint32 without overflow.
+        indices = torch.topk(input, k, dim=-1, largest=True, sorted=True).indices
+        return indices.to(torch.uint32)
+
+    else:
+        raise ValueError(f"Unsupported device type: {input.device.type}")
+
+
+@topk_large_indices.register_fake
+def topk_large_indices_fake(input: torch.Tensor, k: int) -> torch.Tensor:
+    return torch.zeros(
+        list(input.shape[:-1]) + [k],
+        dtype=torch.uint32,
+        device=input.device,
+    )
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):

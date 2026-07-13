@@ -510,3 +510,121 @@ def test_indexer_score_tensor_parallel(
         shard_spec_fn=get_shard_spec,
         custom_comparator=_indexer_score_comparator,
     )
+
+
+def _topk_large_indices_comparator(device_output, golden_output, args, kwargs):
+    """Compare tt.topk_large_indices outputs by the *values* their indices select.
+
+    The op returns only indices. When several elements tie (common in bf16, which
+    has 8 mantissa bits) the order — and even the choice of representative — among
+    the tied indices is unspecified, so positionally comparing the returned index
+    labels against the torch golden is not a meaningful correctness metric (same
+    rationale as the tt-mlir golden test, which skips PCC for this op). Instead we
+    (1) check every returned index is a valid position along the row, and (2)
+    gather the input values at the device and golden indices and require the
+    sorted top-k value sets to match. The k-largest value multiset is a property
+    of the input alone, so it is invariant to how ties are broken.
+    """
+    input_tensor = args[0].cpu().to(torch.float32)
+    n = input_tensor.shape[-1]
+
+    device_idx = device_output.cpu().to(torch.int64)
+    golden_idx = golden_output.cpu().to(torch.int64)
+
+    assert device_idx.shape == golden_idx.shape, (
+        f"index shape mismatch: device {tuple(device_idx.shape)} vs "
+        f"golden {tuple(golden_idx.shape)}."
+    )
+    assert torch.all(
+        (device_idx >= 0) & (device_idx < n)
+    ), "topk_large_indices returned an out-of-range index."
+
+    # Gather the selected values and compare the sorted top-k value sets. A
+    # different tie-break (order or representative) leaves the value set unchanged.
+    device_vals = torch.gather(input_tensor, -1, device_idx).sort(dim=-1).values
+    golden_vals = torch.gather(input_tensor, -1, golden_idx).sort(dim=-1).values
+    assert torch.allclose(
+        device_vals, golden_vals
+    ), "topk_large_indices selected a different set of top-k values than the golden."
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "shape, k",
+    [
+        # N > k exercises a real top-k selection (not a full-row sort).
+        ((2, 64), 16),
+        ((4, 256), 64),
+        ((8, 128), 32),
+        ((1, 512), 128),
+        # N == k selects (sorts) the whole row.
+        ((2, 32), 32),
+        # 3D input: leading dims are preserved, top-k is over the last dim.
+        ((2, 4, 128), 48),
+    ],
+)
+def test_topk_large_indices(shape, k):
+    # ttnn.experimental.topk_large_indices requires a row-major bfloat16 input.
+    input = torch.randn(shape, dtype=torch.bfloat16)
+
+    run_op_test(
+        torch.ops.tt.topk_large_indices,
+        [input, k],
+        framework=Framework.TORCH,
+        custom_comparator=_topk_large_indices_comparator,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "num_rows, n, k",
+    # num_rows is divisible by 8 so the row split is valid for 2-, 4- and
+    # 8-device meshes.
+    [
+        (8, 64, 16),
+        (8, 128, 32),
+        (8, 256, 64),
+        (16, 512, 128),
+    ],
+)
+def test_topk_large_indices_data_parallel(num_rows, n, k):
+    """Data-parallel topk_large_indices: split the rows across devices.
+
+    topk_large_indices needs the whole row on one device (it selects over the last
+    dimension N), so the natural parallelism is data parallelism over the leading
+    (row) dimension: each device runs the op on its own row-shard with no
+    collective (see tt-mlir's registered sharding rule for tt.topk_large_indices,
+    which keeps N replicated and inserts no all-gather/all-reduce).
+
+    Layout:
+        input   [num_rows, N] -> rows sharded on "batch", N replicated
+        output  [num_rows, k] -> rows sharded on "batch" (no reduction)
+    """
+    num_devices = xr.global_runtime_device_count()
+    assert (
+        num_rows % num_devices == 0
+    ), f"num_rows ({num_rows}) must be divisible by device count ({num_devices})."
+
+    input = torch.randn(num_rows, n, dtype=torch.bfloat16)
+
+    mesh_shape = (num_devices, 1)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(args, kwargs):
+        input_tensor = args[0]
+        return {
+            # Split the rows across the data-parallel axis; N stays replicated.
+            input_tensor: ("batch", None),
+        }
+
+    run_op_test(
+        torch.ops.tt.topk_large_indices,
+        [input, k],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        custom_comparator=_topk_large_indices_comparator,
+    )
