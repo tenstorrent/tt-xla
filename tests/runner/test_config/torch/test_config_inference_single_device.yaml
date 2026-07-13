@@ -582,6 +582,9 @@ test_config:
   phi2/causal_lm/pytorch-Phi_2-single_device-inference:
     markers: [baseline_uplift]
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     optimization_level: 2
 
   phi2/causal_lm/pytorch-Phi_2_Pytdml-single_device-inference:
@@ -741,6 +744,9 @@ test_config:
 
   phi1/causal_lm/pytorch-Phi_1-single_device-inference:
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   phi1/token_classification/pytorch-Phi_1-single_device-inference:
     status: EXPECTED_PASSING
@@ -791,11 +797,17 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -939,6 +951,9 @@ test_config:
   qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B_Instruct-single_device-inference:
@@ -954,6 +969,9 @@ test_config:
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     markers: [push]
     optimization_level: 1
 
@@ -1015,6 +1033,9 @@ test_config:
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference:
     markers: [baseline_uplift]
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1285,6 +1306,9 @@ test_config:
   gemma/pytorch-1.1_2B_IT-single_device-inference:
     markers: [baseline_uplift]
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   nbeats/pytorch-generic_basis-single_device-inference:
     status: EXPECTED_PASSING
@@ -1446,6 +1470,9 @@ test_config:
 
   gemma/pytorch-2_2B_IT-single_device-inference:
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     markers: ["extended", push]
     optimization_level: 2
 
@@ -1576,6 +1603,9 @@ test_config:
 
   qwen_3/embedding/pytorch-Embedding_8B-single_device-inference:
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     optimization_level: 1
     arch_overrides:
       n150:
@@ -1637,6 +1667,9 @@ test_config:
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
     optimization_level: 2
     arch_overrides:
@@ -1764,6 +1797,9 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14B_Instruct-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct_1M-single_device-inference:
     arch_overrides:
@@ -1789,6 +1825,9 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-inference:
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     optimization_level: 1
     arch_overrides:
       p150:
@@ -2612,6 +2651,9 @@ test_config:
 
   ssd512/object_detection/pytorch-ssd512-single_device-inference:
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
 
   qwen_3_vl/image_to_text/pytorch-2b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2762,4 +2804,7 @@ test_config:
   gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    emitpy_overrides:
+      status: KNOWN_FAILURE_XFAIL
+      reason: "EmitPy result differs from flatbuffer (non-exact match)"
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117

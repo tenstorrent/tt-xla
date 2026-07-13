@@ -222,6 +222,16 @@ def pytest_collection_modifyitems(config, items):
         elif meta.status == ModelTestStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
 
+        # Tests flipped to xfail specifically by emitpy_overrides get an extra
+        # 'emitpy_xfail' marker, so an emitpy run can select just these
+        # (via `-m emitpy_xfail`) rather than every known_failure_xfail test.
+        if (
+            emitpy
+            and meta.data.get("emitpy_overrides", {}).get("status")
+            == ModelTestStatus.KNOWN_FAILURE_XFAIL
+        ):
+            item.add_marker(pytest.mark.emitpy_xfail)
+
         # Apply any custom/extra markers from config (e.g., "push", "nightly", "weekly")
         config_markers = getattr(meta, "markers", []) or []
         for marker_name in config_markers:
