@@ -57,6 +57,9 @@ test_config:
     required_pcc: 0.97
     status: EXPECTED_PASSING
 
+  srpo/pytorch-TextEncoder-single_device-inference:
+    status: EXPECTED_PASSING  # SRPO/FLUX.1-dev CLIP-L text encoder (openai/clip-vit-large-patch14) on TT; passes at default pcc 0.99.
+
   wide_resnet/pytorch-50.2-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
