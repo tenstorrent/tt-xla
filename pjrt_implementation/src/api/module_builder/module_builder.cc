@@ -85,6 +85,22 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
+// Returns true if the public entry point of the module has at least one
+// argument.
+static bool
+moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  std::vector<mlir::func::FuncOp> public_func_ops;
+  m.get().walk([&](mlir::func::FuncOp funcOp) {
+    if (funcOp.isPublic()) {
+      public_func_ops.push_back(funcOp);
+    }
+  });
+  TT_FATAL(public_func_ops.size() == 1,
+           "Expected exactly one public function in module, got {}",
+           public_func_ops.size());
+  return public_func_ops[0].getNumArguments() > 0;
+}
+
 // Returns true if the module contains a sharding-constraint placeholder
 // (`stablehlo.custom_call @tt.sharding_constraint` or `@Sharding`). These are
 // emitted by `sharding_constraint_tensor` / GSPMD and signal that the graph
@@ -307,7 +323,7 @@ ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
     const std::unordered_map<std::string, std::string> &compile_options_map,
-    ClientInstance *client_instance) {
+    ClientInstance *client_instance, size_t target_num_devices) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
@@ -408,7 +424,7 @@ ModuleBuilder::buildModule(
   status = runCompilerStableHLOPipeline(
       mlir_module, result_presharded, output_shardings,
       compile_options.export_path, compile_options.export_model_name,
-      current_mesh_shape);
+      current_mesh_shape, target_num_devices);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -796,15 +812,28 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
-    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape,
+    size_t target_num_devices) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
+  // Adopt the full device mesh when the graph genuinely needs it. Two disjoint
+  // cases require it:
+  //   1. The graph is really sharded -- it carries sharding-constraint
+  //      placeholders (e.g. sharded topk / 2D-mesh TP inference, which have
+  //      func arguments) or a result is partitioned across devices.
+  //   2. It is a no-input graph on a multi-device run: a no-input replicated
+  //      value (e.g. a const-folded torch.arange) would otherwise default to
+  //      1x1, collapse the mesh, and break the live sharded buffers
+  //      (see https://github.com/tenstorrent/tt-xla/issues/5360).
+  // A purely replicated computation that merely has input arguments (e.g. a
+  // single-device argmax) matches neither and stays on a single device.
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
       (moduleHasShardingConstraints(mlir_module) ||
-       anyShardedAcrossDevices(output_shardings))) {
+       anyShardedAcrossDevices(output_shardings) ||
+       (!moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1))) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

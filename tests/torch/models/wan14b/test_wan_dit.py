@@ -71,9 +71,6 @@ def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
 
-@pytest.mark.xfail(
-    reason="PCC comparison fails on the full DiT (DiT sharding limitation)"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole

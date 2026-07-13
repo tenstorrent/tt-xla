@@ -11,7 +11,6 @@ from conftest import (
 )
 
 
-@pytest.mark.skip
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
