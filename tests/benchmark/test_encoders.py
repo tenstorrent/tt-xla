@@ -499,16 +499,9 @@ def test_bge_m3(output_file, request):
 def test_xtts_v2(output_file, request):
     """Benchmark XTTS-v2 (coqui/XTTS-v2) — the GPT2 KV-cached decode step.
 
-    XTTS-v2 is a multilingual TTS model with no single traceable forward. Its
-    per-token audio-code decode step (``GptDecodeWrapper``) is the graph the
-    autoregressive loop reuses every token, so it is the throughput-determining
-    kernel. Benchmarking it through the generic encoder harness reports that step's
-    device throughput + PCC vs CPU. The model stays float32 (XTTS submodules do
-    not cast uniformly to bf16). The full e2e pipeline is covered functionally by
-    ``tests/torch/models/xtts_v2/test_xtts_v2_pipeline.py``.
-
-    Needs the loader's ``coqui-tts`` + ``torchaudio`` deps (declared as ``pyreq``
-    in the perf matrix) and the CPML-gated weights (``COQUI_TOS_AGREED=1``).
+    The per-token decode step is the graph the autoregressive loop reuses every
+    token, so it determines throughput; this reports its device throughput + PCC
+    vs CPU (float32). Needs coqui-tts + torchaudio and CPML-gated weights.
     """
     import os
 

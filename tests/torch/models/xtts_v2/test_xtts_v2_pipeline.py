@@ -2,25 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""XTTS-v2 (coqui/XTTS-v2) — nightly end-to-end text-to-speech pipeline test.
+"""XTTS-v2 (coqui/XTTS-v2) nightly end-to-end text-to-speech pipeline test.
 
-Drives the full ``Xtts.inference`` path with every learned nn.Module on TT via
-the reusable pipeline in
-``third_party/tt_forge_models/xtts_v2/pytorch/pipeline.py`` (speaker encoder +
-conditioning + GPT decode loop + GPT latents + HiFi-GAN, chained on device; only
-the mel front-ends, tokenizer and token sampling stay on CPU). Mirrors the
-SDXL-Lightning e2e test: run the pipeline and assert the output artifact is valid
-(a finite, non-empty 24 kHz waveform), rather than a full-waveform PCC — the e2e
-PCC vs CPU is low (~0.35, tracked in #5117) and not the property under test here.
-
-Marked xfail on the current stack: the all-on-TT chain is blocked by two compiler
-issues surfaced by this model — the conditioning encoder's ``ttnn.group_norm``
-tile-alignment (#5483 / tt-mlir #8935) and the HiFi-GAN decoder's no-op
-``.squeeze(1)`` lowering to ``prims::view_of`` (#5375 / #5388). It flips to xpass
-once both land and the submodule is uplifted.
-
-Skipped unless the optional ``coqui-tts`` / ``torchaudio`` deps, the CPML-gated
-weights, and a TT device are all available.
+Runs the full ``Xtts.inference`` path with every learned nn.Module on TT and
+asserts the output artifact is valid (a finite, non-empty 24 kHz waveform). xfail
+(non-strict) pending the conditioning group_norm (#5483 / tt-mlir #8935) and
+HiFi-GAN squeeze (#5375 / #5388) fixes. Needs coqui-tts, weights, and a TT device.
 """
 
 import os
@@ -71,16 +58,17 @@ def test_xtts_v2_pipeline():
     torch_xla = pytest.importorskip("torch_xla")
     import torch_xla.runtime as xr
 
-    # torchaudio is safe to probe directly; TTS is imported lazily by the loader
-    # (its import chain needs the isin_mps_friendly shim the loader installs).
-    pytest.importorskip("torchaudio", reason="torchaudio not installed")
-
     # Install the loader's own requirements (coqui-tts + torchaudio) for the run,
     # exactly as tests/runner/test_models.py does for component tests.
     from tests.runner.requirements import RequirementsManager
 
     RequirementsManager.capture_golden_state()
     with RequirementsManager.for_loader(_LOADER_PATH, framework="torch"):
+        # Probe torchaudio inside the manager (after install); TTS is imported
+        # lazily by the loader (its import chain needs the isin_mps_friendly shim
+        # the loader installs first).
+        pytest.importorskip("torchaudio", reason="torchaudio not installed")
+
         os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
         xr.set_device_type("TT")

@@ -4,23 +4,9 @@
 
 """Standalone bring-up test for the XTTS-v2 autoregressive decode loop.
 
-The e2e pipeline (``third_party/tt_forge_models/xtts_v2/pytorch/pipeline.py``)
-drives the GPT2 audio-token loop on TT with a pre-allocated HF ``StaticCache`` so
-the decode graph compiles once and is reused every step. This test asserts the two
-properties it relies on, against the shipped ``GptCachedStep``:
-
-    1. Correctness -- each decode step's logits match the same step on CPU
-       (per-step PCC).
-    2. Single-compile -- running many steps does NOT recompile per step; the
-       compile count is flat from the second decode step on (first step compiles
-       the graph, every later step is a cache hit).
-
-The runner (``xtts_v2/pytorch-gpt_decode-single_device-inference``) PCC-checks one
-decode step in isolation; this adds the *loop* and the no-recompile check, which a
-single fixed-shape forward cannot show.
-
-Skipped unless the optional ``coqui-tts`` / ``torchaudio`` deps, the CPML-gated
-weights, and a TT device are all available.
+Asserts the two properties the e2e pipeline relies on against ``GptCachedStep``:
+per-step decode logits match CPU (PCC), and the decode graph compiles once and is
+reused every step (no per-step recompile). Needs coqui-tts, weights, and a TT device.
 """
 
 import os
