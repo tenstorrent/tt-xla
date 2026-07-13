@@ -94,6 +94,7 @@ def benchmark_video_gen_torch_xla(
     warmup_steps=WARMUP_STEPS,
     data_format="bfloat16",
     required_pcc=0.97,
+    golden_dtype=None,
 ):
     """Benchmark a single video-generation model component with torch-xla.
 
@@ -125,6 +126,14 @@ def benchmark_video_gen_torch_xla(
         data_format: Precision string for reporting ("bfloat16" / "float32").
         required_pcc: Minimum PCC threshold (asserted). If None, the CPU golden
             and PCC check are skipped entirely (perf-only run).
+        golden_dtype: Optional ``torch.dtype`` in which to compute the CPU
+            golden, independent of the device compute dtype. Defaults to None
+            (golden in the wrapper's own dtype). Set this to ``torch.float32``
+            for conv-heavy decoders (e.g. ``AutoencoderKLWan``) whose bf16 CPU
+            reference is pathologically slow (>10 min for a single 1024x1024
+            decode) while the fp32 reference is cheap (~80s); the device still
+            runs the wrapper's original (bf16) dtype, so the PCC check validates
+            the real bf16 device path against a high-precision reference.
 
     Returns:
         Standardized benchmark result dictionary.
@@ -140,9 +149,24 @@ def benchmark_video_gen_torch_xla(
     golden_output = None
     if required_pcc is not None:
         with torch.no_grad():
-            golden_output = (
-                extract_output_tensor_fn(wrapper(*inputs)).detach().to("cpu")
-            )
+            if golden_dtype is not None:
+                # Compute the reference in golden_dtype (e.g. fp32) instead of
+                # the wrapper's compute dtype, then restore the compute dtype so
+                # the device run below is unaffected. Needed for conv-heavy
+                # decoders whose bf16 CPU forward is impractically slow.
+                compute_dtype = next(wrapper.parameters()).dtype
+                wrapper.to(golden_dtype)
+                golden_inputs = [t.to(golden_dtype) for t in inputs]
+                golden_output = (
+                    extract_output_tensor_fn(wrapper(*golden_inputs))
+                    .detach()
+                    .to("cpu")
+                )
+                wrapper.to(compute_dtype)
+            else:
+                golden_output = (
+                    extract_output_tensor_fn(wrapper(*inputs)).detach().to("cpu")
+                )
 
     # Build mesh and enable SPMD before any XLA op when sharding.
     use_sharding = False
@@ -224,9 +248,10 @@ def benchmark_video_gen_torch_xla(
     # check and no score is recorded.
     evaluation_score = None
     if required_pcc is not None:
-        evaluation_score = compute_pcc(
-            last_output, golden_output, required_pcc=required_pcc
-        )
+        evaluation_score = compute_pcc(last_output, golden_output)
+        assert (
+            evaluation_score >= required_pcc
+        ), f"PCC comparison failed. PCC={evaluation_score:.6f}, Required={required_pcc}"
         print(f"PCC verification passed with PCC={evaluation_score:.6f}")
     else:
         print("PCC check skipped (required_pcc=None).")

@@ -345,6 +345,89 @@ def test_janus_pro(output_file, request):
     )
 
 
+def test_fibo_vae_decoder(output_file, request):
+    """FIBO (briaai/FIBO) VAE decoder — benchmarked in isolation on a single chip.
+
+    FIBO is BRIA AI's 8B-parameter DiT text-to-image model; its output stage is
+    the Wan 2.2 VAE (``AutoencoderKLWan``). This benchmarks **only that VAE
+    decoder component** (not the DiT or the SmolLM3 text encoder), decoding a
+    scaled latent back to pixel space at FIBO's native 1024x1024:
+    ``[1, 48, 1, 64, 64] -> [1, 3, 1, 1024, 1024]``.
+
+    FIBO's VAE is the same ``AutoencoderKLWan`` as Wan 2.2 TI2V-5B (z_dim=48,
+    spatial scale 16), a 3D-causal-conv network, so it uses the same harness and
+    the same two upstream-diffusers workarounds the Wan VAE-decoder benchmark
+    relies on (see ``tests/torch/models/wan5b/monkey_patch.py``):
+      * ``_patch_wan_resample_rep_sentinel()`` — swap ``WanResample``'s ``"Rep"``
+        string sentinel for an object identity so dynamo does not graph-break on
+        ``Tensor == "Rep"``.
+      * ``safe_xla_slicing()`` — clamp out-of-range slices (e.g.
+        ``x[:, :, -2:, :, :]`` on a size-1 temporal dim) that CPU tolerates but
+        torch-xla rejects; wraps compile + execution.
+
+    Runs unsharded on a single chip (p150). The reference (golden) is computed
+    in fp32 on CPU because a bf16 CPU decode of this conv-heavy net is
+    impractically slow (>10 min vs ~80s in fp32); the device runs bf16, so the
+    PCC check validates the real bf16 device path against an fp32 reference.
+    """
+    import torch
+    from benchmarks.video_gen_benchmark import benchmark_video_gen_torch_xla
+    from utils import aggregate_ttnn_perf_metrics, resolve_display_name
+
+    from tests.infra.testers.compiler_config import CompilerConfig
+    from tests.torch.models.wan5b.monkey_patch import (
+        _patch_wan_resample_rep_sentinel,
+        safe_xla_slicing,
+    )
+    from third_party.tt_forge_models.fibo.vae_decoder.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # AutoencoderKLWan graph-break workaround — patch the global diffusers class
+    # before the decoder forward is traced.
+    _patch_wan_resample_rep_sentinel()
+
+    data_format = torch.bfloat16
+    variant = ModelVariant.BASE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    wrapper = loader.load_model(dtype_override=data_format).eval()
+    latents = loader.load_inputs(dtype_override=data_format, batch_size=1)[0]
+
+    # optimization_level=2 enables the memory-layout / conv optimizations that
+    # speed up the conv-heavy VAE decode; dram-space-saving + trace mirror the
+    # Wan 2.2 VAE-decoder functional config.
+    compiler_config = CompilerConfig(
+        optimization_level=2,
+        experimental_enable_dram_space_saving_optimization=True,
+        enable_trace=True,
+    )
+
+    display_name = resolve_display_name(request=request, fallback=model_info_name)
+    ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
+
+    results = benchmark_video_gen_torch_xla(
+        wrapper=wrapper,
+        inputs=[latents],
+        model_info_name=model_info_name,
+        display_name=display_name,
+        compiler_config=compiler_config,
+        ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+        sharded=False,
+        compile_context=safe_xla_slicing,
+        required_pcc=0.97,
+        golden_dtype=torch.float32,
+    )
+
+    if output_file:
+        results["project"] = "tt-forge/tt-xla"
+        results["model_rawname"] = model_info_name
+        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results)
+        with open(output_file, "w") as file:
+            json.dump(results, file, indent=2)
+
+
 def test_janus_pro_7b(output_file, request):
     """Janus-Pro-7B autoregressive text-to-image benchmark (blackhole).
 
