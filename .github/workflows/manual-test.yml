@@ -33,6 +33,7 @@ on:
           - 'model-test-lb-blackhole-weekly.json'
           - 'model-test-emitpy.json'
           - 'model-test-emitpy-xfail.json'
+          - 'model-test-emitpy-weekly.json'
           - 'basic-multihost-test.json'
           - 'Custom'
       test_suite_custom:
