@@ -91,7 +91,7 @@ jobs:
           ls -la system_descs/
 
       - name: Upload descriptor
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: system-desc-${{ matrix.arch }}
           path: tests/cpu_compile_only/system_descs/${{ matrix.arch }}_system_desc.ttsys
@@ -124,7 +124,7 @@ jobs:
           uv pip install wheels/*.whl
 
       - name: Download generated descriptors
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: system-desc-*
           merge-multiple: true
