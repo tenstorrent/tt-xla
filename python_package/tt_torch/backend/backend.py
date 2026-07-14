@@ -591,7 +591,15 @@ class XLAExecutor:
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
             # without any tracing.
+            import time as _time
+
+            _t0 = _time.perf_counter()
+            logger.info("[compile-timing] extract_compiled_graph: START")
             self.compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
+            logger.info(
+                "[compile-timing] extract_compiled_graph: DONE %.1fs",
+                _time.perf_counter() - _t0,
+            )
 
         return self.compiled_graph(*full_args)
 

@@ -391,20 +391,92 @@ softmax+top-k — wrong for DSV4. ✅ **Fixed:** `TTFusedMoE._route_native` /
 `_route_sqrtsoftplus` now reproduce `scores = sqrt(softplus(logits))` → noaux_tc
 bias-select (weight by *unbiased* scores) → renormalize → `× routed_scaling_factor`,
 gated on `scoring_func == "sqrtsoftplus"` so all other models keep the exact
-softmax+top-k path. Covered by `test_dsv4_engine_wiring.py::test_moe_*`.
+softmax+top-k path. **Hash routing (early layers, `tid2eid`) is now implemented**
+too: `input_ids` is threaded `apply_monolithic → forward_native → _route_sqrtsoftplus`,
+and when `hash_indices_table` is set the expert ids come from `tid2eid[input_ids]`
+(weights are still the unbiased sqrtsoftplus scores, computed via one-hot × sum —
+SPMD-safe, not `.gather`, per the reference). Covered by
+`test_dsv4_engine_wiring.py::test_moe_*` and validated **exactly** against the
+device-agnostic ground-truth `modified_model.Gate` (hash + noaux_tc) in
+`test_dsv4_moe_reference_parity.py` — which resolves the old "validate against a
+GPU reference" caveat without a GPU. The real layer-0 MoE (256 fp4 experts →
+bf16 + `tid2eid`) runs with hash routing in
+`test_dsv4_flash_layer0_e2e.py::test_dsv4_flash_layer0_moe_hash_routing_runs`, and
+the new routing runs on the TT device in `..._hash_routing_on_device`.
 
-> ⚠️ **Two MoE caveats before trusting DSV4 numerics:**
-> 1. The sqrtsoftplus weights are a torch reconstruction of a CUDA kernel that
->    cannot run or be diffed on TT — **validate against a GPU reference**.
-> 2. **Hash MoE** (early layers, `tid2eid`) is not supported yet: `forward_native`
->    receives no `input_ids` (dropped in `apply_monolithic`), so it raises
->    `NotImplementedError`. Threading `input_ids` through + kernel validation is
->    the remaining work for a hash-layer model.
+> ⚠️ **Remaining MoE note:** the full 256-expert layer-0 MoE (~12.9 GB bf16)
+> exceeds a single Wormhole's DRAM, so the *on-device* full MoE uses the
+> multi-device-sharded sparse-MLP path that `test_deepseek_v4_e2e_streaming`
+> already exercises (layer 0 included). The reimplemented routing here matches
+> that path's reference numerics.
 
 So a full DSV4 engine run still needs: §3.1 (done) + §3.3 (done) + §3.4 (done for
-non-hash) + a **loadable bf16 DSV4 checkpoint** (weights dequantized to bf16; the
-CUDA-only fused attention op is already replaced by the OOT wrapper's forward).
-No MoE *stub* is required after all — the real (non-Mega) MoE path runs on TT.
+non-hash) + a **loadable bf16 DSV4 checkpoint** (§3.5). No MoE *stub* is required
+after all — the real (non-Mega) MoE path runs on TT.
+
+### 3.5 Weights — bf16 checkpoint (dequant offline) — ✅ tooling done
+
+DSV4-Flash ships fp8 (e4m3, block-128) linears + fp4 (MXFP4, block-32) experts,
+and vLLM's DSV4 quant path (`DeepseekV4FP8Config`) is CUDA-oriented — TT does no
+fp8 matmul. Rather than a fp8-aware quant method, weights are **dequantized to
+bf16 offline** and `quantization_config` is stripped, so vLLM loads an
+*unquantized* model → `UnquantizedLinearMethod` / `UnquantizedFusedMoEMethod`
+(→ `TTFusedMoE`) + the bf16 MLA/SWA path. This is the same idea as
+`deepseek_v3_2_exp/build_weight_cache.py`, but **name-preserving** (vLLM's own
+`load_weights` does the module mapping) and it **drops the scale tensors**.
+
+`tests/torch/models/deepseek_v4/build_vllm_bf16_checkpoint.py` — streams the
+checkpoint shard-by-shard (bounded memory), dequantizes each `.weight`/scale
+pair (fp8 or fp4, dispatched by scale shape; the same math as the validated
+`weight_loader.py`), passes other tensors through as bf16, rewrites `config.json`
+(`quantization_config` removed, `torch_dtype=bfloat16`), and copies tokenizer/aux
+files. Handles `.scale` / `.weight_scale_inv` / `.weight_scale` suffixes and an
+optional `--n-layers` smoke subset. Validated end-to-end on a synthetic fp8+fp4
+checkpoint by `test_build_vllm_bf16_checkpoint.py` (3 tests: dequant + name/scale
+handling, config rewrite + aux copy, layer filter).
+
+`tests/integrations/vllm_plugin/generative/test_dsv4_generation.py` — the
+ready-to-run vLLM E2E, gated on `DSV4_BF16_CHECKPOINT` pointing at a converted
+dir (skipped in CI). Run:
+
+```
+python tests/torch/models/deepseek_v4/build_vllm_bf16_checkpoint.py \
+    --repo deepseek-ai/DeepSeek-V4-Flash --dst /path/to/dsv4-bf16
+DSV4_BF16_CHECKPOINT=/path/to/dsv4-bf16 pytest -svv \
+    tests/integrations/vllm_plugin/generative/test_dsv4_generation.py
+```
+
+**Open items for the first real run:** (a) confirm vLLM's DSV4 `load_weights`
+consumes the same top-level `model.safetensors.index.json` the converter
+preserves (else it needs HF-Transformers-format weights); (b) the fp8/fp4 dequant
++ sqrtsoftplus routing are byte-exact vs a GPU reference; (c) disk — a fully
+dequantized V4-Flash is large (convert per-`--n-layers` for smoke, full for a
+coherent run). An **already-working torch-path E2E** (`test_streaming_dsv4_flash`,
+`weight_loader.py` + `modified_model`) validates the DSV4 dequant + attention +
+MoE numerics on hardware independently of vLLM — the fastest confidence check.
+
+> The torch-path `modified_model` MoE is also a device-agnostic reference for
+> **validating `TTFusedMoE._route_sqrtsoftplus`** (§3.4 caveat 1) with no GPU.
+
+### 3.6 First-layer E2E on hardware — ✅ VALIDATED (real weights)
+
+`tests/torch/models/deepseek_v4/test_dsv4_flash_layer0_e2e.py` runs
+**DeepSeek-V4-Flash layer 0 (SWA-only) on the TT device with real dequantized
+weights** and matches CPU at **PCC 0.9998**. Confirmed from the real config that
+layer 0 is SWA-only: `compress_ratios = [0, 0, 4, 128, 4, 128, …]` (layers 0–1
+SWA-only, then C4A/C128A alternate).
+
+This uses the torch `modified_model` + `weight_loader` path (not vLLM), because:
+(a) the DSV4-Flash checkpoint ships in DeepSeek **native** tensor naming
+(`layers.0.attn.wq_a`, `embed`/`head`/`norm`, ~160 GB / 46 shards), which vLLM's
+HF-format `DeepseekV4ForCausalLM` loader does not consume — so the §3.5 converter
+would additionally need a native→HF name remap for the vLLM engine path; and
+(b) layer 0 is a **hash-MoE** layer (`num_hash_layers=3`, `gate.tid2eid` present)
+— now supported by `TTFusedMoE` (§3.4) and demonstrated running (real weights on
+CPU; the reimplemented routing on the TT device). The single-layer attention run
+needs only shard 2 (~3.5 GB). Gotcha: run under `torch.no_grad()`, not
+`torch.inference_mode()` (inference tensors trip torch_xla on the `freqs_cis`
+slice: "Cannot set version_counter for inference tensor").
 
 ---
 

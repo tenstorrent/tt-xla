@@ -34,6 +34,59 @@ def register():
     return "vllm_tt.platform.TTPlatform"
 
 
+def _install_cuda_noop_stubs():
+    """Replace torch.cuda.Stream/Event/stream with no-ops on non-CUDA (TT)."""
+    import contextlib
+
+    import torch
+    from vllm.platforms import current_platform
+
+    if current_platform.is_cuda_alike():
+        return
+
+    class _NoOpStream:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def wait_stream(self, *a, **k):
+            pass
+
+        def synchronize(self, *a, **k):
+            pass
+
+        def record_event(self, *a, **k):
+            return None
+
+    class _NoOpEvent:
+        def __init__(self, *a, **k):
+            pass
+
+        def record(self, *a, **k):
+            pass
+
+        def wait(self, *a, **k):
+            pass
+
+        def synchronize(self, *a, **k):
+            pass
+
+        def query(self, *a, **k):
+            return True
+
+        def elapsed_time(self, *a, **k):
+            return 0.0
+
+    torch.cuda.Stream = _NoOpStream
+    torch.cuda.Event = _NoOpEvent
+    torch.cuda.stream = lambda *a, **k: contextlib.nullcontext()
+
+
 def register_oot_layers():
     # Patch vLLM Attention symbol from the general-plugins path.
     import vllm.model_executor.layers.attention as _attn_pkg
@@ -48,6 +101,29 @@ def register_oot_layers():
     _enc_attn_mod.EncoderOnlyAttention = TTEncoderOnlyAttention
     _attn_pkg.EncoderOnlyAttention = TTEncoderOnlyAttention
 
+    # Some GPU models (e.g. DeepSeek-V4) unconditionally allocate
+    # torch.cuda.Stream/Event for compute-overlap during construction, which
+    # crashes on TT (no CUDA). Replace them with no-ops: the overlap is
+    # irrelevant on the single XLA stream and the code paths that use them are
+    # replaced by TT OOT forwards.
+    _install_cuda_noop_stubs()
+
+    # DeepSeek-V4 Hyper-Connections: vLLM's mhc ops are tilelang/CUDA-only and
+    # crash on import on TT, which blocks DSV4 model construction entirely.
+    # Install the torch reimplementation as vllm.model_executor.layers.mhc
+    # before any DSV4 layer is built.
+    from .layers import mhc as _tt_mhc
+
+    _tt_mhc.install()
+
+    # DeepSeek-V4 RoPE: the YaRN cos/sin cache is arange(original_max * factor)
+    # = arange(1_048_576) (~268MB fp32), impractical to tilize onto the mesh.
+    # Cap it to max_model_len while preserving exact frequencies.
+    from .layers import rope_cache_cap as _tt_rope_cap
+
+    _tt_rope_cap.install()
+
     # Registers all OOT backends
+    from .attention_impls import attention_dsv4  # noqa: F401  (DSV4 OOT wrapper)
     from .attention_impls import attention_mla  # noqa: F401
     from .layers.fused_moe import TTFusedMoE  # noqa: F401

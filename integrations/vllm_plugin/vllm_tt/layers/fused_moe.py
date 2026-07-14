@@ -58,10 +58,12 @@ class TTUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
             and self.moe_kernel is None
             and hasattr(layer, "forward_native")
         ):
-            # TTFusedMoE exposes forward_native(hidden_states, router_logits)
-            # that does routing + experts in a TT-friendly way without
-            # relying on vLLM's internal moe kernel object.
-            return layer.forward_native(x, router_logits)
+            # TTFusedMoE exposes forward_native(hidden_states, router_logits,
+            # input_ids) that does routing + experts in a TT-friendly way
+            # without relying on vLLM's internal moe kernel object. input_ids is
+            # threaded through for DeepSeek-V4 hash-routed MoE layers (the gate's
+            # tid2eid table is indexed by token id).
+            return layer.forward_native(x, router_logits, input_ids)
         return super().apply_monolithic(layer, x, router_logits, input_ids)
 
 
@@ -151,11 +153,11 @@ class TTFusedMoE(FusedMoE):
             f"TTFusedMoE: activation {self.activation} not supported"
         )
 
-    def _route_native(self, logits_flat):
+    def _route_native(self, logits_flat, input_ids=None):
         """Router for models without a ``custom_routing_function``.
 
         Standard ``softmax`` + top-k for most models; DeepSeek-V4's
-        ``sqrtsoftplus`` scoring (+ optional ``noaux_tc`` bias and
+        ``sqrtsoftplus`` scoring (+ noaux_tc bias / hash routing /
         ``routed_scaling_factor``) is reproduced here in torch because vLLM's
         own sqrtsoftplus path is a CUDA-only custom op
         (``ops.topk_hash_softplus_sqrt`` → ``_moe_C.topk_softplus_sqrt``) with
@@ -163,7 +165,7 @@ class TTFusedMoE(FusedMoE):
         """
         scoring_func = getattr(self, "scoring_func", "softmax")
         if scoring_func == "sqrtsoftplus":
-            return self._route_sqrtsoftplus(logits_flat)
+            return self._route_sqrtsoftplus(logits_flat, input_ids)
         # Default: softmax over experts, then top-k (+ optional renormalize).
         scores = F.softmax(logits_flat.float(), dim=-1)
         topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
@@ -172,34 +174,52 @@ class TTFusedMoE(FusedMoE):
             topk_weights = topk_weights / renorm
         return topk_weights, topk_ids
 
-    def _route_sqrtsoftplus(self, logits_flat):
-        """DeepSeek-V4 routing: ``scores = sqrt(softplus(logits))``.
+    def _route_sqrtsoftplus(self, logits_flat, input_ids=None):
+        """DeepSeek-V4 routing: ``scores = sqrt(softplus(gate_logits))``.
 
-        With ``noaux_tc`` the top-k experts are chosen by ``scores + bias`` but
-        weighted by the *unbiased* scores (mirrors vLLM's ``grouped_topk`` /
-        ``fused_topk_bias`` structure), then renormalized and multiplied by
-        ``routed_scaling_factor``.
+        Two expert-selection modes — mirroring the reference ``Gate`` (DeepSeek
+        ``modified_model``) and vLLM's ``fused_topk_bias``:
 
-        WARNING: the reference implementation is the CUDA kernel
-        ``_moe_C.topk_softplus_sqrt``, which cannot run or be diffed on TT.
-        These weights must be validated against a GPU reference before DSV4 MoE
-        numerics can be trusted.
+        * **hash layers** (first ``num_hash_layers``; ``hash_indices_table`` /
+          ``tid2eid`` set): expert ids are looked up per token id from the hash
+          table (``indices = tid2eid[input_ids]``) — the gate logits are *not*
+          used for selection.
+        * **other layers** (``noaux_tc``): pick the top-k of ``scores + bias``.
+
+        In BOTH modes the routing WEIGHT is the *unbiased* ``sqrtsoftplus``
+        score at the selected expert, then renormalized and multiplied by
+        ``routed_scaling_factor``. The weight is gathered via one-hot × sum
+        (not ``.gather``), which is rotation-invariant under SPMD sharding — the
+        reference documents that ``.gather`` silently corrupts per-shard
+        routing weights on non-first batch-axis shards.
+
+        NOTE: the numerical reference is the CUDA kernel
+        ``_moe_C.topk_softplus_sqrt``; these weights are validated against the
+        device-agnostic reference ``Gate`` (tt_forge_models DeepSeek-V4
+        ``modified_model``) in the tests.
         """
-        if getattr(self, "hash_indices_table", None) is not None:
-            raise NotImplementedError(
-                "DeepSeek-V4 hash-based MoE routing (early layers, tid2eid) is "
-                "not supported on TT yet: it needs per-token input_ids threaded "
-                "into forward_native and validation against the CUDA "
-                "topk_softplus_sqrt kernel."
-            )
-        scores = F.softplus(logits_flat.float()).sqrt()
-        bias = getattr(self, "e_score_correction_bias", None)
-        if bias is not None:
-            biased = scores + bias.to(scores.dtype).unsqueeze(0)
-            topk_ids = torch.topk(biased, self.top_k, dim=-1).indices
-            topk_weights = scores.gather(-1, topk_ids)
+        scores = F.softplus(logits_flat.float()).sqrt()  # [T, E] unbiased
+        num_experts = scores.size(-1)
+        hash_table = getattr(self, "hash_indices_table", None)
+        if hash_table is not None:
+            # Hash-routed layer: expert ids come from tid2eid[token_id].
+            if input_ids is None:
+                # Only reachable on dummy/profiling runs (no real token ids);
+                # fall back to token 0 (matches the reference MoE fallback).
+                ids = torch.zeros(
+                    scores.size(0), dtype=torch.long, device=scores.device
+                )
+            else:
+                ids = input_ids.flatten().to(torch.long)
+            topk_ids = hash_table.to(ids.device)[ids].long()  # [T, topk]
         else:
-            topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
+            bias = getattr(self, "e_score_correction_bias", None)
+            sel = (
+                scores if bias is None else scores + bias.to(scores.dtype).unsqueeze(0)
+            )
+            topk_ids = torch.topk(sel, self.top_k, dim=-1).indices  # [T, topk]
+        one_hot = F.one_hot(topk_ids.long(), num_classes=num_experts).to(scores.dtype)
+        topk_weights = (one_hot * scores.unsqueeze(1)).sum(dim=-1)  # [T, topk]
         if self.renormalize:
             renorm = topk_weights.sum(dim=-1, keepdim=True).clamp(min=1e-9)
             topk_weights = topk_weights / renorm
@@ -208,7 +228,7 @@ class TTFusedMoE(FusedMoE):
             topk_weights = topk_weights * rsf
         return topk_weights, topk_ids
 
-    def forward_native(self, hidden_states, router_logits):
+    def forward_native(self, hidden_states, router_logits, input_ids=None):
         # Lazy import keeps tt_torch.moe_backend out of the import-time cycle.
         from tt_torch import tt_dense_experts_forward, tt_experts_forward
         from tt_torch.moe_backend import _mesh_info
@@ -225,7 +245,7 @@ class TTFusedMoE(FusedMoE):
                 h_flat, logits_flat, self.top_k, self.renormalize
             )
         else:
-            topk_weights, topk_ids = self._route_native(logits_flat)
+            topk_weights, topk_ids = self._route_native(logits_flat, input_ids)
 
         topk_weights = topk_weights.to(h_flat.dtype)
         # Expert-parallel tt-moe is only valid on a genuine 2D mesh (both axes

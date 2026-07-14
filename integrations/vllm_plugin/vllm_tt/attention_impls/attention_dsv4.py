@@ -765,8 +765,12 @@ if _DSV4_WRAPPER_AVAILABLE:
                 o, cos, sin, self.nope_head_dim, headed=True, sign=-1.0
             )
             o_g = o.reshape(T, g, (N // g) * Hd)
-            # wo_a is a grouped (bmm) linear: weight [g, o_lora_rank, hpg*Hd].
-            z = torch.einsum("bhr,hdr->bhd", o_g.float(), self.wo_a.weight.float())
+            # wo_a is a grouped (bmm) ColumnParallelLinear: its weight is stored
+            # 2D as [g * o_lora_rank, hpg*Hd]; reshape to [g, o_lora_rank, hpg*Hd]
+            # for the per-group matmul (matches the reference modified_model
+            # o-proj `wo_a.weight.view(n_local_groups, o_lora_rank, -1)`).
+            wo_a_w = self.wo_a.weight.reshape(g, -1, o_g.shape[-1])
+            z = torch.einsum("bhr,hdr->bhd", o_g.float(), wo_a_w.float())
             return self.wo_b(z.flatten(1).to(o.dtype))
 
         def _swa_cache_and_metadata(self):
@@ -873,13 +877,52 @@ if _DSV4_WRAPPER_AVAILABLE:
                 value=None,
                 is_causal=True,
                 cur_pos_tensor=md.cache_position,
-                attention_sink=sink.to(torch.bfloat16),
+                # Fold the sink in torch (below) rather than via the ttnn kernel's
+                # native attention_sink arg. Under tensor parallelism the query
+                # heads are SPMD-sharded (e.g. 64 -> 16/device) but the kernel is
+                # an opaque custom call that replicates its sink operand, so its
+                # sink_shape[0]==q_shape[2] / ==TILE_WIDTH checks fail ("Attention
+                # sink must be a single tile wide, but got 64"). The torch fold
+                # mirrors _swa_self_attention (prefill) and keeps the sink sharded
+                # with the query heads.
+                attention_sink=None,
                 scale=self.scale,
             )
             if sw is not None:
                 decode_kwargs["sliding_window"] = sw
             out = torch.ops.tt.paged_flash_mla_decode(**decode_kwargs)  # [1,users,N,Hd]
-            return out.reshape(users, 1, N, Hd)
+            out = out.reshape(users, 1, N, Hd)
+            return self._fold_paged_decode_sink(out, q4, kv_cache, md, sink, sw)
+
+        def _fold_paged_decode_sink(self, out, q4, kv_cache, md, sink, sw):
+            """Fold per-head attention sink into the paged decode output in torch.
+
+            Mirrors the sink fold in :meth:`_swa_self_attention` (prefill) but
+            recomputes the (pre-sink) windowed log-sum-exp from the paged latent
+            cache, so the sink stays sharded with the query heads instead of
+            hitting the ttnn decode kernel's replicated-sink shape constraint.
+            ``out`` / ``q4`` are [users, 1, N, Hd]; ``kv_cache`` [nblk, 1, blk, Hd].
+            """
+            users, _, N, Hd = q4.shape
+            dev = q4.device
+            block_size = kv_cache.shape[-2]
+            # Gather each user's windowed K from the paged latent cache (page_table
+            # lists physical block ids in logical order).
+            gk = kv_cache[md.page_table.long()]  # [users, nbpu, 1, blk, Hd]
+            max_seq = gk.shape[1] * block_size
+            gk = gk.permute(0, 2, 1, 3, 4).reshape(users, max_seq, Hd).float()
+            q = q4.reshape(users, N, Hd).float()
+            scores = torch.einsum("und,usd->uns", q, gk) * self.scale  # [users,N,S]
+            # Causal + sliding-window mask from cache_position (traceable).
+            j = torch.arange(max_seq, device=dev).view(1, 1, max_seq)
+            cur = md.cache_position.view(users, 1, 1)
+            keep = j <= cur
+            if sw is not None and sw > 0:
+                keep = keep & (j > cur - sw)
+            scores = torch.where(keep, scores, torch.full_like(scores, _NEG_INF))
+            lse = torch.logsumexp(scores, dim=-1)  # [users, N]
+            factor = torch.sigmoid(lse - sink.float().view(1, N))
+            return (out.float() * factor.view(users, 1, N, 1)).to(out.dtype)
 
 
 # ============================================================================ #

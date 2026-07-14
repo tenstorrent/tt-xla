@@ -333,12 +333,32 @@ def test_moe_sqrtsoftplus_renormalize_and_scaling():
 
 
 @pytest.mark.push
-def test_moe_hash_routing_raises():
+def test_moe_hash_routing_selects_from_table():
+    """DeepSeek-V4 hash layers: expert ids come from tid2eid[input_ids]; the
+    gate logits are used only for the (unbiased sqrtsoftplus) weights."""
     from vllm_tt.layers.fused_moe import TTFusedMoE
 
-    fake = _fake_moe(hash_indices_table=torch.zeros(10, 2, dtype=torch.int64))
-    with pytest.raises(NotImplementedError, match="hash"):
-        TTFusedMoE._route_sqrtsoftplus(fake, torch.randn(2, 4))
+    E, topk = 8, 2
+    tid2eid = torch.tensor(
+        [[0, 1], [2, 3], [4, 5], [6, 7], [1, 4]], dtype=torch.int32
+    )  # [vocab=5, topk=2]
+    fake = _fake_moe(
+        top_k=topk,
+        renormalize=True,
+        hash_indices_table=tid2eid,
+        routed_scaling_factor=1.0,
+    )
+    logits = torch.randn(3, E)
+    input_ids = torch.tensor([0, 4, 2])
+    w, ids = TTFusedMoE._route_sqrtsoftplus(fake, logits, input_ids)
+
+    # Indices are exactly the hash-table rows for those tokens.
+    assert torch.equal(ids, tid2eid[input_ids].long())
+    # Weights are the renormalized unbiased sqrtsoftplus scores at those experts.
+    scores = torch.nn.functional.softplus(logits.float()).sqrt()
+    exp = scores.gather(-1, tid2eid[input_ids].long())
+    exp = exp / exp.sum(-1, keepdim=True)
+    assert torch.allclose(w, exp, atol=1e-6)
 
 
 @pytest.mark.push

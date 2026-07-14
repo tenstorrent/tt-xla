@@ -283,6 +283,21 @@ ModuleBuilder::ModuleBuilder()
   m_tt_alchemist_handler.initialize();
 }
 
+// [compile-timing] Log a compile stage's start and elapsed wall time. The
+// stage that hangs will print its ">>>" start line but never its "<<<" done
+// line, pinpointing exactly where compilation stalls. `expr` is variadic so
+// commas inside the wrapped call don't split the macro args.
+#define TIME_STAGE(label, ...)                                                 \
+  do {                                                                         \
+    LOG_F(INFO, "[compile-timing] >>> %s", label);                             \
+    auto _ts = std::chrono::steady_clock::now();                               \
+    __VA_ARGS__;                                                               \
+    LOG_F(INFO, "[compile-timing] <<< %s : %.1f ms", label,                    \
+          std::chrono::duration<double, std::milli>(                           \
+              std::chrono::steady_clock::now() - _ts)                          \
+              .count());                                                       \
+  } while (0)
+
 std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
 ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
@@ -327,22 +342,28 @@ ModuleBuilder::buildModule(
 
   tt_pjrt_status status;
   mlir::OwningOpRef<mlir::ModuleOp> mlir_module;
-  status = createVHLOModule(mlir_code, mlir_module, compile_options.export_path,
-                            compile_options.export_model_name);
+  TIME_STAGE("createVHLOModule",
+             status = createVHLOModule(mlir_code, mlir_module,
+                                       compile_options.export_path,
+                                       compile_options.export_model_name));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
   std::string original_mlir_code(mlir_code);
 
-  status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
-                                 compile_options.export_model_name);
+  TIME_STAGE("convertFromVHLOToSHLO",
+             status =
+                 convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
+                                       compile_options.export_model_name));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
 
-  status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path,
-                                   compile_options.export_model_name);
+  TIME_STAGE(
+      "runFrontendSHLOPipeline",
+      status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path,
+                                       compile_options.export_model_name));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -386,10 +407,11 @@ ModuleBuilder::buildModule(
       parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
                   : std::nullopt;
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name,
-                                        current_mesh_shape, target_num_devices);
+  TIME_STAGE("runCompilerStableHLOPipeline",
+             status = runCompilerStableHLOPipeline(
+                 mlir_module, result_presharded, compile_options.export_path,
+                 compile_options.export_model_name, current_mesh_shape,
+                 target_num_devices));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -397,7 +419,8 @@ ModuleBuilder::buildModule(
   // Sanitize the module for XLA ingestion operating on a clone of the base
   // module.
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_module = mlir_module->clone();
-  status = frontend_passes::cleanForXlaIngestion(sanitized_module);
+  TIME_STAGE("cleanForXlaIngestion",
+             status = frontend_passes::cleanForXlaIngestion(sanitized_module));
 
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
@@ -429,9 +452,10 @@ ModuleBuilder::buildModule(
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
-  status =
-      convertFromSHLOToTTIR(mlir_module, ttir_mlir, compile_options.export_path,
-                            compile_options.export_model_name);
+  TIME_STAGE("convertFromSHLOToTTIR",
+             status = convertFromSHLOToTTIR(mlir_module, ttir_mlir,
+                                            compile_options.export_path,
+                                            compile_options.export_model_name));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -449,9 +473,10 @@ ModuleBuilder::buildModule(
                      output_memory_kinds_sizes);
 
   std::string ttnn_mlir;
-  status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
-                                 compile_options, client_instance, mesh_shape,
-                                 ttnn_mlir);
+  TIME_STAGE("convertFromTTIRToTTNN",
+             status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
+                                            compile_options, client_instance,
+                                            mesh_shape, ttnn_mlir));
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -469,6 +494,7 @@ ModuleBuilder::buildModule(
   std::string executable_name = "tt_executable";
 
   if (compile_options.backend == BackendRuntime::TTNNFlatbuffer) {
+    LOG_F(INFO, "[compile-timing] >>> buildModuleForTTNNRuntime (flatbuffer)");
     return buildModuleForTTNNRuntime(
         mlir_module, std::move(original_mlir_code), std::move(ttir_mlir),
         std::move(ttnn_mlir), std::move(executable_name),
