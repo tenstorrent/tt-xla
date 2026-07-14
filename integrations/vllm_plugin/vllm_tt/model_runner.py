@@ -2963,63 +2963,61 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # usable; otherwise small configs would hit the ttnn page-table-stick assert.
         chunked = self._chunked_sdpa_active
 
-        def _run_backbone_dummies(
-            num_tokens: int, warmup_num_reqs: int, prefix_chunk: bool
+        def _compile_path(
+            num_reqs_buckets: set[int],
+            path_max_num_reqs: int,
+            num_blocks_per_req: int,
+            label: str,
         ) -> None:
-            # Compile the max-model-len shape (and optional "most" shape) at this
-            # request-count bucket; prefix_chunk=True compiles the cached-prefix
-            # graph (see _dummy_run).
-            num_reqs_max = min(warmup_num_reqs, self.num_reqs_max_model_len)
-            logger.info(
-                "  -- num_tokens: %d, num_reqs: %d (max_model_len path)",
-                num_tokens,
-                num_reqs_max,
-            )
-            self._dummy_run(
-                num_tokens,
-                num_reqs_max,
-                self.max_num_blocks_per_req,
-                prefix_chunk=prefix_chunk,
-            )
-            # Sync per token count so prefill and decode graphs stay separate.
-            torch_xla.sync()
-            if self.most_model_len is not None:
-                assert self.num_reqs_most_model_len is not None
-                assert self.num_blocks_per_most_len_req is not None
-                num_reqs_most = min(warmup_num_reqs, self.num_reqs_most_model_len)
-                logger.info(
-                    "  -- num_tokens: %d, num_reqs: %d (most_model_len path)",
-                    num_tokens,
-                    num_reqs_most,
-                )
-                self._dummy_run(
-                    num_tokens,
-                    num_reqs_most,
-                    self.num_blocks_per_most_len_req,
-                    prefix_chunk=prefix_chunk,
-                )
-                torch_xla.sync()
-
-        # Largest-first, as in _precompile_model_fused, to avoid fragmentation (#5522).
-        num_reqs_options = sorted(
-            {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs},
-            reverse=True,
-        )
-        for warmup_num_reqs in num_reqs_options:
-            for num_tokens in reversed(self.num_tokens_paddings):
-                # Decode (num_tokens == 1) only at max_num_reqs; prefill capped
-                # at max_prefill_num_reqs to match _precompile_model_fused.
-                if num_tokens == 1 and warmup_num_reqs != self.max_num_reqs:
-                    continue
-                if num_tokens != 1 and warmup_num_reqs > self.max_prefill_num_reqs:
-                    continue
-                _run_backbone_dummies(num_tokens, warmup_num_reqs, prefix_chunk=False)
-                # Precompile the cached-prefix graph for prompt chunks
-                # (num_tokens > 1) so it isn't compiled on the first continuation.
-                if chunked and num_tokens > 1:
-                    _run_backbone_dummies(
-                        num_tokens, warmup_num_reqs, prefix_chunk=True
+            # Compile every reachable row-count bucket for one attention path at
+            # its SMEM-clamped decode count and prefill cap, using that path's
+            # page table -- mirrors _precompile_model_fused so warmup covers
+            # exactly the shapes _prepare_inputs requests at runtime (#5416).
+            decode_num_reqs = path_max_num_reqs
+            prefill_cap = min(self.max_prefill_num_reqs, path_max_num_reqs)
+            # Largest-first to avoid fragmentation (#5522).
+            for num_reqs in sorted(num_reqs_buckets, reverse=True):
+                for num_tokens in reversed(self.num_tokens_paddings):
+                    # Decode (num_tokens == 1) only at the path's decode count;
+                    # prefill capped at the path's SMEM-clamped prefill bucket.
+                    if num_tokens == 1 and num_reqs != decode_num_reqs:
+                        continue
+                    if num_tokens != 1 and num_reqs > prefill_cap:
+                        continue
+                    logger.info(
+                        "  -- num_tokens: %d, num_reqs: %d (%s)",
+                        num_tokens,
+                        num_reqs,
+                        label,
                     )
+                    self._dummy_run(
+                        num_tokens, num_reqs, num_blocks_per_req, prefix_chunk=False
+                    )
+                    # Sync per token count so prefill and decode graphs stay separate.
+                    torch_xla.sync()
+                    # Precompile the cached-prefix graph for prompt chunks
+                    # (num_tokens > 1) so it isn't compiled on the first continuation.
+                    if chunked and num_tokens > 1:
+                        self._dummy_run(
+                            num_tokens, num_reqs, num_blocks_per_req, prefix_chunk=True
+                        )
+                        torch_xla.sync()
+
+        _compile_path(
+            self._max_len_num_reqs,
+            self.num_reqs_max_model_len,
+            self.max_num_blocks_per_req,
+            "max_model_len path",
+        )
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            assert self.num_blocks_per_most_len_req is not None
+            _compile_path(
+                self._most_len_num_reqs,
+                self.num_reqs_most_model_len,
+                self.num_blocks_per_most_len_req,
+                "most_model_len path",
+            )
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
