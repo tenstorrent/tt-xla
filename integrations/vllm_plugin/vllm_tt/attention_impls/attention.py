@@ -614,8 +614,20 @@ class TTAttentionBackendImpl(AttentionImpl):
                     value_for_sdpa, attn_metadata.mesh, (None, "model", None, None)
                 )
             query_for_sdpa = inputs.query.transpose(-3, -2)
+            # EXPERIMENT (TT_EXP_CAUSAL_GATHER=1): the gather branch normally
+            # hardcodes is_causal=False. In the shared-KV cold sub-case
+            # (attn_mask is None) metadata carries is_causal=True; this toggle
+            # feeds that through to see whether causal changes the output.
+            # Python-level (read at trace time) -> no data-dependent control flow.
+            import os as _os
+
+            _gather_is_causal = (
+                attn_metadata.is_causal
+                if _os.environ.get("TT_EXP_CAUSAL_GATHER") == "1"
+                else False
+            )
             sdpa_kwargs = {
-                "is_causal": False,
+                "is_causal": _gather_is_causal,
                 "attn_mask": attn_metadata.attn_mask,
                 "scale": self.scale,
             }
