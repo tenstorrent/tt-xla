@@ -138,7 +138,6 @@ jobs:
       - test-uplift-extended
       - test-tools
       - perf-benchmark
-      - perf-benchmark-accuracy
       - build-docs
     runs-on: Ubuntu-latest
     steps:

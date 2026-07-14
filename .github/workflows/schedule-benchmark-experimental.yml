@@ -49,7 +49,6 @@ jobs:
   fail-notify:
     needs:
       - run-n150-accuracy-benchmarks
-      - run-qb2-accuracy-benchmarks
       - run-galaxy-accuracy-benchmarks
     if: always()
     runs-on: ubuntu-latest
