@@ -190,7 +190,7 @@ class TTConfig:
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
-    flat_model_io: bool = False
+    flat_model_io: bool = True
 
     enable_trace: bool = False
 
