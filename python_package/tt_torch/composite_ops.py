@@ -146,6 +146,15 @@ def composite_layer_norm(
 
     builder = _make_composite_builder(name="tenstorrent.layer_norm", attr=attr)
 
+    # Match affine params to the input dtype. With AOTAutograd on (#3795), a
+    # dtype mismatch between the input (e.g. bf16) and fp32 weight/bias makes the
+    # traced output dtype disagree with the device tensor, which aborts at
+    # transferFromDevice (runtime.cpp: dstDataType == getTensorDataType(src)).
+    if weight is not None and weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
+
     if weight is not None and bias is not None:
         input, weight, bias = builder.mark_inputs(input, weight, bias)
     elif weight is not None:
