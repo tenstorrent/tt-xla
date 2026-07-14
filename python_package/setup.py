@@ -47,6 +47,10 @@ class SetupConfig:
     # --- Dataclass fields ---
     build_type: str = "release"
 
+    # Whether tt-mlir/tt-metal is built WITHOUT Tracy performance tracing.
+    # Perf tracing is on by default; Set by --disable-perf-trace
+    disable_perf_trace: bool = False
+
     # --- Necessary wheel properties ---
 
     @property
@@ -65,7 +69,11 @@ class SetupConfig:
             .strip()
         )
 
-        return "0.1." + date + "+dev." + short_hash
+        version = "0.1." + date + "+dev." + short_hash
+        if not self.disable_perf_trace:
+            # Distinguish perf-trace-disabled wheels within the local version segment.
+            version += ".tracy"
+        return version
 
     @property
     def requirements(self) -> list:
@@ -207,12 +215,20 @@ class BdistWheel(bdist_wheel):
 
     user_options = bdist_wheel.user_options + [
         ("build-type=", None, "Build type: release, codecov, debug, or explorer"),
+        (
+            "disable-perf-trace",
+            None,
+            "Build tt-mlir/tt-metal without Tracy performance tracing (default: on)",
+        ),
     ]
+    boolean_options = bdist_wheel.boolean_options + ["disable-perf-trace"]
 
     def initialize_options(self):
         super().initialize_options()
         # Default build type is release
         self.build_type = "release"
+        # Tracy perf tracing is on by default; disable with --disable-perf-trace.
+        self.disable_perf_trace = None
 
     def finalize_options(self):
         build_types = ["release", "codecov", "debug", "explorer"]
@@ -224,15 +240,18 @@ class BdistWheel(bdist_wheel):
         config.build_type = self.build_type
         config.enable_explorer = self.build_type == "explorer"
 
+        # Tracy perf tracing is on by default; --disable-perf-trace turns it off.
+        config.disable_perf_trace = bool(self.disable_perf_trace)
+
         self.root_is_pure = False
         bdist_wheel.finalize_options(self)
 
     def run(self):
-        # Update the description with version info after options are finalized (e.g. self.build_type)
-        from setuptools.dist import Distribution
-
+        # Refresh metadata now that options are finalized (e.g. self.build_type,
+        # self.disable_perf_trace), since setup(version=...) is evaluated eagerly.
         dist = self.distribution
         dist.metadata.description = config.description_with_versions
+        dist.metadata.version = config.version
 
         # Call the parent run method
         bdist_wheel.run(self)
@@ -320,6 +339,8 @@ class CMakeBuildPy(build_py):
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DTTXLA_ENABLE_EMITPY_EXECUTION=" + enable_emitpy_execution,
+            "-DTTMLIR_ENABLE_PERF_TRACE="
+            + ("OFF" if config.disable_perf_trace else "ON"),
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
         ]
