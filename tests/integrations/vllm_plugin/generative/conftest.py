@@ -2,9 +2,45 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Shared conftest for vLLM generative tests."""
+import json
+import math
 import re
+import signal
+from pathlib import Path
 
 import psutil
+import pytest
+
+TEST_TIMEOUT_FALLBACK_SECONDS = 30 * 60
+
+
+def _load_test_durations() -> dict[str, float]:
+    """Load per-test durations from the repository .test_durations file."""
+    durations_file = Path(__file__).resolve().parents[4] / ".test_durations"
+    if not durations_file.exists():
+        return {}
+
+    try:
+        data = json.loads(durations_file.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    return {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
+
+
+_TEST_DURATIONS = _load_test_durations()
+
+
+def _get_timeout_seconds(nodeid: str) -> int:
+    """Return timeout as 2x recorded duration for this test."""
+    recorded_seconds = _TEST_DURATIONS.get(nodeid)
+    if recorded_seconds is None:
+        return TEST_TIMEOUT_FALLBACK_SECONDS
+    return max(1, int(math.ceil(recorded_seconds * 2)))
+
 
 # Common English function words used by `assert_output_coherent` to detect
 # the 2D-mesh sampler garbage-output bug (issue #4440). Coherent natural-
@@ -112,3 +148,21 @@ def check_host_memory(model_name: str) -> float:
         )
 
     return rss_gb
+
+
+@pytest.fixture(autouse=True)
+def _test_timeout(request):
+    """Kill any test that hangs longer than 2x its recorded duration."""
+
+    timeout_seconds = _get_timeout_seconds(request.node.nodeid)
+
+    def _handler(_signum, _frame):
+        raise TimeoutError(f"Test {request.node.nodeid} exceeded {timeout_seconds}s")
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
