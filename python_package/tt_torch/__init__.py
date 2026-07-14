@@ -40,6 +40,7 @@ _HF_BACKEND_EXPORTS = {
     "TT_DENSE_EXPERTS_BACKEND_NAME": "moe_backend",
     "TT_MOE_FUSED_BACKEND_NAME": "moe_backend",
     "get_tt_moe_shard_specs": "moe_backend",
+    "preprocess_tt_moe_compute_stacked_weights": "moe_backend",
     "register_tt_moe_backend": "moe_backend",
     "tt_experts_forward": "moe_backend",
     "tt_dense_experts_forward": "moe_backend",

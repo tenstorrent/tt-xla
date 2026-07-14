@@ -2227,14 +2227,43 @@ def _gpt_oss_120b_moe_fused_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
         shard_specs[layer.self_attn.sinks] = ("model",)
         shard_specs[layer.mlp.router.weight] = (None, None)
-        # EP - 4: experts shard along "batch" (cluster_axis=0) only and replicate
-        # along "model"; tt.moe_decode dispatches along this single 1D-ring axis.
-        shard_specs[layer.mlp.experts.gate_up_proj] = ("batch", None, None)
-        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("batch", None)
-        shard_specs[layer.mlp.experts.down_proj] = ("batch", None, None)
-        shard_specs[layer.mlp.experts.down_proj_bias] = ("batch", None)
+        # EXPERT weights: COMPOUND-shard the expert dim across BOTH mesh axes
+        # (EP-32, 4 experts/device on 120B) instead of EP-4-along-"batch"-
+        # replicated-along-"model" (which kept the full 32-experts/device gate_up
+        # ~1.06 GB resident and OOM'd the prefill dense-bmm tilize).
+        # Axis order "batch" MAJOR, "model" MINOR: JAX/Shardy tiles major->minor,
+        # so device (batch=b, model=m) (row-major linear b*mesh_cols+m) owns
+        # experts[(b*mesh_cols+m)*epd : +epd], i.e. expert e lives on device
+        # e/epd. The moe_decode expert_mapping lowering emits exactly that owner
+        # (e / expertsPerDevice), so placement and routing agree.
+        shard_specs[layer.mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.mlp.experts.down_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (("batch", "model"), None)
         shard_specs[layer.input_layernorm.weight] = (None,)
         shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+        # Fused-decode STACKED all-layer expert weights (preprocess_tt_moe_compute_
+        # stacked_weights): shared [L,E,...] params, one prepared buffer indexed by
+        # layer_id. Shard the expert dim (dim 1, since dim 0 is the layer dim) with
+        # the same compound EP axis as the per-layer weights above. Shared object,
+        # so keying it every iteration is idempotent.
+        experts = layer.mlp.experts
+        stacked_w0 = getattr(experts, "_tt_moe_stacked_w0", None)
+        if stacked_w0 is not None:
+            shard_specs[stacked_w0] = (None, ("batch", "model"), None, None)
+            for name in ("_tt_moe_stacked_w1", "_tt_moe_stacked_w2"):
+                t = getattr(experts, name, None)
+                if t is not None:
+                    shard_specs[t] = (None, ("batch", "model"), None, None)
+            for name in (
+                "_tt_moe_stacked_b0",
+                "_tt_moe_stacked_b1",
+                "_tt_moe_stacked_b2",
+            ):
+                t = getattr(experts, name, None)
+                if t is not None:
+                    shard_specs[t] = (None, ("batch", "model"), None)
 
     return shard_specs
 
@@ -2325,6 +2354,63 @@ def test_gpt_oss_120b_tp_moe_fused_galaxy(
         register_tt_moe_backend()
 
 
+# Performance benchmark for the GPT-OSS-20B fused MoE decode on the (4,8) Wormhole
+# galaxy (tokens/sec + TTFT via test_llm_tp -> benchmark_llm_torch_xla). Mirrors
+# test_gpt_oss_120b_tp_moe_fused_galaxy but for 20B. NOTE: the default tiled batch
+# hits the 0-token-EP-device moe_compute combine deadlock; run with
+# TTXLA_DIVERSE_BATCH=1 so decode routing spans all 4 devices.
+def test_gpt_oss_20b_tp_moe_fused_galaxy(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_MOE_FUSED_BACKEND_NAME, register_tt_moe_backend
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    bs = batch_size if batch_size is not None else 32
+    register_tt_moe_backend(
+        cluster_axis=0,
+        use_interleaved=True,
+        moe_decode_activation="swiglu",
+        moe_decode_token_threshold=bs,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=num_layers,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            mesh_config_fn=_galaxy_mesh_config_fn,
+            shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
+            input_output_sharding_spec=("batch", None),
+            kv_cache_sharding_spec=("batch", "model", None, None),
+            trace_enabled=False,
+            optimization_level=1,
+            experimental_weight_dtype="bfp_bf8",
+            experimental_kv_cache_dtype=None,
+            experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
+            required_pcc=0.90,
+        )
+    finally:
+        register_tt_moe_backend()
+
+
 # Device-vs-host PCC correctness test for the GPT-OSS-120B fused MoE decode on the
 # (4,8) Wormhole galaxy. This is NOT a performance test: it runs the model on host
 # (CPU, bf16 reference) and on device with the same mesh/sharding/backend as
@@ -2349,11 +2435,16 @@ def test_gpt_oss_120b_moe_fused_galaxy_pcc(
     )
 
     bs = batch_size if batch_size is not None else 32
+    # Diagnostic: TTXLA_FORCE_DENSE_DECODE=1 sets the fused threshold to 0 so the
+    # decode step falls back to the dense bmm (tt_dense_experts_forward) instead of
+    # the fused moe_compute path -- isolates whether the >1-layer decode PCC
+    # collapse comes from moe_compute or from the shared decode attention/kv path.
+    _moe_thresh = 0 if os.environ.get("TTXLA_FORCE_DENSE_DECODE") else bs
     register_tt_moe_backend(
         cluster_axis=0,  # experts EP-sharded along "batch" = axis 0 (size-4) of the (4,8) mesh
         use_interleaved=True,
         moe_decode_activation="swiglu",
-        moe_decode_token_threshold=bs,
+        moe_decode_token_threshold=_moe_thresh,
     )
 
     variant = ModelVariant.GPT_OSS_120B
@@ -2369,7 +2460,11 @@ def test_gpt_oss_120b_moe_fused_galaxy_pcc(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            experimental_weight_dtype="bfp_bf8",
+            # Diagnostic: TTXLA_WEIGHT_DTYPE overrides the weight block dtype (e.g.
+            # bfp_bf4) to isolate whether the fused decode gap is bf4 precision.
+            experimental_weight_dtype=os.environ.get(
+                "TTXLA_WEIGHT_DTYPE", "bfp_bf8"
+            ),
             experimental_kv_cache_dtype=None,
             experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
             decode_only=decode_only,
@@ -2403,11 +2498,16 @@ def test_gpt_oss_20b_moe_fused_galaxy_pcc(
     )
 
     bs = batch_size if batch_size is not None else 32
+    # Diagnostic: TTXLA_FORCE_DENSE_DECODE=1 sets the fused threshold to 0 so the
+    # decode step falls back to the dense bmm (tt_dense_experts_forward) instead of
+    # the fused moe_compute path -- isolates whether the >1-layer decode PCC
+    # collapse comes from moe_compute or from the shared decode attention/kv path.
+    _moe_thresh = 0 if os.environ.get("TTXLA_FORCE_DENSE_DECODE") else bs
     register_tt_moe_backend(
         cluster_axis=0,  # experts EP-sharded along "batch" = axis 0 (size-4) of the (4,8) mesh
         use_interleaved=True,
         moe_decode_activation="swiglu",
-        moe_decode_token_threshold=bs,
+        moe_decode_token_threshold=_moe_thresh,
     )
 
     variant = ModelVariant.GPT_OSS_20B
@@ -2423,7 +2523,11 @@ def test_gpt_oss_20b_moe_fused_galaxy_pcc(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            experimental_weight_dtype="bfp_bf8",
+            # Diagnostic: TTXLA_WEIGHT_DTYPE overrides the weight block dtype (e.g.
+            # bfp_bf4) to isolate whether the fused decode gap is bf4 precision.
+            experimental_weight_dtype=os.environ.get(
+                "TTXLA_WEIGHT_DTYPE", "bfp_bf8"
+            ),
             experimental_kv_cache_dtype=None,
             experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
             decode_only=decode_only,

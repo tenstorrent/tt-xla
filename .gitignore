@@ -48,6 +48,13 @@ tests/benchmark/reference_outputs/*.refpt
 # Perf benchmark generated modules
 /modules/
 
+# Perf benchmark metrics JSON (regenerated each run)
+*_perf_metrics_*.json
+
+# Session-local run logs / scratch scripts and stray diff artifacts
+/tmp/
+/xla_diff.patch
+
 # Runtime-generated tt-metal debug artifacts
 /generated/
 

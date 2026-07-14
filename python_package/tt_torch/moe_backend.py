@@ -481,9 +481,13 @@ def tt_dense_experts_forward(
     dtype = hidden_states.dtype
     device = hidden_states.device
 
-    routing_weights = torch.zeros(T, E, dtype=dtype, device=device).scatter(
-        1, top_k_index, top_k_weights.to(dtype)
-    )
+    # Build the [T, E] router-scores tensor via one_hot + einsum rather than
+    # scatter: scatter lowers to a costly, TT-incompatible per-chunk decomposition
+    # (the rest of this backend avoids scatter for the same reason; cf. tt-xla2's
+    # _build_routing_scores). top-k indices are distinct per token, so this is
+    # numerically equivalent.
+    one_hot = (top_k_index.unsqueeze(-1) == torch.arange(E, device=device)).to(dtype)
+    routing_weights = torch.einsum("tk,tke->te", top_k_weights.to(dtype), one_hot)
 
     is_transposed = bool(getattr(self, "is_transposed", False))
 
@@ -588,6 +592,21 @@ def _moe_decode_params(
     )
 
 
+# Attribute names for the stacked (all-layer) fused-decode weights + per-layer
+# index, stamped by preprocess_tt_moe_compute_stacked_weights. When present, the
+# decode forward passes ONE shared [L,E,...] weight (the runtime prepare packs it
+# into a single DRAM-resident buffer, num_layers=L) indexed by layer_id, instead
+# of preparing a fresh 1-layer buffer per layer (layer_id=0) which collapses decode
+# PCC past a single layer.
+_TT_MOE_STACKED_W0_ATTR = "_tt_moe_stacked_w0"
+_TT_MOE_STACKED_W1_ATTR = "_tt_moe_stacked_w1"
+_TT_MOE_STACKED_W2_ATTR = "_tt_moe_stacked_w2"
+_TT_MOE_STACKED_B0_ATTR = "_tt_moe_stacked_b0"
+_TT_MOE_STACKED_B1_ATTR = "_tt_moe_stacked_b1"
+_TT_MOE_STACKED_B2_ATTR = "_tt_moe_stacked_b2"
+_TT_MOE_LAYER_IDX_ATTR = "layer_idx"
+
+
 def _tt_moe_decode_forward(
     self: torch.nn.Module,
     hidden_states: torch.Tensor,
@@ -605,9 +624,22 @@ def _tt_moe_decode_forward(
     K = top_k_index.shape[-1]
     dtype = hidden_states.dtype
 
-    w0, w1, w2, bias0, bias1, bias2 = _moe_decode_params(
-        experts, use_interleaved=_config["moe_use_interleaved_gate_up"]
-    )
+    # Prefer the stacked all-layer weights (preprocess_tt_moe_compute_stacked_weights):
+    # ONE shared [L,E,...] weight that the runtime prepare packs into a single
+    # DRAM-resident buffer (num_layers=L), indexed per layer by layer_id. Falls back
+    # to this layer's own weights (L=1, layer_id=0) when not stacked.
+    stacked_w0 = getattr(self, _TT_MOE_STACKED_W0_ATTR, None)
+    if stacked_w0 is not None:
+        w0 = stacked_w0
+        w1 = getattr(self, _TT_MOE_STACKED_W1_ATTR)
+        w2 = getattr(self, _TT_MOE_STACKED_W2_ATTR)
+        bias0 = getattr(self, _TT_MOE_STACKED_B0_ATTR, None)
+        bias1 = getattr(self, _TT_MOE_STACKED_B1_ATTR, None)
+        bias2 = getattr(self, _TT_MOE_STACKED_B2_ATTR, None)
+    else:
+        w0, w1, w2, bias0, bias1, bias2 = _moe_decode_params(
+            experts, use_interleaved=_config["moe_use_interleaved_gate_up"]
+        )
     intermediate_size = w0.shape[-1]
 
     tokens = hidden_states.view(1, 1, M, H)
@@ -615,9 +647,10 @@ def _tt_moe_decode_forward(
     scores = top_k_weights.to(dtype).view(1, 1, M, K)
 
     _, _, _, cluster_axis = _mesh_info()
-    # layer_id disambiguates per-layer persistent-mode buffers in tt-mlir; use
-    # the module's layer index when it exposes one, else 0.
-    layer_id = int(getattr(self, "layer_idx", 0) or 0)
+    # layer_id selects this layer's block inside the packed multi-layer weight
+    # buffer (dm0.cpp offset = layer_id * layer_pages_per_ring_core). Real per-layer
+    # index with stacked weights; 0 otherwise.
+    layer_id = int(getattr(self, _TT_MOE_LAYER_IDX_ATTR, 0) or 0)
 
     combined = torch.ops.tt.moe_decode(
         tokens,
@@ -640,6 +673,71 @@ def _tt_moe_decode_forward(
     output = (combined * weights_k).sum(dim=0).view(M, H)  # [M, H]
     output = output[:original_token_count]
     return output.to(dtype)
+
+
+def preprocess_tt_moe_compute_stacked_weights(model: nn.Module) -> list:
+    """Stack every MoE layer's expert weights into shared ``[L, E, ...]`` parameters
+    for the fused-decode packed-prepare design.
+
+    Each ``tt.moe_decode`` call then passes the SAME stacked weight plus a unique
+    ``layer_id``, so the runtime ``prepare_moe_compute_*`` op packs ALL layers into
+    ONE DRAM-resident weight buffer (``num_layers = L``, derived from
+    ``w0.logical_shape()[0]``) and each ``moe_compute`` reads its own block via
+    ``layer_id`` (``dm0.cpp`` offset ``= layer_id * layer_pages_per_ring_core``).
+    Without this each layer prepares its own 1-layer buffer with ``layer_id = 0`` and
+    decode PCC collapses past a single layer (2 layers ~0.97 -> 24 layers ~0.28).
+
+    MUST run on CPU BEFORE ``model.to(device)`` (so the ``cat`` is a host op rather
+    than an on-device replicate) and BEFORE ``shard_spec_fn`` (so the stacked params
+    exist to be sharded). The unfused per-layer expert weights are left in place for
+    the dense prefill path. Returns the list of experts modules stamped.
+    """
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        return []
+
+    experts_list = []
+    for layer in layers:
+        mlp = getattr(layer, "mlp", None)
+        experts = getattr(mlp, "experts", None) if mlp is not None else None
+        if experts is None:
+            continue
+        experts_list.append(experts)
+    if not experts_list:
+        return []
+
+    use_interleaved = _config["moe_use_interleaved_gate_up"]
+    per_layer = [
+        _moe_decode_params(_get_expert_adapter(e), use_interleaved=use_interleaved)
+        for e in experts_list
+    ]
+
+    def _stack(idx: int):
+        parts = [p[idx] for p in per_layer]
+        if any(x is None for x in parts):
+            return None
+        # Each part is [1, E, ...]; cat over the leading (layer) dim -> [L, E, ...].
+        return nn.Parameter(torch.cat(parts, dim=0).contiguous(), requires_grad=False)
+
+    stacked_w0 = _stack(0)
+    stacked_w1 = _stack(1)
+    stacked_w2 = _stack(2)
+    stacked_b0 = _stack(3)
+    stacked_b1 = _stack(4)
+    stacked_b2 = _stack(5)
+
+    for i, experts in enumerate(experts_list):
+        # Same Parameter objects on every layer -> identical operands -> the L
+        # prepare ops CSE into a single packed-buffer prepare in tt-mlir.
+        setattr(experts, _TT_MOE_STACKED_W0_ATTR, stacked_w0)
+        setattr(experts, _TT_MOE_STACKED_W1_ATTR, stacked_w1)
+        setattr(experts, _TT_MOE_STACKED_W2_ATTR, stacked_w2)
+        setattr(experts, _TT_MOE_STACKED_B0_ATTR, stacked_b0)
+        setattr(experts, _TT_MOE_STACKED_B1_ATTR, stacked_b1)
+        setattr(experts, _TT_MOE_STACKED_B2_ATTR, stacked_b2)
+        setattr(experts, _TT_MOE_LAYER_IDX_ATTR, i)
+
+    return experts_list
 
 
 def tt_moe_fused_forward(
