@@ -18,6 +18,11 @@ on:
         default: release
         type: string
         required: false
+      disable_perf_trace:
+        description: 'Build tt-mlir without Tracy perf tracing. Set true for a perf-trace-off wheel.'
+        type: boolean
+        required: false
+        default: false
       force_rebuild:
         description: 'Force rebuild even if artifact exists'
         type: boolean
@@ -81,7 +86,7 @@ jobs:
         run: |
             source venv/activate
             cd ${{ steps.strings.outputs.work-dir }}/python_package
-            python setup.py bdist_wheel --build-type ${{ inputs.build_type }}
+            python setup.py bdist_wheel --build-type ${{ inputs.build_type }} ${{ inputs.disable_perf_trace && '--disable-perf-trace' || '' }}
 
       - name: Validate build type of wheel build
         shell: bash
