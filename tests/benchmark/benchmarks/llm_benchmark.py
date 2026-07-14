@@ -164,6 +164,19 @@ def construct_inputs(
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
+    if os.environ.get("TTXLA_DIVERSE_BATCH") and input_ids.shape[0] > 1:
+        # [EXPERIMENT] Make each batch row a DISTINCT token sequence so decode
+        # expert routing spans all EP devices, avoiding the 0-token-device
+        # moe_compute combine deadlock (the tiled-identical batch is what triggers
+        # the "2+ layer hang"). Content is irrelevant for perf; the PCC assert
+        # still compares device vs CPU on the SAME diverse input. This one place
+        # covers prefill/warmup/timed-gen/correctness (all call construct_inputs).
+        _vocab = int(getattr(model_config, "vocab_size", 201088))
+        _bs = input_ids.shape[0]
+        _shift = torch.arange(_bs, dtype=input_ids.dtype).view(-1, 1) * max(
+            1, _vocab // (_bs + 2)
+        )
+        input_ids = (input_ids + _shift) % _vocab
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
     input_args = {
