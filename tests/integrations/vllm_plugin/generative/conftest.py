@@ -27,7 +27,6 @@ def _load_test_durations() -> dict[str, float]:
 
     if not isinstance(data, dict):
         return {}
-    print(f"Loaded test durations from {durations_file}: {data}")
 
     return {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
 
@@ -38,7 +37,6 @@ _TEST_DURATIONS = _load_test_durations()
 def _get_timeout_seconds(nodeid: str) -> int:
     """Return timeout as 2x recorded duration for this test."""
     recorded_seconds = _TEST_DURATIONS.get(nodeid)
-    print(f"nodeid={nodeid}, recorded_seconds={recorded_seconds}", flush=True)
     if recorded_seconds is None:
         return TEST_TIMEOUT_FALLBACK_SECONDS
     return max(1, int(math.ceil(recorded_seconds * 2)))
