@@ -242,6 +242,38 @@ def test_complex_mul(shape: tuple, dtype: torch.dtype, request):
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(
+    category=Category.OP_TEST, torch_op_name="torch.mul"
+)
+@pytest.mark.parametrize(
+    "dtype",
+    [torch.complex64, torch.complex128],
+    ids=["complex64", "complex128"],
+)
+def test_complex_mul_scalar(dtype: torch.dtype, request):
+    """Rank-0 (scalar) complex inputs are transferred directly from host to
+    device, exercising BufferInstance::calculateShape with num_dims == 0. This
+    previously threw "Complex tensor with num_dims == 0 is not supported."
+    (seen in DeepSeek-V2-Lite-Chat's rotary embedding)."""
+
+    class ComplexMul(torch.nn.Module):
+        def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+            return x * y
+
+    run_op_test(
+        ComplexMul(),
+        [
+            torch.tensor(1.5 + 2.5j, dtype=dtype),
+            torch.tensor(-0.5 + 1.0j, dtype=dtype),
+        ],
+        framework=Framework.TORCH,
+        request=request,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
     category=Category.OP_TEST, torch_op_name="torch.slice"
 )
 @pytest.mark.parametrize(

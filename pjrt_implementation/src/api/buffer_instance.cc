@@ -399,12 +399,7 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
   }
 
   // Complex tensors have no runtime equivalent dtype, so they are stored as
-  // float tensors with a trailing dimension of 2 for interleaved real/imag
-  // (tt-mlir maps tensor<...xcomplex<f32>> to tensor<...x2xf32>). This applies
-  // uniformly across ranks, including rank-0 complex scalars, which become a
-  // rank-1 tensor<2xf32>. The resulting shape/strides mismatch (strides has no
-  // entry for the trailing dim) is expected by the runtime, which treats such
-  // complex tensors as contiguous.
+  // float tensors with a trailing dimension of 2 for interleaved real/imag.
   if (data_type_utils::isComplexPJRTType(data_type)) {
     shape.push_back(2);
   }
