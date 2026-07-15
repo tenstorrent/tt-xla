@@ -53,16 +53,33 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.return_logits = return_logits
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
+        # HF `logits_to_keep=1` runs the LM head on only the last position, so we
+        # never materialize [batch, seq, vocab] logits for a long prefill (on a
+        # vocab-sharded lm_head that all-gathers to gigabytes and OOMs DRAM).
+        import inspect
+
+        try:
+            self._supports_logits_to_keep = (
+                "logits_to_keep" in inspect.signature(model.forward).parameters
+            )
+        except (ValueError, TypeError):
+            self._supports_logits_to_keep = False
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         position_ids = cache_position.unsqueeze(0)
-        output = self.model(
+        model_kwargs = dict(
             input_ids=input_ids,
             past_key_values=past_key_values,
             position_ids=position_ids,
             cache_position=cache_position,
             use_cache=use_cache,
         )
+        # Only the last token's logits are consumed (next-token argmax + PCC), so
+        # run the LM head on just the last position. Avoids materializing the full
+        # [batch, seq, vocab] logits for a long prefill. No-op for decode (seq==1).
+        if self._supports_logits_to_keep:
+            model_kwargs["logits_to_keep"] = 1
+        output = self.model(**model_kwargs)
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.

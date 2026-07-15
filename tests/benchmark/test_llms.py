@@ -1603,7 +1603,12 @@ def _gpt_oss_120b_moe_fused_galaxy_shard_spec_fn(model_loader, model):
 
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
-    shard_specs[model.lm_head.weight] = (None, None)
+    # Vocab-parallel lm_head: HF weight is [vocab, hidden]; shard vocab (dim 0) on
+    # the "batch" (size-4) axis so each device computes only 1/4 of the logits.
+    # Keeps the [batch, seq, vocab] logits vocab-sharded instead of replicating the
+    # full 201088-wide tensor (~1.65GB at bs128), which OOMs DRAM. The next-token
+    # argmax over the sharded vocab lowers to a partitioned argmax.
+    shard_specs[model.lm_head.weight] = ("batch", None)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
@@ -1726,7 +1731,7 @@ def test_gpt_oss_120b_tp_moe_fused_galaxy(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            trace_enabled=False,
+            trace_enabled=bool(os.environ.get("TTXLA_ENABLE_TRACE")),
             optimization_level=1,
             experimental_weight_dtype="bfp_bf8",
             experimental_kv_cache_dtype=None,
@@ -1785,7 +1790,7 @@ def test_gpt_oss_20b_tp_moe_fused_galaxy(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            trace_enabled=False,
+            trace_enabled=bool(os.environ.get("TTXLA_ENABLE_TRACE")),
             optimization_level=1,
             experimental_weight_dtype="bfp_bf8",
             experimental_kv_cache_dtype=None,
@@ -1895,6 +1900,18 @@ def test_gpt_oss_20b_moe_fused_galaxy_pcc(
         moe_decode_token_threshold=_moe_thresh,
     )
 
+    # Diagnostic: TTXLA_ROUTER_BF16=1 keeps the MoE router weight/bias in bf16
+    # (per-tensor opt-out of the global bf8 block-format conversion) while experts
+    # stay bf8. MoE routing is a discrete switch, so bf8 perturbation of router
+    # logits can flip top-k expert selection and diverge per-user decode output;
+    # bf16 routing stabilizes selection at negligible memory cost.
+    _wd_overrides = None
+    if os.environ.get("TTXLA_ROUTER_BF16"):
+        _wd_overrides = {
+            "*mlp.router.weight": "bf16",
+            "*mlp.router.bias": "bf16",
+        }
+
     variant = ModelVariant.GPT_OSS_20B
     try:
         run_llm_pcc(
@@ -1913,6 +1930,7 @@ def test_gpt_oss_20b_moe_fused_galaxy_pcc(
             experimental_weight_dtype=os.environ.get(
                 "TTXLA_WEIGHT_DTYPE", "bfp_bf8"
             ),
+            weight_dtype_overrides=_wd_overrides,
             experimental_kv_cache_dtype=None,
             experts_implementation=TT_MOE_FUSED_BACKEND_NAME,
             decode_only=decode_only,
