@@ -47,6 +47,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    clamp_neg_getitem_bounds,
     clamp_neg_slice_bounds,
     fold_view_bmm_view_to_einsum,
     handle_composite_ops,
@@ -700,6 +701,9 @@ def aot_backend(
     options: dict[str, bool] | None,
 ):
     """AOTAutograd backend: run decompositions and trace through aot_autograd with _fw_compiler."""
+    # Clamp OOB negative slices before AOTAutograd records the view-meta (#4465).
+    gm = clamp_neg_getitem_bounds(gm)
+
     # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
     # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549

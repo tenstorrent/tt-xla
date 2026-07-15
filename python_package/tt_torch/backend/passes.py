@@ -8,6 +8,7 @@ import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
 from tt_torch.fusion_providers import FusionProvider
+from tt_torch.slice_bounds import clamp_neg_slice_key
 from ttxla_tools.logging import logger
 
 
@@ -588,6 +589,45 @@ def clamp_neg_slice_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
                 f"(dim {dim}, size {dim_size})"
             )
             node.args = tuple(new_args)
+            changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+    return gm
+
+
+def clamp_neg_getitem_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Pre-AOTAutograd clamp for OOB negative slices as ``operator.getitem`` nodes.
+
+    Must run before AOTAutograd so functionalization records the clamped view-meta
+    sequence; otherwise the runtime view-alias replay uses the original bound and
+    raises "Value out of range". Companion to clamp_neg_slice_bounds. Refs: #4465.
+    """
+    changed = False
+    for node in gm.graph.nodes:
+        if (
+            node.op != "call_function"
+            or node.target is not operator.getitem
+            or len(node.args) != 2
+        ):
+            continue
+        inp, key = node.args
+        if not isinstance(inp, torch.fx.Node):
+            continue
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        if not any(isinstance(k, slice) for k in key_tuple):
+            continue
+        shape = getattr(inp.meta.get("example_value"), "shape", None)
+        if shape is None:
+            shape = getattr(inp.meta.get("val"), "shape", None)
+        if shape is None:
+            continue
+        new_key, node_changed = clamp_neg_slice_key(shape, key)
+        if node_changed:
+            logger.debug(
+                f"clamp_neg_getitem_bounds: clamped {node.name} key {key} -> {new_key}"
+            )
+            node.args = (inp, new_key)
             changed = True
     if changed:
         gm.graph.lint()
