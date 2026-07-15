@@ -85,7 +85,6 @@ def _generate(max_num_batched_tokens: int) -> str:
         additional_config={
             "experimental_weight_dtype": "bfp_bf8",
             "experimental_kv_cache_dtype": "bfp_bf8",
-            "fp32_dest_acc_en": False,
             "enable_trace": False,
             # Opt in to chunked prefill at this chunk size. With budget >= prompt
             # length this is a single chunk (the oracle); with a small budget the

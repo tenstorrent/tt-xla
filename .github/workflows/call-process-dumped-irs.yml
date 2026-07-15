@@ -81,6 +81,14 @@ jobs:
           art_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
           echo "Found $art_count artifacts matching 'ir-dumps-*'"
 
+          if [ "$art_count" -eq 0 ]; then
+            echo "No ir-dumps-* artifacts in this run; skipping IR processing."
+            echo "skip_ir_processing=true" >> "$GITHUB_OUTPUT"
+            echo "ir_count=0" >> "$GITHUB_OUTPUT"
+            echo 'job_matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # Get artifacts for this run
           echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
           gh run download ${{ inputs.dumped_irs_run_id }} \
