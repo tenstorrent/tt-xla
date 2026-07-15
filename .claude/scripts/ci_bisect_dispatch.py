@@ -18,7 +18,7 @@ Per candidate commit X we:
      - required because workflow_dispatch --ref takes a branch/tag, not a bare SHA.
   2. `gh workflow run manual-test-single.yml --ref <branch>` with:
        dir=<full test nodeid>  runs_on=<arch>  artifact_sha=X (reuse X's prebuilt wheel)
-       [mlir_override / forge_models_override]  args='--timeout=...'  parallel_groups=1
+       [mlir_override / forge_models_override]  parallel_groups=1
   3. Poll the dispatched run's conclusion: success->GOOD, failure->BAD,
      cancelled/timed_out->SKIP.
 
@@ -37,7 +37,7 @@ git worktree, so the working tree is never touched); pass its name via --ref-bra
 Usage:
   python3 .claude/scripts/ci_bisect_dispatch.py fanout \
     --test 'tests/runner/test_models.py::test_all_models_torch[resnet/pytorch-single_device-inference]' \
-    --arch p150 --good <good_sha> --bad <bad_sha> [--timeout 600] [--no-cleanup] [--dry-run]
+    --arch p150 --good <good_sha> --bad <bad_sha> [--no-cleanup] [--dry-run]
   python3 .claude/scripts/ci_bisect_dispatch.py bisect  --test ... --arch p150 --good G --bad B
   python3 .claude/scripts/ci_bisect_dispatch.py emit    --test ... --arch galaxy-wh-6u --good G --bad B
 """
@@ -174,7 +174,6 @@ def dispatch(
     test_id,
     arch,
     artifact_sha,
-    timeout,
     mlir_override=None,
     forge_override=None,
     dry_run=False,
@@ -187,12 +186,10 @@ def dispatch(
         "-f",
         "parallel_groups=1",
     ]
-    # --timeout requires the pytest-timeout plugin, which is NOT installed in
-    # tt-xla CI (pytest rejects it at collection -> every probe fails -> bogus
-    # bisect). Only pass it when explicitly requested (timeout > 0); otherwise
-    # rely on the job-level timeout + wait_conclusion() SKIP handling.
-    if timeout and timeout > 0:
-        fields += ["-f", f"args=--timeout={timeout}"]
+    # NOTE: we never pass pytest --timeout. The pytest-timeout plugin is not
+    # installed in the artifact_sha wheel env, so pytest rejects it with
+    # "unrecognized arguments: --timeout" (exit 4) -> every probe fails -> bogus
+    # bisect. Rely on the job-level timeout + wait_conclusion() SKIP handling.
     if artifact_sha:
         fields += ["-f", f"artifact_sha={artifact_sha}"]
     if mlir_override:
@@ -267,7 +264,6 @@ def probe(
     sha,
     test_id,
     arch,
-    timeout,
     dry_run=False,
     no_cleanup=False,
     created=None,
@@ -282,7 +278,6 @@ def probe(
         test_id,
         arch,
         sha,
-        timeout,
         mlir_override=mlir_override,
         dry_run=dry_run,
     )
@@ -319,22 +314,17 @@ def mode_emit(args):
         print(
             f"git ls-remote --heads origin {branch} >/dev/null || {{ git branch -f {branch} {sha} && git push -u origin {branch}; }}"
         )
-        argsfield = (
-            f" -f args=--timeout={args.timeout}"
-            if args.timeout and args.timeout > 0
-            else ""
-        )
         print(
             f"gh workflow run {WORKFLOW} --repo {REPO} --ref {branch} "
             f"-f dir='{args.test}' -f runs_on={args.arch} -f artifact_sha={sha} "
-            f"-f parallel_groups=1{argsfield}\n"
+            f"-f parallel_groups=1\n"
         )
     return 0
 
 
 def mode_probe(args):
     verdict, run_id, branch = probe(
-        args.bad, args.test, args.arch, args.timeout, dry_run=args.dry_run
+        args.bad, args.test, args.arch, dry_run=args.dry_run
     )
     print(
         json.dumps(
@@ -359,7 +349,6 @@ def mode_fanout(args):
             sha,
             args.test,
             args.arch,
-            args.timeout,
             dry_run=args.dry_run,
             created=created,
         )
@@ -403,7 +392,6 @@ def mode_bisect(args):
             sha,
             args.test,
             args.arch,
-            args.timeout,
             dry_run=args.dry_run,
             created=created,
         )
@@ -463,9 +451,6 @@ def main(argv=None):
             help="Known-good tt-xla sha (exclusive)",
         )
         p.add_argument("--bad", required=True, help="Known-bad tt-xla sha (inclusive)")
-        p.add_argument(
-            "--timeout", type=int, default=600, help="pytest --timeout seconds"
-        )
         p.add_argument("--max-parallel", type=int, default=8, help="fanout concurrency")
         p.add_argument(
             "--no-cleanup", action="store_true", help="Keep created bisect branches"

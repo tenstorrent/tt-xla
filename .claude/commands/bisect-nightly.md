@@ -59,6 +59,20 @@ Produces `bisection/run_<run_id>_failures_filtered.json` (only in-scope `failed_
 `category`; timeouts left in `timed_out_jobs`; dropped ones under `out_of_scope_tests`). Report the
 category counts to the user.
 
+### Phase 2a — Write the failures table (ALWAYS, right after fetching failures)
+
+Every time, immediately after filtering, emit a Markdown table of the in-scope failures
+(test name + arch) to `bisection/nightly_<run_id>_failures_table.md`:
+```bash
+python3 .claude/scripts/write_failures_table.py "bisection/run_<run_id>_failures_filtered.json"
+```
+This writes the table in the format of `bisection/nightly_29666632980_failures_table.md`
+(columns `# | test | arch | reason | xfail?` + a hard-cases section for timed-out jobs). The
+`reason`/`xfail?` columns are auto-filled from the ledger (`bisection/bisected.json`) for tests already
+tracked, and marked `UNCLASSIFIED` otherwise. **Re-run this same command at the end of Phase 4** (after
+new blame/pending entries are written to the ledger) so the table reflects the final classification.
+Tell the user the path to the generated table.
+
 ### Phase 2b — FIXED failures (regressions resolved since the previous nightly)
 
 The current-run failure list alone can't show what got **fixed**. Diff the **previous** nightly's
