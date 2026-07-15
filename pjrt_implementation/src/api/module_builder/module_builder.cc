@@ -819,17 +819,27 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // Adopt the full device mesh when the graph genuinely needs it. Two disjoint
-  // cases require it:
-  //   1. The graph is really sharded -- it carries sharding-constraint
-  //      placeholders (e.g. sharded topk / 2D-mesh TP inference, which have
-  //      func arguments) or a result is partitioned across devices.
-  //   2. It is a no-input graph on a multi-device run: a no-input replicated
-  //      value (e.g. a const-folded torch.arange) would otherwise default to
-  //      1x1, collapse the mesh, and break the live sharded buffers
-  //      (see https://github.com/tenstorrent/tt-xla/issues/5360).
+  // Fallback mesh shape for AnalyzeMeshPass. Normally that pass establishes the
+  // device mesh on its own, from the Shardy/GSPMD sharding annotations on the
+  // module's inputs. This block does NOT drive that normal path -- it only
+  // supplies an explicit meshShape for graphs where input-based inference has
+  // nothing to work from, so the pass builds the real mesh instead of
+  // collapsing to a degenerate 1x1. Three such cases exist:
+  //   1. The graph expresses sharding via tt.sharding_constraint / @Sharding
+  //      custom-call placeholders rather than input annotations (e.g.
+  //      sample_from_logits / sharded topk). The mesh_idx_N placeholders in
+  //      those constraints need a mesh to resolve against, but no input
+  //      annotation exists for the pass to create one from.
+  //   2. A result is genuinely partitioned across devices
+  //      (MeshShardType::Devices), so the graph must run on the full mesh.
+  //   3. A no-input graph on a multi-device run: a const-folded replicated
+  //      value (e.g. torch.arange) has no inputs to infer from and would
+  //      otherwise default to 1x1, collapse the mesh, and break the live
+  //      sharded buffers (see https://github.com/tenstorrent/tt-xla/issues/5360).
   // A purely replicated computation that merely has input arguments (e.g. a
-  // single-device argmax) matches neither and stays on a single device.
+  // single-device argmax) matches none of these: AnalyzeMeshPass correctly
+  // leaves it at 1x1 to match what torch-xla executes, so we must not force it
+  // onto the full mesh (doing so caused a runtime device-count mismatch).
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
       (moduleHasShardingConstraints(mlir_module) ||
        anyShardedAcrossDevices(output_shardings) ||
