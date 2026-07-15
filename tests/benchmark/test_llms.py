@@ -1896,6 +1896,42 @@ def test_llama_3_1_70b_tp_qb2(
     )
 
 
+# opt-2 counterpart of test_llama_3_1_70b_tp_qb2 (same config, only the optimization
+# level differs) so CI can A/B whether opt-2 still hangs. See the opt-1 test's note.
+def test_llama_3_1_70b_tp_qb2_opt2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
+        optimization_level=2,
+    )
+
+
 # Excluded from the onPR perf filter (still runs in nightly): slice op requires
 # tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
 def test_gpt_oss_20b_tp_batch_size_1_qb2(
