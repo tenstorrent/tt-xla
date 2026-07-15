@@ -164,7 +164,32 @@ def construct_inputs(
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
-    if os.environ.get("TTXLA_DIVERSE_BATCH") and input_ids.shape[0] > 1:
+    if os.environ.get("TTXLA_DIVERSE_PREFILL") and input_ids.shape[0] > 1:
+        # [EXPERIMENT] Give each batch row a DISTINCT REAL prompt (a proper question)
+        # instead of the synthetic TTXLA_DIVERSE_BATCH token shift below, so every
+        # user generates a proper answer. Truncate to the common min token length
+        # (no padding). Real prompts also spread expert routing across EP devices,
+        # avoiding the 0-token-device combine hang. Prompt list is shared with the
+        # PCC diagnostic (deferred import avoids a circular module dependency).
+        from benchmarks.llm_pcc import (
+            _DIVERSE_PREFILL_PROMPTS,
+            _DIVERSE_PREFILL_PROMPTS_LONG,
+        )
+
+        _bs = input_ids.shape[0]
+        _prompts = (
+            _DIVERSE_PREFILL_PROMPTS_LONG
+            if os.environ.get("TTXLA_DIVERSE_PREFILL_LONG")
+            else _DIVERSE_PREFILL_PROMPTS
+        )
+        _sel = [_prompts[i % len(_prompts)] for i in range(_bs)]
+        _tok = [tokenizer(p, return_tensors="pt")["input_ids"][0] for p in _sel]
+        _min_len = min(int(t.shape[0]) for t in _tok)
+        _min_len = min(_min_len, int(max_cache_len))
+        input_ids = torch.stack([t[:_min_len] for t in _tok], dim=0).to(
+            input_ids.dtype
+        )
+    elif os.environ.get("TTXLA_DIVERSE_BATCH") and input_ids.shape[0] > 1:
         # [EXPERIMENT] Make each batch row a DISTINCT token sequence so decode
         # expert routing spans all EP devices, avoiding the 0-token-device
         # moe_compute combine deadlock (the tiled-identical batch is what triggers
@@ -466,9 +491,16 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Apply sharding constraint on lm_head output to all_gather logits
+        # Constrain the lm_head output to stay VOCAB-SHARDED on the same axis as the
+        # vocab-parallel lm_head weight (("batch", None) -> vocab on the "batch"
+        # axis), i.e. spec (None, None, "batch") for [batch, seq, vocab]. Replicating
+        # to the full vocab ((None, None, None)) all-gathers a [batch, seq, 201088]
+        # logits tensor (~1.65GB at bs128) that OOMs DRAM. Kept sharded, each device
+        # holds only [batch, seq, 50272] (1/4); the next-token argmax over the
+        # sharded vocab lowers to a partitioned argmax, and the host assembles the
+        # shards on .to("cpu").
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, "batch"))
             model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options

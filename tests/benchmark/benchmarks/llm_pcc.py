@@ -80,6 +80,45 @@ _DIVERSE_PREFILL_PROMPTS = [
     "Explain how a democratic government separates legislative and judicial powers.",
 ]
 
+# Longer variants (TTXLA_DIVERSE_PREFILL_LONG): ~2-3 sentences each so the common
+# truncation length is much larger (~40+ tokens), giving a richer/less-ambiguous
+# context. Used to test whether the per-user decode divergence under bf8 is a
+# short-prompt measurement artifact (flat next-token distribution) vs a real gap.
+_DIVERSE_PREFILL_PROMPTS_LONG = [
+    "Photosynthesis is the process by which green plants convert sunlight, water, and carbon dioxide into glucose and oxygen. This reaction takes place mainly in the chloroplasts, where the pigment chlorophyll absorbs light energy and",
+    "The French Revolution began in 1789 amid widespread financial crisis and social inequality. Ordinary citizens, burdened by heavy taxes while the nobility paid almost none, grew increasingly angry, and this resentment eventually",
+    "Machine learning models learn patterns from data rather than following explicit rules. During training, the model adjusts its internal parameters to minimize a loss function, and over many iterations it gradually",
+    "The human immune system defends the body against bacteria, viruses, and other pathogens. When a foreign invader is detected, specialized white blood cells respond by identifying the threat and then",
+    "Albert Einstein's theory of general relativity describes gravity not as a force but as the curvature of spacetime caused by mass and energy. According to this theory, massive objects like stars and planets",
+    "A star forms when a dense cloud of gas and dust collapses under its own gravity, heating up until nuclear fusion ignites in its core. Over millions of years the star burns hydrogen into helium, and eventually",
+    "Blockchains achieve agreement without any central authority by having many independent nodes validate and record transactions. Each new block is cryptographically linked to the previous one, which means that altering",
+    "Protein synthesis begins when the genetic instructions stored in DNA are transcribed into messenger RNA inside the nucleus. This messenger RNA then travels to the ribosome, where it is translated into",
+    "The water cycle continuously moves water between the oceans, atmosphere, and land through evaporation, condensation, and precipitation. Solar energy heats the surface of the ocean, causing water to evaporate and then",
+    "Supply and demand are the two forces that determine prices in a competitive market. When demand for a product rises while supply stays the same, sellers can charge more, but when supply increases faster than demand",
+    "Vaccines work by training the immune system to recognize a specific pathogen before a real infection occurs. They introduce a harmless piece of the virus or bacterium, prompting the body to produce antibodies that",
+    "The Roman Empire declined over several centuries due to a combination of military, economic, and political pressures. Repeated invasions along the frontiers, overreliance on slave labor, and unstable leadership all",
+    "Neural networks learn by adjusting the weights of their connections through a process called backpropagation. After each prediction, the error is measured and propagated backward through the layers so that",
+    "The Amazon rainforest is the largest tropical forest on Earth and is home to an extraordinary diversity of plants and animals. Its dense canopy produces a significant share of the planet's oxygen, and its rivers",
+    "Encryption keeps online communication secure by scrambling data so that only the intended recipient can read it. Modern systems use a pair of mathematical keys, one public and one private, so that a message encrypted",
+    "Ocean acidification occurs when seawater absorbs excess carbon dioxide from the atmosphere, lowering its pH. As the water becomes more acidic, shell-forming creatures such as corals and mollusks struggle to",
+    "Regular physical exercise improves not only the body but also mental health and mood. Aerobic activity increases blood flow to the brain and triggers the release of endorphins, which help to",
+    "The scientific method is a systematic approach to understanding the natural world through observation and experiment. A researcher forms a hypothesis, designs a test to challenge it, collects data, and then",
+    "Nuclear power plants generate electricity by using the heat released during controlled nuclear fission. Inside the reactor, atoms of uranium split apart and release energy, which boils water into steam that",
+    "The ancient Silk Road was a vast network of trade routes connecting China with the Mediterranean world for many centuries. Merchants carried silk, spices, and precious metals across deserts and mountains, and along the way",
+    "A compiler translates human-readable source code into the machine instructions that a processor can execute directly. It first parses the code into a structured representation, checks it for errors, and then",
+    "Climate scientists study long-term patterns in temperature, rainfall, and atmospheric composition to understand global change. By comparing modern measurements with ice cores and tree rings, they can reconstruct",
+    "The stock market allows companies to raise money by selling shares of ownership to investors. When a company performs well and its profits grow, demand for its shares tends to rise, which usually causes",
+    "Antibiotics are medicines that fight bacterial infections by either killing the bacteria or stopping them from multiplying. However, when they are overused, some bacteria survive and pass on resistance, which means",
+    "The internet routes information between computers by breaking it into small packets that travel independently across the network. Each packet carries the address of its destination, and routers along the path decide",
+    "Volcanoes form where molten rock, called magma, rises from deep within the Earth toward the surface. When the pressure becomes too great, the magma erupts as lava, ash, and gas, and over time these materials",
+    "A healthy diet provides the body with the nutrients it needs to grow, repair tissue, and produce energy. Carbohydrates supply quick fuel, proteins build muscle, and fats support the cells, so balancing them",
+    "Democracy depends on the peaceful transfer of power and the protection of individual rights under the rule of law. Citizens elect representatives to make decisions on their behalf, and an independent judiciary ensures that",
+    "Electric cars store energy in large rechargeable batteries and use electric motors instead of burning gasoline. Because they produce no tailpipe emissions, they can reduce urban air pollution, although the electricity",
+    "Earthquakes happen when stress built up along a fault in the Earth's crust is suddenly released as seismic waves. These waves travel outward from the point of rupture, shaking the ground, and their intensity",
+    "Bees play a crucial role in agriculture by pollinating a large fraction of the crops that humans rely on for food. As they move from flower to flower collecting nectar, they transfer pollen, which allows the plants to",
+    "Language models are trained on enormous collections of text so that they can predict the most likely next word in a sequence. By learning statistical patterns across billions of examples, they become able to",
+]
+
 
 def _maybe_diverse_prefill(input_args, tokenizer, batch_size, max_cache_len):
     """[EXPERIMENT] TTXLA_DIVERSE_PREFILL: replace the identical tiled prefill with
@@ -95,7 +134,12 @@ def _maybe_diverse_prefill(input_args, tokenizer, batch_size, max_cache_len):
     if not os.environ.get("TTXLA_DIVERSE_PREFILL"):
         return
     bs = int(batch_size)
-    sel = [_DIVERSE_PREFILL_PROMPTS[i % len(_DIVERSE_PREFILL_PROMPTS)] for i in range(bs)]
+    _prompts = (
+        _DIVERSE_PREFILL_PROMPTS_LONG
+        if os.environ.get("TTXLA_DIVERSE_PREFILL_LONG")
+        else _DIVERSE_PREFILL_PROMPTS
+    )
+    sel = [_prompts[i % len(_prompts)] for i in range(bs)]
     tok = [tokenizer(p, return_tensors="pt")["input_ids"][0] for p in sel]
     min_len = min(int(t.shape[0]) for t in tok)
     min_len = min(min_len, int(max_cache_len))
