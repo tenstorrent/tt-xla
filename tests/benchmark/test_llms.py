@@ -1892,6 +1892,11 @@ def test_llama_3_1_70b_tp_qb2(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
+        # The default bfp_bf8 KV cache yields garbage decode logits (PCC~0) on
+        # QB2/Blackhole: decode SDPA reads a bfp_bf8 K/V cache against a bf16
+        # query. Keep the cache full precision like the other TP LLM tests.
+        # See #5487 (root cause) and the paged-path sibling #5006.
+        experimental_kv_cache_dtype=None,
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
@@ -1928,6 +1933,11 @@ def test_llama_3_1_70b_tp_qb2_opt2(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
+        # The default bfp_bf8 KV cache yields garbage decode logits (PCC~0) on
+        # QB2/Blackhole: decode SDPA reads a bfp_bf8 K/V cache against a bf16
+        # query. Keep the cache full precision like the other TP LLM tests.
+        # See #5487 (root cause) and the paged-path sibling #5006.
+        experimental_kv_cache_dtype=None,
         optimization_level=2,
     )
 
