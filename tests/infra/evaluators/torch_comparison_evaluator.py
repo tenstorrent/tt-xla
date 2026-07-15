@@ -5,6 +5,7 @@
 import torch
 from infra.runners import run_on_cpu
 from infra.utilities import Framework, PyTree
+from loguru import logger
 from torch.utils._pytree import tree_flatten, tree_map
 from transformers import Cache, DynamicCache, EncoderDecoderCache
 
@@ -59,7 +60,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            # Use the live transformers.Cache, not the module-level import.
+            # Per-model requirements swaps reload transformers, so a static
+            # isinstance check would miss the model's reloaded cache class.
+            import transformers
+
+            if isinstance(tensor, transformers.Cache):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
@@ -171,7 +177,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
 
         leaf_pccs = tree_map(compute_pcc, device_output, golden_output)
         flat_pccs, _ = tree_flatten(leaf_pccs)
+        logger.info("flat_pccs={}", flat_pccs)
         filtered_pccs = [pcc for pcc in flat_pccs if pcc is not None]
+
         pcc = min(filtered_pccs)
         return float(pcc)
 
