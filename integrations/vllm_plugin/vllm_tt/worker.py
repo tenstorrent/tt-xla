@@ -36,7 +36,6 @@ from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
-from vllm.v1.worker.utils import bind_kv_cache
 from vllm.v1.worker.worker_base import CompilationTimes
 
 from .attention_impls.attention import TT_HEAD_SIZE_ALIGNMENT
@@ -44,6 +43,7 @@ from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
+from .vllm_distributed_utils import tt_bind_kv_cache as bind_kv_cache
 
 logger = tt_init_logger(__name__)
 

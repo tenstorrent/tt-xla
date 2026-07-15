@@ -257,6 +257,34 @@ class TTPlatform(Platform):
     def _is_deepseek_v4(cls) -> bool:
         return "DeepseekV4ForCausalLM" in cls._current_model_architectures()
 
+    # Set by check_and_update_config (which receives the VllmConfig) so
+    # support_hybrid_kv_cache — a no-arg classmethod called during VllmConfig
+    # __post_init__, before set_current_vllm_config is active — can tell whether
+    # the current model is DeepSeek-V4 without get_current_vllm_config().
+    _dsv4_hybrid_kv: bool = False
+
+    @staticmethod
+    def _dsv4_needs_hybrid_kv(hf_config) -> bool:
+        """True iff this is a DeepSeek-V4 model with a compressed-attention layer
+        (compress_ratio > 1 for some layer). Those need >1 KV-cache group -> the
+        hybrid KV-cache manager. A DSV4 model with only SWA layers (all
+        compress_ratios <= 1) unifies to one group and stays non-hybrid."""
+        try:
+            archs = getattr(hf_config, "architectures", []) or []
+            ratios = getattr(hf_config, "compress_ratios", []) or []
+        except Exception:
+            return False
+        return "DeepseekV4ForCausalLM" in archs and any((r or 0) > 1 for r in ratios)
+
+    @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        # DeepSeek-V4 C128A/C4A layers have TWO KV-cache groups (the SWA latent
+        # cache + the compressed latent cache), which requires vLLM's hybrid
+        # KV-cache manager (per-group block tables). Enable it ONLY for DSV4;
+        # every other TT model keeps the default (single uniform group) so their
+        # scheduling/allocation is unchanged.
+        return cls._dsv4_hybrid_kv
+
     @classmethod
     def get_attn_backend_cls(
         cls,
@@ -358,6 +386,19 @@ class TTPlatform(Platform):
             vllm_config.additional_config = {}
         additional_config = vllm_config.additional_config
         tt_config = TTConfig(**additional_config)
+
+        # Record whether this is a DeepSeek-V4 model that actually has a
+        # compressed-attention layer (C128A/C4A, compress_ratio > 1), so
+        # support_hybrid_kv_cache() — a no-arg classmethod called later in this
+        # same __post_init__, before the current vllm config is set — enables the
+        # hybrid KV-cache manager ONLY for those. A DSV4 model with only SWA
+        # layers (all compress_ratios <= 1) unifies to a single KV-cache group
+        # and stays on the original non-hybrid path byte-for-byte.
+        try:
+            hf_config = vllm_config.model_config.hf_config
+        except Exception:
+            hf_config = None
+        cls._dsv4_hybrid_kv = cls._dsv4_needs_hybrid_kv(hf_config)
         if "batch_size" in additional_config:
             logger.warning(
                 "additional_config['batch_size'] is deprecated and will be removed "

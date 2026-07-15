@@ -53,6 +53,15 @@ if TYPE_CHECKING:
 logger = tt_init_logger(__name__)
 
 _NEG_INF = float("-inf")
+# Large *finite* mask fill for attention branches that can have a fully-masked
+# row (a query with zero valid compressed slots). torch.logsumexp / softmax of an
+# all-`-inf` row returns nan on XLA (it computes exp(-inf - (-inf)) = exp(nan)),
+# unlike torch on CPU which special-cases it. A finite fill is numerically
+# identical when >=1 entry is valid (exp(-1e30 - max) == 0), and for an all-masked
+# row yields a finite, very-negative lse that the two-branch merge zeroes out
+# (exp(lse_c - m) -> 0). The window branch never has an all-masked row (a query
+# always attends itself), so it keeps _NEG_INF.
+_MASK_NEG = -1e30
 
 # The ttnn flash_mla_prefill kernel requires head_dim_v < qk head dim. DSV4's
 # direct MLA uses V = the full latent (head_dim_v == qk), so we zero-pad the
@@ -236,13 +245,11 @@ class TTDeepseekV4AttentionBackendImpl(MLAAttentionImpl):
                 f"Quantized DSV4 KV cache ({kv_cache_dtype}) is not yet supported "
                 "on TT; use a bf16 latent cache for now."
             )
-        if compress_ratio is not None and compress_ratio > 1:
-            raise NotImplementedError(
-                f"DSV4 compress_ratio={compress_ratio} (C4A/C128A: compressed "
-                "branch + two-branch merge) is not implemented yet on TT. Only "
-                "SWA-only layers (compress_ratio <= 1) are supported. See the "
-                "'what's next' TODOs in attention_dsv4.py."
-            )
+        # NOTE: no compress_ratio guard here. This impl is dormant — the active
+        # DSV4 attention runs through TTDeepseekV4MLAWrapper.forward, which
+        # dispatches SWA / C128A and raises for C4A. Constructing this (possibly
+        # instantiated by DeepseekV4MLAAttention) must succeed for every layer
+        # type so the model can build; its forward_mha/forward_mqa are hard stubs.
 
     # ------------------------------------------------------------------ #
     # Abstract stubs — never called; the layer routes through forward().
@@ -713,14 +720,27 @@ if _DSV4_WRAPPER_AVAILABLE:
             q, kv, cos, sin = self._dsv4_preprocess(positions, hidden_states)
             sink = self.mla_attn.attn_sink[:N].to(device=dev)
             kv_cache, md = self._swa_cache_and_metadata()
+            r = self.compress_ratio
 
-            if md is None or not _is_bound_cache(kv_cache):
-                # Fresh sequence (no paged cache): windowed self-attention.
+            if r == 128:
+                # C128A (HCA): window + dense compressed-prefix branch, merged.
+                o = self._c128a_forward(
+                    positions, hidden_states, q, kv, sink, kv_cache, md
+                )
+            elif r > 1:
+                # C4A (CSA) — the lightning-indexer top-k branch — is a follow-up.
+                raise NotImplementedError(
+                    f"DSV4 compress_ratio={r} (C4A/CSA) is not implemented on TT "
+                    "yet; only SWA (compress_ratio <= 1) and C128A (== 128) are "
+                    "supported. See attention_dsv4.py 'What's next'."
+                )
+            elif md is None or not _is_bound_cache(kv_cache):
+                # SWA-only, fresh sequence (no paged cache): windowed self-attention.
                 o = self._swa_self_attention(
                     q.view(1, T, N, Hd), kv.view(1, T, Hd), sink
-                )
-                o = o.reshape(T, N, Hd)
+                ).reshape(T, N, Hd)
             else:
+                # SWA-only, paged.
                 users = md.cache_position.shape[0]
                 assert T % users == 0, f"tokens ({T}) not divisible by users ({users})"
                 S = T // users
@@ -800,11 +820,12 @@ if _DSV4_WRAPPER_AVAILABLE:
                 ~keep, _NEG_INF
             )
 
-        def _swa_self_attention(self, q4, kv3, sink):
-            """Windowed-causal MLA attention with per-head sink, per user, over the
-            current sequence. q4 [users,S,N,Hd], kv3 [users,S,Hd]; V = full latent
+        def _windowed_branch(self, q4, kv3):
+            """Windowed-causal MLA attention over the current tokens, WITHOUT the
+            sink fold. q4 [users,S,N,Hd], kv3 [users,S,Hd]; V = full latent
             (zero-pad qk to satisfy the prefill kernel's head_dim_v < qk).
-            Returns o [users, S, N, Hd]."""
+            Returns (o_w [users,N,S,Hd] kernel layout, lse_w [users,N,S]) — the
+            pre-sink windowed output + its log-sum-exp, for _two_branch_merge."""
             users, S, N, Hd = q4.shape
             dev, dt, scale = q4.device, q4.dtype, self.scale
             mask = self._windowed_mask(S, dev, dt)  # [S,S]
@@ -825,9 +846,36 @@ if _DSV4_WRAPPER_AVAILABLE:
             scores = torch.einsum("unih,ujh->unij", qk.float(), kk[:, 0].float())
             scores = scores * scale + mask.float()[None, None]
             lse = torch.logsumexp(scores, dim=-1)  # [users, N, S]
-            factor = torch.sigmoid(lse - sink.float()[None, :, None])
-            out = (out.float() * factor.unsqueeze(-1)).to(dt)  # [users, N, S, Hd]
-            return out.permute(0, 2, 1, 3)  # [users, S, N, Hd]
+            return out, lse
+
+        def _two_branch_merge(self, o_w, lse_w, o_c, lse_c, sink):
+            """Combine a window branch (o_w, lse_w) and an optional compressed
+            branch (o_c, lse_c) under one softmax whose denominator carries the
+            per-head attention sink as an extra logit — the reference
+            ``sparse_attn`` merge (modified_model/kernel.py:82-88), written as a
+            numerically stable online-softmax. All tensor args are in the kernel
+            layout ([users,N,S,Hd] for o_*, [users,N,S] for lse_*); ``sink`` is
+            [N]. ``o_c=None`` (SWA-only) collapses to the exact
+            ``sigmoid(lse_w - sink)`` fold. fp32 accumulation throughout.
+            """
+            sink_ = sink.float().view(1, -1, 1)  # [1, N, 1]
+            ow, lw = o_w.float(), lse_w.float()
+            if o_c is None:
+                factor = torch.sigmoid(lw - sink_)  # [users, N, S]
+                return (ow * factor.unsqueeze(-1)).to(o_w.dtype)
+            oc, lc = o_c.float(), lse_c.float()
+            m = torch.maximum(torch.maximum(lw, lc), sink_)  # [users, N, S]
+            ew, ec, es = torch.exp(lw - m), torch.exp(lc - m), torch.exp(sink_ - m)
+            denom = (ew + ec + es).unsqueeze(-1)  # [users, N, S, 1]
+            o = (ow * ew.unsqueeze(-1) + oc * ec.unsqueeze(-1)) / denom
+            return o.to(o_w.dtype)
+
+        def _swa_self_attention(self, q4, kv3, sink):
+            """SWA-only windowed attention with the sink fold (used by the fresh
+            and paged-prefill SWA paths). Returns o [users, S, N, Hd]."""
+            o_w, lse_w = self._windowed_branch(q4, kv3)
+            o = self._two_branch_merge(o_w, lse_w, None, None, sink)
+            return o.permute(0, 2, 1, 3)  # [users, S, N, Hd]
 
         def _write_swa_cache_prefill(self, kv3, kv_cache, md):
             """Persist per-token latents into the paged SWA cache (prefill)."""
@@ -894,35 +942,295 @@ if _DSV4_WRAPPER_AVAILABLE:
             out = out.reshape(users, 1, N, Hd)
             return self._fold_paged_decode_sink(out, q4, kv_cache, md, sink, sw)
 
-        def _fold_paged_decode_sink(self, out, q4, kv_cache, md, sink, sw):
-            """Fold per-head attention sink into the paged decode output in torch.
-
-            Mirrors the sink fold in :meth:`_swa_self_attention` (prefill) but
-            recomputes the (pre-sink) windowed log-sum-exp from the paged latent
-            cache, so the sink stays sharded with the query heads instead of
-            hitting the ttnn decode kernel's replicated-sink shape constraint.
-            ``out`` / ``q4`` are [users, 1, N, Hd]; ``kv_cache`` [nblk, 1, blk, Hd].
-            """
+        def _paged_lse(self, q4, cache, page_table, cur_pos, sw):
+            """(pre-sink) log-sum-exp of a paged single-latent-KV attention, from
+            the cache. ``q4`` [users,1,N,Hd]; ``cache`` [nblk,1,blk,Hd]; ``cur_pos``
+            [users] is the last valid slot per user; ``sw`` (or None) applies a
+            sliding window on top of the ``j <= cur_pos`` causal mask. Returns
+            lse [users, N]. Shared by the SWA sink fold and the C128A two-branch
+            merge (window branch: sw=window_size; compressed branch: sw=None)."""
             users, _, N, Hd = q4.shape
             dev = q4.device
-            block_size = kv_cache.shape[-2]
-            # Gather each user's windowed K from the paged latent cache (page_table
-            # lists physical block ids in logical order).
-            gk = kv_cache[md.page_table.long()]  # [users, nbpu, 1, blk, Hd]
+            block_size = cache.shape[-2]
+            gk = cache[page_table.long()]  # [users, nbpu, 1, blk, Hd]
             max_seq = gk.shape[1] * block_size
             gk = gk.permute(0, 2, 1, 3, 4).reshape(users, max_seq, Hd).float()
             q = q4.reshape(users, N, Hd).float()
             scores = torch.einsum("und,usd->uns", q, gk) * self.scale  # [users,N,S]
-            # Causal + sliding-window mask from cache_position (traceable).
             j = torch.arange(max_seq, device=dev).view(1, 1, max_seq)
-            cur = md.cache_position.view(users, 1, 1)
+            cur = cur_pos.view(users, 1, 1)
             keep = j <= cur
             if sw is not None and sw > 0:
                 keep = keep & (j > cur - sw)
-            scores = torch.where(keep, scores, torch.full_like(scores, _NEG_INF))
-            lse = torch.logsumexp(scores, dim=-1)  # [users, N]
+            # Finite fill (see _MASK_NEG): a compressed-branch query may have zero
+            # valid slots; an all-`-inf` row would make logsumexp nan on XLA.
+            scores = torch.where(keep, scores, torch.full_like(scores, _MASK_NEG))
+            return torch.logsumexp(scores, dim=-1)  # [users, N]
+
+        def _fold_paged_decode_sink(self, out, q4, kv_cache, md, sink, sw):
+            """Fold per-head attention sink into the paged (SWA) decode output in
+            torch. Mirrors the sink fold in :meth:`_swa_self_attention` but
+            recomputes the (pre-sink) windowed log-sum-exp from the paged cache,
+            so the sink stays sharded with the query heads instead of hitting the
+            ttnn decode kernel's replicated-sink shape constraint. ``out`` /
+            ``q4`` are [users, 1, N, Hd]; ``kv_cache`` [nblk, 1, blk, Hd]."""
+            users, _, N, Hd = q4.shape
+            lse = self._paged_lse(q4, kv_cache, md.page_table, md.cache_position, sw)
             factor = torch.sigmoid(lse - sink.float().view(1, N))
             return (out.float() * factor.view(users, 1, N, 1)).to(out.dtype)
+
+        # -- C128A (HCA) compressed-attention branch ------------------------
+        def _dsv4_compress(self, hidden_states):
+            """C128A bf16 KV compressor over a single ``[S, hidden]`` sequence:
+            pool every ``compress_ratio`` tokens into one compressed latent
+            (gated softmax pool + learned APE + RMSNorm + GPT-J RoPE at the
+            compressed position ``slot*ratio``). Reimplements the oracle
+            ``Compressor.forward`` (modified_model/model.py:364-450) for the
+            start_pos==0 / overlap=False (ratio==128, coff==1) case. Returns
+            ``comp [Ncomp, Hd]`` with ``Ncomp = S // ratio``. The trailing
+            ``S % ratio`` tokens are NOT compressed here — deferred compressor
+            state — which is the M1 within-one-window decode limitation."""
+            comp = self.compressor
+            ratio, Hd = comp.compress_ratio, self.head_dim
+            nope, rope = self.nope_head_dim, self.rope_head_dim
+            dt, dev = hidden_states.dtype, hidden_states.device
+            S = hidden_states.shape[0]
+            # Sub-window chunk (S < ratio, e.g. the 32/64-token prefill compile
+            # buckets): NO compressed group completes, so Ncomp == 0. Return None
+            # rather than build a 0-sized tensor — a 0 dim divides-by-zero in the
+            # tt-mlir layout analysis, and this chunk is genuinely window+sink only
+            # (the M1 within-one-window case). `S` is a trace-time constant, so
+            # this prunes the compressed subgraph for those buckets entirely.
+            if S // ratio == 0:
+                return None
+            # compressor's fused_wkv_wgate is built with return_bias=False, so it
+            # returns a bare tensor (unlike fused_wqa_wkv); tolerate both.
+            kvsc = comp.fused_wkv_wgate(hidden_states)  # [S, 2*coff*Hd] (coff=1)
+            if isinstance(kvsc, (tuple, list)):
+                kvsc = kvsc[0]
+            kv, score = kvsc.split([comp.coff * Hd, comp.coff * Hd], dim=-1)
+            Ncomp = S // ratio
+            cutoff = Ncomp * ratio
+            kv = kv[:cutoff].reshape(Ncomp, ratio, Hd).float()
+            score = score[:cutoff].reshape(Ncomp, ratio, Hd).float() + comp.ape.float()
+            pooled = (kv * score.softmax(dim=1)).sum(dim=1)  # [Ncomp, Hd] gated pool
+            pooled = comp.norm(pooled.to(dt))  # RMSNorm(Hd)
+            pos_c = torch.arange(Ncomp, device=dev) * ratio
+            cos_c, sin_c = _dsv4_cos_sin(self.rotary_emb.cos_sin_cache, pos_c, rope)
+            return _dsv4_rope_rope_dims(pooled, cos_c, sin_c, nope, headed=False)
+
+        def _compressed_branch(self, q4, comp, pos2d):
+            """Dense MLA attention over ALL valid compressed latents (C128A). Query
+            at absolute position p attends compressed slot c iff ``c < (p+1)//ratio``
+            (causal-over-compressed, oracle ``get_compress_topk_idxs``); V = the
+            full compressed latent. ``q4`` [users,S,N,Hd], ``comp`` [users,Ncomp,Hd],
+            ``pos2d`` [users,S] absolute positions. Returns (o_c [users,N,S,Hd],
+            lse_c [users,N,S]); fully-masked rows give o_c=0, lse_c=-inf (the merge
+            zeroes their contribution)."""
+            users, S, N, Hd = q4.shape
+            dev, scale, ratio = q4.device, self.scale, self.compress_ratio
+            Ncomp = comp.shape[1]
+            qk = q4.permute(0, 2, 1, 3).float()  # [users, N, S, Hd]
+            compf = comp.float()  # [users, Ncomp, Hd]
+            scores = torch.einsum("unih,uch->unic", qk, compf) * scale  # [u,N,S,Nc]
+            valid = ((pos2d + 1) // ratio).view(users, 1, S, 1)  # slots c < valid
+            c_idx = torch.arange(Ncomp, device=dev).view(1, 1, 1, Ncomp)
+            keep = c_idx < valid  # [users,1,S,Ncomp] -> broadcasts over heads
+            # Finite mask fill (see _MASK_NEG): all-masked rows -> finite very-neg
+            # lse (merge zeroes them) and uniform (finite) softmax, avoiding the
+            # XLA all-`-inf` logsumexp/softmax nan.
+            scores = torch.where(keep, scores, torch.full_like(scores, _MASK_NEG))
+            lse_c = torch.logsumexp(scores, dim=-1)  # [users, N, S] (very-neg if empty)
+            w = torch.softmax(scores, dim=-1)
+            o_c = torch.einsum("unic,uch->unih", w, compf)  # [users, N, S, Hd]
+            return o_c.to(q4.dtype), lse_c
+
+        def _compressed_cache_and_metadata(self):
+            """(compressed latent cache, TTMetadata) for the C128A/C4A compressed
+            group — keyed by the DeepseekV4MLAAttention (``mla_attn``) prefix, the
+            second cache group emitted by the model_runner."""
+            comp_cache = getattr(getattr(self, "mla_attn", None), "kv_cache", None)
+            md = None
+            try:
+                from vllm.forward_context import get_forward_context
+
+                fc = get_forward_context()
+                attn_md = getattr(fc, "attn_metadata", None)
+                if isinstance(attn_md, dict):
+                    md = attn_md.get(self.mla_attn.prefix)
+                else:
+                    md = attn_md
+            except Exception:
+                md = None
+            return comp_cache, md
+
+        def _write_compressed_cache_prefill(self, comp, comp_cache, comp_md):
+            """Persist compressed latents into the paged compressed cache (prefill),
+            mirroring :meth:`_write_swa_cache_prefill`. ``comp`` [users, Ncomp, Hd]."""
+            users = comp.shape[0]
+            k_for_fill = comp.unsqueeze(2).transpose(1, 2)  # [users, 1, Ncomp, Hd]
+            filled = comp_cache
+            for b in range(users):
+                filled = torch.ops.tt.paged_fill_cache(
+                    filled,
+                    k_for_fill[b : b + 1],
+                    comp_md.fill_page_table,
+                    batch_idx=torch.tensor(
+                        [b], dtype=torch.int32, device=comp_cache.device
+                    ),
+                )
+            comp_cache.copy_(filled)
+
+        def _c128a_forward(self, positions, hidden_states, q, kv, sink, kv_cache, md):
+            """DSV4 C128A (HCA): window branch + dense compressed-prefix branch,
+            merged under one softmax with the sink in the denominator. Returns
+            o [T, N, Hd] (pre inverse-RoPE / o-proj). Fresh-sequence path (no
+            cache) is the M1-validated path; paged prefill/decode use the second
+            (compressed) cache group + per-group metadata from the model_runner."""
+            N, Hd = self.n_local_heads, self.head_dim
+            T = hidden_states.shape[0]
+            if md is None or not _is_bound_cache(kv_cache):
+                comp = self._dsv4_compress(hidden_states)  # [Ncomp,Hd] or None
+                o_w, lse_w = self._windowed_branch(
+                    q.view(1, T, N, Hd), kv.view(1, T, Hd)
+                )
+                if comp is None:
+                    # sub-window chunk: window+sink only (no compressed slots yet)
+                    o_c, lse_c = None, None
+                else:
+                    o_c, lse_c = self._compressed_branch(
+                        q.view(1, T, N, Hd), comp.unsqueeze(0), positions.view(1, T)
+                    )
+                o = self._two_branch_merge(o_w, lse_w, o_c, lse_c, sink)  # [1,N,T,Hd]
+                return o.permute(0, 2, 1, 3).reshape(T, N, Hd)
+            users = md.cache_position.shape[0]
+            assert T % users == 0, f"tokens ({T}) not divisible by users ({users})"
+            S = T // users
+            q4 = q.view(users, S, N, Hd)
+            kv3 = kv.view(users, S, Hd)
+            comp_cache, comp_md = self._compressed_cache_and_metadata()
+            if S > 1:
+                o = self._c128a_paged_prefill(
+                    q4,
+                    kv3,
+                    hidden_states,
+                    positions,
+                    sink,
+                    kv_cache,
+                    md,
+                    comp_cache,
+                    comp_md,
+                )
+            else:
+                o = self._c128a_paged_decode(
+                    q4, kv3, sink, kv_cache, md, comp_cache, comp_md
+                )
+            return o.reshape(T, N, Hd)
+
+        def _c128a_paged_prefill(
+            self,
+            q4,
+            kv3,
+            hidden_states,
+            positions,
+            sink,
+            kv_cache,
+            md,
+            comp_cache,
+            comp_md,
+        ):
+            """Paged C128A prefill: window self-attend + dense compressed attend,
+            merge, then write both the SWA and compressed caches. Returns
+            o [users, S, N, Hd]."""
+            users, S, N, Hd = q4.shape
+            hs = hidden_states.view(users, S, -1)
+            pos2d = positions.view(users, S)
+            o_w, lse_w = self._windowed_branch(q4, kv3)
+            self._write_swa_cache_prefill(kv3, kv_cache, md)
+            # Sub-window prefill chunk (S < ratio): no compressed slots complete,
+            # so this is window+sink only. `S` is a trace-time constant, so the
+            # 32/64-token compile buckets prune the compressed subgraph here
+            # (avoids the 0-sized Ncomp tensor that divides-by-zero in tt-mlir).
+            if S // self.compress_ratio == 0:
+                o = self._two_branch_merge(o_w, lse_w, None, None, sink)
+                return o.permute(0, 2, 1, 3)
+            comp = torch.stack(
+                [self._dsv4_compress(hs[b]) for b in range(users)], dim=0
+            )  # [users, Ncomp, Hd]
+            o_c, lse_c = self._compressed_branch(q4, comp, pos2d)
+            o = self._two_branch_merge(o_w, lse_w, o_c, lse_c, sink)  # [users,N,S,Hd]
+            if (
+                _is_bound_cache(comp_cache)
+                and comp_md is not None
+                and comp.shape[1] > 0
+            ):
+                self._write_compressed_cache_prefill(comp, comp_cache, comp_md)
+            return o.permute(0, 2, 1, 3)  # [users, S, N, Hd]
+
+        def _c128a_paged_decode(self, q4, kv3, sink, kv_cache, md, comp_cache, comp_md):
+            """Paged C128A decode: window paged read (as SWA, sink-free) + compressed
+            paged read, merged. M1 does NOT write the compressed cache each step
+            (folded compressor state — decode is correct only within the current
+            128-token compressed window; crossing a boundary needs the deferred
+            rolling CompressorStateCache). Returns o [users, 1, N, Hd]."""
+            users, _, N, Hd = q4.shape
+            # window branch: write new token, sink-free paged read, recompute lse
+            k_for_update = kv3.transpose(0, 1).unsqueeze(2)  # [1, users, 1, Hd]
+            kv_cache.copy_(
+                torch.ops.tt.paged_update_cache(
+                    kv_cache, k_for_update, md.cache_position, md.page_table
+                )
+            )
+            sw = (
+                self.window_size
+                if (self.window_size and self.window_size > 0)
+                else None
+            )
+            wk = dict(
+                query=q4.transpose(0, 1),
+                key=kv_cache,
+                head_dim_v=Hd,
+                page_table=md.page_table,
+                value=None,
+                is_causal=True,
+                cur_pos_tensor=md.cache_position,
+                attention_sink=None,
+                scale=self.scale,
+            )
+            if sw is not None:
+                wk["sliding_window"] = sw
+            o_w = torch.ops.tt.paged_flash_mla_decode(**wk).reshape(users, 1, N, Hd)
+            lse_w = self._paged_lse(q4, kv_cache, md.page_table, md.cache_position, sw)
+            # compressed branch (no window, no sink). comp_md.cache_position is the
+            # last valid compressed slot = (pos+1)//ratio - 1.
+            if not (_is_bound_cache(comp_cache) and comp_md is not None):
+                # No compressed slots yet (e.g. pos < ratio) -> window-only.
+                o = self._two_branch_merge(
+                    o_w.permute(0, 2, 1, 3), lse_w.unsqueeze(-1), None, None, sink
+                )
+                return o.permute(0, 2, 1, 3)
+            o_c = torch.ops.tt.paged_flash_mla_decode(
+                query=q4.transpose(0, 1),
+                key=comp_cache,
+                head_dim_v=Hd,
+                page_table=comp_md.page_table,
+                value=None,
+                is_causal=True,
+                cur_pos_tensor=comp_md.cache_position,
+                attention_sink=None,
+                scale=self.scale,
+            ).reshape(users, 1, N, Hd)
+            lse_c = self._paged_lse(
+                q4, comp_cache, comp_md.page_table, comp_md.cache_position, None
+            )
+            o = self._two_branch_merge(
+                o_w.permute(0, 2, 1, 3),
+                lse_w.unsqueeze(-1),
+                o_c.permute(0, 2, 1, 3),
+                lse_c.unsqueeze(-1),
+                sink,
+            )  # [users, N, 1, Hd]
+            return o.permute(0, 2, 1, 3)  # [users, 1, N, Hd]
 
 
 # ============================================================================ #

@@ -90,7 +90,6 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import (
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 from vllm.v1.worker.utils import (
     add_kv_sharing_layers_to_kv_cache_groups,
-    bind_kv_cache,
     sanity_check_mm_encoder_outputs,
 )
 
@@ -108,6 +107,7 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
+from .vllm_distributed_utils import tt_bind_kv_cache as bind_kv_cache
 from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
@@ -1134,16 +1134,38 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             elif dsv4_mla_attn_cls is not None and isinstance(
                 attn_module, dsv4_mla_attn_cls
             ):
-                # SWA-only (compress_ratio <= 1): no own cache — the SWA cache
-                # layer above holds it. Compressed branches (C4A/C128A) would
-                # need a second KV cache group, which is not supported yet.
-                if getattr(attn_module, "compress_ratio", 1) > 1:
-                    raise NotImplementedError(
-                        "DeepSeek-V4 compressed attention (compress_ratio="
-                        f"{attn_module.compress_ratio}) is not supported on TT "
-                        "yet; only SWA-only (compress_ratio <= 1) layers work."
+                cr = getattr(attn_module, "compress_ratio", 1)
+                if cr <= 1:
+                    # SWA-only: no own cache — the DeepseekV4SWACache layer holds
+                    # it. Skip (the SWA branch above emitted its spec).
+                    continue
+                if cr == 128:
+                    # C128A (HCA): the DeepseekV4MLAAttention layer owns the
+                    # second (compressed) KV-cache group — a bf16 MLA latent cache
+                    # of COMPRESSED slots (one per `cr` tokens). block_size is in
+                    # token units; MLAAttentionSpec.storage_block_size =
+                    # block_size // cr = physical slots/block. Use block_size =
+                    # 64*cr so storage_block_size == 64 (same tile-aligned 64-row
+                    # page as the SWA cache; avoids the storage_block_size==0 trap
+                    # of block_size < cr). compress_ratio=cr makes this a distinct
+                    # KV-cache group from the SWA group (MLAAttentionSpec.merge
+                    # asserts a single compress_ratio per group).
+                    _DSV4_SWA_BLOCK = 64  # matches get_page_size / sparse_swa.py
+                    kv_cache_spec[layer_name] = MLAAttentionSpec(
+                        block_size=_DSV4_SWA_BLOCK * cr,
+                        num_kv_heads=1,
+                        head_size=attn_module.head_dim,
+                        dtype=self.kv_cache_spec_dtype,
+                        cache_dtype_str=cache_dtype_str,
+                        compress_ratio=cr,
                     )
-                continue
+                    continue
+                # C4A (compress_ratio == 4) also needs the lightning-indexer
+                # branch + its own indexer cache; not implemented on TT yet.
+                raise NotImplementedError(
+                    "DeepSeek-V4 C4A (compress_ratio=4) is not supported on TT "
+                    "yet; only SWA (<=1) and C128A (==128) layers work."
+                )
             else:
                 continue
 
@@ -1216,6 +1238,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             [kv_cache_start_indices, new_kv_start_indices, slice_lens], axis=1
         )
         return slot_mapping_metadata
+
+    def _build_compressed_metadata(self, swa_md, actual_num_reqs, target_num_reqs):
+        """Build the DSV4 C128A compressed group's ``TTMetadata`` (gated;
+        multi-group only). The compressed cache stores one latent per
+        ``compress_ratio`` tokens, so its ``page_table`` is the compressed
+        group's scheduler-assigned blocks (``input_batch.block_table[gi]``) and
+        its ``cache_position`` is the last valid compressed slot
+        ``(token_pos + 1) // ratio - 1``. Reuses the SWA metadata's ``batch_idx``.
+        """
+        gi, ratio, _ = self._dsv4_comp_group
+        bt = self.input_batch.block_table[gi].get_cpu_tensor()
+        comp_max_blocks = bt.shape[1]
+        page_table = torch.zeros(
+            target_num_reqs, comp_max_blocks, dtype=self.block_table_cpu.dtype
+        )
+        page_table[:actual_num_reqs] = bt[:actual_num_reqs]
+        page_table = page_table.to(self.device)
+        cache_position = (
+            torch.div(swa_md.cache_position + 1, ratio, rounding_mode="floor") - 1
+        )
+        return TTMetadata(
+            page_table=page_table,
+            cache_position=cache_position,
+            is_causal=True,
+            attn_mask=None,
+            fill_page_table=page_table,
+            dp_size=self.dp_size,
+            chunk_start_idx=None,
+            batch_idx=swa_md.batch_idx,
+            num_users=target_num_reqs,
+        )
 
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
@@ -1569,9 +1622,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
-        )
+        if getattr(self, "_is_multi_group", False) and self._dsv4_comp_group:
+            # DSV4 C128A: the compressed-group layer(s) get their own metadata
+            # (distinct page_table + compressed cache_position); all other layers
+            # share the SWA metadata.
+            comp_md = self._build_compressed_metadata(
+                attn_metadata, actual_num_reqs, target_num_reqs
+            )
+            per_layer_attn_metadata = {
+                name: (
+                    comp_md if name in self._dsv4_comp_layer_names else attn_metadata
+                )
+                for name in self._attention_layer_names
+            }
+        else:
+            per_layer_attn_metadata = dict.fromkeys(
+                self._attention_layer_names, attn_metadata
+            )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -3376,11 +3443,38 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_config: Configuration for the KV cache, including the KV
             cache size of each layer
         """
-        if len(kv_cache_config.kv_cache_groups) > 1:
+        # DeepSeek-V4 C128A models have TWO KV-cache groups (the SWA latent cache
+        # + the compressed latent cache, distinguished by MLAAttentionSpec's
+        # compress_ratio). Allow >1 group ONLY for that gated case; every other
+        # (single-group / non-DSV4) model keeps the original single-group path
+        # byte-for-byte via self._is_multi_group == False.
+        dsv4_swa_cls, _ = _dsv4_layer_classes()
+        self.kv_cache_groups = kv_cache_config.kv_cache_groups
+        # Any DSV4 model runs through vLLM's hybrid KV-cache manager (enabled via
+        # TTPlatform.support_hybrid_kv_cache), which may coalesce layers into a
+        # shared KV-cache tensor even for the single-group SWA-only case.
+        self._is_dsv4 = dsv4_swa_cls is not None
+        self._is_multi_group = (
+            self._is_dsv4 and len(kv_cache_config.kv_cache_groups) > 1
+        )
+        if len(kv_cache_config.kv_cache_groups) > 1 and not self._is_multi_group:
             raise NotImplementedError(
                 "Hybrid models with more than one KV cache type are not "
                 "supported yet."
             )
+        # Identify the DSV4 compressed (C128A) group so _prepare_inputs can build
+        # its per-group metadata (distinct page_table + compressed cache_position).
+        self._dsv4_comp_group = None  # (group_idx, compress_ratio, block_size)
+        self._dsv4_comp_layer_names: set[str] = set()
+        if self._is_multi_group:
+            from vllm.v1.kv_cache_interface import MLAAttentionSpec
+
+            for gi, g in enumerate(kv_cache_config.kv_cache_groups):
+                spec = g.kv_cache_spec
+                if isinstance(spec, MLAAttentionSpec) and spec.compress_ratio > 1:
+                    self._dsv4_comp_group = (gi, spec.compress_ratio, spec.block_size)
+                    self._dsv4_comp_layer_names = set(g.layer_names)
+                    break
 
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
@@ -3392,10 +3486,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             return
 
-        if (
-            kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-            != self.block_size
-        ):
+        # Per-group block sizes (token units). Multi-group (DSV4 C128A) needs one
+        # InputBatch block table per group so block_table[g] exists for the
+        # compressed group; single-group keeps the group-0 block size.
+        #
+        # The window/SWA groups keep self.block_size (cache_config.block_size,
+        # hardcoded 32) — the same block-table granularity the validated
+        # single-group SWA path uses, so block_table[0] width stays aligned with
+        # max_num_blocks_per_req in the main _prepare_inputs path. ONLY the
+        # compressed group takes its own (much larger) block size, so its
+        # block_table[comp_gi] advances at 1/ratio the token rate.
+        comp_gi = self._dsv4_comp_group[0] if self._dsv4_comp_group else -1
+        group_block_sizes = [
+            (g.kv_cache_spec.block_size if gi == comp_gi else self.block_size)
+            for gi, g in enumerate(kv_cache_config.kv_cache_groups)
+        ]
+        self.group_block_sizes = group_block_sizes
+        if self._is_multi_group or group_block_sizes[0] != self.block_size:
             self.input_batch = InputBatch(
                 max_num_reqs=self.max_num_reqs,
                 max_model_len=self.max_model_len,
@@ -3403,12 +3510,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 device="cpu",
                 pin_memory=self.pin_memory,
                 vocab_size=self.model_config.get_vocab_size(),
-                block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
-                kernel_block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
+                block_sizes=group_block_sizes,
+                kernel_block_sizes=group_block_sizes,
                 is_pooling_model=False,
             )
         # Verify dtype compatibility between block_table_cpu and input_batch
@@ -3419,10 +3522,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_cache_sizes = {}
         for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
-            assert len(kv_cache_tensor.shared_by) == 1, (
-                "KV cache tensor shared by multiple layers is not supported in " "TPU."
+            if not self._is_dsv4:
+                assert len(kv_cache_tensor.shared_by) == 1, (
+                    "KV cache tensor shared by multiple layers is not supported "
+                    "in TPU."
+                )
+            # DSV4 (hybrid manager): a tensor may list several layers. vLLM sizes
+            # ONE shared buffer to hold ALL of them (its unified pool); the TT
+            # runner instead allocates a separate per-layer tensor below, so each
+            # layer gets an equal slice (tensor.size // #layers) — allocating the
+            # full pool per layer would be N× too big and OOM. For the single-
+            # layer (non-DSV4 / non-shared) case this is size // 1 == size.
+            per_layer_size = kv_cache_tensor.size // len(kv_cache_tensor.shared_by)
+            for _ln in kv_cache_tensor.shared_by:
+                kv_cache_sizes[_ln] = per_layer_size
+        if self._is_multi_group:
+            logger.info(
+                "DSV4 multi-group KV: %d tensors, %d groups, sizes=%s",
+                len(kv_cache_config.kv_cache_tensors),
+                len(kv_cache_config.kv_cache_groups),
+                {k: v for k, v in list(kv_cache_sizes.items())[:6]},
             )
-            kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
 
         kv_caches: dict[str, torch.Tensor] = {}
         for kv_cache_group in kv_cache_config.kv_cache_groups:
@@ -3431,15 +3551,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     kv_cache_group.kv_cache_spec, layer_name
                 )
                 tensor_size = kv_cache_sizes[layer_name]
-                assert tensor_size % kv_cache_spec.page_size_bytes == 0
-                num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
+                if self._is_multi_group:
+                    # DSV4 hybrid pool: layers share ONE pooled tensor, so this
+                    # layer's byte slice (pool // #layers) need not be a whole
+                    # multiple of its page. Floor to whole blocks (the few
+                    # leftover bytes are unused). This is the per-layer block
+                    # count -- NOT kv_cache_config.num_blocks, which is the
+                    # whole-pool count and would allocate the full pool per layer.
+                    num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
+                else:
+                    assert tensor_size % kv_cache_spec.page_size_bytes == 0
+                    num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
                 if isinstance(kv_cache_spec, MLAAttentionSpec):
                     # MLA stores a SINGLE concatenated latent KV tensor per
                     # slot (num_kv_heads == 1, head_size == kv_lora_rank +
-                    # qk_rope_head_dim).
+                    # qk_rope_head_dim). Physical rows/block = storage_block_size
+                    # = block_size // compress_ratio (== block_size for the SWA
+                    # group; == 64 for the C128A compressed group, which stores
+                    # one compressed slot per `compress_ratio` tokens).
                     kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
                         num_blocks,
-                        kv_cache_spec.block_size,
+                        kv_cache_spec.storage_block_size,
                         kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )

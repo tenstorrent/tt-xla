@@ -29,6 +29,32 @@ from .logger import tt_init_logger
 logger = tt_init_logger(__name__)
 
 
+def tt_bind_kv_cache(kv_caches, forward_context, runner_kv_caches, num_attn_module=1):
+    """Like ``vllm.v1.worker.utils.bind_kv_cache`` but tolerant of a single
+    decoder layer owning >1 cache sub-layer with the same layer index.
+
+    DeepSeek-V4 C128A layers have two cache-owning sub-layers under the same
+    ``layers.N.attn`` prefix (the SWA latent cache + the compressed latent
+    cache), so they share a layer_index. Upstream ``bind_kv_cache`` raises
+    ``NotImplementedError`` for that on any non cuda/cpu/xpu platform (TT is
+    ``xla``/OOT); cuda/cpu/xpu just fall through. This replica takes the
+    cpu/pass branch for every platform — output is byte-for-byte identical to
+    upstream for single-cache-per-layer (non-DSV4) models."""
+    from collections import defaultdict
+
+    from vllm.v1.worker.utils import extract_layer_index
+
+    assert len(runner_kv_caches) == 0
+    index2name = defaultdict(list)
+    for layer_name in kv_caches:
+        index2name[extract_layer_index(layer_name, num_attn_module)].append(layer_name)
+    for layer_index in sorted(index2name.keys()):
+        for layer_name in index2name[layer_index]:
+            runner_kv_caches.append(kv_caches[layer_name])
+    for layer_name, kv_cache in kv_caches.items():
+        forward_context[layer_name].kv_cache = kv_cache
+
+
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
     """xs.mark_sharding that replicates any dim whose size is not divisible
     by the mesh axis it would be sharded on. When ``strict`` is True, raise
