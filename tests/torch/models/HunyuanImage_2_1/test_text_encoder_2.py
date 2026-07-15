@@ -16,12 +16,13 @@ from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
 )
 
 
-@pytest.mark.xfail(
-    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9827067647730205. Required: pcc=0.99. — https://github.com/tenstorrent/tt-xla/issues/4784"
-)
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.single_device
+# @pytest.mark.xfail(
+#     reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9827067647730205. Required: pcc=0.99. — https://github.com/tenstorrent/tt-xla/issues/4784"
+# )
+# @pytest.mark.nightly
+# @pytest.mark.model_test
+# @pytest.mark.single_device
+@pytest.mark.lb_blackhole
 def test_text_encoder_2():
     xr.set_device_type("TT")
     torch.manual_seed(42)

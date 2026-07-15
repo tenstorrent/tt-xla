@@ -17,16 +17,17 @@ from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
 )
 
 
-@pytest.mark.skip(
-    reason="model size > 8B — won't fit on a single chip; sharded variant runs"
-)
-def test_text_encoder():
-    _run(sharded=False)
+# @pytest.mark.skip(
+#     reason="model size > 8B — won't fit on a single chip; sharded variant runs"
+# )
+# def test_text_encoder():
+#     _run(sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.llmbox
+# @pytest.mark.nightly
+# @pytest.mark.model_test
+# @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_text_encoder_sharded():
     _run(sharded=True)
 

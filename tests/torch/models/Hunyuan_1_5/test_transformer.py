@@ -13,17 +13,7 @@ from infra.utilities.torch_multichip_utils import get_mesh
 
 from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
 
-
-@pytest.mark.skip(
-    reason="model size > 8B — won't fit on a single chip; sharded variant runs"
-)
-def test_transformer():
-    _run(sharded=False)
-
-
-@pytest.mark.xfail(
-    reason="SPMD compilation gives trivial mesh size [1,1] -> 'Device count mismatch: 2 vs 1' at execute — https://github.com/tenstorrent/tt-xla/issues/4486"
-)
+@pytest.mark.lb_blackhole
 def test_transformer_sharded():
     _run(sharded=True)
 

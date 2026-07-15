@@ -20,11 +20,12 @@ from third_party.tt_forge_models.mochi.pytorch.src.utils import (
 )
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 32463388672 B DRAM buffer "
-    "across 12 banks, where each bank needs to store 2705283072 B, but bank size "
-    "is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4651"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 32463388672 B DRAM buffer "
+#     "across 12 banks, where each bank needs to store 2705283072 B, but bank size "
+#     "is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4651"
+# )
+@pytest.mark.lb_blackhole
 def test_transformer_sharded():
     # Not using run_graph_test: it runs the model on CPU as a golden reference
     # first, and the 10B transformer CPU pass takes ~12 min at full resolution.
