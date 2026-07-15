@@ -28,7 +28,7 @@
 set -e
 
 export TT_VISIBLE_DEVICES=${TT_VISIBLE_DEVICES:-0}
-export TT_MESH_GRAPH_DESC_PATH=${TT_MESH_GRAPH_DESC_PATH:-/home/kmabee/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/fabric/mesh_graph_descriptors/p150_mesh_graph_descriptor.textproto}
+# export TT_MESH_GRAPH_DESC_PATH=${TT_MESH_GRAPH_DESC_PATH:-/home/kmabee/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/fabric/mesh_graph_descriptors/p150_mesh_graph_descriptor.textproto}
 
 # Exported so the additional-config python heredoc below sees them too.
 export MODEL=${MODEL:-Qwen/Qwen3-8B}
