@@ -130,4 +130,8 @@ def test_data_parallel_inference_galaxy_wh_6u(
         enable_data_parallel=True,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
+        optimization_level=1,
+        enable_trace=True,
+        experimental_weight_dtype="bfp_bf8",
+        enable_const_eval=True,
     )

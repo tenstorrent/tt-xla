@@ -335,6 +335,32 @@ EMBEDDING_CONFIGS = [
 ]
 
 
+DP_EMBEDDING_CONFIGS = [
+    pytest.param(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-0.6B", 32, max_model_len=128, enable_data_parallel=True
+        ),
+        id="qwen3-embedding-0.6b-dp-batch32",
+    ),
+    # Trace disabled: host/device tensor shape mismatch
+    # (https://github.com/tenstorrent/tt-xla/issues/3936)
+    pytest.param(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-4B",
+            32,
+            max_model_len=128,
+            enable_data_parallel=True,
+            enable_trace=False,
+        ),
+        id="qwen3-embedding-4b-dp-batch32",
+    ),
+    pytest.param(
+        _embedding_config("BAAI/bge-m3", 32, enable_data_parallel=True),
+        id="bge-m3-dp-batch32",
+    ),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -363,4 +389,9 @@ def test_vllm_tp_benchmark(config, output_file, request):
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
 def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", DP_EMBEDDING_CONFIGS)
+def test_vllm_embedding_dp_benchmark(config, output_file, request):
     _run_vllm_embedding_benchmark(config, output_file, request)
