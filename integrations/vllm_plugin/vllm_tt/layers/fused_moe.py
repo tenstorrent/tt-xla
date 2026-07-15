@@ -43,14 +43,10 @@ class TTUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
 
     @property
     def is_monolithic(self) -> bool:
-        # Escape hatch for CPU, which stays on the old monolithic path.
-        if self.unquantized_backend == UnquantizedMoeBackend.CPU:
-            return True
-        # If the modular kernel was not initialized, force monolithic mode and
-        # let apply_monolithic route to the TT layer fallback.
-        if self.moe_kernel is None:
-            return True
-        return self.moe_kernel.is_monolithic
+        # TT uses a compile-time constant monolithic path so the runner can
+        # stay on the TT-specific apply_monolithic fallback without tracing a
+        # runtime branch on moe_kernel state.
+        return True
 
     def apply_monolithic(self, layer, x, router_logits, input_ids=None):
         if (
@@ -92,7 +88,7 @@ class TTFusedMoE(FusedMoE):
 
             self.quant_method = tt_method
             self.base_quant_method = tt_method
-            self.runner.quant_method = tt_method
+            self.runner._replace_quant_method(tt_method)
 
         # vLLM::MoERunner calling sequence:
         # forward
@@ -145,7 +141,8 @@ class TTFusedMoE(FusedMoE):
         if self.activation == MoEActivation.SILU:
             return F.silu(gate) * up
         if self.activation == MoEActivation.GELU:
-            # HF Gemma-4 uses tanh-approximated GELU; vLLM's "gelu" maps here.
+            return F.gelu(gate, approximate="tanh") * up
+        if self.activation == MoEActivation.GELU_TANH:
             return F.gelu(gate, approximate="tanh") * up
         raise NotImplementedError(
             f"TTFusedMoE: activation {self.activation} not supported"
