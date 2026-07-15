@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import itertools
+import os
 from typing import List, Optional, Union
 
 import torch
@@ -287,6 +288,17 @@ def composite_scaled_dot_product_attention(
     )
 
     if attn_mask is not None:
+        # Fused SDPA adds the mask to the scores, and ttnn.scaled_dot_product_attention
+        # accepts only a float mask (BF16/BFP8/BFP4), so convert a bool mask to additive
+        # form (True -> 0, False -> -inf). Gated by the same flag that allows capturing
+        # a bool mask in _check_sdpa_constraints.
+        # torch reference: https://github.com/pytorch/pytorch/blob/9f48642d4bf84566ca3191576c7ff30138953af8/torch/nn/functional.py#L6365
+        # ttnn check: tt-metal .../transformer/sdpa/device/sdpa_device_operation.cpp ("must be in BF16, BFP8, or BFP4 dataformat")
+        if (
+            os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
+            and attn_mask.dtype == torch.bool
+        ):
+            attn_mask = torch.where(attn_mask, 0.0, float("-inf")).to(query.dtype)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
@@ -509,19 +521,48 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
         )
         return False
 
-    # Check all inputs are bfloat16
-    tensor_args = list(node.args) + [
-        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
-    ]
-    for arg in tensor_args:
-        if hasattr(arg, "meta"):
+    # By default every SDPA input (including attn_mask) is gated on bf16, so a bool
+    # mask skips the composite. Catching bool masks by default regressed perf
+    # (issue #5426), so it is opt-in via TT_XLA_CATCH_BOOL_MASK_SDPA for models with
+    # no perf concern at the moment. When set, only the mask is exempted (bf16 or
+    # bool); Q/K/V are always gated on bf16.
+    def _dtype(arg):
+        if isinstance(arg, torch.fx.Node) and hasattr(arg, "meta"):
             val = arg.meta.get("example_value", None)
-            if val is not None and val.dtype != torch.bfloat16:
-                logger.debug(
-                    "composite scaled_dot_product_attention only supports bfloat16 inputs, "
-                    "skipping composite and using native implementation."
-                )
-                return False
+            if val is not None:
+                return val.dtype
+        return None
+
+    # Q/K/V (positional or named) must always be bf16.
+    qkv = list(node.args[:3]) + [
+        node.kwargs[name] for name in ("query", "key", "value") if name in node.kwargs
+    ]
+    for arg in qkv:
+        dtype = _dtype(arg)
+        if dtype is not None and dtype != torch.bfloat16:
+            logger.debug(
+                "composite scaled_dot_product_attention only supports bfloat16 Q/K/V, "
+                "skipping composite and using native implementation."
+            )
+            return False
+
+    # attn_mask dtype policy:
+    #   - bf16: accepted as-is.
+    #   - bool: accepted only under the flag; converted to an additive bf16 bias in
+    #     the composite (see composite_scaled_dot_product_attention).
+    #   - anything else (int, f32, ...): the fused kernel needs a float mask and we
+    #     do not convert it, so skip and fall back to the native implementation.
+    mask = node.args[3] if len(node.args) > 3 else node.kwargs.get("attn_mask")
+    mask_dtype = _dtype(mask)
+    if mask_dtype is not None and mask_dtype != torch.bfloat16:
+        catch_bool = os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
+        if not (catch_bool and mask_dtype == torch.bool):
+            logger.debug(
+                "composite scaled_dot_product_attention only supports a bfloat16 mask "
+                "(or a bool mask with TT_XLA_CATCH_BOOL_MASK_SDPA=1), "
+                "skipping composite and using native implementation."
+            )
+            return False
 
     return True
 

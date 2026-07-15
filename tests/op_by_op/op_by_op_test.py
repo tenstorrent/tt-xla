@@ -161,19 +161,40 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
             pytest.skip(f"No .mlir files found in {folder_path}")
 
     ops = []
+    # Collect per-file failures so that a single unreadable or unsplittable IR does
+    # not abort the whole job (which would drop every remaining model/op). Each
+    # failing file is logged, recorded, and skipped so processing continues.
+    extraction_failures = []
     for ir_file_path, origin_model in matched_files:
         try:
             with open(ir_file_path, "r") as f:
                 module = f.read()
         except (FileNotFoundError, IOError, OSError) as e:
-            pytest.fail(
-                f"Op-by-op test failed because IR file couldn't be read.\n"
-                f"File: {ir_file_path}\n"
-                f"Error: {e}"
+            print(
+                f"WARNING: Skipping IR file that couldn't be read.\n"
+                f"  File: {ir_file_path}\n"
+                f"  Model: {origin_model}\n"
+                f"  Error: {e}"
             )
+            extraction_failures.append(
+                {"model": origin_model, "file": str(ir_file_path), "error": str(e)}
+            )
+            continue
         print(f"Processing IR file: {ir_file_path}")
 
-        module_ops = extract_ops_from_module(module, origin_model=origin_model)
+        try:
+            module_ops = extract_ops_from_module(module, origin_model=origin_model)
+        except Exception as e:
+            print(
+                f"WARNING: Failed to extract ops from IR file, skipping.\n"
+                f"  File: {ir_file_path}\n"
+                f"  Model: {origin_model}\n"
+                f"  Error: {e}"
+            )
+            extraction_failures.append(
+                {"model": origin_model, "file": str(ir_file_path), "error": str(e)}
+            )
+            continue
         ops.extend(module_ops)
 
     filtered_ops = filter_and_deduplicate_ops(
@@ -182,6 +203,9 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
 
     record_property("total_ops_before_filtering", len(ops))
     record_property("total_ops_after_filtering", len(filtered_ops))
+    record_property("extraction_failures", len(extraction_failures))
+    if extraction_failures:
+        record_property("extraction_failure_details", extraction_failures)
     record_property("ir_folder", str(folder_path))
     record_property("ir_file_prefix", ir_file_prefix if ir_file_prefix else None)
     record_property("compile_only", compile_only)

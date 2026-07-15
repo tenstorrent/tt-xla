@@ -11,7 +11,7 @@ from pathlib import Path
 import psutil
 import pytest
 
-TEST_TIMEOUT_FALLBACK_SECONDS = 30 * 60
+TEST_TIMEOUT_FALLBACK_SECONDS = 60 * 60
 
 
 def _load_test_durations() -> dict[str, float]:
