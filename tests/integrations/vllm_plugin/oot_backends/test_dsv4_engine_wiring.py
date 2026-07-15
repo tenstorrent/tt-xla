@@ -293,18 +293,61 @@ def test_kv_cache_spec_c128a(monkeypatch):
 
 
 @pytest.mark.push
-def test_kv_cache_spec_c4a_raises(monkeypatch):
-    """C4A (compress_ratio=4) also needs the lightning-indexer branch + its own
-    cache — not implemented on TT yet, so the spec builder fails loudly."""
+def test_kv_cache_spec_c4a(monkeypatch):
+    """A C4A (compress_ratio=4) model emits three latent KV-cache specs — the SWA
+    window (as SlidingWindowMLASpec, to trigger the heterogeneous-page DeepseekV4
+    allocator / Path A), the compressed VALUES (MLAAttentionSpec head_size=head_dim,
+    compress_ratio=4), and the indexer compressed KEYS (MLAAttentionSpec
+    head_size=index_head_dim=64) — while the compressor rolling-state cache is
+    DROPPED (managed as a batch-indexed buffer, not a vLLM group)."""
+    from vllm.model_executor.layers.deepseek_compressor import CompressorStateCache
+    from vllm.model_executor.layers.deepseek_v4_attention import DeepseekV4IndexerCache
+    from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
+
     cfg = _tiny_dsv4_config()
+    cfg.compress_ratios = [1, 4]  # model HAS a C4A layer -> Path A
     vllm_config = _mock_vllm_config(cfg)
     with _construction_context(vllm_config):
         wrapper = _build_wrapper(vllm_config)
+        wrapper.mla_attn.compress_ratio = 4
+        idx_cache = DeepseekV4IndexerCache(
+            head_dim=132,  # module's fp8 layout; the TT spec overrides to 64
+            dtype=torch.uint8,
+            prefix="model.layers.0.attn.indexer.k_cache",
+            cache_config=vllm_config.cache_config,
+            compress_ratio=4,
+        )
+        state_cache = CompressorStateCache(
+            state_dim=2 * 2 * _HEAD_DIM,
+            dtype=torch.float32,
+            compress_ratio=4,
+            prefix="model.layers.0.attn.compressor.state_cache",
+        )
 
-    wrapper.mla_attn.compress_ratio = 4
-    layers = {"model.layers.0.attn.mla": wrapper.mla_attn}
-    with pytest.raises(NotImplementedError, match="C4A"):
-        _run_get_kv_cache_spec(monkeypatch, vllm_config, layers)
+    swa = wrapper.swa_cache_layer
+    layers = {
+        swa.prefix: swa,
+        "model.layers.0.attn.mla": wrapper.mla_attn,
+        idx_cache.prefix: idx_cache,
+        state_cache.prefix: state_cache,
+    }
+    spec = _run_get_kv_cache_spec(monkeypatch, vllm_config, layers)
+
+    # SWA -> SlidingWindowMLASpec (Path A trigger); generic bf16 page (no fp8).
+    assert isinstance(spec[swa.prefix], SlidingWindowMLASpec)
+    assert spec[swa.prefix].dtype == torch.bfloat16
+    assert getattr(spec[swa.prefix], "model_version", None) is None
+    # compressed VALUES: MLAAttentionSpec, cr=4, head=head_dim, storage_block=64.
+    v = spec["model.layers.0.attn.mla"]
+    assert isinstance(v, MLAAttentionSpec) and v.compress_ratio == 4
+    assert v.head_size == _HEAD_DIM and v.block_size == 64 * 4
+    assert v.storage_block_size == 64 and v.dtype == torch.bfloat16
+    # indexer compressed KEYS: MLAAttentionSpec, cr=4, head=index_head_dim (64).
+    k = spec[idx_cache.prefix]
+    assert isinstance(k, MLAAttentionSpec) and k.compress_ratio == 4
+    assert k.head_size == 64 and k.storage_block_size == 64
+    # compressor rolling-state cache: DROPPED (not a vLLM group).
+    assert state_cache.prefix not in spec
 
 
 # --------------------------------------------------------------------------- #
@@ -483,6 +526,157 @@ def test_initialize_kv_cache_multi_group(monkeypatch):
     for name, t in kvc.items():
         assert t.shape[0] == per_layer_blocks, (name, t.shape)
         assert t.ndim == 4 and t.dtype == torch.bfloat16
+
+
+def test_initialize_kv_cache_c4a_pathA(monkeypatch):
+    """Path A — the DeepseekV4 heterogeneous-page allocator, triggered when a
+    model has a C4A layer (SWA latent emitted as SlidingWindowMLASpec). Groups
+    are UniformTypeKVCacheSpecs; the full-MLA group holds the compressed VALUES
+    (head 512, page 65536) + indexer KEYS (head 128, page 16384) at DIFFERENT
+    pages, and comes FIRST; the SWA window latent (SlidingWindowMLASpec) comes
+    last. Unlike Path B (one pooled tensor split // #layers), each layer must get
+    its OWN ``kv_cache_config.num_blocks``-block tensor at its real page — TT
+    cannot alias, so ``// len(shared_by)`` would under-size and over-index at high
+    occupancy. Also checks the compressed group keeps its own (token-unit) block
+    size while the window group keeps ``self.block_size``, and that
+    ``_get_layer_kv_cache_spec`` unwraps each layer's real spec."""
+    import vllm_tt.model_runner as mr
+    from vllm.v1.kv_cache_interface import (
+        KVCacheConfig,
+        KVCacheGroupSpec,
+        KVCacheTensor,
+        MLAAttentionSpec,
+        SlidingWindowMLASpec,
+        UniformTypeKVCacheSpecs,
+    )
+
+    RATIO, WIN_BS = 4, 32
+    VAL_HEAD, KEY_HEAD, SWA_HEAD = 512, 128, 512
+    COMP_BS = 64 * RATIO  # 256 token-unit block size -> storage_block 64
+    val_spec = MLAAttentionSpec(
+        block_size=COMP_BS,
+        num_kv_heads=1,
+        head_size=VAL_HEAD,
+        dtype=torch.bfloat16,
+        compress_ratio=RATIO,
+    )
+    key_spec = MLAAttentionSpec(
+        block_size=COMP_BS,
+        num_kv_heads=1,
+        head_size=KEY_HEAD,
+        dtype=torch.bfloat16,
+        compress_ratio=RATIO,
+    )
+    swa_spec = SlidingWindowMLASpec(
+        block_size=64,
+        num_kv_heads=1,
+        head_size=SWA_HEAD,
+        dtype=torch.bfloat16,
+        sliding_window=128,
+        cache_dtype_str="auto",
+    )
+    # full-MLA group FIRST (compressed values + indexer keys), SWA group last —
+    # this is Path A's ordering (compressed FIRST, window LAST).
+    full_mla = UniformTypeKVCacheSpecs(
+        block_size=COMP_BS,
+        kv_cache_specs={"m.l2.mla": val_spec, "m.l2.idx": key_spec},
+    )
+    swa_grp = UniformTypeKVCacheSpecs(
+        block_size=64,
+        kv_cache_specs={"m.l0.swa": swa_spec, "m.l1.swa": swa_spec},
+    )
+    groups = [
+        KVCacheGroupSpec(layer_names=["m.l2.mla", "m.l2.idx"], kv_cache_spec=full_mla),
+        KVCacheGroupSpec(layer_names=["m.l0.swa", "m.l1.swa"], kv_cache_spec=swa_grp),
+    ]
+    n_blocks = 6
+    # Path A pools per group; the TT allocator IGNORES these byte sizes (it uses
+    # num_blocks) but kv_cache_sizes must still cover every layer name.
+    tensors = [
+        KVCacheTensor(size=val_spec.page_size_bytes * n_blocks, shared_by=["m.l2.mla"]),
+        KVCacheTensor(size=key_spec.page_size_bytes * n_blocks, shared_by=["m.l2.idx"]),
+        KVCacheTensor(
+            size=swa_spec.page_size_bytes * n_blocks * 2,
+            shared_by=["m.l0.swa", "m.l1.swa"],
+        ),
+    ]
+    config = KVCacheConfig(
+        num_blocks=n_blocks, kv_cache_tensors=tensors, kv_cache_groups=groups
+    )
+
+    captured = {}
+    monkeypatch.setattr(
+        mr, "bind_kv_cache", lambda kvc, ctx, run: captured.update(kvc=kvc)
+    )
+    monkeypatch.setattr(mr, "_dsv4_layer_classes", lambda: (object, object))
+    # NOTE: do NOT monkeypatch _get_layer_kv_cache_spec — Path A relies on the
+    # real UniformTypeKVCacheSpecs unwrap to reach each layer's per-page spec.
+    monkeypatch.setattr(mr, "has_kv_transfer_group", lambda: False)
+
+    def _fake_input_batch(**kw):
+        bs = kw["block_sizes"]
+        return SimpleNamespace(
+            block_table=[
+                SimpleNamespace(
+                    get_cpu_tensor=lambda: torch.zeros(1, 1, dtype=torch.int32)
+                )
+                for _ in bs
+            ]
+        )
+
+    monkeypatch.setattr(mr, "InputBatch", _fake_input_batch)
+
+    fake_self = SimpleNamespace(
+        block_size=WIN_BS,
+        max_num_reqs=4,
+        max_model_len=160,
+        max_num_tokens=160,
+        pin_memory=False,
+        model_config=SimpleNamespace(get_vocab_size=lambda: 1000),
+        input_batch=SimpleNamespace(
+            block_table=[
+                SimpleNamespace(
+                    get_cpu_tensor=lambda: torch.zeros(1, 1, dtype=torch.int32)
+                )
+            ]
+        ),
+        block_table_cpu=torch.zeros(4, 5, dtype=torch.int32),
+        device="cpu",
+        kv_cache_dtype=torch.bfloat16,
+        enable_tensor_parallel=False,
+        parallel_mode=None,
+        vllm_config=SimpleNamespace(
+            compilation_config=SimpleNamespace(static_forward_context={})
+        ),
+        kv_caches=[],
+        maybe_setup_cross_layer_kv_sharing=lambda kvc, cfg: None,
+    )
+
+    mr.TTModelRunner.initialize_kv_cache(fake_self, config)
+
+    # Path A detected (a group's spec is a UniformTypeKVCacheSpecs).
+    assert fake_self._is_path_a is True
+    assert fake_self._is_dsv4 is True and fake_self._is_multi_group is True
+    # compressed group is FIRST (index 0) on Path A, holding BOTH values + keys.
+    assert fake_self._dsv4_comp_group == (0, RATIO, COMP_BS)
+    assert fake_self._dsv4_comp_layer_names == {"m.l2.mla", "m.l2.idx"}
+    # window/SWA group is last (index 1).
+    assert fake_self._dsv4_swa_group_idx == 1
+    # compressed group keeps its own (token-unit) block size; the window group
+    # keeps self.block_size so its block_table width matches _prepare_inputs.
+    assert fake_self.group_block_sizes == [COMP_BS, WIN_BS]
+
+    kvc = captured["kvc"]
+    assert set(kvc) == {"m.l2.mla", "m.l2.idx", "m.l0.swa", "m.l1.swa"}
+    # THE Path-A fix: every layer gets its OWN num_blocks-block tensor (not
+    # pool // #layers). All four are 4D bf16 MLA latents at their real page.
+    for name, t in kvc.items():
+        assert t.shape[0] == n_blocks, (name, t.shape)
+        assert t.ndim == 4 and t.dtype == torch.bfloat16
+    # heterogeneous pages preserved: values head 512, indexer keys head 128.
+    assert kvc["m.l2.mla"].shape[-1] == VAL_HEAD
+    assert kvc["m.l2.idx"].shape[-1] == KEY_HEAD
+    assert kvc["m.l0.swa"].shape[-1] == SWA_HEAD
 
 
 # --------------------------------------------------------------------------- #

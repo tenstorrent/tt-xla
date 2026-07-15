@@ -588,6 +588,36 @@ except Exception:  # pragma: no cover - upstream DSV4 layer not present
     _DSV4_WRAPPER_AVAILABLE = False
 
 
+# The DeepseekV4Indexer (the C4A lightning indexer) is constructed inside
+# ``DeepseekV4Attention.__init__`` (the model file), OUTSIDE the
+# ``TTDeepseekV4MLAWrapper`` ctor below — so it does NOT run under that ctor's
+# ``device_type="cpu"`` monkeypatch. Its own ``DeepseekCompressor`` allocates the
+# ``ape`` Parameter on ``current_platform.device_type`` explicitly (== "xla" on
+# tt), while every sibling parameter is built on CPU (the model is constructed
+# under ``load_config.device="cpu"``). That device mismatch breaks weight loading
+# / ``model.to(xla)``. Force the indexer ctor to run with ``device_type="cpu"``
+# (mirrors the wrapper recipe; only ``device_type`` is load-bearing —
+# ``SparseAttnIndexer.__init__`` only asserts ``is_cuda()``, which is False on tt).
+try:
+    from vllm.model_executor.layers.deepseek_v4_attention import (
+        DeepseekV4Indexer as _DSV4Indexer,
+    )
+
+    _dsv4_orig_indexer_init = _DSV4Indexer.__init__
+
+    def _tt_dsv4_indexer_init(self, *args, **kwargs):
+        from unittest import mock
+
+        from vllm.platforms import current_platform
+
+        with mock.patch.object(current_platform, "device_type", "cpu"):
+            _dsv4_orig_indexer_init(self, *args, **kwargs)
+
+    _DSV4Indexer.__init__ = _tt_dsv4_indexer_init
+except Exception:  # pragma: no cover - upstream DSV4 indexer not present
+    pass
+
+
 if _DSV4_WRAPPER_AVAILABLE:
 
     @_DSV4Wrapper.register_oot
@@ -717,7 +747,7 @@ if _DSV4_WRAPPER_AVAILABLE:
             dev = hidden_states.device
             T = hidden_states.shape[0]
 
-            q, kv, cos, sin = self._dsv4_preprocess(positions, hidden_states)
+            q, kv, cos, sin, qr = self._dsv4_preprocess(positions, hidden_states)
             sink = self.mla_attn.attn_sink[:N].to(device=dev)
             kv_cache, md = self._swa_cache_and_metadata()
             r = self.compress_ratio
@@ -727,12 +757,16 @@ if _DSV4_WRAPPER_AVAILABLE:
                 o = self._c128a_forward(
                     positions, hidden_states, q, kv, sink, kv_cache, md
                 )
+            elif r == 4:
+                # C4A (CSA): window + lightning-indexer top-k sparse compressed
+                # branch, merged. Needs qr (pre-wq_b low-rank query) for the indexer.
+                o = self._c4a_forward(
+                    positions, hidden_states, q, kv, qr, sink, kv_cache, md
+                )
             elif r > 1:
-                # C4A (CSA) — the lightning-indexer top-k branch — is a follow-up.
                 raise NotImplementedError(
-                    f"DSV4 compress_ratio={r} (C4A/CSA) is not implemented on TT "
-                    "yet; only SWA (compress_ratio <= 1) and C128A (== 128) are "
-                    "supported. See attention_dsv4.py 'What's next'."
+                    f"DSV4 compress_ratio={r} is not supported on TT "
+                    "(only SWA <= 1, C4A == 4, C128A == 128)."
                 )
             elif md is None or not _is_bound_cache(kv_cache):
                 # SWA-only, fresh sequence (no paged cache): windowed self-attention.
@@ -757,7 +791,9 @@ if _DSV4_WRAPPER_AVAILABLE:
         # -- helpers --------------------------------------------------------
         def _dsv4_preprocess(self, positions, hidden_states):
             """hidden -> (q [T,N,Hd] normed+roped, kv [T,Hd] normed+roped latent,
-            cos, sin)."""
+            cos, sin, qr [T,q_lora_rank] the pre-wq_b low-rank query). ``qr`` is
+            returned so the C4A lightning indexer can reuse it (it applies its own
+            wq_b to qr) without recomputing fused_wqa_wkv + q_norm."""
             T = hidden_states.shape[0]
             N, Hd, nope, rope = (
                 self.n_local_heads,
@@ -774,7 +810,7 @@ if _DSV4_WRAPPER_AVAILABLE:
             cos, sin = _dsv4_cos_sin(self.rotary_emb.cos_sin_cache, positions, rope)
             q = _dsv4_rope_rope_dims(q, cos, sin, nope, headed=True)
             kv = _dsv4_rope_rope_dims(kv, cos, sin, nope, headed=False)
-            return q, kv, cos, sin
+            return q, kv, cos, sin, qr
 
         def _dsv4_oproj(self, o, cos, sin):
             """inverse-RoPE the attention output, then the grouped o-projection."""
@@ -980,44 +1016,142 @@ if _DSV4_WRAPPER_AVAILABLE:
             return (out.float() * factor.view(users, 1, N, 1)).to(out.dtype)
 
         # -- C128A (HCA) compressed-attention branch ------------------------
-        def _dsv4_compress(self, hidden_states):
-            """C128A bf16 KV compressor over a single ``[S, hidden]`` sequence:
-            pool every ``compress_ratio`` tokens into one compressed latent
-            (gated softmax pool + learned APE + RMSNorm + GPT-J RoPE at the
-            compressed position ``slot*ratio``). Reimplements the oracle
-            ``Compressor.forward`` (modified_model/model.py:364-450) for the
-            start_pos==0 / overlap=False (ratio==128, coff==1) case. Returns
-            ``comp [Ncomp, Hd]`` with ``Ncomp = S // ratio``. The trailing
-            ``S % ratio`` tokens are NOT compressed here — deferred compressor
-            state — which is the M1 within-one-window decode limitation."""
-            comp = self.compressor
-            ratio, Hd = comp.compress_ratio, self.head_dim
-            nope, rope = self.nope_head_dim, self.rope_head_dim
+        def _dsv4_compress(
+            self, hidden_states, comp=None, head_dim=None, rope_cache=None
+        ):
+            """bf16 KV compressor over a single ``[S, hidden]`` sequence: pool every
+            ``compress_ratio`` tokens into one compressed latent (gated softmax pool
+            + learned APE + RMSNorm + GPT-J RoPE at the compressed position
+            ``slot*ratio``). Reimplements the oracle ``Compressor.forward``
+            (modified_model/model.py:364-450, start_pos==0) for BOTH the non-overlap
+            case (C128A: coff==1) and the overlap case (C4A: coff==2). Parameterized
+            over the compressor module so it serves the main compressor
+            (``head_dim`` = self.head_dim) AND the indexer's own compressor
+            (``head_dim`` = index_head_dim). Returns ``comp [Ncomp, head_dim]`` with
+            ``Ncomp = S // ratio``, or ``None`` for a sub-window chunk (Ncomp==0).
+            Trailing ``S % ratio`` tokens are deferred (rolling compressor state)."""
+            comp = self.compressor if comp is None else comp
+            d = self.head_dim if head_dim is None else head_dim
+            rope_cache = (
+                self.rotary_emb.cos_sin_cache if rope_cache is None else rope_cache
+            )
+            ratio, coff, overlap = comp.compress_ratio, comp.coff, comp.overlap
+            # nope MUST be derived from the PASSED head_dim (64 for the index
+            # compressor's d=128, 448 for the main d=512) — NOT self.nope_head_dim.
+            nope, rope = d - self.rope_head_dim, self.rope_head_dim
+            w = coff * d
             dt, dev = hidden_states.dtype, hidden_states.device
             S = hidden_states.shape[0]
-            # Sub-window chunk (S < ratio, e.g. the 32/64-token prefill compile
-            # buckets): NO compressed group completes, so Ncomp == 0. Return None
-            # rather than build a 0-sized tensor — a 0 dim divides-by-zero in the
-            # tt-mlir layout analysis, and this chunk is genuinely window+sink only
-            # (the M1 within-one-window case). `S` is a trace-time constant, so
-            # this prunes the compressed subgraph for those buckets entirely.
+            # Sub-window chunk (Ncomp == 0, e.g. the 32/64-token prefill compile
+            # buckets): NO compressed group completes. Return None rather than build
+            # a 0-sized tensor (a 0 dim divides-by-zero in tt-mlir layout analysis);
+            # the chunk is genuinely window+sink only. `S` is a trace-time constant,
+            # so this prunes the compressed subgraph for those buckets entirely.
             if S // ratio == 0:
                 return None
-            # compressor's fused_wkv_wgate is built with return_bias=False, so it
-            # returns a bare tensor (unlike fused_wqa_wkv); tolerate both.
-            kvsc = comp.fused_wkv_wgate(hidden_states)  # [S, 2*coff*Hd] (coff=1)
+            # fused_wkv_wgate is return_bias=False -> bare tensor; tolerate a tuple.
+            kvsc = comp.fused_wkv_wgate(hidden_states)  # [S, 2*coff*d]
             if isinstance(kvsc, (tuple, list)):
                 kvsc = kvsc[0]
-            kv, score = kvsc.split([comp.coff * Hd, comp.coff * Hd], dim=-1)
+            kv, score = kvsc.split([w, w], dim=-1)  # each [S, coff*d]
             Ncomp = S // ratio
             cutoff = Ncomp * ratio
-            kv = kv[:cutoff].reshape(Ncomp, ratio, Hd).float()
-            score = score[:cutoff].reshape(Ncomp, ratio, Hd).float() + comp.ape.float()
-            pooled = (kv * score.softmax(dim=1)).sum(dim=1)  # [Ncomp, Hd] gated pool
-            pooled = comp.norm(pooled.to(dt))  # RMSNorm(Hd)
+            kv = kv[:cutoff].reshape(Ncomp, ratio, w).float()
+            score = (
+                score[:cutoff].reshape(Ncomp, ratio, w).float() + comp.ape.float()
+            )  # ape [ratio, coff*d] broadcasts over (Ncomp, ratio)
+            if overlap:
+                # oracle overlap_transform (model.py:356-362): each completed slot
+                # pools 2*ratio entries = [previous block's first-half channels
+                # (shifted +1 slot), current block's second-half channels]. slot 0's
+                # previous half is a fill (0 for kv, _MASK_NEG score -> zero weight).
+                kv_prev, kv_cur = kv[..., :d], kv[..., d:]  # each [Ncomp, ratio, d]
+                sc_prev, sc_cur = score[..., :d], score[..., d:]
+                kv = torch.cat(
+                    [
+                        torch.cat([kv.new_zeros(1, ratio, d), kv_prev[:-1]], dim=0),
+                        kv_cur,
+                    ],
+                    dim=1,
+                )  # [Ncomp, 2*ratio, d]
+                score = torch.cat(
+                    [
+                        torch.cat(
+                            [score.new_full((1, ratio, d), _MASK_NEG), sc_prev[:-1]],
+                            dim=0,
+                        ),
+                        sc_cur,
+                    ],
+                    dim=1,
+                )
+            pooled = (kv * score.softmax(dim=1)).sum(dim=1)  # [Ncomp, d] gated pool
+            pooled = comp.norm(pooled.to(dt))  # RMSNorm(d)
             pos_c = torch.arange(Ncomp, device=dev) * ratio
-            cos_c, sin_c = _dsv4_cos_sin(self.rotary_emb.cos_sin_cache, pos_c, rope)
+            cos_c, sin_c = _dsv4_cos_sin(rope_cache, pos_c, rope)
             return _dsv4_rope_rope_dims(pooled, cos_c, sin_c, nope, headed=False)
+
+        def _dsv4_index_compress(self, hidden_states):
+            """The lightning indexer's OWN overlap compressor (head_dim=128) ->
+            compressed KEYS ``[Ncomp, 128]``. Same overlap math as the main
+            compressor, but a different module, head_dim, and RoPE cache."""
+            ix = self.indexer
+            return self._dsv4_compress(
+                hidden_states,
+                comp=ix.compressor,
+                head_dim=ix.head_dim,
+                rope_cache=self.indexer_rotary_emb.cos_sin_cache,
+            )
+
+        def _dsv4_indexer(self, qr, hidden_states, positions):
+            """DSV4 C4A lightning indexer (oracle ``Indexer.forward``,
+            modified_model/model.py:487-521) over one ``[S, hidden]`` sequence:
+            score every compressed slot with the per-head indexer query against the
+            indexer's own compressed keys (relu per head, gate, sum over heads), then
+            top-k select. Returns ``topk_idxs [S, k]`` (k = min(index_topk, Ncomp))
+            into ``[0, Ncomp)`` with causally-invalid picks == -1, or ``None`` for a
+            sub-window chunk (Ncomp==0). NO ``k_norm`` (the vLLM indexer constructs
+            but never applies it; not in the oracle). ``qr`` is the pre-wq_b low-rank
+            query from ``_dsv4_preprocess``."""
+            ix = self.indexer
+            ratio = self.compress_ratio
+            nh, hd, rope = ix.n_head, ix.head_dim, self.rope_head_dim  # 64, 128, 64
+            S = hidden_states.shape[0]
+            Kc = self._dsv4_index_compress(hidden_states)  # [Ncomp, 128] or None
+            if Kc is None:
+                return None
+            Ncomp = Kc.shape[0]
+            # per-head indexer query: wq_b(qr) -> [S, nh, hd], GPT-J RoPE last `rope`.
+            q, _ = ix.wq_b(qr)
+            q = q.view(S, nh, hd)
+            cos, sin = _dsv4_cos_sin(
+                self.indexer_rotary_emb.cos_sin_cache, positions, rope
+            )
+            q = _dsv4_rope_rope_dims(q, cos, sin, hd - rope, headed=True).float()
+            # per-(token, head) gate; oracle folds softmax_scale * n_head**-0.5.
+            weights, _ = ix.weights_proj(hidden_states)
+            weights = weights.float() * (ix.softmax_scale * nh**-0.5)  # [S, nh]
+            # index score = relu(q . Kc) per head, gate, sum over heads -> [S, Ncomp].
+            # Kc is shared across heads, so fold the einsum into a single 2D matmul
+            # [S*nh, hd] @ [hd, Ncomp] — the "shd,td->sht" form would materialize a
+            # [S, nh, Ncomp, hd] broadcast intermediate on tt-mlir (OOM at ratio=4).
+            sc = torch.mm(q.reshape(S * nh, hd), Kc.float().t())  # [S*nh, Ncomp]
+            score = sc.view(S, nh, Ncomp).relu()  # [S, nh, Ncomp]
+            score = (score * weights.unsqueeze(-1)).sum(dim=1)  # [S, Ncomp]
+            # causal mask: slot c valid for query at position p iff c < (p+1)//ratio.
+            # _MASK_NEG (finite) so all-masked early rows (p < ratio-1) don't nan
+            # topk/softmax on XLA.
+            valid_ct = ((positions + 1) // ratio).view(S, 1)  # [S, 1]
+            c_idx = torch.arange(Ncomp, device=Kc.device).view(1, Ncomp)
+            score = torch.where(
+                c_idx < valid_ct, score, torch.full_like(score, _MASK_NEG)
+            )
+            k = min(ix.topk_tokens, Ncomp)  # trace-time constant
+            topk_idxs = score.topk(k, dim=-1)[1]  # [S, k] int64
+            # re-mask causally-invalid picks (NO +offset — the sparse branch gathers
+            # directly into comp[0..Ncomp)).
+            keep = topk_idxs < valid_ct
+            topk_idxs = torch.where(keep, topk_idxs, torch.full_like(topk_idxs, -1))
+            return topk_idxs.int()
 
         def _compressed_branch(self, q4, comp, pos2d):
             """Dense MLA attention over ALL valid compressed latents (C128A). Query
@@ -1043,6 +1177,53 @@ if _DSV4_WRAPPER_AVAILABLE:
             lse_c = torch.logsumexp(scores, dim=-1)  # [users, N, S] (very-neg if empty)
             w = torch.softmax(scores, dim=-1)
             o_c = torch.einsum("unic,uch->unih", w, compf)  # [users, N, S, Hd]
+            return o_c.to(q4.dtype), lse_c
+
+        def _sparse_compressed_branch(self, q4, comp, topk_idxs):
+            """C4A SPARSE MLA attention over the per-query top-k selected compressed
+            latents (torch port of oracle ``sparse_attn`` kernel.py:40-96, sink-free
+            — the sink is deferred to ``_two_branch_merge``). ``q4`` [users,S,N,Hd],
+            ``comp`` [users,Ncomp,Hd] (the main compressor VALUES), ``topk_idxs``
+            [users,S,k] into [0,Ncomp) with -1 for invalid picks (from
+            ``_dsv4_indexer``). Gathers the selected slots per query (1D index_select,
+            the tt-mlir-friendly form) and attends. Returns (o_c [users,N,S,Hd],
+            lse_c [users,N,S]) in the SAME layout as ``_compressed_branch`` so the
+            merge is reused unchanged. Fully-masked rows -> lse_c very-neg (merge
+            zeroes them). NOTE: for seqlen <= index_topk*ratio (=2048) the indexer
+            selects ALL valid slots, so this is numerically identical to the dense
+            ``_compressed_branch`` (softmax is permutation-invariant)."""
+            users, S, N, Hd = q4.shape
+            Ncomp, k = comp.shape[1], topk_idxs.shape[-1]
+            scale = self.scale
+            valid = topk_idxs != -1  # [users, S, k]
+            safe = topk_idxs.clamp(min=0).long()
+            # 1D gather: flatten comp to [users*Ncomp, Hd], offset per user.
+            comp_flat = comp.reshape(users * Ncomp, Hd)
+            b_off = (torch.arange(users, device=comp.device) * Ncomp).view(users, 1, 1)
+            flat = (safe + b_off).reshape(-1)  # [users*S*k]
+            gathered = (
+                torch.index_select(comp_flat, 0, flat).reshape(users, S, k, Hd).float()
+            )  # [users, S, k, Hd]
+            # scores + o_c as batched matmuls over batch=(users*S) — the disjoint
+            # einsums "unsh,uskh->unsk" / "unsk,uskh->unsh" materialize a 5D
+            # [users, N, S, k, Hd] broadcast on tt-mlir (~2GB fp32 at ratio=4;
+            # OOM), whereas the bmm keeps every intermediate <= [users*S, N, Hd].
+            # q4 [u,S,N,Hd] and gathered [u,S,k,Hd] flatten contiguously to (u*S).
+            B = users * S
+            qk_b = q4.reshape(B, N, Hd).float()  # [B, N, Hd]
+            g_b = gathered.reshape(B, k, Hd)  # [B, k, Hd]
+            scores = torch.bmm(qk_b, g_b.transpose(1, 2)) * scale  # [B, N, k]
+            scores = scores.view(users, S, N, k).permute(0, 2, 1, 3)  # [u, N, S, k]
+            # mask invalid (-1) picks (broadcast over heads) with finite _MASK_NEG.
+            scores = torch.where(
+                valid.view(users, 1, S, k),
+                scores,
+                torch.full_like(scores, _MASK_NEG),
+            )
+            lse_c = torch.logsumexp(scores, dim=-1)  # [users, N, S]
+            w = torch.softmax(scores, dim=-1)  # [users, N, S, k]
+            o_b = torch.bmm(w.permute(0, 2, 1, 3).reshape(B, N, k), g_b)  # [B, N, Hd]
+            o_c = o_b.view(users, S, N, Hd).permute(0, 2, 1, 3)  # [u, N, S, Hd]
             return o_c.to(q4.dtype), lse_c
 
         def _compressed_cache_and_metadata(self):
@@ -1123,7 +1304,15 @@ if _DSV4_WRAPPER_AVAILABLE:
                 )
             else:
                 o = self._c128a_paged_decode(
-                    q4, kv3, sink, kv_cache, md, comp_cache, comp_md
+                    q4,
+                    kv3,
+                    sink,
+                    kv_cache,
+                    md,
+                    comp_cache,
+                    comp_md,
+                    hidden_states,
+                    positions,
                 )
             return o.reshape(T, N, Hd)
 
@@ -1147,6 +1336,13 @@ if _DSV4_WRAPPER_AVAILABLE:
             pos2d = positions.view(users, S)
             o_w, lse_w = self._windowed_branch(q4, kv3)
             self._write_swa_cache_prefill(kv3, kv_cache, md)
+            # Seed the compressor rolling state for exact-across-boundary decode.
+            # MUST run even for a sub-window prefill (S < ratio, common for C128A
+            # where ratio=128): those tokens have no completed slot yet but must be
+            # in the rolling state so the first slot completes correctly at decode.
+            self._seed_compressor_state(
+                hs, self.compressor, self.head_dim, md.cache_position + 1
+            )
             # Sub-window prefill chunk (S < ratio): no compressed slots complete,
             # so this is window+sink only. `S` is a trace-time constant, so the
             # 32/64-token compile buckets prune the compressed subgraph here
@@ -1167,12 +1363,27 @@ if _DSV4_WRAPPER_AVAILABLE:
                 self._write_compressed_cache_prefill(comp, comp_cache, comp_md)
             return o.permute(0, 2, 1, 3)  # [users, S, N, Hd]
 
-        def _c128a_paged_decode(self, q4, kv3, sink, kv_cache, md, comp_cache, comp_md):
-            """Paged C128A decode: window paged read (as SWA, sink-free) + compressed
-            paged read, merged. M1 does NOT write the compressed cache each step
-            (folded compressor state — decode is correct only within the current
-            128-token compressed window; crossing a boundary needs the deferred
-            rolling CompressorStateCache). Returns o [users, 1, N, Hd]."""
+        def _c128a_paged_decode(
+            self,
+            q4,
+            kv3,
+            sink,
+            kv_cache,
+            md,
+            comp_cache,
+            comp_md,
+            hidden_states=None,
+            positions=None,
+        ):
+            """Paged C128A/C4A decode: window paged read (as SWA, sink-free) + a
+            DENSE compressed paged read, merged. EXACT ACROSS COMPRESSION BOUNDARIES:
+            when ``hidden_states``/``positions`` are given and the main compressor's
+            rolling-state buffer is bound, this runs the compressor incrementally
+            (`_compress_decode_step`) and writes the newly-completed slot into the
+            compressed VALUES cache BEFORE the read, so the read no longer misses the
+            slots that form during decode. If those are omitted / the state is not
+            bound, it degrades to the legacy folded-state read (frozen prefill cache).
+            Returns o [users, 1, N, Hd]."""
             users, _, N, Hd = q4.shape
             # window branch: write new token, sink-free paged read, recompute lse
             k_for_update = kv3.transpose(0, 1).unsqueeze(2)  # [1, users, 1, Hd]
@@ -1181,6 +1392,32 @@ if _DSV4_WRAPPER_AVAILABLE:
                     kv_cache, k_for_update, md.cache_position, md.page_table
                 )
             )
+            # incremental main-compressor slot formation + write into the compressed
+            # VALUES cache at slot pos//ratio (the reader's cache_position =
+            # (pos+1)//ratio-1 excludes the still-in-progress slot until it completes).
+            if (
+                hidden_states is not None
+                and positions is not None
+                and _is_bound_cache(comp_cache)
+                and comp_md is not None
+                and self._compressor_state_buf(self.compressor) is not None
+            ):
+                slot, wslot = self._compress_decode_step(
+                    hidden_states.view(users, -1),
+                    positions.view(users),
+                    self.compressor,
+                    self.head_dim,
+                    self.rotary_emb.cos_sin_cache,
+                )
+                cfill = slot.unsqueeze(1).transpose(0, 1).unsqueeze(2)  # [1,users,1,Hd]
+                comp_cache.copy_(
+                    torch.ops.tt.paged_update_cache(
+                        comp_cache,
+                        cfill.to(comp_cache.dtype),
+                        wslot,
+                        comp_md.page_table,
+                    )
+                )
             sw = (
                 self.window_size
                 if (self.window_size and self.window_size > 0)
@@ -1231,6 +1468,312 @@ if _DSV4_WRAPPER_AVAILABLE:
                 sink,
             )  # [users, N, 1, Hd]
             return o.permute(0, 2, 1, 3)  # [users, 1, N, Hd]
+
+        def _c4a_forward(self, positions, hidden_states, q, kv, qr, sink, kv_cache, md):
+            """DSV4 C4A (CSA): window branch + lightning-indexer top-k SPARSE
+            compressed branch, merged under one softmax with the sink in the
+            denominator. Returns o [T, N, Hd] (pre inverse-RoPE / o-proj). The
+            fresh-sequence path (no cache) needs only the indexer + main compressor
+            + sparse branch (validated against the oracle); paged prefill/decode add
+            the 3-group KV cache + rolling compressor state."""
+            N, Hd = self.n_local_heads, self.head_dim
+            T = hidden_states.shape[0]
+            if md is None or not _is_bound_cache(kv_cache):
+                comp = self._dsv4_compress(hidden_states)  # [Ncomp,Hd] VALUES or None
+                o_w, lse_w = self._windowed_branch(
+                    q.view(1, T, N, Hd), kv.view(1, T, Hd)
+                )
+                if comp is None:
+                    # sub-window chunk: window+sink only (no compressed slots yet)
+                    o_c, lse_c = None, None
+                else:
+                    topk = self._dsv4_indexer(qr, hidden_states, positions)  # [T,k]
+                    o_c, lse_c = self._sparse_compressed_branch(
+                        q.view(1, T, N, Hd), comp.unsqueeze(0), topk.unsqueeze(0)
+                    )
+                o = self._two_branch_merge(o_w, lse_w, o_c, lse_c, sink)  # [1,N,T,Hd]
+                return o.permute(0, 2, 1, 3).reshape(T, N, Hd)
+            users = md.cache_position.shape[0]
+            assert T % users == 0, f"tokens ({T}) not divisible by users ({users})"
+            S = T // users
+            q4 = q.view(users, S, N, Hd)
+            kv3 = kv.view(users, S, Hd)
+            if S > 1:
+                o = self._c4a_paged_prefill(
+                    q4, kv3, hidden_states, positions, qr, sink, kv_cache, md
+                )
+            else:
+                o = self._c4a_paged_decode(
+                    q4, kv3, hidden_states, positions, qr, sink, kv_cache, md
+                )
+            return o.reshape(T, N, Hd)
+
+        def _indexer_key_cache_and_metadata(self):
+            """(indexer compressed-KEYS cache, TTMetadata) for the C4A keys group.
+            The keys share the full-MLA group's block table with the compressed
+            VALUES, so the metadata is the same compressed TTMetadata (keyed by the
+            indexer k_cache prefix in the per-layer fan-out)."""
+            kc = getattr(getattr(self, "indexer", None), "k_cache", None)
+            key_cache = getattr(kc, "kv_cache", None) if kc is not None else None
+            md = None
+            try:
+                from vllm.forward_context import get_forward_context
+
+                fc = get_forward_context()
+                attn_md = getattr(fc, "attn_metadata", None)
+                if isinstance(attn_md, dict) and kc is not None:
+                    md = attn_md.get(kc.prefix)
+                elif not isinstance(attn_md, dict):
+                    md = attn_md
+            except Exception:
+                md = None
+            return key_cache, md
+
+        def _compressor_state_buf(self, comp):
+            """The bound rolling-state buffer for a DeepseekCompressor, or None.
+            Allocated + bound in model_runner.initialize_kv_cache onto the
+            compressor's CompressorStateCache module as ``.state_cache.kv_cache``
+            (dense fp32 [max_num_reqs, coff*ratio, 2*coff*head_dim]; last dim packs
+            [kv_state | score_state], each coff*head_dim wide)."""
+            sc = getattr(comp, "state_cache", None)
+            buf = getattr(sc, "kv_cache", None) if sc is not None else None
+            return buf if _is_bound_cache(buf) else None
+
+        def _seed_compressor_state(self, hs, comp, head_dim, seq_len):
+            """Seed a compressor's rolling state at prefill so incremental decode
+            continues exactly (oracle Compressor.forward start_pos==0 tail,
+            modified_model/model.py:380-400). ``hs`` [users, S, hidden] is the padded
+            prefill buffer; ``seq_len`` [users] is the REAL token count P per user
+            (= md.cache_position + 1). CRITICAL: seed from the last real tokens by
+            index masked against P, NOT the padded buffer length S — otherwise the
+            padding tokens [P:S) get seeded as the trailing block and decode continues
+            from garbage. For a fresh contiguous prefill token index == position.
+
+            Each token at (real) index i is placed by the SAME rule the decode uses:
+            it belongs to the in-progress 'current' block iff ``i//ratio == P//ratio``
+            (row ``ratio + i%ratio`` for overlap; ``i%ratio`` for non-overlap), or the
+            'previous' complete block iff ``i//ratio == P//ratio - 1`` (row ``i%ratio``,
+            overlap only). Everything else (incl. padding i>=P) is dropped; unfilled
+            rows stay [kv=0 | score=_MASK_NEG]. Chunked / prefix-cached prefill (where
+            position != index) is a follow-up."""
+            buf = self._compressor_state_buf(comp)
+            if buf is None:
+                return
+            ratio, coff, overlap = comp.compress_ratio, comp.coff, comp.overlap
+            w = coff * head_dim
+            users, S, _ = hs.shape
+            B, dev = buf.shape[0], hs.device
+            W_rows = coff * ratio  # 2*ratio overlap, ratio non-overlap
+            # per-token raw projections + per-within-block-position ape on score.
+            kvsc = comp.fused_wkv_wgate(hs.reshape(users * S, -1))
+            if isinstance(kvsc, (tuple, list)):
+                kvsc = kvsc[0]
+            kvsc = kvsc.view(users, S, 2 * w).float()
+            kv_all, sc_all = kvsc.split([w, w], dim=-1)
+            idx = torch.arange(S, device=dev)  # token index == position (fresh prefill)
+            sc_all = sc_all + comp.ape.float().index_select(0, idx % ratio)  # [u,S,w]
+            tok = torch.cat([kv_all, sc_all], dim=-1)  # [users, S, 2w]
+            P = seq_len.to(dev).view(users, 1)  # [users, 1] real length
+            cur_blk = P // ratio  # [users, 1] in-progress block at position P
+            blk = (idx // ratio).view(1, S)  # [1, S]
+            within = (idx % ratio).view(1, S)  # [1, S]
+            real = idx.view(1, S) < P  # [users, S]
+            in_cur = (blk == cur_blk) & real
+            neg1 = torch.full((users, S), -1, device=dev, dtype=torch.long)
+            if overlap:
+                in_prev = (blk == (cur_blk - 1)) & real  # complete block
+                row = torch.where(
+                    in_cur,
+                    ratio + within,
+                    torch.where(in_prev, within.expand(users, S), neg1),
+                )  # [users, S]
+            else:
+                row = torch.where(in_cur, within.expand(users, S), neg1)
+            # scatter each token into state[row] via a one-hot bmm (each row gets one
+            # token; rows with none keep the init fill). Avoids the 5D-broadcast trap.
+            onehot = (row.unsqueeze(-1) == torch.arange(W_rows, device=dev)).to(
+                tok.dtype
+            )  # [users, S, W_rows]
+            oh_t = onehot.transpose(1, 2)  # [users, W_rows, S]
+            filled = torch.bmm(oh_t, tok)  # [users, W_rows, 2w]
+            # per-row token count via a matmul (avoid a bool `any`/reduce that
+            # tt-mlir won't legalize); >0 marks a row that received a token.
+            cnt = torch.bmm(oh_t, tok.new_ones(users, S, 1)).squeeze(-1)  # [users,W]
+            has = cnt > 0.5  # [users, W_rows]
+            init = torch.cat(
+                [torch.zeros(w, device=dev), torch.full((w,), _MASK_NEG, device=dev)]
+            )  # [2w]
+            state = torch.where(has.unsqueeze(-1), filled, init.view(1, 1, 2 * w))
+            state = state.to(buf.dtype)
+            new_buf = state if users == B else torch.cat([state, buf[users:]], dim=0)
+            buf.copy_(new_buf)
+
+        def _compress_decode_step(self, hs, positions, comp, head_dim, rope_cache):
+            """One incremental compressor step for a single decode token per user
+            (oracle Compressor.forward start_pos>0, modified_model/model.py:405-449).
+            Handles BOTH the overlap compressor (C4A, coff==2) and the non-overlap
+            compressor (C128A, coff==1). Updates the rolling state IN PLACE and
+            returns (slot [users, head_dim], write_slot [users] int32 = pos//ratio).
+            ``hs`` [users, hidden], ``positions`` [users]. The returned slot is the
+            candidate compressed latent for slot ``write_slot``; it is EXACT on a
+            boundary step ((pos+1)%ratio==0) and a harmless partial on other steps
+            (the caller writes it to the in-progress slot, which the reader excludes
+            via comp cache_position=(pos+1)//ratio-1)."""
+            buf = self._compressor_state_buf(comp)
+            ratio, coff, overlap = comp.compress_ratio, comp.coff, comp.overlap
+            d, rope = head_dim, self.rope_head_dim
+            nope, w = d - rope, coff * head_dim
+            W_rows = coff * ratio  # state rows: 2*ratio overlap, ratio non-overlap
+            users = hs.shape[0]
+            B, dev = buf.shape[0], hs.device
+            assert users == B, f"decode users ({users}) != state rows ({B})"
+            # this token's raw projection + per-within-block-position ape on score
+            kvsc = comp.fused_wkv_wgate(hs)
+            if isinstance(kvsc, (tuple, list)):
+                kvsc = kvsc[0]
+            kv_t, sc_t = kvsc.float().split([w, w], dim=-1)  # each [users, w]
+            j = (positions % ratio).long()  # within-block index [users]
+            sc_t = sc_t + comp.ape.float().index_select(0, j)  # [users, w]
+            tok = torch.cat([kv_t, sc_t], dim=-1)  # [users, 2w]
+            # functional scatter into the state row via one-hot where. Overlap writes
+            # the CURRENT-block half (rows [ratio, 2ratio)); non-overlap writes the
+            # single ratio-row ring at index pos%ratio.
+            row = (ratio + j) if overlap else j  # [users]
+            row_oh = torch.arange(W_rows, device=dev).view(1, -1) == row.view(-1, 1)
+            state = torch.where(
+                row_oh[:, :, None], tok[:, None, :], buf.float()
+            )  # [users, W_rows, 2w]
+            kv_s, sc_s = state[..., :w], state[..., w:]
+            if overlap:
+                # overlap-combine the 2*ratio window: prev-block first-half channels
+                # ++ current-block second-half channels, per-channel softmax pool.
+                kv_win = torch.cat([kv_s[:, :ratio, :d], kv_s[:, ratio:, d:]], dim=1)
+                sc_win = torch.cat([sc_s[:, :ratio, :d], sc_s[:, ratio:, d:]], dim=1)
+            else:
+                # non-overlap (w == d): pool all ratio rows of the current block.
+                kv_win, sc_win = kv_s, sc_s
+            slot = (kv_win * sc_win.softmax(dim=1)).sum(dim=1)  # [users, d]
+            slot = comp.norm(slot.to(hs.dtype))  # RMSNorm(d)
+            write_slot = (positions // ratio).long()  # [users]
+            cos_c, sin_c = _dsv4_cos_sin(rope_cache, write_slot * ratio, rope)
+            slot = _dsv4_rope_rope_dims(slot, cos_c, sin_c, nope, headed=False)
+            if overlap:
+                # roll ONLY where a slot completed: prev block <- current block.
+                should = ((positions + 1) % ratio == 0).view(users, 1, 1)
+                new_prev = torch.where(should, state[:, ratio:], state[:, :ratio])
+                new_state = torch.cat([new_prev, state[:, ratio:]], dim=1)
+            else:
+                new_state = state  # non-overlap: single ring, no roll
+            buf.copy_(new_state.to(buf.dtype))
+            return slot, write_slot.to(torch.int32)
+
+        def _c4a_paged_prefill(
+            self, q4, kv3, hidden_states, positions, qr, sink, kv_cache, md
+        ):
+            """Paged C4A prefill: window self-attend + lightning-indexer top-k
+            SPARSE compressed attend, merge; then write the SWA, compressed-VALUES,
+            and indexer-KEYS caches (for decode). Returns o [users, S, N, Hd]."""
+            users, S, N, Hd = q4.shape
+            hs = hidden_states.view(users, S, -1)
+            pos2d = positions.view(users, S)
+            qr2 = qr.view(users, S, -1)
+            o_w, lse_w = self._windowed_branch(q4, kv3)
+            self._write_swa_cache_prefill(kv3, kv_cache, md)
+            # Seed BOTH compressors' rolling state (main + indexer) for exact-across-
+            # boundary decode. MUST run even for a sub-window prefill (S < ratio) so
+            # the prefill tokens live in the rolling state and the first slot
+            # completes correctly at decode.
+            self._seed_compressor_state(
+                hs, self.compressor, self.head_dim, md.cache_position + 1
+            )
+            ix = getattr(self, "indexer", None)
+            if ix is not None and getattr(ix, "compressor", None) is not None:
+                self._seed_compressor_state(
+                    hs, ix.compressor, ix.head_dim, md.cache_position + 1
+                )
+            # Sub-window prefill chunk (S < ratio): no compressed slots complete ->
+            # window+sink only (`S` is a trace-time constant; prunes the compressed
+            # subgraph for the small compile buckets).
+            if S // self.compress_ratio == 0:
+                o = self._two_branch_merge(o_w, lse_w, None, None, sink)
+                return o.permute(0, 2, 1, 3)
+            comp = torch.stack(
+                [self._dsv4_compress(hs[b]) for b in range(users)], dim=0
+            )  # [users, Ncomp, Hd] main compressed VALUES
+            topk = torch.stack(
+                [self._dsv4_indexer(qr2[b], hs[b], pos2d[b]) for b in range(users)],
+                dim=0,
+            )  # [users, S, k]
+            o_c, lse_c = self._sparse_compressed_branch(q4, comp, topk)
+            o = self._two_branch_merge(o_w, lse_w, o_c, lse_c, sink)  # [users,N,S,Hd]
+            comp_cache, comp_md = self._compressed_cache_and_metadata()
+            if _is_bound_cache(comp_cache) and comp_md is not None:
+                self._write_compressed_cache_prefill(comp, comp_cache, comp_md)
+            key_cache, key_md = self._indexer_key_cache_and_metadata()
+            if _is_bound_cache(key_cache) and key_md is not None:
+                keyc = torch.stack(
+                    [self._dsv4_index_compress(hs[b]) for b in range(users)], dim=0
+                )  # [users, Ncomp, index_head_dim]
+                self._write_compressed_cache_prefill(keyc, key_cache, key_md)
+            return o.permute(0, 2, 1, 3)  # [users, S, N, Hd]
+
+        def _c4a_paged_decode(
+            self, q4, kv3, hidden_states, positions, qr, sink, kv_cache, md
+        ):
+            """Paged C4A decode — EXACT ACROSS COMPRESSION BOUNDARIES. The main
+            compressor's incremental slot formation + compressed-VALUES write + dense
+            read is shared with C128A in :meth:`_c128a_paged_decode` (called below
+            with hidden_states/positions). Here we additionally keep the INDEXER's own
+            compressed KEYS rolling state + cache slot in lock-step (used by the >2048
+            decode-time top-k extension; below 2048 the dense read equals the sparse
+            top-k selection so decode is already exact).
+
+            NOTE >2048: the decode-time lightning indexer + sparse gather (genuine
+            top-k pruning for context > 2048) is the remaining extension; only the
+            decode-time scoring/top-k/sparse-gather is left since the KEYS state is
+            maintained here."""
+            users = q4.shape[0]
+            comp_cache, comp_md = self._compressed_cache_and_metadata()
+            pos = positions.view(users)
+            # indexer KEYS rolling state + cache slot (C4A only)
+            ix = getattr(self, "indexer", None)
+            key_cache, key_md = self._indexer_key_cache_and_metadata()
+            if (
+                ix is not None
+                and getattr(ix, "compressor", None) is not None
+                and self._compressor_state_buf(ix.compressor) is not None
+                and _is_bound_cache(key_cache)
+                and key_md is not None
+            ):
+                kslot, kws = self._compress_decode_step(
+                    hidden_states.view(users, -1),
+                    pos,
+                    ix.compressor,
+                    ix.head_dim,
+                    self.indexer_rotary_emb.cos_sin_cache,
+                )
+                kfill = kslot.unsqueeze(1).transpose(0, 1).unsqueeze(2)
+                key_cache.copy_(
+                    torch.ops.tt.paged_update_cache(
+                        key_cache,
+                        kfill.to(key_cache.dtype),
+                        kws,
+                        key_md.page_table,
+                    )
+                )
+            # main-compressor incremental write + dense read (shared with C128A;
+            # exact for context <= 2048 across boundaries).
+            return self._c128a_paged_decode(
+                q4,
+                kv3,
+                sink,
+                kv_cache,
+                md,
+                comp_cache,
+                comp_md,
+                hidden_states,
+                positions,
+            )
 
 
 # ============================================================================ #

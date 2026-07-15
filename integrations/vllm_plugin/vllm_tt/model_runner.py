@@ -169,6 +169,21 @@ def _dsv4_layer_classes():
         return None, None
 
 
+def _dsv4_aux_cache_classes():
+    """(DeepseekV4IndexerCache, CompressorStateCache) for C4A isinstance checks,
+    or (None, None) when unavailable. Kept separate from _dsv4_layer_classes so
+    the existing 2-tuple callers are unchanged."""
+    try:
+        from vllm.model_executor.layers.deepseek_compressor import CompressorStateCache
+        from vllm.model_executor.layers.deepseek_v4_attention import (
+            DeepseekV4IndexerCache,
+        )
+
+        return DeepseekV4IndexerCache, CompressorStateCache
+    except Exception:
+        return None, None
+
+
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 
@@ -1050,6 +1065,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_dtype_str = self.vllm_config.cache_config.cache_dtype
 
         dsv4_swa_cache_cls, dsv4_mla_attn_cls = _dsv4_layer_classes()
+        dsv4_indexer_cache_cls, dsv4_state_cache_cls = _dsv4_aux_cache_classes()
+        # C4A (compress_ratio==4) layers need the heterogeneous-page DeepseekV4
+        # allocator ("Path A"), which vLLM triggers only when at least one spec is
+        # a SlidingWindowMLASpec. So for a model that HAS a C4A layer, emit the SWA
+        # latent cache as SlidingWindowMLASpec (it IS a sliding window). C128A-only
+        # and SWA-only models keep the uniform-page MLAAttentionSpec ("Path B",
+        # already validated) — their groups share one page size.
+        _dsv4_ratios = (
+            getattr(self.vllm_config.model_config.hf_config, "compress_ratios", None)
+            or []
+        )
+        dsv4_has_c4a = any((r or 0) == 4 for r in _dsv4_ratios)
+        _dsv4_index_head_dim = getattr(
+            self.vllm_config.model_config.hf_config, "index_head_dim", None
+        )
 
         kv_cache_spec: dict[str, KVCacheSpec] = {}
         for layer_name, attn_module in layers.items():
@@ -1123,14 +1153,50 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # module's own get_kv_cache_spec, which returns the upstream
                 # uint8 / fp8_ds_mla (584 B) layout: the TT DSV4 impl reads a
                 # bf16 (num_blocks, 1, block_size, head_dim) cache (weights are
-                # dequantized to bf16 at load).
+                # dequantized to bf16 at load). For a C4A model, emit it as a
+                # SlidingWindowMLASpec (model_version=None -> generic bf16 page)
+                # to trigger the heterogeneous-page DeepseekV4 allocator (Path A).
+                if dsv4_has_c4a:
+                    from vllm.v1.kv_cache_interface import SlidingWindowMLASpec
+
+                    kv_cache_spec[layer_name] = SlidingWindowMLASpec(
+                        block_size=attn_module.block_size,
+                        num_kv_heads=1,
+                        head_size=attn_module.head_dim,
+                        dtype=self.kv_cache_spec_dtype,
+                        sliding_window=attn_module.window_size,
+                        cache_dtype_str=cache_dtype_str,
+                    )
+                else:
+                    kv_cache_spec[layer_name] = MLAAttentionSpec(
+                        block_size=attn_module.block_size,
+                        num_kv_heads=1,
+                        head_size=attn_module.head_dim,
+                        dtype=self.kv_cache_spec_dtype,
+                        cache_dtype_str=cache_dtype_str,
+                    )
+            # C4A indexer key cache: a bf16 MLA latent of the indexer's COMPRESSED
+            # keys (head_size = index_head_dim, NOT the module's 132-B fp8 layout).
+            elif dsv4_indexer_cache_cls is not None and isinstance(
+                attn_module, dsv4_indexer_cache_cls
+            ):
+                cr = getattr(attn_module, "compress_ratio", 1)
+                head = _dsv4_index_head_dim or attn_module.head_dim
                 kv_cache_spec[layer_name] = MLAAttentionSpec(
-                    block_size=attn_module.block_size,
+                    block_size=64 * cr,
                     num_kv_heads=1,
-                    head_size=attn_module.head_dim,
+                    head_size=head,
                     dtype=self.kv_cache_spec_dtype,
                     cache_dtype_str=cache_dtype_str,
+                    compress_ratio=cr,
                 )
+            # C4A compressor rolling-state caches (main + indexer): the TT impl
+            # manages these as small batch-indexed buffers bound in
+            # initialize_kv_cache, NOT vLLM-managed groups. Drop their specs.
+            elif dsv4_state_cache_cls is not None and isinstance(
+                attn_module, dsv4_state_cache_cls
+            ):
+                continue
             elif dsv4_mla_attn_cls is not None and isinstance(
                 attn_module, dsv4_mla_attn_cls
             ):
@@ -1139,33 +1205,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # SWA-only: no own cache — the DeepseekV4SWACache layer holds
                     # it. Skip (the SWA branch above emitted its spec).
                     continue
-                if cr == 128:
-                    # C128A (HCA): the DeepseekV4MLAAttention layer owns the
-                    # second (compressed) KV-cache group — a bf16 MLA latent cache
-                    # of COMPRESSED slots (one per `cr` tokens). block_size is in
-                    # token units; MLAAttentionSpec.storage_block_size =
-                    # block_size // cr = physical slots/block. Use block_size =
-                    # 64*cr so storage_block_size == 64 (same tile-aligned 64-row
-                    # page as the SWA cache; avoids the storage_block_size==0 trap
-                    # of block_size < cr). compress_ratio=cr makes this a distinct
-                    # KV-cache group from the SWA group (MLAAttentionSpec.merge
-                    # asserts a single compress_ratio per group).
-                    _DSV4_SWA_BLOCK = 64  # matches get_page_size / sparse_swa.py
-                    kv_cache_spec[layer_name] = MLAAttentionSpec(
-                        block_size=_DSV4_SWA_BLOCK * cr,
-                        num_kv_heads=1,
-                        head_size=attn_module.head_dim,
-                        dtype=self.kv_cache_spec_dtype,
-                        cache_dtype_str=cache_dtype_str,
-                        compress_ratio=cr,
-                    )
-                    continue
-                # C4A (compress_ratio == 4) also needs the lightning-indexer
-                # branch + its own indexer cache; not implemented on TT yet.
-                raise NotImplementedError(
-                    "DeepSeek-V4 C4A (compress_ratio=4) is not supported on TT "
-                    "yet; only SWA (<=1) and C128A (==128) layers work."
+                # C4A (cr==4) + C128A (cr==128): the DeepseekV4MLAAttention layer
+                # owns the compressed VALUES KV-cache group — a bf16 MLA latent
+                # cache of COMPRESSED slots (one per `cr` tokens). block_size is in
+                # token units; MLAAttentionSpec.storage_block_size = block_size//cr
+                # = physical slots/block. Use block_size = 64*cr so storage_block
+                # == 64 (tile-aligned 64-row page; avoids the storage_block==0 trap
+                # of block_size < cr). compress_ratio=cr makes this a distinct
+                # KV-cache group.
+                _DSV4_SWA_BLOCK = 64  # matches get_page_size / sparse_swa.py
+                kv_cache_spec[layer_name] = MLAAttentionSpec(
+                    block_size=_DSV4_SWA_BLOCK * cr,
+                    num_kv_heads=1,
+                    head_size=attn_module.head_dim,
+                    dtype=self.kv_cache_spec_dtype,
+                    cache_dtype_str=cache_dtype_str,
+                    compress_ratio=cr,
                 )
+                continue
             else:
                 continue
 
@@ -1212,7 +1269,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         global_block_start_idx = np.repeat(global_block_start_idx, block_lens)
         slice_arange = np.concatenate([self.arange_np[:n] for n in block_lens])
         global_block_indices = global_block_start_idx + slice_arange
-        block_table_cpu = self.input_batch.block_table[0].get_cpu_tensor()
+        block_table_cpu = self.input_batch.block_table[
+            getattr(self, "_dsv4_swa_group_idx", 0)
+        ].get_cpu_tensor()
         block_numbers = block_table_cpu.flatten()[global_block_indices].numpy()
         total_block_len = np.sum(block_lens)
         slot_mapping_slices = np.repeat(
@@ -1453,7 +1512,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 :target_num_reqs, : self.max_num_blocks_per_req
             ]
             page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:actual_num_reqs]
+                self.input_batch.block_table[
+                    getattr(self, "_dsv4_swa_group_idx", 0)
+                ].get_cpu_tensor()[:actual_num_reqs]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
@@ -1462,9 +1523,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 :target_num_reqs, : self.num_blocks_per_most_len_req
             ]
             page_table[:actual_num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.num_blocks_per_most_len_req
-                ]
+                self.input_batch.block_table[
+                    getattr(self, "_dsv4_swa_group_idx", 0)
+                ].get_cpu_tensor()[:actual_num_reqs, : self.num_blocks_per_most_len_req]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
@@ -3462,19 +3523,42 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "Hybrid models with more than one KV cache type are not "
                 "supported yet."
             )
-        # Identify the DSV4 compressed (C128A) group so _prepare_inputs can build
-        # its per-group metadata (distinct page_table + compressed cache_position).
+        # Identify the DSV4 compressed group(s) so _prepare_inputs can build the
+        # per-group metadata (distinct page_table + compressed cache_position).
+        #
+        # C128A takes vLLM's uniform-page path ("Path B"): each group's spec is a
+        # bare MLAAttentionSpec, group order is [SWA..., compressed], and the
+        # window/main path reads block_table[0]. C4A takes the heterogeneous-page
+        # DeepseekV4 allocator ("Path A"): each group's spec is a
+        # UniformTypeKVCacheSpecs, and the order is [full-MLA(compressed values +
+        # keys), SWA] — so the compressed group is FIRST and the window group is
+        # LAST. We detect both cases by UNWRAPPING each layer's real spec.
+        from vllm.v1.kv_cache_interface import (
+            MLAAttentionSpec,
+            SlidingWindowMLASpec,
+            UniformTypeKVCacheSpecs,
+        )
+
+        self._is_path_a = any(
+            isinstance(g.kv_cache_spec, UniformTypeKVCacheSpecs)
+            for g in kv_cache_config.kv_cache_groups
+        )
         self._dsv4_comp_group = None  # (group_idx, compress_ratio, block_size)
         self._dsv4_comp_layer_names: set[str] = set()
+        self._dsv4_swa_group_idx = 0  # group whose block_table feeds the window path
         if self._is_multi_group:
-            from vllm.v1.kv_cache_interface import MLAAttentionSpec
-
             for gi, g in enumerate(kv_cache_config.kv_cache_groups):
-                spec = g.kv_cache_spec
-                if isinstance(spec, MLAAttentionSpec) and spec.compress_ratio > 1:
-                    self._dsv4_comp_group = (gi, spec.compress_ratio, spec.block_size)
+                # unwrap a UniformTypeKVCacheSpecs group to a representative layer
+                rep = _get_layer_kv_cache_spec(g.kv_cache_spec, g.layer_names[0])
+                is_comp = isinstance(rep, MLAAttentionSpec) and rep.compress_ratio > 1
+                if is_comp and self._dsv4_comp_group is None:
+                    self._dsv4_comp_group = (gi, rep.compress_ratio, rep.block_size)
+                    # ALL layers in a compressed group are compressed (Path A: the
+                    # full-MLA group holds both values and keys).
                     self._dsv4_comp_layer_names = set(g.layer_names)
-                    break
+                elif not is_comp:
+                    # the window/SWA group (per-token). On Path A it is not group 0.
+                    self._dsv4_swa_group_idx = gi
 
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
@@ -3497,10 +3581,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # compressed group takes its own (much larger) block size, so its
         # block_table[comp_gi] advances at 1/ratio the token rate.
         comp_gi = self._dsv4_comp_group[0] if self._dsv4_comp_group else -1
-        group_block_sizes = [
-            (g.kv_cache_spec.block_size if gi == comp_gi else self.block_size)
-            for gi, g in enumerate(kv_cache_config.kv_cache_groups)
-        ]
+        # Compressed group keeps its own (token-unit) block size (unwrapped from a
+        # UniformTypeKVCacheSpecs on Path A); every other group (incl. the window
+        # group on Path A) keeps self.block_size so block_table[gi] width matches
+        # max_num_blocks_per_req in the main _prepare_inputs path.
+        group_block_sizes = []
+        for gi, g in enumerate(kv_cache_config.kv_cache_groups):
+            if gi == comp_gi:
+                rep = _get_layer_kv_cache_spec(g.kv_cache_spec, g.layer_names[0])
+                group_block_sizes.append(rep.block_size)
+            else:
+                group_block_sizes.append(self.block_size)
         self.group_block_sizes = group_block_sizes
         if self._is_multi_group or group_block_sizes[0] != self.block_size:
             self.input_batch = InputBatch(
@@ -3551,18 +3642,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     kv_cache_group.kv_cache_spec, layer_name
                 )
                 tensor_size = kv_cache_sizes[layer_name]
-                if self._is_multi_group:
-                    # DSV4 hybrid pool: layers share ONE pooled tensor, so this
-                    # layer's byte slice (pool // #layers) need not be a whole
-                    # multiple of its page. Floor to whole blocks (the few
-                    # leftover bytes are unused). This is the per-layer block
-                    # count -- NOT kv_cache_config.num_blocks, which is the
-                    # whole-pool count and would allocate the full pool per layer.
+                if self._is_path_a:
+                    # Path A (DeepseekV4 allocator): a KVCacheTensor is
+                    # page_size*num_blocks ALIASED by its shared_by layers (the
+                    # scheduler hands block ids in [0, num_blocks) to every layer).
+                    # TT can't alias typed tensors, so each layer gets its OWN
+                    # num_blocks-block tensor at its real page. Using tensor.size //
+                    # len(shared_by) would give num_blocks/K blocks and over-index
+                    # at high occupancy. (The C128A "Path B" branch below keeps its
+                    # validated //shared_by behaviour.)
+                    num_blocks = kv_cache_config.num_blocks
+                elif self._is_multi_group:
+                    # DSV4 Path B hybrid pool: layers share ONE pooled tensor, so
+                    # this layer's byte slice (pool // #layers) need not be a whole
+                    # multiple of its page. Floor to whole blocks.
                     num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
                 else:
                     assert tensor_size % kv_cache_spec.page_size_bytes == 0
                     num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
-                if isinstance(kv_cache_spec, MLAAttentionSpec):
+                # Both MLAAttentionSpec (compressed values/keys, SWA on Path B) and
+                # SlidingWindowMLASpec (the SWA window latent on Path A) are single
+                # MLA latents (num_kv_heads == 1) — allocate one latent tensor, NOT
+                # a K/V pair.
+                if isinstance(kv_cache_spec, (MLAAttentionSpec, SlidingWindowMLASpec)):
                     # MLA stores a SINGLE concatenated latent KV tensor per
                     # slot (num_kv_heads == 1, head_size == kv_lora_rank +
                     # qk_rope_head_dim). Physical rows/block = storage_block_size
@@ -3615,6 +3717,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
+
+        # C4A exact-across-boundary decode: the two DeepseekCompressor rolling-state
+        # caches (main + indexer) are DROPPED from the vLLM-managed groups (see
+        # get_kv_cache_spec). Allocate them here as dense per-request fp32 buffers
+        # and bind them straight onto their CompressorStateCache modules (which
+        # self-register in static_forward_context), NOT into self.kv_caches — they
+        # are 3D and would trip the ndim==4 TP-sharding assert below, and they are
+        # batch-idx-keyed (leading dim == max_num_reqs, indexed 1:1 by the decode
+        # batch), not paged. Layout per row = [kv_state | score_state], each
+        # coff*head_dim wide (state_dim == 2*coff*head_dim); W == coff*ratio rows =
+        # the overlap pooling window (prev block ++ current block). The score half
+        # is seeded to a finite very-negative fill so an unwritten current-block row
+        # contributes ~0 weight (the compressor writes real values before any
+        # completed slot reads them; this only guards the in-progress, unread slot
+        # and avoids an all-(-inf) softmax nan on XLA). fp32 is enforced by the
+        # CompressorStateCache class. Under TP the compressor is disable_tp
+        # (replicated), so leave these buffers unannotated (replicated).
+        _, _dsv4_state_cache_cls = _dsv4_aux_cache_classes()
+        if _dsv4_state_cache_cls is not None:
+            _MASK_NEG = -1e30  # matches attention_dsv4._MASK_NEG (finite, XLA-safe)
+            _sfc = self.vllm_config.compilation_config.static_forward_context
+            _n_state = 0
+            for _name, _mod in get_layers_from_vllm_config(
+                self.vllm_config, AttentionLayerBase
+            ).items():
+                if not isinstance(_mod, _dsv4_state_cache_cls):
+                    continue
+                _W = _mod.sliding_window  # coff*ratio (== 8 for C4A)
+                _sd = _mod.state_dim  # 2*coff*head_dim (main 2048, indexer 512)
+                _buf = torch.zeros((self.max_num_reqs, _W, _sd), dtype=_mod.dtype)
+                _buf[..., _sd // 2 :] = _MASK_NEG  # score_state half
+                _sfc[_name].kv_cache = _buf.to(self.device)
+                _n_state += 1
+            if _n_state:
+                logger.info(
+                    "DSV4 C4A: bound %d compressor rolling-state buffer(s) "
+                    "(max_num_reqs=%d) for exact-across-boundary decode",
+                    _n_state,
+                    self.max_num_reqs,
+                )
 
         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
             # DP+TP: leave the KV cache un-annotated (replicated under SPMD);

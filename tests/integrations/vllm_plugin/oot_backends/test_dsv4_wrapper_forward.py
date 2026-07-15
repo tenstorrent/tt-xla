@@ -324,7 +324,7 @@ def _paged_roundtrip(dev, base_mods, dtype, hp, pp, hd, pd):
         sink = w.mla_attn.attn_sink[:N].to(dev)
 
         # -- prefill: fills the cache with the roped kv latents --
-        qp, kvp, _, _ = w._dsv4_preprocess(pp.to(dev), hp.to(dev))
+        qp, kvp, _, _, _ = w._dsv4_preprocess(pp.to(dev), hp.to(dev))
         md_p = TTMetadata(
             cache_position=torch.full((1,), _S - 1, dtype=torch.int32, device=dev),
             page_table=page_table,
@@ -336,7 +336,7 @@ def _paged_roundtrip(dev, base_mods, dtype, hp, pp, hd, pd):
         )
 
         # -- decode: reads the windowed history from the cache --
-        qd, kvd, _, _ = w._dsv4_preprocess(pd.to(dev), hd.to(dev))
+        qd, kvd, _, _, _ = w._dsv4_preprocess(pd.to(dev), hd.to(dev))
         md_d = TTMetadata(
             cache_position=torch.full((1,), _CUR, dtype=torch.int32, device=dev),
             page_table=page_table,
@@ -673,6 +673,14 @@ def _paged_roundtrip_c128a(dev, base_mods, dtype, hp, pp, hd, pd):
         torch.manual_seed(7)
         w = _build_wrapper_c128(vllm_config, mods, "pc128." + str(dev))
         w.compressor = w.compressor.to(device=dev, dtype=dtype)
+        # The compressor's fused_wkv_wgate / ape come from torch.empty (no
+        # checkpoint load in a unit test). Uninitialized memory is finite when
+        # this test runs alone but can be NaN/inf after other tests dirty the
+        # allocator (order-dependent flake). Seed to small deterministic values
+        # so the compressor output is finite + reproducible (same fix the C4A
+        # unit tests use); both the written cache and the reference `comp` below
+        # then read identical weights.
+        _seed_compressor_weights(w.compressor)
         sink = w.mla_attn.attn_sink[:N].to(dev)
 
         wcache = torch.zeros(nb_w, 1, _CBLOCK, HD, dtype=dtype, device=dev)
@@ -681,7 +689,7 @@ def _paged_roundtrip_c128a(dev, base_mods, dtype, hp, pp, hd, pd):
         cpt = torch.zeros(1, 1, dtype=torch.int32, device=dev)
 
         # -- prefill: window latents + compressed latents into the two caches --
-        qp, kvp, _, _ = w._dsv4_preprocess(pp.to(dev), hp.to(dev))
+        qp, kvp, _, _, _ = w._dsv4_preprocess(pp.to(dev), hp.to(dev))
         md_p = TTMetadata(
             cache_position=torch.full((1,), _SC - 1, dtype=torch.int32, device=dev),
             page_table=wpt,
@@ -708,7 +716,7 @@ def _paged_roundtrip_c128a(dev, base_mods, dtype, hp, pp, hd, pd):
         )
 
         # -- decode: read window + compressed history back and merge --
-        qd, kvd, _, _ = w._dsv4_preprocess(pd.to(dev), hd.to(dev))
+        qd, kvd, _, _, _ = w._dsv4_preprocess(pd.to(dev), hd.to(dev))
         md_d = TTMetadata(
             cache_position=torch.full((1,), decode_pos, dtype=torch.int32, device=dev),
             page_table=wpt,
@@ -769,3 +777,305 @@ def test_dsv4_c128a_paged_roundtrip(arch):
     # decode read both caches (window + compressed) + merged -> finite output
     assert torch.isfinite(od_c).all(), "paged C128A decode output not finite"
     assert od_c.shape == (N, HD), f"unexpected decode shape {tuple(od_c.shape)}"
+
+
+# --------------------------------------------------------------------------- #
+# C4A (CSA) sparse compressed attention: overlap compressor (coff=2) + lightning
+# indexer top-k. Unit-level checks of the two new compute pieces the wrapper adds
+# (the overlap compressor + the sparse gather). The full C4A math (incl. the
+# indexer forward) is validated on REAL weights + hardware by scratchpad
+# run_l2_c4a.py (oracle layer-2 TT-vs-CPU PCC 0.9998) and end-to-end by the
+# Phase-2 native-C4A vLLM run.
+# --------------------------------------------------------------------------- #
+_C4_RATIO = 4
+
+
+def _mock_vllm_config_c4(dtype):
+    from vllm.config import ParallelConfig
+
+    cfg = _cfg()
+    cfg.compress_ratios = [_C4_RATIO]
+    cfg.compress_rope_theta = 10000.0
+    m = _mock_vllm_config(cfg, dtype)
+    m.scheduler_config = SimpleNamespace(max_num_batched_tokens=1024, max_num_seqs=8)
+    m.parallel_config = ParallelConfig()
+    m.model_config.is_moe = False
+    return m
+
+
+def _build_wrapper_c4(vllm_config, mods, prefix):
+    # compress_ratio=4, indexer=None: the ctor builds the OVERLAP compressor
+    # (self.compressor, coff=2). The indexer forward is exercised on real weights
+    # by run_l2_c4a.py + the Phase-2 E2E, so it is not rebuilt here.
+    from vllm.model_executor.layers.deepseek_v4_attention import (
+        DeepseekV4MLAModules,
+        DeepseekV4MultiHeadLatentAttentionWrapper,
+    )
+
+    mla_modules = DeepseekV4MLAModules(
+        vllm_config=vllm_config,
+        fused_wqa_wkv=mods["fused_wqa_wkv"],
+        q_norm=mods["q_norm"],
+        wq_b=mods["wq_b"],
+        kv_norm=mods["kv_norm"],
+        wo_a=mods["wo_a"],
+        wo_b=mods["wo_b"],
+        attn_sink=mods["sink"],
+        rotary_emb=mods["rotary_emb"],
+        indexer=None,
+        indexer_rotary_emb=mods["rotary_emb"],
+        topk_indices_buffer=None,
+        aux_stream_list=None,
+    )
+    return DeepseekV4MultiHeadLatentAttentionWrapper(
+        hidden_size=HIDDEN,
+        num_heads=N,
+        head_dim=HD,
+        scale=SCALE,
+        qk_nope_head_dim=NOPE,
+        qk_rope_head_dim=ROPE,
+        v_head_dim=HD,
+        q_lora_rank=QLORA,
+        kv_lora_rank=HD,
+        o_lora_rank=OLORA,
+        mla_modules=mla_modules,
+        window_size=W,
+        compress_ratio=_C4_RATIO,
+        cache_config=vllm_config.cache_config,
+        quant_config=None,
+        prefix=prefix,
+    )
+
+
+def _seed_compressor_weights(comp):
+    """The compressor's MergedColumnParallelLinear/ape weights come from
+    ``torch.empty`` (no checkpoint load in a unit test) and can be zeros in a
+    fresh process -> a zero-weight compressor output is constant, which makes the
+    PCC metric degenerate. Seed them to small non-zero deterministic values so the
+    overlap pooling is genuinely exercised."""
+    torch.manual_seed(3)
+    with torch.no_grad():
+        for p in comp.parameters():
+            p.copy_((torch.randn_like(p) * 0.05).to(p.dtype))
+
+
+def _reference_overlap_compress(w, hidden):
+    """Independent oracle overlap-pool (modified_model Compressor overlap branch,
+    coff=2) over w.compressor -> compressed latents [Ncomp, HD]. In-place-scatter
+    overlap_transform form (distinct from the wrapper's cat-based form)."""
+    from vllm_tt.attention_impls.attention_dsv4 import (
+        _dsv4_cos_sin,
+        _dsv4_rope_rope_dims,
+    )
+
+    comp = w.compressor
+    ratio, d, coff = comp.compress_ratio, HD, comp.coff
+    S = hidden.shape[0]
+    kvsc = comp.fused_wkv_wgate(hidden)
+    kvsc = kvsc[0] if isinstance(kvsc, (tuple, list)) else kvsc
+    kv, sc = kvsc.split([coff * d, coff * d], dim=-1)
+    Ncomp = S // ratio
+    cut = Ncomp * ratio
+    kv = kv[:cut].reshape(Ncomp, ratio, coff * d).float()
+    sc = sc[:cut].reshape(Ncomp, ratio, coff * d).float() + comp.ape.float()
+    kv_ot = kv.new_zeros(Ncomp, 2 * ratio, d)
+    kv_ot[:, ratio:] = kv[:, :, d:]  # current block second-half channels
+    kv_ot[1:, :ratio] = kv[:-1, :, :d]  # previous block first-half (slot 0 -> 0)
+    sc_ot = sc.new_full((Ncomp, 2 * ratio, d), float("-inf"))
+    sc_ot[:, ratio:] = sc[:, :, d:]
+    sc_ot[1:, :ratio] = sc[:-1, :, :d]
+    pooled = comp.norm(((kv_ot * sc_ot.softmax(dim=1)).sum(dim=1)).to(hidden.dtype))
+    ccos, csin = _dsv4_cos_sin(
+        w.rotary_emb.cos_sin_cache, torch.arange(Ncomp) * ratio, ROPE
+    )
+    return _dsv4_rope_rope_dims(pooled, ccos, csin, NOPE, headed=False)
+
+
+@pytest.mark.push
+@parametrize_arch(["single_device"])
+def test_dsv4_c4a_overlap_compress(arch):
+    """The C4A OVERLAP compressor (_dsv4_compress, coff=2) matches an independent
+    oracle overlap-pool reference (fp32): validates the pre/prev-block channel
+    split, the slot-0 boundary (no predecessor), and the RoPE positions."""
+    import vllm_tt.attention_impls.attention_dsv4 as _dsv4  # noqa: F401
+
+    xr.set_device_type("TT")
+    _init_dist_once()
+    S = 128  # Ncomp = 32; > ratio (4)
+    torch.manual_seed(0)
+    mb = _to_dev(_build_modules(torch.float32), torch.device("cpu"))
+    hidden = torch.randn(S, HIDDEN)
+    vc = _mock_vllm_config_c4(torch.float32)
+    with contextlib.ExitStack() as s:
+        s.enter_context(set_current_vllm_config(vc))
+        s.enter_context(
+            mock.patch.object(
+                deepseek_v4_attention,
+                "get_tensor_model_parallel_world_size",
+                lambda: 1,
+            )
+        )
+        torch.manual_seed(7)
+        w = _build_wrapper_c4(vc, mb, "c4.oc.cpu")
+        w.compressor = w.compressor.to(torch.float32)
+        _seed_compressor_weights(w.compressor)  # torch.empty -> non-zero, seeded
+        got = w._dsv4_compress(hidden)  # overlap path -> [Ncomp, HD]
+        ref = _reference_overlap_compress(w, hidden)
+    assert got.shape == ref.shape == (S // _C4_RATIO, HD)
+    # got and ref read the SAME (seeded) compressor weights, so they must match
+    # exactly (they are two independent transcriptions of the oracle overlap math).
+    assert torch.allclose(got, ref, atol=1e-4), (
+        f"C4A overlap compressor != reference: maxdiff "
+        f"{(got - ref).abs().max().item():.6f}"
+    )
+    assert got.float().std() > 0.005, "compressor output degenerate (zero weights?)"
+    assert _pcc(got, ref) >= 0.999
+
+
+@pytest.mark.push
+@parametrize_arch(["single_device"])
+def test_dsv4_c4a_sparse_equals_dense(arch):
+    """C4A `_sparse_compressed_branch`, when the top-k selects ALL causally-valid
+    slots (Ncomp <= index_topk, i.e. seqlen <= 2048), is numerically identical to
+    the dense `_compressed_branch` — softmax is permutation-invariant, so a gather
+    over all valid slots == a dense masked attention over them. Anchors the sparse
+    gather/attention math against the proven dense branch (no indexer needed)."""
+    import vllm_tt.attention_impls.attention_dsv4 as _dsv4  # noqa: F401
+
+    xr.set_device_type("TT")
+    _init_dist_once()
+    S, Ncomp, ratio = 256, 64, _C4_RATIO  # Ncomp == S // ratio
+    torch.manual_seed(0)
+    mb = _to_dev(_build_modules(torch.float32), torch.device("cpu"))
+    vc = _mock_vllm_config_c4(torch.float32)
+    with contextlib.ExitStack() as s:
+        s.enter_context(set_current_vllm_config(vc))
+        s.enter_context(
+            mock.patch.object(
+                deepseek_v4_attention,
+                "get_tensor_model_parallel_world_size",
+                lambda: 1,
+            )
+        )
+        torch.manual_seed(7)
+        w = _build_wrapper_c4(vc, mb, "c4.eq.cpu")
+
+    q4 = torch.randn(1, S, N, HD)
+    comp = torch.randn(1, Ncomp, HD)
+    pos2d = torch.arange(S).view(1, S)
+    o_d, lse_d = w._compressed_branch(q4, comp, pos2d)
+    # topk_idxs = ALL causally-valid slots per query (what the indexer selects when
+    # Ncomp <= index_topk), invalid columns == -1.
+    valid_ct = (pos2d + 1) // ratio  # [1, S]
+    c_idx = torch.arange(Ncomp).view(1, 1, Ncomp)
+    keep = c_idx < valid_ct.unsqueeze(-1)  # [1, S, Ncomp]
+    topk = torch.where(
+        keep, c_idx.expand(1, S, Ncomp), torch.full((1, S, Ncomp), -1)
+    ).int()
+    o_s, lse_s = w._sparse_compressed_branch(q4, comp, topk)
+    # Fully-masked queries (valid_ct == 0, i.e. s < ratio-1) have NO compressed
+    # slots: the dense branch returns mean(all slots) while the sparse branch
+    # returns comp[0] (the clamped invalid index). Both are HARMLESS — the merge
+    # zeroes them (lse_c ~ _MASK_NEG). Compare only rows with >= 1 valid slot.
+    has_valid = valid_ct > 0  # [1, S]
+    m_o = has_valid.view(1, 1, S, 1).expand_as(o_d)
+    m_l = has_valid.view(1, 1, S).expand_as(lse_d)
+    assert (
+        _pcc(o_s[m_o], o_d[m_o]) >= 0.999
+    ), f"sparse != dense o PCC {_pcc(o_s[m_o], o_d[m_o]):.6f}"
+    assert (
+        _pcc(lse_s[m_l], lse_d[m_l]) >= 0.999
+    ), f"sparse != dense lse PCC {_pcc(lse_s[m_l], lse_d[m_l]):.6f}"
+
+
+@pytest.mark.push
+@pytest.mark.parametrize(
+    "kind, ratio, coff, S0, n_decode, min_boundaries",
+    [
+        # C4A (overlap, ratio 4): prefill remainder 2 -> partial current block;
+        # decode 130..139 crosses boundaries at 131/135/139 (exercises the roll).
+        ("c4a", _C4_RATIO, 2, 130, 10, 2),
+        # C128A (non-overlap, ratio 128): sub-window prefill (120 < 128) seeds the
+        # whole ring; decode 120..131 crosses the first boundary (slot 0) at pos 127.
+        ("c128a", _C128_RATIO, 1, 120, 12, 1),
+    ],
+)
+@parametrize_arch(["single_device"])
+def test_dsv4_incremental_decode_matches_recompute(
+    arch, kind, ratio, coff, S0, n_decode, min_boundaries
+):
+    """EXACT-ACROSS-BOUNDARY decode (C4A AND C128A): the incremental compressor
+    (rolling state + per-step _compress_decode_step) must produce compressed slots
+    IDENTICAL to the all-at-once _dsv4_compress recomputed over the same tokens —
+    i.e. a slot that COMPLETES during decode (crossing a compression boundary)
+    equals the prefill-style pooled slot. This is the exact fix for the folded-state
+    decode bug (which never formed new slots after prefill), for both the overlap
+    (C4A) and non-overlap (C128A) compressors. Runs fp32 on CPU."""
+    import vllm_tt.attention_impls.attention_dsv4 as _dsv4  # noqa: F401
+
+    _MASK_NEG = -1e30
+    total = S0 + n_decode
+    build_cfg = _mock_vllm_config_c4 if kind == "c4a" else _mock_vllm_config_c128
+    build_w = _build_wrapper_c4 if kind == "c4a" else _build_wrapper_c128
+
+    xr.set_device_type("TT")
+    _init_dist_once()
+    torch.manual_seed(0)
+    mb = _to_dev(_build_modules(torch.float32), torch.device("cpu"))
+    hs_full = torch.randn(total, HIDDEN)
+    vc = build_cfg(torch.float32)
+    with contextlib.ExitStack() as s:
+        s.enter_context(set_current_vllm_config(vc))
+        s.enter_context(
+            mock.patch.object(
+                deepseek_v4_attention,
+                "get_tensor_model_parallel_world_size",
+                lambda: 1,
+            )
+        )
+        torch.manual_seed(7)
+        w = build_w(vc, mb, f"{kind}.inc.cpu")
+        w.compressor = w.compressor.to(torch.float32)
+        _seed_compressor_weights(w.compressor)
+        comp = w.compressor
+        assert comp.coff == coff and comp.compress_ratio == ratio
+        # bind a rolling-state buffer (as model_runner.initialize_kv_cache would):
+        # [max_num_reqs=1, coff*ratio, 2*coff*head_dim], score half = _MASK_NEG.
+        W, sd = coff * ratio, 2 * coff * HD
+        buf = torch.zeros(1, W, sd, dtype=torch.float32)
+        buf[..., sd // 2 :] = _MASK_NEG
+        comp.state_cache.kv_cache = buf
+
+        # all-at-once reference: slots [0, total//ratio) recomputed from scratch.
+        ref_all = w._dsv4_compress(hs_full[: (total // ratio) * ratio])  # [Nc, HD]
+
+        # 1. seed the rolling state from the prefill tokens.
+        w._seed_compressor_state(
+            hs_full[:S0].unsqueeze(0), comp, HD, torch.tensor([S0])
+        )
+
+        # 2. decode one token at a time; record slots that COMPLETE.
+        got = {}
+        for p in range(S0, total):
+            slot, write_slot = w._compress_decode_step(
+                hs_full[p : p + 1],
+                torch.tensor([p]),
+                comp,
+                HD,
+                w.rotary_emb.cos_sin_cache,
+            )
+            if (p + 1) % ratio == 0:  # boundary: slot p//ratio completes
+                got[p // ratio] = slot[0].detach().clone()
+
+    assert got, "no compression boundary crossed during decode (test misconfigured)"
+    # every slot completed during decode must match the fresh all-at-once pool.
+    for m, slot in sorted(got.items()):
+        ref = ref_all[m]
+        assert torch.allclose(slot, ref, atol=1e-4), (
+            f"[{kind}] incremental decode slot {m} != recompute: maxdiff "
+            f"{(slot - ref).abs().max().item():.6f}"
+        )
+        assert _pcc(slot, ref) >= 0.999, f"[{kind}] slot {m} PCC {_pcc(slot, ref):.6f}"
+    assert (
+        len(got) >= min_boundaries
+    ), f"[{kind}] expected >={min_boundaries} boundary completions, got {len(got)}"
