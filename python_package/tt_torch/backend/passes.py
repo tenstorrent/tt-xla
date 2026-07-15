@@ -350,6 +350,41 @@ def _replace_multi_output_op(gm, node, output_variants):
             gm.graph.erase_node(gi)
 
 
+def cast_bool_cumsum_to_int32(gm: torch.fx.GraphModule) -> None:
+    """Cast bool inputs of aten.cumsum to int32.
+
+    tt-metal's accumulation (cumsum) kernel `add_int` supports only Int32 /
+    UInt32 / UInt16 data formats; a bool tensor lowers to the UInt8 format and
+    fails to compile ("Unsupported data format for add_int"). torch lowers
+    `bool_tensor.cumsum(dim)` to an aten.cumsum over the bool tensor — e.g.
+    transformers' find_packed_sequence_indices does
+    `(position_diff != 1).cumsum(-1)`. Casting the input to int32 (the cumsum is
+    semantically a count) changes the device format UInt8 -> Int32 so the kernel
+    compiles; the cumsum output dtype (int64) is unchanged.
+    """
+    cumsum_targets = {torch.ops.aten.cumsum.default, torch.ops.aten.cumsum}
+    changed = False
+    for node in list(gm.graph.nodes):
+        if node.op != "call_function" or node.target not in cumsum_targets:
+            continue
+        inp = node.args[0]
+        val = inp.meta.get("val") if hasattr(inp, "meta") else None
+        if val is None or val.dtype != torch.bool:
+            continue
+        with gm.graph.inserting_before(node):
+            cast = gm.graph.call_function(
+                torch.ops.aten._to_copy.default,
+                args=(inp,),
+                kwargs={"dtype": torch.int32},
+            )
+            cast.meta["val"] = val.to(torch.int32)
+        node.update_arg(0, cast)
+        changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
