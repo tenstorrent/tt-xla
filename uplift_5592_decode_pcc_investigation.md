@@ -7,6 +7,27 @@
 
 ---
 
+## ✅ SOLUTION (shipped) — read this first
+
+**Localized issue:** the tt-mlir uplift `260d4c4→327b846` bumps tt-metal `13adda80c11→38e954a066c` (commit `30645f913`). The new tt-metal has a **trace capture/replay regression**: once the **perf run** captures a trace on the device, that resident trace **corrupts the KV-cache read of the next graph** that runs with a device-native cache. So the benchmark's PCC/logits run (which runs *after* the perf run) decodes over a corrupted cache → first-decode logits **explode to ~10¹⁹ → PCC=0.0**. The perf run itself is fine; the KV-cache content and SDPA/lm_head math are correct (the argmax path decodes the correct token). Proven trace-specific: `TTXLA_NO_TRACE=1` or not running the perf run first both make PCC pass.
+
+**Fix (tt-xla, perf-preserving):** run the **PCC/correctness run FIRST** (clean device, no resident trace) and the **traced perf benchmark LAST**. Perf stays traced → measured perf unchanged. Pure reorder in `tests/benchmark/benchmarks/llm_benchmark.py` (`_run_perf_benchmark()` moved after the PCC/TOPK block).
+
+**Local validation (full falcon3-1b, bs32, on the failing tt-metal):** decode PCC **0.998** (was 0.0); **51.3 sps** vs **52.3** perf-first baseline = **−2%** (within the 5% perf gate). (NO_TRACE alternative = −57%, rejected.)
+
+**Branches:**
+- Fix (minimal, only the reorder): `mvasiljevic/uplift-5592-decode-pcc-fix`
+- Investigation (this doc + diagnostics): `mvasiljevic/uplift-5592-decode-pcc-investigation`
+
+**CI (single-chip n150-perf, `mlir_override=327b846`, regression_check on):**
+- FIX: https://github.com/tenstorrent/tt-xla/actions/runs/29525027126 (expect PCC pass + perf within 5%)
+- CONTROL (no fix): https://github.com/tenstorrent/tt-xla/actions/runs/29525072439 (expect PCC=0.0 fail)
+- Original failing CI (issue): https://github.com/tenstorrent/tt-xla/actions/runs/29223626701
+
+**Proper long-term fix is upstream in tt-metal** (the trace capture/replay regression in `13adda80c11..38e954a066c`). The reorder is a tt-xla-side workaround that unblocks the uplift without a perf hit. Note: exact tt-metal commit not pinned (needs a tt-metal bisect). Reorder is unconditional; other paths (decode_only, multichip) use the same reorder — logically order-only, validated on single-chip.
+
+---
+
 ## ⚡ LATEST ROOT CAUSE (trace) + RESUME STATE — read this first
 
 **Root cause is a tt-metal TRACE-buffer allocation regression.** Proven by experiment on the bad build (`--num-layers 1`):
