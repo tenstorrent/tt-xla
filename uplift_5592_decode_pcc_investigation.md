@@ -7,6 +7,23 @@
 
 ---
 
+## 🧪 CI RESULTS (2026-07-16) — fix restores PCC; perf gate fails on a SEPARATE uplift perf regression
+
+falcon3-1b, n150-perf, `mlir_override=327b846`, regression_check on:
+| run | first-decode PCC | Samples/sec | TTFT |
+|---|---|---|---|
+| old-metal baseline (stored) | (passing) | **57.6** | 689 ms |
+| **CONTROL** (main, no fix, perf-first) | **0.0 — FAIL** | 44.86 (−22.1%) | 955 ms |
+| **FIX** (pcc-first reorder) | **0.998 — PASS** ✅ | 44.01 (−23.6%) | 953 ms |
+
+**Two conclusions:**
+1. **The fix works — decode PCC 0.998 (was 0.0), "1 passed"** in CI. Correctness restored.
+2. **The perf gate fails, but that is the tt-metal uplift's OWN ~22% decode-perf regression, NOT the reorder.** The control (no fix, *unpoisoned* perf-first run) is already 44.86 (−22%); the reorder adds only ~2% (44.86→44.01, the poisoned perf-second run's *timing* is unaffected — garbage values don't slow it). So the uplift has **two independent regressions**: PCC=0.0 (fixed here) and a ~22% decode perf drop in the new tt-metal (pre-existing, needs separate investigation — possibly the same RTA/trace-dispatch changes making trace slower). The perf gate would fail on the uplift regardless of the PCC fix.
+
+FIX run: https://github.com/tenstorrent/tt-xla/actions/runs/29525027126 · CONTROL: https://github.com/tenstorrent/tt-xla/actions/runs/29525072439 (llama/qwen jobs still finishing).
+
+---
+
 ## ✅ SOLUTION (shipped) — read this first
 
 **Localized issue:** the tt-mlir uplift `260d4c4→327b846` bumps tt-metal `13adda80c11→38e954a066c` (commit `30645f913`). The new tt-metal has a **trace capture/replay regression**: once the **perf run** captures a trace on the device, that resident trace **corrupts the KV-cache read of the next graph** that runs with a device-native cache. So the benchmark's PCC/logits run (which runs *after* the perf run) decodes over a corrupted cache → first-decode logits **explode to ~10¹⁹ → PCC=0.0**. The perf run itself is fine; the KV-cache content and SDPA/lm_head math are correct (the argmax path decodes the correct token). Proven trace-specific: `TTXLA_NO_TRACE=1` or not running the perf run first both make PCC pass.
