@@ -18,11 +18,18 @@ table) and ``InputBatch`` (transient per-step view). This file is only the
   TT v2 runner (Phase 3) wires it in.
 * The model-agnostic methods (task discovery, the common 1D-positions input
   path, staged-write / add_request no-ops) are implemented for real here.
-* The two methods that are coupled to the runner and to TT's own attention
-  backends -- ``prepare_attn`` and ``get_mm_embeddings`` -- raise
-  NotImplementedError with the exact contract documented. They are only
-  meaningfully implementable and testable once the TT v2 runner exists
-  (Phase 3), so we do not ship a fake body here.
+* ``prepare_attn`` (Phase 3) assembles a ``TTMetadata`` from the per-step
+  device arrays the runner computes host-side and fans it out to every attention
+  layer -- the same ``dict.fromkeys(layer_names, meta)`` the v1 fork builds
+  inline. Its signature diverges from upstream's (which passes flat
+  ``block_tables``/``slot_mappings``): TT's paged ops consume
+  ``page_table``/``cache_position`` instead, so matching upstream would mean
+  re-porting Triton block-table kernels TT never uses.
+* ``get_mm_embeddings`` still raises NotImplementedError: its data seams (the
+  per-request multimodal-feature store, the padded ``input_ids`` layout it masks
+  against, and ``model.embed_multimodal``/``embed_input_ids``) are owned by the
+  TT v2 runner, which does not exist yet. It is co-implemented with that runner
+  rather than against a speculative interface. Contract documented on the method.
 
 Why not subclass upstream ``DefaultModelState``?
 ------------------------------------------------
@@ -40,18 +47,17 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn as nn
 
-from vllm.config.compilation import CUDAGraphMode
 from vllm.tasks import GenerationTask
 from vllm.v1.worker.gpu.model_states.interface import ModelState
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from vllm.config import VllmConfig
     from vllm.v1.core.sched.output import NewRequestData
-    from vllm.v1.kv_cache_interface import KVCacheConfig
     from vllm.v1.worker.gpu.input_batch import InputBatch
     from vllm.v1.worker.gpu.mm.encoder_cache import EncoderCache
     from vllm.v1.worker.gpu.states import RequestState
-    from vllm.v1.worker.utils import AttentionGroup
 
 
 class TTModelState(ModelState):
@@ -196,27 +202,39 @@ class TTModelState(ModelState):
 
     def prepare_attn(
         self,
-        input_batch: "InputBatch",
-        cudagraph_mode: CUDAGraphMode,
-        block_tables: tuple[torch.Tensor, ...],
-        slot_mappings: torch.Tensor,
-        attn_groups: "list[list[AttentionGroup]]",
-        kv_cache_config: "KVCacheConfig",
-        for_capture: bool = False,
+        attention_layer_names: "Iterable[str]",
+        page_table: torch.Tensor,
+        cache_position: torch.Tensor,
+        fill_page_table: torch.Tensor | None = None,
+        batch_idx: torch.Tensor | None = None,
+        num_users: int | None = None,
+        dp_size: int = 1,
+        chunk_start_idx: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
+        is_causal: bool = True,
     ) -> dict[str, Any]:
-        """Build the attention-metadata dict passed to the model forward.
+        """Assemble the per-layer attention-metadata dict for the model forward.
 
-        Upstream DefaultModelState delegates to build_attn_metadata(), which is
-        cudagraph-oriented and drives per-backend metadata builders. TT must
-        build metadata for its OWN attention backends (see attention_impls/),
-        so this is not a straight reuse.
-
-        Deferred to Phase 3: the physical block_tables/slot_mappings are produced
-        by the runner's own prepare_attn, which does not exist for TT yet.
-        Salvage source in the current v1 runner:
-        model_runner.py::_get_slot_mapping_metadata and the attn-metadata build.
+        Upstream DefaultModelState delegates to build_attn_metadata() over flat
+        block_tables/slot_mappings; TT's attention backends (see attention_impls/)
+        consume a single ``TTMetadata`` built from paged tensors instead, so the
+        signature is adapted (see module docstring). The per-step tensors are
+        computed host-side by the runner; this method only packages them and fans
+        the shared metadata out to every attention layer -- mirroring the v1
+        fork's ``dict.fromkeys(self._attention_layer_names, attn_metadata)``.
+        ``fill_page_table`` defaults to ``page_table`` (no prefix roll).
         """
-        raise NotImplementedError(
-            "prepare_attn requires the TT v2 runner + TT attention metadata "
-            "build (MRv2 Phase 3)."
+        from .attention_impls.attention import TTMetadata
+
+        attn_metadata = TTMetadata(
+            page_table=page_table,
+            cache_position=cache_position,
+            is_causal=is_causal,
+            attn_mask=attn_mask,
+            fill_page_table=fill_page_table,
+            dp_size=dp_size,
+            chunk_start_idx=chunk_start_idx,
+            batch_idx=batch_idx,
+            num_users=num_users,
         )
+        return dict.fromkeys(attention_layer_names, attn_metadata)
