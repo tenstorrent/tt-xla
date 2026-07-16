@@ -102,7 +102,7 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="dual_bh_quietbox",
         controller_host_name="forge-qbae-01",
         hosts_list="qb-bh03,qb-bh04",
-        tt_distributed_tcp_iface="enp10s0f1np1",
+        tt_distributed_tcp_iface="",
     ),
     "dual_t3k": MultihostConfiguration(
         rank_binding="dual_t3k",
