@@ -82,6 +82,15 @@ class LLMSamplingWrapper(torch.nn.Module):
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
             logits_out = logits
+            # TTXLA_TRUNC_VOCAB=N: return only the first N vocab entries of the
+            # logits (lm_head still computes the full tensor as an intermediate).
+            # Shrinks the RETURNED output buffer without changing compute — tests
+            # whether the large returned output buffer is what corrupts the cache.
+            import os as _os
+
+            _tv = _os.environ.get("TTXLA_TRUNC_VOCAB")
+            if _tv:
+                logits_out = logits_out[..., : int(_tv)].contiguous()
             if self.mesh and self.output_sharding_spec:
                 # Ensure logits are replicated for transfer to CPU.
                 # Use tensor rank (not output_sharding_spec length) since logits may be

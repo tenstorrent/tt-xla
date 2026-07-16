@@ -454,6 +454,12 @@ def benchmark_llm_torch_xla(
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
 
+    # TTXLA_NO_TRACE=1: force-disable trace capture. Tests whether the cross-run
+    # explosion (perf run corrupts the later PCC run) is due to trace-buffer reuse.
+    if os.environ.get("TTXLA_NO_TRACE"):
+        trace_enabled = False
+        print("[PCCDBG] TRACE DISABLED (TTXLA_NO_TRACE=1)")
+
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)
     export_model_name = build_xla_export_name(
@@ -513,8 +519,13 @@ def benchmark_llm_torch_xla(
 
     warmup_kv_cache = None
 
+    # TTXLA_SKIP_PERF=1: skip warmup + perf benchmark run entirely; go straight to
+    # the PCC/logits run. Tests whether the perf run's prior execution/allocation
+    # is a precondition for the decode explosion.
+    _skip_perf = bool(os.environ.get("TTXLA_SKIP_PERF"))
+
     # Warmup run (skip in decode-only mode)
-    if not decode_only:
+    if not decode_only and not _skip_perf:
         # Construct inputs for warmup run
         input_args = construct_inputs(
             tokenizer,
@@ -550,57 +561,67 @@ def benchmark_llm_torch_xla(
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run.
-    existing_cache = (
-        input_args["past_key_values"] if not decode_only else decode_only_cache
-    )
-
-    # Reset cumulative_length to 0 on CPU
-    for layer in existing_cache.layers:
-        if hasattr(layer, "cumulative_length"):
-            if layer.cumulative_length.device.type != "cpu":
-                layer.cumulative_length = layer.cumulative_length.cpu()
-            layer.cumulative_length.zero_()
-
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=existing_cache,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        use_mla_cache=use_mla_cache,
-    )
-
-    if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = first_decode_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
-
-    input_args = transfer_to_device(input_args, device)
-    if is_multichip and decode_only:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-    if input_output_sharding_spec:
-        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
-
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
 
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        max_output_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-    )
-    print("\nPerformance benchmark complete")
+    if _skip_perf:
+        print("[PCCDBG] SKIPPING perf run (TTXLA_SKIP_PERF=1)")
+        iteration_times = [1_000_000] * max_output_tokens
+    else:
+        # Reconstruct inputs for the perf benchmark run.
+        existing_cache = (
+            input_args["past_key_values"] if not decode_only else decode_only_cache
+        )
+
+        # Reset cumulative_length to 0 on CPU
+        for layer in existing_cache.layers:
+            if hasattr(layer, "cumulative_length"):
+                if layer.cumulative_length.device.type != "cpu":
+                    layer.cumulative_length = layer.cumulative_length.cpu()
+                layer.cumulative_length.zero_()
+
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            past_key_values=existing_cache,
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=(
+                token_accuracy.input_prompt if accuracy_testing else None
+            ),
+            use_mla_cache=use_mla_cache,
+        )
+
+        if decode_only:
+            # Reset to post-prefill decode state (single token input)
+            input_args["input_ids"] = first_decode_input_ids.clone()
+            input_args["cache_position"] = decode_only_cache_position.clone()
+
+        input_args = transfer_to_device(input_args, device)
+        if is_multichip and decode_only:
+            _shard_kv_cache(
+                input_args["past_key_values"], mesh, kv_cache_sharding_spec
+            )
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+
+        # Run perf benchmark
+        print(f"\nStarting performance benchmark...")
+        _n = 2 if os.environ.get("TTXLA_PERF_TWICE") else 1
+        for _i in range(_n):
+            _, iteration_times = generate_and_benchmark(
+                compiled_perf_model,
+                input_args,
+                device,
+                max_output_tokens,
+                verbose=True,
+                tokenizer=tokenizer,
+                ground_truth_tokens=ground_truth_for_benchmark,
+                collect_logits=False,
+            )
+        print("\nPerformance benchmark complete")
 
     # ========================================================
     # PCC/TOPK BENCHMARK
@@ -644,24 +665,41 @@ def benchmark_llm_torch_xla(
 
     print("\nStarting PCC/TOPK benchmark...")
 
+    # TTXLA_PREFILL_PERF=1: run the logits-run PREFILL with the perf graph
+    # (return_logits=False → no large returned prefill-logits tensor), then decode
+    # with the logits graph. Tests whether the corrupt cache is caused by the
+    # logits-prefill graph materializing/returning the ~140MB [B,seq,vocab] tensor.
+    _prefill_perf = bool(os.environ.get("TTXLA_PREFILL_PERF"))
     device_prefill_logits = []
     if not decode_only:
+        _prefill_model = compiled_perf_model if _prefill_perf else compiled_logits
         device_prefill_logits, _ = generate_and_benchmark(
-            compiled_logits,
+            _prefill_model,
             input_args,
             device,
             1,
             verbose=False,
             ground_truth_tokens=ground_truth_for_benchmark,
-            collect_logits=True,
+            collect_logits=not _prefill_perf,
         )
+        if _prefill_perf:
+            print("[PCCDBG] PREFILL ran with PERF graph (no returned logits)")
 
         device_prefill_output_ids = input_args["input_ids"].to("cpu")
 
         # Override device's first-decode input with CPU's prefill output when they
         # diverge, so the decode PCC reference is comparing apples to apples
         # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
-        if not accuracy_testing and not torch.equal(
+        # TTXLA_NO_TF_OVERRIDE=1 disables this override so the PCC/logits decode
+        # uses the device's OWN first-decode token (same as the perf run) — used to
+        # prove the perf-ok/pcc-0 data-dependence over a corrupt device KV cache.
+        if os.environ.get("TTXLA_NO_TF_OVERRIDE"):
+            print(
+                "[PCCDBG] TF override DISABLED; logits decode uses device token "
+                f"{device_prefill_output_ids.flatten()[:4].tolist()} "
+                f"(cpu token {first_decode_input_ids.flatten()[:4].tolist()})"
+            )
+        elif not accuracy_testing and not torch.equal(
             device_prefill_output_ids, first_decode_input_ids.cpu()
         ):
             logger.warning(
@@ -695,6 +733,20 @@ def benchmark_llm_torch_xla(
     )
 
     output_logits = device_prefill_logits + device_decode_logits
+
+    if os.environ.get("TTXLA_PCC_DEBUG") and len(device_decode_logits) > 0:
+        import torch as _t
+
+        _d = device_decode_logits[0]
+        _df = _d.detach().to(_t.float32).flatten()
+        _last = _d[:, -1, :] if _d.dim() == 3 else _d
+        print(
+            f"[PCCDBG-DEC1] device_decode_logits[0]: shape={tuple(_d.shape)} "
+            f"mean={_df.mean().item():.4e} std={_df.std().item():.4e} "
+            f"min={_df.min().item():.4e} max={_df.max().item():.4e} "
+            f"|max|>1e4 -> {'EXPLODED' if _df.abs().max().item() > 1e4 else 'sane'} "
+            f"argmax_user0={int(_last.to(_t.float32)[0].argmax())}"
+        )
 
     print("\nPCC/TOPK benchmark complete")
 
@@ -816,6 +868,29 @@ def benchmark_llm_torch_xla(
             ]
         )
     elif decode_only:
+        if os.environ.get("TTXLA_PCC_DEBUG"):
+            import torch as _t
+
+            def _dstats(name, x):
+                xf = x.detach().to(_t.float32).flatten()
+                last = x[:, -1, :] if x.dim() == 3 else x
+                a = last.to(_t.float32).argmax(dim=-1)
+                top = _t.topk(last.to(_t.float32)[0], k=5).indices.tolist()
+                print(
+                    f"[PCCDBG-DEC] {name}: shape={tuple(x.shape)} dtype={x.dtype} "
+                    f"mean={xf.mean().item():.4e} std={xf.std().item():.4e} "
+                    f"min={xf.min().item():.4e} max={xf.max().item():.4e} "
+                    f"nan={int(_t.isnan(xf).sum())} inf={int(_t.isinf(xf).sum())} "
+                    f"argmax={a.tolist()[:8]} top5_user0={top}"
+                )
+
+            print("[PCCDBG-DEC] ===== DECODE-ONLY diagnostics =====")
+            print(
+                f"[PCCDBG-DEC] first_decode_input_ids[:8]="
+                f"{first_decode_input_ids.flatten()[:8].tolist()}"
+            )
+            _dstats("dev_decode0 out[0]", output_logits[0])
+            _dstats("cpu_decode0 out[1]", cpu_output_logits[1])
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
         decode_rel_l2_value = compute_rel_l2(
             cpu_output_logits[1][0], output_logits[0][0]
@@ -829,6 +904,35 @@ def benchmark_llm_torch_xla(
             )
         )
     else:
+        if os.environ.get("TTXLA_PCC_DEBUG"):
+            import torch as _t
+
+            def _stats(name, x):
+                xf = x.detach().to(_t.float32).flatten()
+                last = x[:, -1, :] if x.dim() == 3 else x
+                a = last.to(_t.float32).argmax(dim=-1)
+                top = _t.topk(last.to(_t.float32)[0], k=5).indices.tolist()
+                print(
+                    f"[PCCDBG] {name}: shape={tuple(x.shape)} dtype={x.dtype} "
+                    f"mean={xf.mean().item():.4e} std={xf.std().item():.4e} "
+                    f"min={xf.min().item():.4e} max={xf.max().item():.4e} "
+                    f"nan={int(_t.isnan(xf).sum())} inf={int(_t.isinf(xf).sum())} "
+                    f"argmax_lastrow={a.tolist()[:8]} top5_user0={top}"
+                )
+
+            print("[PCCDBG] ===== decode logits diagnostics =====")
+            _stats("dev_prefill  out[0]", output_logits[0])
+            _stats("cpu_prefill  out[0]", cpu_output_logits[0])
+            _stats("dev_decode0  out[1]", output_logits[1])
+            _stats("cpu_decode0  out[1]", cpu_output_logits[1])
+            # Cross correlation of device decode vs cpu decode (user 0 vocab row)
+            dv = output_logits[1][0][-1].to(_t.float32)
+            cv = cpu_output_logits[1][0][-1].to(_t.float32)
+            print(
+                f"[PCCDBG] decode user0: dev_argmax={int(dv.argmax())} "
+                f"cpu_argmax={int(cv.argmax())} "
+                f"raw_pcc={compute_pcc(dv, cv):.6f}"
+            )
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
         rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
