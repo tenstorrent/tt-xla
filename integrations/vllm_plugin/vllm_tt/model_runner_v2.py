@@ -61,6 +61,7 @@ compiled forward graphs).
 from __future__ import annotations
 
 import bisect
+import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -70,6 +71,8 @@ import torch
 import vllm.envs as envs
 from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
@@ -1183,9 +1186,16 @@ class TTModelRunnerV2:
         """
         if self.cpu_sampling:
             raise NotImplementedError("cpu_sampling warmup path is not ported yet.")
-        torch._dynamo.config.dynamic_shapes = False
-        for target_num_reqs, padded_query_len in self._warmup_buckets():
-            self._precompile_bucket(target_num_reqs, padded_query_len)
+        # TODO(mrv2): precompile with valid dummy attention metadata. The
+        # all-zeros dummies below fail to compile the paged-attention op, and a
+        # failed TT compile poisons torch_xla async state, so warmup is skipped
+        # for now -- graphs compile lazily on the first matching request (as v1's
+        # _dummy_run avoids by building valid dummies). See _precompile_bucket.
+        logger.warning(
+            "MRv2 capture_model: precompile warmup is skipped; graphs compile "
+            "lazily on first use (see TODO in capture_model)."
+        )
+        return
 
     def _precompile_bucket(self, target_num_reqs: int, padded_query_len: int) -> None:
         from .metadata import XLASupportedSamplingMetadata
