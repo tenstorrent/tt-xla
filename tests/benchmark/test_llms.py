@@ -1878,6 +1878,16 @@ def test_llama_3_1_70b_tp_qb2(
     )
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+
+    # The loader's default 70B mesh on QB2 is (2, N//2) = a 2-way data-parallel
+    # "batch" axis x tensor-parallel "model" axis. That DP batch axis corrupts the
+    # first-decode KV-cache read (garbage/NaN logits, decode PCC ~0 -> issue #5487),
+    # even though the SDPA-decode op itself is correct (Falcon-10B, which uses a
+    # TP-only mesh + the same op, decodes fine). Use a TP-only mesh here: decode PCC
+    # recovers to ~0.999, and TP=N uses less memory/chip than DP=2 x TP=(N/2).
+    def _qb2_tp_only_mesh(model_loader, num_devices):
+        return (1, num_devices), ("batch", "model")
+
     test_llm_tp(
         ModelLoader,
         variant,
@@ -1888,11 +1898,12 @@ def test_llama_3_1_70b_tp_qb2(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        mesh_config_fn=_qb2_tp_only_mesh,
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # TP-only mesh fixes the opt-2 decode failure (#5487)
     )
 
 
