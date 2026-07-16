@@ -16,6 +16,13 @@ falcon3-1b, n150-perf, `mlir_override=327b846`, regression_check on:
 | **CONTROL** (main, no fix, perf-first) | **0.0 — FAIL** | 44.86 (−22.1%) | 955 ms |
 | **FIX** (pcc-first reorder) | **0.998 — PASS** ✅ | 44.01 (−23.6%) | 953 ms |
 
+**All 3 single-chip LLMs — before (control) vs after (fix), n150-perf, tt-mlir 327b846:**
+| model | PCC control (no fix) | PCC fix | sps control | sps fix | reorder Δ | uplift perf regr. |
+|---|---|---|---|---|---|---|
+| falcon3-1b | **0.0 FAIL** | **0.998 PASS** | 44.86 | 44.01 | −1.9% | −22% (57.6→44.9) |
+| llama_3_1_8b_instruct | **0.0 FAIL** | **0.987 PASS** | 18.58 | 18.10 | −2.6% | −18% |
+| qwen_3_8b | **0.0 FAIL** | **0.999 PASS** | 11.32 | 11.50 | **+1.5%** | −15% |
+
 **Two conclusions:**
 1. **The fix works — decode PCC 0.998 (was 0.0), "1 passed"** in CI. Correctness restored.
 2. **The perf gate fails, but that is the tt-metal uplift's OWN ~22% decode-perf regression, NOT the reorder.** The control (no fix, *unpoisoned* perf-first run) is already 44.86 (−22%); the reorder adds only ~2% (44.86→44.01, the poisoned perf-second run's *timing* is unaffected — garbage values don't slow it). So the uplift has **two independent regressions**: PCC=0.0 (fixed here) and a ~22% decode perf drop in the new tt-metal (pre-existing, needs separate investigation — possibly the same RTA/trace-dispatch changes making trace slower). The perf gate would fail on the uplift regardless of the PCC fix.
