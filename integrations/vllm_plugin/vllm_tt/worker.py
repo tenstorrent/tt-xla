@@ -102,12 +102,6 @@ class TTWorker:
         else:
             self.cache_dtype = STR_DTYPE_TO_TORCH_DTYPE[self.cache_config.cache_dtype]
 
-        if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
-            from vllm.utils.import_utils import init_cached_hf_modules
-
-            init_cached_hf_modules()
-
         # Delay profiler initialization to the start of the profiling.
         # This is because in vLLM V1, MP runtime is initialized before the
         # TT Worker is initialized. The profiler server needs to start after

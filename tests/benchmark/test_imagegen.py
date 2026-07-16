@@ -307,6 +307,52 @@ def test_flux2(output_file, request):
     )
 
 
+def test_flux(output_file, request):
+    from benchmarks.flux_pipeline import FluxConfig, FluxPipeline_TT
+
+    from third_party.tt_forge_models.flux.pytorch.src.model_utils import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+    )
+
+    # FLUX.1-dev native: 1024x1024, 50 steps, guidance 3.5, seq-512 (source
+    # inference pipeline defaults). All 4 components (CLIP, T5, transformer, VAE)
+    # run on TT; the transformer is tensor-parallel sharded across the mesh's
+    # model axis. Multichip — wired to the 4-chip blackhole in
+    # perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = 50
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = FluxPipeline_TT(config=FluxConfig(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux1-dev",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_flux1_output.png",
+    )
+
+
 def _run_janus_pro_benchmark(
     model_id, model_info_name, output_image_path, output_file, request
 ):
