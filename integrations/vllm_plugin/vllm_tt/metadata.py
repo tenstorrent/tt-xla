@@ -414,3 +414,32 @@ class XLASupportedSamplingMetadata:
             no_generators=not has_generators,
             q_samples=q_samples,
         )
+
+    @classmethod
+    def from_v2_states(
+        cls,
+        request_state,
+        sampling_states,
+        input_batch,
+        padded_num_reqs: int,
+        xla_device: torch.device,
+        generate_params_if_all_greedy: bool = False,
+        vocab_size: int | None = None,
+    ) -> "XLASupportedSamplingMetadata":
+        """MRv2 entry point: build sampling metadata from the split v2 state.
+
+        v2 keeps sampling params in ``TTSamplingStates`` (keyed by stable slot),
+        token history in ``TTRequestState``, and the batch->slot mapping in
+        ``TTInputBatch``. ``make_batch_view`` gathers a batch-ordered padded view
+        that reuses ``from_input_batch`` unchanged.
+        """
+        view = sampling_states.make_batch_view(
+            request_state, input_batch, padded_num_reqs
+        )
+        return cls.from_input_batch(
+            view,
+            padded_num_reqs,
+            xla_device,
+            generate_params_if_all_greedy=generate_params_if_all_greedy,
+            vocab_size=vocab_size,
+        )
