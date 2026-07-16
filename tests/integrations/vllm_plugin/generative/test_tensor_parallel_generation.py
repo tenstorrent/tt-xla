@@ -27,7 +27,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
         },
@@ -43,16 +42,15 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "use_2d_mesh", "opt_level"],
+    ["model_name", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", True, 0),
-        pytest.param("Qwen/Qwen3-0.6B", False, 1),
+        pytest.param("Qwen/Qwen3-0.6B", True),
+        pytest.param("Qwen/Qwen3-0.6B", False),
     ],
 )
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     use_2d_mesh: bool,
-    opt_level: int,
 ):
     prompts = [
         "Continue in English: I like taking walks in the",
@@ -68,7 +66,6 @@ def test_tensor_parallel_generation_llmbox_small(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -135,11 +132,11 @@ def test_tensor_parallel_generation_wider_batch(model_name: str, use_2d_mesh: bo
         "flat_model_io",
     ],
     [
-        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0, False),
+        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 1, False),
         pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
+        # opt_level=1 produces garbage output (#4325).
         pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
-        # TODO - change opt_level to 1 once these issues: tt-mlir#8919 and tt-mlir#8920 are
-        # fixed and uplifted
+        # opt_level=1 fails: MoE all_to_all_dispatch requires row-major layout (tt-mlir#8920).
         pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
     ],
 )
@@ -183,14 +180,13 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "experimental_weight_dtype", "mesh_shape", "opt_level"],
-    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 0)],
+    ["model_name", "experimental_weight_dtype", "mesh_shape"],
+    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8])],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(
+def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     model_name: str,
     experimental_weight_dtype: str,
     mesh_shape: list[int],
-    opt_level: int,
 ):
     inputs = ["How many days ago was Mistral founded?"]
 
@@ -207,7 +203,6 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
             "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -224,6 +219,8 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 @pytest.mark.parametrize(
     ["mesh_shape", "opt_level"],
     [
+        # Both [1, 4] and [8, 4] exceed the SDPA decode tree-reduction limit at
+        # opt_level=1 (tt-mlir#9007).
         pytest.param([1, 4], 0, marks=pytest.mark.bhqb),
         pytest.param([8, 4], 0, marks=pytest.mark.bh_galaxy),
     ],
@@ -271,6 +268,7 @@ def test_tensor_parallel_generation_gemma4_31b(
 @pytest.mark.parametrize(
     ["model_name", "opt_level"],
     [
+        # opt_level=1 OOMs in the mm-encoder precompile (tt-mlir#9006).
         pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", 0),
         pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506", 0),
     ],
@@ -317,10 +315,10 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "opt_level"],
-    [pytest.param("mistralai/Pixtral-Large-Instruct-2411", 0)],
+    ["model_name"],
+    [pytest.param("mistralai/Pixtral-Large-Instruct-2411")],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str, opt_level: int):
+def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
     messages = [
         {
@@ -346,7 +344,6 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str, opt_leve
             "min_context_len": 1024,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)

@@ -19,7 +19,7 @@ def run_pooling_test(
     enable_const_eval: bool = True,
     max_num_reqs: int = 2,
     max_num_batched_tokens: int = 128,
-    optimization_level: int = 0,
+    optimization_level: int = 1,
     use_2d_mesh: bool = False,
     mesh_shape: list[int] | None = None,
     shard_weights_on_batch_axis: bool = True,
