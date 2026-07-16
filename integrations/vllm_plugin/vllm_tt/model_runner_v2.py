@@ -10,11 +10,12 @@ subclassing ``GPUModelRunner``.
 This file is built in reviewable sub-increments. Present so far: the request
 lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
 input-token preparation, the attention slot-mapping build (feeding
-``TTModelState.prepare_attn``), and the sampled-token writeback (``postprocess``).
-Still to land: ``__init__``/``load_model`` (construct the state below),
-``initialize_kv_cache``, the compiled forward graphs, and the
-``execute_model``/``sample_tokens`` multi-pass driver that threads all of the
-above together.
+``TTModelState.prepare_attn``), the sampled-token writeback (``postprocess``),
+and the ``execute_model``/``sample_tokens`` two-phase driver that threads them
+together. Still to land: ``__init__``/``load_model`` (construct the state below),
+``initialize_kv_cache``, and the compiled forward graphs -- all reached through
+the single documented ``_run_model_pass`` hardware leaf, which is stubbed until
+those are ported (needs a TT device to validate).
 
 Layout note
 -----------
@@ -40,9 +41,17 @@ state, following upstream v2 semantics (NOT the v1 fork's ``_update_states``):
   bookkeeping to ``TTRequestState``, block ids to the runner-owned block table.
 
 The runner instance is expected to carry (set up by ``__init__``, later
-sub-increment): ``req_states``, ``sampling_states``, ``block_table`` (a vLLM
-``MultiGroupBlockTable``), ``encoder_cache`` (dict), ``num_prompt_logprobs``
-(dict), ``model_state`` (or None), and ``vocab_size``.
+sub-increment): the split state (``req_states``, ``sampling_states``,
+``block_table`` -- a vLLM ``MultiGroupBlockTable``, ``encoder_cache`` dict,
+``num_prompt_logprobs`` dict, ``model_state``); scalars (``vocab_size``,
+``max_num_blocks_per_req``, ``supports_mm_inputs``, and the SMEM-cap set read by
+``_select_batch``: ``most_model_len``/``num_reqs_max_model_len``/
+``num_reqs_most_model_len``/``min_num_reqs``/``max_prefill_num_reqs``/
+``max_num_reqs``/``num_tokens_paddings``); the per-step handoff
+``scheduler_output`` (initialised to None); and the device machinery reached
+only through ``_run_model_pass`` (persistent input/attn buffers, ``model``,
+``sampler``, ``sampling_device``, ``attention_layer_names``, ``dp_size``, and the
+compiled forward graphs).
 """
 
 from __future__ import annotations
@@ -385,3 +394,166 @@ class TTModelRunnerV2:
             fill_page_table[zero_rows, :] = 0
 
         return page_table, fill_page_table, cache_position
+
+    # ------------------------------------------------------------------ #
+    # Two-phase step driver (mirrors the v1 fork + upstream v2 split).
+    # ------------------------------------------------------------------ #
+
+    def execute_model(
+        self,
+        scheduler_output: "SchedulerOutput",
+        intermediate_tensors=None,
+    ):
+        """Phase 1: apply the scheduler delta, then hand off to sample_tokens.
+
+        Mirrors the v1 fork / upstream v2 two-phase contract (the worker calls
+        execute_model then sample_tokens). All host state updates happen here via
+        the tested lifecycle; the forward + sampling are deferred to
+        sample_tokens. Returns None on a normal step (output comes from
+        sample_tokens) or an empty output when nothing is scheduled.
+        """
+        assert (
+            self.scheduler_output is None
+        ), "execute_model called before sample_tokens consumed the prior step"
+        # TT compiles one graph per (bucket) shape; keep dynamic shapes off so a
+        # new shape recompiles rather than silently falling back.
+        torch._dynamo.config.dynamic_shapes = False
+
+        self.finish_requests(scheduler_output)
+        self.add_requests(scheduler_output)
+        self.update_requests(scheduler_output)
+
+        if scheduler_output.total_num_scheduled_tokens == 0:
+            # No tokens this step (e.g. only KV-connector activity).
+            from vllm.v1.worker.gpu_model_runner import EMPTY_MODEL_RUNNER_OUTPUT
+
+            return EMPTY_MODEL_RUNNER_OUTPUT
+
+        if self.supports_mm_inputs:
+            # Needs TTModelState.get_mm_embeddings + the encoder run (deferred).
+            raise NotImplementedError(
+                "multimodal path pending get_mm_embeddings (MRv2 Phase 3)."
+            )
+
+        self.scheduler_output = scheduler_output
+        return None
+
+    def sample_tokens(self, grammar_output):
+        """Phase 2: run the (possibly multi-pass) batch loop and sample.
+
+        Composes the tested host stages -- decode-first ordering, SMEM
+        sub-batching, input-token prep, attention slot-mapping, and the
+        sampled-token writeback -- around the single hardware leaf
+        ``_run_model_pass``. The SMEM row caps mean a step may span several passes
+        (start_index advances); results are concatenated in processing order.
+        """
+        if self.scheduler_output is None:
+            # PP non-final rank / nothing stashed: output is unused.
+            return None
+        scheduler_output = self.scheduler_output
+        self.scheduler_output = None
+
+        if grammar_output is not None:
+            raise NotImplementedError(
+                "structured-output decoding pending for the v2 runner."
+            )
+        if self.num_prompt_logprobs:
+            raise NotImplementedError("prompt logprobs pending for the v2 runner.")
+
+        ordered_slots, ordered_num_tokens = self._order_scheduled_reqs(scheduler_output)
+
+        out_req_ids: list[str] = []
+        out_sampled: list[list[int]] = []
+
+        start_index = 0
+        while start_index < len(ordered_slots):
+            (
+                idx_mapping,
+                num_scheduled,
+                target_num_reqs,
+                padded_query_len,
+                end_index,
+            ) = self._select_batch(ordered_slots, ordered_num_tokens, start_index)
+
+            input_ids, positions, _query_start_loc, seq_lens, logits_indices = (
+                self._prepare_input_tokens(
+                    idx_mapping, num_scheduled, target_num_reqs, padded_query_len
+                )
+            )
+            page_table, fill_page_table, cache_position = self._prepare_attn_tensors(
+                idx_mapping,
+                num_scheduled,
+                seq_lens,
+                target_num_reqs,
+                self.max_num_blocks_per_req,
+            )
+
+            sampled = self._run_model_pass(
+                idx_mapping,
+                num_scheduled,
+                target_num_reqs,
+                padded_query_len,
+                input_ids,
+                positions,
+                logits_indices,
+                page_table,
+                fill_page_table,
+                cache_position,
+            )
+
+            valid = self.postprocess(idx_mapping, num_scheduled, sampled)
+            for b in range(len(idx_mapping)):
+                slot = int(idx_mapping[b])
+                out_req_ids.append(self.req_states.index_to_req_id[slot])
+                out_sampled.append(valid[b])
+
+            start_index = end_index
+
+        from vllm.v1.outputs import ModelRunnerOutput
+
+        return ModelRunnerOutput(
+            req_ids=out_req_ids,
+            req_id_to_index={rid: i for i, rid in enumerate(out_req_ids)},
+            sampled_token_ids=out_sampled,
+        )
+
+    def _run_model_pass(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        target_num_reqs: int,
+        padded_query_len: int,
+        input_ids: np.ndarray,
+        positions: np.ndarray,
+        logits_indices: np.ndarray,
+        page_table: np.ndarray,
+        fill_page_table: np.ndarray,
+        cache_position: np.ndarray,
+    ) -> list[list[int]]:
+        """Run one compiled forward + sample pass for the selected sub-batch.
+
+        The single hardware-coupled leaf of the driver -- stubbed until
+        ``__init__``/``load_model`` and the compiled graphs are ported (needs a TT
+        device to validate). Contract, salvaged from v1 sample_tokens 1888-1972 +
+        ``_model_decode``/``_model_prefill``:
+
+          1. copy the host ``input_ids``/``positions``/``page_table``/
+             ``fill_page_table``/``cache_position``/``logits_indices`` into the
+             persistent device buffers;
+          2. attn metadata: ``self.model_state.prepare_attn(self.attention_layer_names,
+             page_table_dev, cache_position_dev, fill_page_table_dev, batch_idx_dev,
+             target_num_reqs, self.dp_size)``;
+          3. sampling metadata:
+             ``XLASupportedSamplingMetadata.from_v2_states(self.req_states,
+             self.sampling_states, <view with num_reqs + idx_mapping_np>,
+             target_num_reqs, self.sampling_device, vocab_size=self.vocab_size)``;
+          4. dispatch the decode graph when ``padded_query_len == 1`` else the
+             prefill graph (or the unfused path under ``cpu_sampling``);
+          5. run the sampler and return ``sampled_token_ids`` as a batch-ordered
+             ``list[list[int]]``.
+        """
+        raise NotImplementedError(
+            "compiled forward + sample pass requires the TT v2 runner "
+            "__init__/load_model + compiled graphs (MRv2 Phase 3, hardware "
+            "bring-up)."
+        )
