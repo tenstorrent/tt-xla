@@ -241,8 +241,6 @@ jobs:
         MULTIHOST_WORKER_IMAGE: ${{ inputs.docker_image }}
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
-        echo "SLEEPING FOREVER"
-        sleep infinity
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
         source venv/activate
         python scripts/multihost_topology.py \
