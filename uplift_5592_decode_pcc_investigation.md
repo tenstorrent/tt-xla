@@ -320,3 +320,19 @@ Keep tt-mlir at `30645f913`; override tt-metal per candidate via `-DTTMLIR_TTMET
 2. **Pin the exact tt-metal commit** in `13adda80c11..38e954a066c` (636) — suspect class **allocator / buffer management** (not SDPA/decode kernels). Bisect with the `--num-layers 1` full-flow test (good=0.998, bad=0.0), tt-mlir fixed, tt-metal via `-DTTMLIR_TTMETAL_SOURCE_DIR`.
 3. **Production impact:** the perf/argmax path (no full-vocab logits) is sane — quantify token accuracy vs CPU over many steps to decide whether vLLM/product decode is actually affected, or whether this only breaks the benchmark's logits-materialization run.
 4. **Fix belongs in tt-metal** (buffer/allocator regression surfacing as a corrupt `fill_cache` write when co-allocated with a large returned tensor). No clean tt-xla workaround identified.
+
+---
+
+## Draft tt-metal issue (ready to file)
+
+**Title:** metal-trace: SDPA-decode / KV-cache smuggled buffer-address RTAs go stale under trace → decode corruption (PCC=0.0)
+
+**Summary.** On wormhole n150, running a traced perf pass and then a second traced program that reads a device-native KV cache produces corrupted decode output (logits ~1e19). Bisected to the tt-metal bump `13adda80c11 → 38e954a066c` (pulled in by tt-mlir uplift, tt-xla issue #5605). Trace-specific: disabling trace, or running the second program first on a clean device, both make it correct.
+
+**Root cause.** `sdpa_decode_program_factory.cpp` (`:909-936`, `:825-828`) and `kv_cache/device/{update,fill}_cache_multi_core_program_factory.cpp` push raw `buffer()->address()` into kernel runtime args. metal-trace replays RTAs verbatim, so the baked KV-cache address goes stale on replay when the buffer isn't at the captured address (e.g. after a prior traced pass shifts allocation). The op comment at `sdpa_decode_program_factory.cpp:~903` documents the tension: `Buffer*` BufferBindings were avoided because they skip `create_descriptor()` on program-cache hits and leave `cur_pos` stale (`test_sdpa_decode_paged_attention`).
+
+**Ask.** Make both the buffer addresses (trace-safe, i.e. patched on replay) and the attribute-dependent scalars (`cur_pos`, page_table/mask addrs) correct under BOTH program-cache-hit and trace — e.g. BufferBindings for the addresses + route `cur_pos` through its tensor binding / refresh scalar RTAs on cache hits. (A plain BufferBindings migration reintroduces the cache-hit `cur_pos` bug.)
+
+**Repro:** tt-xla `test_falcon3_1b` (bs32) on tt-mlir `327b846` (tt-metal `38e954a066c`), n150 — perf run then PCC run → first-decode PCC=0.0; reorder (PCC first) or `TTXLA_NO_TRACE=1` → passes.
+
+**Not pinned:** exact regressing tt-metal commit within `13adda80c11..38e954a066c` (RTA-dispatch candidates `#48686` WRITE_PACKED_LARGE_UNICAST, `#48034`); a tt-metal bisect would confirm.
