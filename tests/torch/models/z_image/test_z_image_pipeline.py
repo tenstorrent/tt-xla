@@ -29,6 +29,8 @@ import torch_xla.runtime as xr
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
 from infra import RunMode
+from loguru import logger
+from PIL import Image
 from utils import BringupStatus, Category, ModelGroup, TTArch, get_torch_device_arch
 
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
@@ -123,8 +125,7 @@ class VaeDecodeWrapper(torch.nn.Module):
 class ZImagePipeline:
     """Self-contained Z-Image text-to-image pipeline for TT bring-up."""
 
-    def __init__(self, run_on_tt: bool = True, dtype: torch.dtype = DTYPE):
-        self.run_on_tt = run_on_tt
+    def __init__(self, dtype: torch.dtype = DTYPE):
         self.dtype = dtype
         self.vae_scale_factor = VAE_SCALE_FACTOR
 
@@ -146,22 +147,17 @@ class ZImagePipeline:
         )
         vae_decoder = VaeDecodeWrapper(vae).eval()
 
-        if self.run_on_tt:
-            device = xm.xla_device()
-            text_encoder.compile(backend="tt")
-            self.transformer.compile(backend="tt")
-            vae_decoder.compile(backend="tt")
-            self.text_encoder = text_encoder.to(device)
-            self.transformer = self.transformer.to(device)
-            self.vae_decoder = vae_decoder.to(device)
-            self._device = device
-        else:
-            self.text_encoder = text_encoder
-            self.vae_decoder = vae_decoder
-            self._device = torch.device("cpu")
+        device = xm.xla_device()
+        text_encoder.compile(backend="tt")
+        self.transformer.compile(backend="tt")
+        vae_decoder.compile(backend="tt")
+        self.text_encoder = text_encoder.to(device)
+        self.transformer = self.transformer.to(device)
+        self.vae_decoder = vae_decoder.to(device)
+        self._device = device
 
     def _to_tt(self, x):
-        return x.to(device=self._device) if self.run_on_tt else x
+        return x.to(device=self._device)
 
     @staticmethod
     def _to_cpu(x):
@@ -277,7 +273,7 @@ class ZImagePipeline:
                 latents = self.scheduler.step(
                     noise_pred.to(torch.float32), t, latents, return_dict=False
                 )[0]
-                print(f"  denoise step {i + 1}/{num_inference_steps}")
+                logger.info(f"  denoise step {i + 1}/{num_inference_steps}")
 
             if output_type == "latent":
                 return latents
@@ -292,11 +288,10 @@ def run_zimage_pipeline(
     output_path: str = "zimage_output.png",
     num_inference_steps: int = NUM_INFERENCE_STEPS,
     output_type: str = "pil",
-    run_on_tt: bool = True,
 ):
     torch_xla.set_custom_compile_options({"optimization_level": 1})
 
-    pipeline = ZImagePipeline(run_on_tt=run_on_tt)
+    pipeline = ZImagePipeline()
     pipeline.setup()
 
     result = pipeline.generate(
@@ -305,17 +300,17 @@ def run_zimage_pipeline(
     )
 
     if output_type == "latent":
-        print(f"Latent output shape: {result.shape}")
+        logger.info(f"Latent output shape: {result.shape}")
         return result
 
     image = result[0]
     image.save(output_path)
-    print(f"Image saved to {output_path} ({image.size})")
+    logger.info(f"Image saved to {output_path} ({image.size})")
     return result
 
 
-@pytest.mark.model_test
 @pytest.mark.nightly
+@pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.large
 @pytest.mark.record_test_properties(
@@ -325,7 +320,7 @@ def run_zimage_pipeline(
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_pipeline():
+def test_z_image_pipeline():
     """Full Z-Image text-to-image e2e on a single Blackhole chip.
 
     optimization_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE
@@ -347,12 +342,10 @@ def test_pipeline():
 
     assert images is not None, "Pipeline returned None"
     assert len(images) == 1, f"Expected 1 image, got {len(images)}"
-    from PIL import Image
-
     assert isinstance(images[0], Image.Image), "Output is not a PIL image"
     assert output_file.exists(), "Output image was not saved"
-    print("Z-Image e2e pipeline test passed.")
-
-
-if __name__ == "__main__":
-    test_pipeline()
+    with Image.open(output_path) as img:
+        width, height = img.size
+        assert width == WIDTH, f"Expected width {WIDTH}, got {width}"
+        assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
+    logger.info(f"Z-Image e2e pipeline test passed ({width}x{height}).")

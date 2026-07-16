@@ -4,7 +4,7 @@
 
 """Z-Image — single-chip benchmark-side pipeline for the imagegen harness.
 
-Mirrors the nightly e2e test (tests/torch/models/z_image/test_pipeline.py) but
+Mirrors the nightly e2e test (tests/torch/models/z_image/test_z_image_pipeline.py) but
 instruments per-component timings into ``self._perf`` for the harness. Every
 compute module runs on one Blackhole chip, compiled with
 ``torch.compile(backend="tt")``:
