@@ -8,6 +8,8 @@ enable_data_parallel=True / enable_tensor_parallel=True builds an SPMD mesh
 the "model" (TP) axis only (DP replicas hold identical slices); the input
 batch is sharded on the "batch" (DP) axis.
 """
+import os
+
 import pytest
 import vllm
 from conftest import (
@@ -374,6 +376,125 @@ def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
 
     outputs = llm.chat(messages, sampling_params)
     assert len(outputs) == len(messages)
+    for prompt, out in zip(prompts, outputs):
+        output_text = out.outputs[0].text
+        print(f"prompt: {prompt}, output: {output_text}")
+        assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.parametrize(
+    ["enable_const_eval", "experimental_weight_dtype"],
+    [
+        pytest.param(True, "bfp_bf8"),
+    ],
+)
+@pytest.mark.parametrize(
+    "max_model_len",
+    [
+        # Context-length sweep. All are multiples of 8 * block_size (8 * 32 =
+        # 256), the chunked-SDPA page-table alignment requirement. gpu_memory_
+        # utilization is deliberately held constant across lengths: prefill is
+        # chunked, so the prefill activation budget does not grow with context;
+        # only the KV block pool sizing (fixed by gpu_memory_utilization) and
+        # the per-request block-table cap grow.
+        pytest.param(1024),
+        pytest.param(4096),
+        pytest.param(8192),
+        pytest.param(16384),
+        pytest.param(32768),
+    ],
+)
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        pytest.param([4, 8], marks=pytest.mark.bh_galaxy),
+    ],
+)
+def test_dptp_devstral(
+    mesh_shape: list[int],
+    max_model_len: int,
+    enable_const_eval: bool,
+    experimental_weight_dtype: str,
+):
+    """Devstral-2-123B DP+TP on the BH galaxy, mesh (4, 8) — 4 DP replicas of
+    8-way TP. Batch 128 -> 32 sequences per replica. Full-depth model (no
+    num_hidden_layers override) swept across max_model_len (1024 -> 32768) to
+    validate chunked prefill + KV-cache allocation + page-table sizing at
+    increasing context lengths. Exercises the full production knob set
+    (b1-prefill, BFP8 KV+weights, optimization level 1, chunked prefill,
+    const eval).
+
+    NOTE: the prompts here are short (~30 tokens), so a sequence fits in a
+    single 128-token chunk — the multi-chunk cached-prefix runtime path is not
+    exercised at runtime, but its graph IS compiled at warmup. This validates
+    that each context length compiles, allocates its KV pool, and runs to
+    coherent output; genuine multi-chunk long-context streaming needs prompts
+    longer than prefill_chunk_size.
+
+    cpu_sampling=True is REQUIRED here: on-device/device sampling on this
+    2D-mesh DP+TP path is currently blocked by issue #4387 (trace-insertion
+    crash at optimization_level >= 1) and issue #4440 (2D-mesh sampler
+    token-soup with >1 sample per device), so the "on-device sampling"
+    production row is not testable yet on this path.
+    """
+    model_name = "mistralai/Devstral-2-123B-Instruct-2512"
+
+    prompts = [
+        "Continue in English: I like taking walks in the",
+        "Continue in English: The weather today is",
+        "Continue in English: My favourite season is",
+        "Continue in English: The best book I have read is",
+        "Continue in English: The most interesting place I visited is",
+        "Continue in English: My favourite food is",
+        "Continue in English: The thing I enjoy most about weekends is",
+        "Continue in English: The future of technology will",
+        "Continue in English: The ocean is full of",
+        "Continue in English: In the morning I usually",
+        "Continue in English: The best way to learn a new language is",
+        "Continue in English: On a rainy day I like to",
+        "Continue in English: My favourite kind of music is",
+        "Continue in English: The city I would most like to visit is",
+        "Continue in English: A healthy breakfast usually includes",
+        "Continue in English: The stars in the night sky",
+    ] * 8  # 16 * 8 = 128; duplicate prompts are fine for a compile/coherence test
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": 128,
+        "max_model_len": max_model_len,
+        "max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.3,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": False,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "experimental_kv_cache_dtype": "bfp_bf8",
+            "enable_const_eval": enable_const_eval,
+            "optimization_level": 1,
+            "enable_trace": False, 
+            "prefill_chunk_size": 128,  # alone turns on chunked prefill
+            "min_num_seqs": 1,  # b1-prefill: must be < max_num_seqs
+            "prefill_batch_threshold": 16,  # b1-prefill: arms small-graph serial prefill
+            "mesh_shape": mesh_shape,
+            # num_hidden_layers omitted -> full-depth model (override only
+            # applies when 0 < target < original; default 0 = no override).
+            # cpu_sampling REQUIRED: on-device sampling blocked by #4387
+            # (trace-insertion crash at opt>=1) and #4440 (2D-mesh sampler
+            # token-soup with >1 sample/device).
+            "cpu_sampling": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
     for prompt, out in zip(prompts, outputs):
         output_text = out.outputs[0].text
         print(f"prompt: {prompt}, output: {output_text}")
