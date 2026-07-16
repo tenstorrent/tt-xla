@@ -517,61 +517,66 @@ def benchmark_llm_torch_xla(
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
-    warmup_kv_cache = None
-
-    # TTXLA_SKIP_PERF=1: skip warmup + perf benchmark run entirely; go straight to
-    # the PCC/logits run. Tests whether the perf run's prior execution/allocation
-    # is a precondition for the decode explosion.
     _skip_perf = bool(os.environ.get("TTXLA_SKIP_PERF"))
-
-    # Warmup run (skip in decode-only mode)
-    if not decode_only and not _skip_perf:
-        # Construct inputs for warmup run
-        input_args = construct_inputs(
-            tokenizer,
-            model.config,
-            batch_size,
-            max_cache_len,
-            input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
-            use_mla_cache=use_mla_cache,
-        )
-        input_args = transfer_to_device(input_args, device)
-        if is_multichip:
-            _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-        print("Warming up...")
-        warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
-            compiled_perf_model,
-            input_args,
-            device,
-            warmup_tokens,
-            verbose=False,
-            collect_logits=False,
-        )
-        print("Warmup complete")
-
-        warmup_kv_cache = input_args["past_key_values"]
-
-        tracy.signpost("warmup_complete")
+    # TTXLA_PCC_FIRST=1: run the PCC/logits generation BEFORE the perf benchmark, so
+    # the PCC run executes with NO perf-run trace resident on the device. This is the
+    # perf-preserving workaround for the tt-metal trace-collision regression (uplift
+    # 30645f913): the perf run stays traced (measured perf unchanged) but runs LAST,
+    # so its trace no longer poisons the PCC decode.
+    _pcc_first = bool(os.environ.get("TTXLA_PCC_FIRST"))
 
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
 
-    if _skip_perf:
-        print("[PCCDBG] SKIPPING perf run (TTXLA_SKIP_PERF=1)")
-        iteration_times = [1_000_000] * max_output_tokens
-    else:
+    def _run_perf_benchmark():
+        """Warmup + perf benchmark. Returns iteration_times. Uses a local input_args
+        so it can run either before (default) or after the PCC run."""
+        perf_input_args = None
+        # Warmup run (skip in decode-only mode)
+        if not decode_only and not _skip_perf:
+            perf_input_args = construct_inputs(
+                tokenizer,
+                model.config,
+                batch_size,
+                max_cache_len,
+                input_prompt=custom_input_prompt,
+                input_prompt_tokens=(
+                    token_accuracy.input_prompt if accuracy_testing else None
+                ),
+                use_mla_cache=use_mla_cache,
+            )
+            perf_input_args = transfer_to_device(perf_input_args, device)
+            if is_multichip:
+                _shard_kv_cache(
+                    perf_input_args["past_key_values"], mesh, kv_cache_sharding_spec
+                )
+                if input_output_sharding_spec:
+                    xs.mark_sharding(
+                        perf_input_args["input_ids"], mesh, input_output_sharding_spec
+                    )
+            print("Warming up...")
+            warmup_tokens = min(MIN_STEPS, max_output_tokens)
+            _, _ = generate_and_benchmark(
+                compiled_perf_model,
+                perf_input_args,
+                device,
+                warmup_tokens,
+                verbose=False,
+                collect_logits=False,
+            )
+            print("Warmup complete")
+            tracy.signpost("warmup_complete")
+
+        if _skip_perf:
+            print("[PCCDBG] SKIPPING perf run (TTXLA_SKIP_PERF=1)")
+            return [1_000_000] * max_output_tokens
+
         # Reconstruct inputs for the perf benchmark run.
         existing_cache = (
-            input_args["past_key_values"] if not decode_only else decode_only_cache
+            perf_input_args["past_key_values"]
+            if not decode_only
+            else decode_only_cache
         )
 
         # Reset cumulative_length to 0 on CPU
@@ -581,7 +586,7 @@ def benchmark_llm_torch_xla(
                     layer.cumulative_length = layer.cumulative_length.cpu()
                 layer.cumulative_length.zero_()
 
-        input_args = construct_inputs(
+        perf_input_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
@@ -596,24 +601,27 @@ def benchmark_llm_torch_xla(
 
         if decode_only:
             # Reset to post-prefill decode state (single token input)
-            input_args["input_ids"] = first_decode_input_ids.clone()
-            input_args["cache_position"] = decode_only_cache_position.clone()
+            perf_input_args["input_ids"] = first_decode_input_ids.clone()
+            perf_input_args["cache_position"] = decode_only_cache_position.clone()
 
-        input_args = transfer_to_device(input_args, device)
+        perf_input_args = transfer_to_device(perf_input_args, device)
         if is_multichip and decode_only:
             _shard_kv_cache(
-                input_args["past_key_values"], mesh, kv_cache_sharding_spec
+                perf_input_args["past_key_values"], mesh, kv_cache_sharding_spec
             )
         if input_output_sharding_spec:
-            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+            xs.mark_sharding(
+                perf_input_args["input_ids"], mesh, input_output_sharding_spec
+            )
 
         # Run perf benchmark
         print(f"\nStarting performance benchmark...")
         _n = 2 if os.environ.get("TTXLA_PERF_TWICE") else 1
+        it = None
         for _i in range(_n):
-            _, iteration_times = generate_and_benchmark(
+            _, it = generate_and_benchmark(
                 compiled_perf_model,
-                input_args,
+                perf_input_args,
                 device,
                 max_output_tokens,
                 verbose=True,
@@ -622,10 +630,33 @@ def benchmark_llm_torch_xla(
                 collect_logits=False,
             )
         print("\nPerformance benchmark complete")
+        return it
+
+    iteration_times = None
+    if not _pcc_first:
+        iteration_times = _run_perf_benchmark()
 
     # ========================================================
     # PCC/TOPK BENCHMARK
     # ========================================================
+
+    # TTXLA_FREE_PERF_TRACE=1: release the perf run's compiled model/trace before
+    # the PCC run, to test whether freeing the perf trace buffers avoids the
+    # tt-metal trace-collision that corrupts the PCC decode.
+    if os.environ.get("TTXLA_FREE_PERF_TRACE"):
+        import gc as _gc
+
+        try:
+            del compiled_perf_model
+        except Exception:
+            pass
+        try:
+            del perf_wrapper
+        except Exception:
+            pass
+        _gc.collect()
+        torch_xla.sync()
+        print("[PCCDBG] freed perf compiled model/trace before PCC run")
 
     # Return logits to calculate PCC/TOPK
     logits_wrapper = LLMSamplingWrapper(
@@ -636,6 +667,15 @@ def benchmark_llm_torch_xla(
         output_sharding_spec=input_output_sharding_spec,
     )
     logits_wrapper.eval()
+    # TTXLA_PCC_NO_TRACE=1: compile the PCC/logits run WITHOUT trace while the
+    # perf run keeps trace. Tests the perf-preserving fix for the tt-metal trace
+    # capture/replay regression (perf run's traced perf numbers stay valid; the
+    # correctness gate runs untraced so it isn't poisoned by the perf trace).
+    if os.environ.get("TTXLA_PCC_NO_TRACE") and trace_enabled:
+        _opts_no_trace = dict(options)
+        _opts_no_trace["enable_trace"] = False
+        torch_xla.set_custom_compile_options(_opts_no_trace)
+        print("[PCCDBG] PCC/logits run compiled WITHOUT trace (perf run kept trace)")
     compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
     logits_steps = max_output_tokens
@@ -749,6 +789,12 @@ def benchmark_llm_torch_xla(
         )
 
     print("\nPCC/TOPK benchmark complete")
+
+    # PCC-first mode: now that the PCC decode is captured on a clean device, run the
+    # (traced) perf benchmark. Its trace may poison ITS OWN decode values, but perf
+    # only measures timing, so the reported perf numbers stay valid.
+    if _pcc_first:
+        iteration_times = _run_perf_benchmark()
 
     # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:

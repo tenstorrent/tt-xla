@@ -34,6 +34,37 @@
 
 ---
 
+## FIX ATTEMPTS (autonomous run, chasing a perf-preserving XLA fix)
+
+Goal: unblock the uplift with a tt-xla-side fix that does NOT damage measured perf (perf run must stay traced). Results on bad build, falcon3_1b `--num-layers 1`:
+
+| attempt | idea | result |
+|---|---|---|
+| `TT_RUNTIME_TRACE_REGION_SIZE=128MB` | reserve big fixed trace region | ❌ still explodes (not region size) |
+| `TTXLA_PCC_NO_TRACE=1` | perf run traced, PCC run untraced | ❌ still explodes (perf trace poisons even an untraced PCC run) |
+| `TTXLA_FREE_PERF_TRACE=1` | del perf compiled model + gc + sync before PCC | ⏳ (see log) |
+| `TTXLA_FREE_PERF_TRACE=1` | del perf compiled model + gc + sync before PCC | ❌ still explodes (trace is client-cached, not released by del) |
+| `TTXLA_NO_TRACE=1` | disable trace entirely | ✅ PASS but **DAMAGES PERF**: full falcon3-1b **24.6 sps vs 57.8 traced (−57%)** → fails the 5% check-perf-regressions gate. Not viable for green CI. |
+
+check-perf-regressions gate = **5% drop** on Samples/sec (`.github/scripts/check_regression.py`, `REGRESSION_THRESHOLD_PCT=5.0`). Traced baseline (full falcon3-1b, bs32) = **57.75 sps**, TTFT 651ms. So any fix must keep the perf run traced.
+
+### Candidate fix: PCC-FIRST reorder (`TTXLA_PCC_FIRST`) — run PCC before perf
+Insight: `TTXLA_SKIP_PERF` (no perf run) → PCC passes even full model (0.998, no hang). So a *clean device* (no resident perf trace) lets the PCC run decode correctly. The perf-preserving fix: **run the PCC/correctness run FIRST (clean device), then the traced perf benchmark LAST.** Perf stays traced → measured perf unchanged; the perf run's own (now-last) trace can't poison anything downstream.
+- 1-layer: ✅ PCC 0.999 + perf ran (no hang) + traced.
+- full model: ✅ (on a freshly-reset device) **PCC 0.998** (was 0.0), perf ran, no hang. (1st attempt hung in the PCC phase — stale device state after ~20 local runs without reset; a `tt_smi -r` fixed it. CI gets a fresh device per run.)
+
+**Perf-preserving — validated (local, full falcon3-1b, bs32):**
+| config | order | metal | samples/sec |
+|---|---|---|---|
+| good build | perf-first | old (13adda80c) | **52.34** |
+| PCC-FIRST fix | pcc-first | new (38e954a06) | **51.06** |
+
+−2.4% (within the 5% gate; and this includes the metal uplift itself, not just the reorder). NO_TRACE by comparison was 24.6 sps (−57%). So PCC-first is the perf-preserving fix. Implemented as a nested `_run_perf_benchmark()` run after the PCC block; **shipped as the default order** (no env gate) in the fix branch.
+
+Key constraint learned: the perf run's **trace buffers**, once resident, poison the next graph's execution on the device (even if that graph is untraced) — so a perf-preserving fix must free/avoid the perf trace before the PCC run without dropping trace on the perf measurement itself.
+
+---
+
 ## TL;DR (current best understanding)
 
 1. **Culprit commit = tt-metal uplift `30645f913`** — the only runtime-affecting commit in the tt-mlir range; it bumps tt-metal `13adda80c11` → `38e954a066c`. Confirmed by build+run bisect (good at `7fc4cc3e3` / old tt-metal, bad at `327b846` / new tt-metal).
