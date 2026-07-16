@@ -84,12 +84,40 @@ class TTFp8DequantLinearMethod(Fp8LinearMethod):
         self.use_aiter_and_is_supported = False
         self.fp8_linear = None
 
+        # vLLM version-skew (>=0.20): base create_weights() now reads these three
+        # attributes (base __init__, which we skip, sets them) and moved the
+        # init_fp8_linear_kernel() call out of __init__ into create_weights().
+        # Placeholder values; unused on the TT dequant path (see the
+        # create_weights override below, which no-ops the kernel init).
+        self.activation_quant_key = None
+        self.weight_quant_key = None
+        self.input_dtype = self.out_dtype
+
         if self.block_quant:
             raise NotImplementedError(
                 "TT fp8 dequant does not support block-quantized fp8 "
                 "checkpoints (weight_block_size set / weight_scale_inv). "
                 "Only per-tensor static/dynamic fp8 is supported."
             )
+
+    def create_weights(self, *args, **kwargs):
+        """Register the fp8 params via the base method, minus the OOT kernel init.
+
+        vLLM (>=0.20) moved ``init_fp8_linear_kernel()`` from ``__init__`` into
+        ``create_weights()``; on the Tenstorrent OOT platform that call raises
+        ``KeyError('OOT')`` (the very thing this class exists to avoid). The
+        dequant path never uses ``self.fp8_linear``, so neutralize the kernel
+        init for the duration of the base call and register only the weight /
+        weight_scale [+ input_scale] parameters the checkpoint loader fills in.
+        """
+        import vllm.model_executor.layers.quantization.fp8 as _vllm_fp8
+
+        orig = _vllm_fp8.init_fp8_linear_kernel
+        _vllm_fp8.init_fp8_linear_kernel = lambda *a, **k: None
+        try:
+            super().create_weights(*args, **kwargs)
+        finally:
+            _vllm_fp8.init_fp8_linear_kernel = orig
 
     def process_weights_after_loading(self, layer: Module) -> None:
         """Dequantize the fp8 weight to a plain bf16 weight.

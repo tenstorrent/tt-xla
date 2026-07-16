@@ -376,6 +376,11 @@ def partition_parallel_lm_head(
     safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
+    #batch_axis = "batch" if shard_weights_on_batch_axis else None
+    #safe_mark_sharding(layer.weight, mesh, (None, "batch"))
+    #logger.debug("Applied parallel sharding to %s", layer)
+    #xs.mark_sharding(layer.weight, mesh, ("model", None))
+    #return layer
 
 
 def partition_vocab_parallel_embedding(
@@ -385,7 +390,14 @@ def partition_vocab_parallel_embedding(
     # weight is [vocab, hidden]. Shard only the hidden dim on "model"; keep vocab
     # un-sharded — sharding vocab makes the embedding gather need a
     # CollectivePermute that tt-mlir can't lower yet (tt-mlir #3370).
-    safe_mark_sharding(layer.weight, mesh, (None, "model"))
+    safe_mark_sharding(layer.weight, mesh, (None, "batch"))
+    # Keep the embedding output DP-sharded on the "batch" axis (matching the
+    # batch-pinned inputs at model_runner.py). The previous (None, None, None)
+    # forced FULL replication, which made GSPMD all_gather the batch (e.g.
+    # 32->128) and then mesh_partition it back (128->32) on the DP axis every
+    # forward — a pure round-trip. ("batch", None, None) keeps each replica's
+    # own users local; only the legit TP hidden-dim gather (cluster_axis=1,
+    # 1536->12288) remains.
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
