@@ -11,11 +11,11 @@ This file is built in reviewable sub-increments. Present so far: the request
 lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
 input-token preparation, the attention slot-mapping build (feeding
 ``TTModelState.prepare_attn``), the sampled-token writeback (``postprocess``),
-and the ``execute_model``/``sample_tokens`` two-phase driver that threads them
-together. Still to land: ``__init__``/``load_model`` (construct the state below),
-``initialize_kv_cache``, and the compiled forward graphs -- all reached through
-the single documented ``_run_model_pass`` hardware leaf, which is stubbed until
-those are ported (needs a TT device to validate).
+the ``execute_model``/``sample_tokens`` two-phase driver that threads them
+together, and ``initialize_kv_cache`` (device KV allocation). Still to land:
+``__init__``/``load_model`` (construct the state below) and the compiled forward
+graphs -- reached through the single documented ``_run_model_pass`` hardware
+leaf, which is stubbed until those are ported.
 
 Layout note
 -----------
@@ -66,6 +66,7 @@ from vllm.sampling_params import SamplingType
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import SchedulerOutput
+    from vllm.v1.kv_cache_interface import KVCacheConfig
 
 
 def _get_padded_token_len(paddings: list[int], x: int) -> int:
@@ -556,4 +557,101 @@ class TTModelRunnerV2:
             "compiled forward + sample pass requires the TT v2 runner "
             "__init__/load_model + compiled graphs (MRv2 Phase 3, hardware "
             "bring-up)."
+        )
+
+    # ------------------------------------------------------------------ #
+    # KV cache allocation.
+    # ------------------------------------------------------------------ #
+
+    def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
+        """Allocate the per-layer KV cache tensors on the TT device.
+
+        The device-coupled core of ``initialize_kv_cache`` (salvaged from the v1
+        fork), split out so it can be exercised on-device without the engine
+        wrappers. Standard attention gets separate ``[k_cache, v_cache]`` tensors
+        (avoids slice/concat in the compiled graph); MLA gets a single latent
+        tensor. Only one KV-cache group (no hybrid) and one owner per tensor are
+        supported. Returns ``layer_name -> tensor | [k, v]``.
+        """
+        from vllm.v1.kv_cache_interface import AttentionSpec, MLAAttentionSpec
+
+        from .attention_impls.attention import TTAttentionBackend
+        from .attention_impls.attention_mla import TTMLAAttentionBackend
+
+        groups = kv_cache_config.kv_cache_groups
+        if len(groups) > 1:
+            raise NotImplementedError(
+                "Hybrid models with more than one KV cache type are not supported yet."
+            )
+        if len(groups) == 0:
+            # Valid when only a subset of layers is compiled (layer override).
+            return {}
+
+        assert groups[0].kv_cache_spec.block_size == self.block_size, (
+            f"KV cache block_size {groups[0].kv_cache_spec.block_size} must match "
+            f"the runner block_size {self.block_size}"
+        )
+
+        kv_cache_sizes: dict[str, int] = {}
+        for tensor in kv_cache_config.kv_cache_tensors:
+            assert (
+                len(tensor.shared_by) == 1
+            ), "A KV cache tensor shared by multiple layers is not supported on TT."
+            kv_cache_sizes[tensor.shared_by[0]] = tensor.size
+
+        kv_caches: dict = {}
+        for group in groups:
+            spec = group.kv_cache_spec
+            for layer_name in group.layer_names:
+                tensor_size = kv_cache_sizes[layer_name]
+                assert tensor_size % spec.page_size_bytes == 0
+                num_blocks = tensor_size // spec.page_size_bytes
+                if isinstance(spec, MLAAttentionSpec):
+                    # Single concatenated latent KV tensor (num_kv_heads == 1).
+                    shape = TTMLAAttentionBackend.get_kv_cache_shape(
+                        num_blocks, spec.block_size, spec.num_kv_heads, spec.head_size
+                    )
+                    kv_caches[layer_name] = torch.zeros(shape, dtype=spec.dtype).to(
+                        self.device
+                    )
+                elif isinstance(spec, AttentionSpec):
+                    if self.enable_tensor_parallel:
+                        tp_size = self.original_parallel_config.tensor_parallel_size
+                        assert spec.num_kv_heads % tp_size == 0, (
+                            f"num_kv_heads {spec.num_kv_heads} must be divisible by "
+                            f"tp_size {tp_size} under SPMD"
+                        )
+                    shape = TTAttentionBackend.get_kv_cache_shape(
+                        num_blocks, spec.block_size, spec.num_kv_heads, spec.head_size
+                    )
+                    # spec.dtype may be a 1-byte accounting dtype; the device
+                    # buffers use the real transfer dtype.
+                    k = torch.zeros(shape, dtype=self.kv_cache_dtype).to(self.device)
+                    v = torch.zeros(shape, dtype=self.kv_cache_dtype).to(self.device)
+                    kv_caches[layer_name] = [k, v]
+                else:
+                    raise NotImplementedError(
+                        f"Unsupported KV cache spec: {type(spec)}"
+                    )
+        return kv_caches
+
+    def initialize_kv_cache(self, kv_cache_config: "KVCacheConfig") -> None:
+        """Allocate KV caches and bind them into the forward context.
+
+        Wraps ``_allocate_kv_caches`` with the engine integration. The common
+        single-device path allocates and binds; the SPMD KV-cache sharding and
+        KV-transfer registration (salvage v1 initialize_kv_cache 3436-3459) land
+        with the multi-device ``__init__``. ``self.kv_caches`` (a list) and
+        ``self.vllm_config`` are provided by ``__init__``.
+        """
+        from vllm.v1.worker.utils import bind_kv_cache
+
+        kv_caches = self._allocate_kv_caches(kv_cache_config)
+        if not kv_caches:
+            return
+        self.kv_cache_config = kv_cache_config
+        bind_kv_cache(
+            kv_caches,
+            self.vllm_config.compilation_config.static_forward_context,
+            self.kv_caches,
         )
