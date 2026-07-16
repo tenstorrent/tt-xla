@@ -25,12 +25,17 @@ def _tt_mrope_forward(
 ) -> tuple[torch.Tensor, torch.Tensor | None]:
     """TT-safe MRoPE forward path based on vLLM's native implementation.
 
-    Args:
-        positions:
-            [batch_size, num_tokens] (batched text inputs) or
-            [3, batch_size, num_tokens] (T/H/W positions with multimodal inputs)
-        query: [batch_size, num_tokens, num_heads * head_size]
-        key: [batch_size, num_tokens, num_kv_heads * head_size]
+    Unlike vLLM's own (fully flattened, batch-less) forward_native, this
+    plugin's model_runner keeps an explicit request-batch dimension on
+    positions:
+        positions: [num_reqs, num_tokens] (text only) or
+                   [3, num_reqs, num_tokens] (T/H/W, multimodal)
+    while query/key arrive already flattened by vLLM's own model code
+    (query/key no longer carry a separate batch axis, vLLM >=0.20):
+        query: [num_reqs * num_tokens, num_heads * head_size]
+        key:   [num_reqs * num_tokens, num_kv_heads * head_size]
+    cos/sin are computed in positions' batched layout, then flattened to
+    match query/key's flattened leading dimension.
     """
 
     del offsets
@@ -38,13 +43,9 @@ def _tt_mrope_forward(
     assert key is not None
 
     is_mrope_positions = positions.ndim == 3 and positions.shape[0] == 3
-    if is_mrope_positions:
-        batch_size, num_tokens = positions.shape[1], positions.shape[2]
-    else:
-        batch_size, num_tokens = positions.shape
 
-    assert query.shape[0] == batch_size and query.shape[1] == num_tokens
-    assert key.shape[0] == batch_size and key.shape[1] == num_tokens
+    total_tokens = query.shape[0]
+    assert key.shape[0] == total_tokens
 
     cos_sin_cache = self._match_cos_sin_cache_dtype(query)
     cos_sin = cos_sin_cache[positions]
@@ -65,15 +66,22 @@ def _tt_mrope_forward(
                 dim=-1,
             )
 
+    # cos/sin are [num_reqs, num_tokens, rotary_dim // 2] here (mrope, after the
+    # T/H/W section select above, or plain, straight from indexing
+    # cos_sin_cache). Flatten to match query/key's already-flattened
+    # [num_reqs * num_tokens, ...] convention.
+    cos = cos.reshape(total_tokens, -1)
+    sin = sin.reshape(total_tokens, -1)
+
     query_shape = query.shape
-    query = query.view(batch_size, num_tokens, -1, self.head_size)
+    query = query.view(total_tokens, -1, self.head_size)
     query_rot = query[..., : self.rotary_dim]
     query_pass = query[..., self.rotary_dim :]
     query_rot = self.apply_rotary_emb.forward_native(query_rot, cos, sin)
     query = torch.cat((query_rot, query_pass), dim=-1).reshape(query_shape)
 
     key_shape = key.shape
-    key = key.view(batch_size, num_tokens, -1, self.head_size)
+    key = key.view(total_tokens, -1, self.head_size)
     key_rot = key[..., : self.rotary_dim]
     key_pass = key[..., self.rotary_dim :]
     key_rot = self.apply_rotary_emb.forward_native(key_rot, cos, sin)

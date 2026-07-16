@@ -56,26 +56,35 @@ _STOPWORDS = frozenset(
 )
 _WORD_RE = re.compile(r"[A-Za-z']+")
 _MIN_STOPWORD_RATIO = 0.10
-_MIN_WORDS = 5
+_MIN_STOPWORD_COUNT = 2
+_MIN_WORDS = 10
 
 
 def assert_output_coherent(text: str) -> None:
     """Heuristic assertion: text is natural-language, not token soup.
 
-    Uses English stopword ratio as the token-soup detector — coherent
+    Uses English stopword count/ratio as the token-soup detector — coherent
     continuations contain several stopwords per ~30-token output, while
-    token-soup garbage contains ~zero.
+    token-soup garbage contains ~zero. Requires both a minimum word count
+    (too few word-like fragments is itself suspicious, not a reason to skip
+    the check) and a minimum absolute stopword count in addition to the
+    ratio — with only a handful of words, a single coincidental stopword
+    match (e.g. a 3-letter fragment that happens to spell "and") trivially
+    clears a ratio-only threshold regardless of whether the surrounding text
+    means anything.
     """
     s = text.strip()
     assert s, f"empty output: {text!r}"
     words = [w.lower() for w in _WORD_RE.findall(s)]
-    assert words, f"output has no word characters: {text!r}"
-    if len(words) < _MIN_WORDS:
-        return
-    sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
     assert (
-        sr >= _MIN_STOPWORD_RATIO
-    ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
+        len(words) >= _MIN_WORDS
+    ), f"too few word-like tokens ({len(words)} < {_MIN_WORDS}), likely garbage: {text!r}"
+    stopword_count = sum(1 for w in words if w in _STOPWORDS)
+    sr = stopword_count / len(words)
+    assert stopword_count >= _MIN_STOPWORD_COUNT and sr >= _MIN_STOPWORD_RATIO, (
+        f"stopword signal too weak (count={stopword_count} < {_MIN_STOPWORD_COUNT} or "
+        f"ratio={sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
+    )
 
 
 # Unambiguous greedy prompt->answer checks. Batched, they force >1 seq/device

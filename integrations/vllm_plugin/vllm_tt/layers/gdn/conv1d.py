@@ -68,12 +68,12 @@ def _depthwise_causal_conv_1seq(
         # mul/add — no grouped conv2d, no large intermediates.
         y = weight[:, 0:1] * padded[:, 0:L]
         for j in range(1, K):
-            y = y + weight[:, j:j + 1] * padded[:, j:j + L]
+            y = y + weight[:, j : j + 1] * padded[:, j : j + L]
         if bias is not None:
             y = y + bias.unsqueeze(-1)
 
     out = _apply_activation(y, activation)
-    new_state = padded[:, -(K - 1):] if K > 1 else padded[:, 0:0]
+    new_state = padded[:, -(K - 1) :] if K > 1 else padded[:, 0:0]
     return out, new_state
 
 
@@ -116,9 +116,7 @@ def tt_causal_conv1d_fn(
         # conv_state masked by has_initial_state (zeros for a fresh prefill).
         left = conv_state.index_select(0, cache_indices)[0].to(x.dtype)
         left = left * has_initial_state[0].to(x.dtype)
-        out, new_state = _depthwise_causal_conv_1seq(
-            x, left, weight, bias, activation
-        )
+        out, new_state = _depthwise_causal_conv_1seq(x, left, weight, bias, activation)
         conv_state.index_copy_(
             0, cache_indices, new_state.unsqueeze(0).to(conv_state.dtype)
         )
@@ -168,19 +166,22 @@ def tt_causal_conv1d_update(
         ``[num_tokens, conv_dim]`` post-conv (+bias, +activation).
     """
     conv_dim, K = weight.shape
-    num_tokens = x.shape[0]
-    out = torch.empty_like(x)
 
-    for t in range(num_tokens):
-        slot = int(conv_state_indices[t])
-        state = conv_state[slot].to(x.dtype)  # [conv_dim, K-1]
-        new_tok = x[t].unsqueeze(-1)  # [conv_dim, 1]
-        window = torch.cat([state, new_tok], dim=-1)  # [conv_dim, K]
-        y = (weight * window).sum(dim=-1)  # [conv_dim]
-        if bias is not None:
-            y = y + bias
-        out[t] = _apply_activation(y, activation)
-        # Shift the window left by one: drop the oldest, keep the newest K-1.
-        conv_state[slot] = window[:, 1:].to(conv_state.dtype)
-
+    # Branchless: reads conv_state_indices only via index_select / index_copy_
+    # (tensor ops), never int(...)/.item(), so dynamo does not treat the slot
+    # lookup as a data-dependent scalar read and break the graph (the old
+    # per-token python loop with int(conv_state_indices[t]) did exactly that).
+    state = conv_state.index_select(0, conv_state_indices).to(x.dtype)
+    # Append the new token -> [T, conv_dim, K].
+    window = torch.cat([state, x.unsqueeze(-1)], dim=-1)
+    # Depthwise dot over the K window (weight broadcasts over the token dim).
+    y = (weight.unsqueeze(0) * window).sum(dim=-1)  # [T, conv_dim]
+    if bias is not None:
+        y = y + bias
+    out = _apply_activation(y, activation)
+    # Shift each window left by one and scatter back to the originating slots.
+    if K > 1:
+        conv_state.index_copy_(
+            0, conv_state_indices, window[:, :, 1:].to(conv_state.dtype)
+        )
     return out

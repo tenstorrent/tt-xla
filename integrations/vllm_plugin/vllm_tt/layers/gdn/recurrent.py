@@ -68,8 +68,18 @@ def tt_fused_recurrent_gated_delta_rule(
         beta = torch.ones_like(g)
 
     gqa = HV // H
-    qf = q.to(torch.float32).repeat_interleave(gqa, dim=2)  # [B,T,HV,K]
-    kf = k.to(torch.float32).repeat_interleave(gqa, dim=2)  # [B,T,HV,K]
+    qf = (
+        q.to(torch.float32)
+        .unsqueeze(3)
+        .expand(B, T, H, gqa, Kdim)
+        .reshape(B, T, HV, Kdim)
+    )
+    kf = (
+        k.to(torch.float32)
+        .unsqueeze(3)
+        .expand(B, T, H, gqa, Kdim)
+        .reshape(B, T, HV, Kdim)
+    )
     vf = v.to(torch.float32)
     gf = g.to(torch.float32)
     bf = beta.to(torch.float32)
@@ -86,8 +96,7 @@ def tt_fused_recurrent_gated_delta_rule(
             seqs = [(0, 0, T, 0)]
         else:
             seqs = [
-                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]), n)
-                for n in range(n_seq)
+                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]), n) for n in range(n_seq)
             ]
     else:
         seqs = [(b, 0, T, b) for b in range(B)]
@@ -105,12 +114,12 @@ def tt_fused_recurrent_gated_delta_rule(
 
     o = torch.zeros((B, T, HV, V), dtype=torch.float32, device=q.device)
 
-    for (bi, start, end, seq_idx) in seqs:
+    for bi, start, end, seq_idx in seqs:
         # Read the entering state by tensor index (avoid int(slot), which is a
         # graph break under torch.compile(backend="tt")). seq_idx is a static
         # python int from the schedule, so the [seq_idx:seq_idx+1] slice is fine.
         if ssm_state_indices is not None:
-            slot_idx = ssm_state_indices[seq_idx:seq_idx + 1]
+            slot_idx = ssm_state_indices[seq_idx : seq_idx + 1]
             S = final_state.index_select(0, slot_idx)[0].to(torch.float32)
         else:
             S = final_state[seq_idx].to(torch.float32)  # [HV, V, K]
@@ -124,9 +133,7 @@ def tt_fused_recurrent_gated_delta_rule(
             q_t = qf[bi, t] * scale  # [HV, K]
             o[bi, t] = torch.einsum("hvd,hd->hv", S, q_t)  # [HV, V]
         if ssm_state_indices is not None:
-            final_state.index_copy_(
-                0, slot_idx, S.unsqueeze(0).to(final_state.dtype)
-            )
+            final_state.index_copy_(0, slot_idx, S.unsqueeze(0).to(final_state.dtype))
         else:
             final_state[seq_idx] = S.to(final_state.dtype)
 

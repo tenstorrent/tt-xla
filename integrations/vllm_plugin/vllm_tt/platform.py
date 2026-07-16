@@ -558,10 +558,18 @@ class TTPlatform(Platform):
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
 
-    @classmethod
-    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
-        # TT backend requires a block size divisible by 32 for optimal performance.
-        return 32
+    # update_block_size_for_backend is intentionally NOT overridden here.
+    # Platform.update_block_size_for_backend (base class) does two things:
+    # picks a block size compatible with the backend's
+    # get_supported_kernel_block_sizes(), and -- critically -- aligns
+    # block_size / pads mamba page sizes for hybrid Attention+Mamba models
+    # (via _align_hybrid_block_size). Overriding it here to just return 32
+    # skipped that hybrid alignment entirely, which broke GDN models: vLLM's
+    # unify_kv_cache_spec_page_size later found attention and mamba page
+    # sizes incompatible and raised NotImplementedError. The "divisible by
+    # 32" requirement is now expressed via
+    # TTAttentionBackend.get_supported_kernel_block_sizes() instead, so the
+    # base implementation picks it up and still runs hybrid alignment.
 
     @classmethod
     def is_pin_memory_available(cls):

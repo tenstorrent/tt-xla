@@ -56,9 +56,7 @@ def _inv_unit_lower_tri(L: torch.Tensor) -> torch.Tensor:
     Ainv = _inv_unit_lower_tri(A)
     Dinv = _inv_unit_lower_tri(D)
     Binv = -Dinv @ M @ Ainv
-    zero = torch.zeros(
-        L.shape[:-2] + (h, C - h), dtype=L.dtype, device=L.device
-    )
+    zero = torch.zeros(L.shape[:-2] + (h, C - h), dtype=L.dtype, device=L.device)
     top = torch.cat([Ainv, zero], dim=-1)
     bot = torch.cat([Binv, Dinv], dim=-1)
     return torch.cat([top, bot], dim=-2)
@@ -158,8 +156,18 @@ def tt_chunk_gated_delta_rule(
         beta = torch.ones_like(g)
 
     gqa = HV // H
-    qf = q.to(torch.float32).repeat_interleave(gqa, dim=2)  # [B,T,HV,K]
-    kf = k.to(torch.float32).repeat_interleave(gqa, dim=2)
+    qf = (
+        q.to(torch.float32)
+        .unsqueeze(3)
+        .expand(B, T, H, gqa, Kdim)
+        .reshape(B, T, HV, Kdim)
+    )
+    kf = (
+        k.to(torch.float32)
+        .unsqueeze(3)
+        .expand(B, T, H, gqa, Kdim)
+        .reshape(B, T, HV, Kdim)
+    )
     vf = v.to(torch.float32)
     gf = g.to(torch.float32)
     bf = beta.to(torch.float32)
@@ -177,8 +185,7 @@ def tt_chunk_gated_delta_rule(
             bounds = [(0, 0, T)]
         else:
             bounds = [
-                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]))
-                for n in range(n_seq)
+                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1])) for n in range(n_seq)
             ]
     else:
         bounds = [(b, 0, T) for b in range(B)]

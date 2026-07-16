@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
+import os
 from collections import OrderedDict
 from enum import Enum
 from typing import List, Optional
@@ -369,10 +370,14 @@ def partition_vocab_parallel_embedding(
 
 
 def partition_gated_delta_net_attention(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
+    # shard_weights_on_batch_axis is accepted for a uniform partition-fn
+    # signature but unused: A_log/dt_bias are per-head vectors with no batch
+    # dimension to shard, so they're always sharded on "model" only.
     # logger.info(f"Applying parallel sharding to GatedDeltaNetAttention layer: {layer}")
     assert isinstance(layer, GatedDeltaNetAttention)
+    layer._tt_mesh = mesh
 
     # GDN/Mamba exposes per-head vectors that do not belong to the generic
     # linear wrappers and therefore need explicit annotation.
@@ -382,7 +387,6 @@ def partition_gated_delta_net_attention(
     if hasattr(layer, "dt_bias"):
         #    logger.info(f"Sharding dt_bias with mesh {mesh} on axis 'model'")
         safe_mark_sharding(layer.dt_bias, mesh, ("model",))
-
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 

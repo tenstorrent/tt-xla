@@ -48,9 +48,9 @@ def _install_num_actual_tokens_patch():
 def _install_gdn_graphbreak_patches():
     """Monkey-patch the GDN decode conv1d update to be branchless (no .item())."""
     import torch
-    from vllm_tt.layers.gdn import conv1d as _conv1d
-    from vllm_tt.layers.gdn import attention as _attention
     from vllm_tt.layers import gdn as _gdn_pkg
+    from vllm_tt.layers.gdn import attention as _attention
+    from vllm_tt.layers.gdn import conv1d as _conv1d
 
     def tt_causal_conv1d_update(
         x, conv_state, weight, bias, activation, conv_state_indices
@@ -90,7 +90,7 @@ def _install_gdn_graphbreak_patches():
 @pytest.mark.single_device
 def test_mrope_fixed():
     _install_num_actual_tokens_patch()  # break (1): prefill, attention.py:237
-    _install_gdn_graphbreak_patches()   # break (2): decode, conv1d.py:175
+    _install_gdn_graphbreak_patches()  # break (2): decode, conv1d.py:175
 
     prompts = [
         "Continue in English: I like taking walks in the",

@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
@@ -899,7 +900,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_decode_tokens=num_decode_tokens,
             num_spec_decodes=0,
             num_spec_decode_tokens=0,
-            num_actual_tokens=total_num_scheduled_tokens,
+            # int()-coerce: total_num_scheduled_tokens can arrive as a numpy
+            # scalar, which dynamo tensorizes and traces as a data-dependent
+            # read, breaking the graph at attention.py's mixed_qkv[:num_actual]
+            # slice (aten._local_scalar_dense).
+            num_actual_tokens=int(total_num_scheduled_tokens),
             has_initial_state=has_initial_state,
             non_spec_query_start_loc=query_start_loc,
             non_spec_state_indices_tensor=tt_attn_metadata.page_table[:num_reqs, 0],
@@ -2849,10 +2854,42 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._attention_layer_names, attn_metadata
         )
 
+        if self._gdn_layer_names:
+            # GDN layers don't consume TTMetadata (see
+            # _build_per_layer_attn_metadata) -- they need vLLM's own
+            # GDNAttentionMetadata (num_actual_tokens, non_spec_*, ...).
+            # Treat num_tokens==1 buckets as pure decode and everything else
+            # as pure prefill, matching force_gdn_prefill's semantics.
+            is_decode_bucket = num_tokens == 1
+            gdn_attn_metadata = GDNAttentionMetadata(
+                num_prefills=0 if is_decode_bucket else num_reqs,
+                num_prefill_tokens=0 if is_decode_bucket else num_reqs * num_tokens,
+                num_decodes=num_reqs if is_decode_bucket else 0,
+                num_decode_tokens=num_reqs if is_decode_bucket else 0,
+                num_spec_decodes=0,
+                num_spec_decode_tokens=0,
+                num_actual_tokens=num_reqs * num_tokens,
+                has_initial_state=torch.zeros(
+                    num_reqs, dtype=torch.bool, device=self.device
+                ),
+                non_spec_query_start_loc=torch.arange(
+                    0,
+                    (num_reqs + 1) * num_tokens,
+                    num_tokens,
+                    dtype=torch.int32,
+                    device=self.device,
+                ),
+                non_spec_state_indices_tensor=page_table[:num_reqs, 0],
+            )
+            for layer_name in self._gdn_layer_names:
+                per_layer_attn_metadata[layer_name] = gdn_attn_metadata
+
         dummy_inputs, dummy_inputs_embeds = self._get_model_inputs(
             dummy_inputs, mm_embed_inputs=None
         )
         self._pin_input_shardings(dummy_inputs, dummy_positions, dummy_inputs_embeds)
+        if self.uses_mrope:
+            dummy_positions = dummy_positions.unsqueeze(0).expand(3, -1, -1)
 
         dummy_indices = torch.zeros(num_reqs, dtype=torch.int32).to(self.device)
 
@@ -3609,9 +3646,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
                 elif kind == "mla":
                     # Single concatenated latent KV tensor; replicate.
-                    xs.mark_sharding(
-                        layer_caches, self.mesh, (None, None, None, None)
-                    )
+                    xs.mark_sharding(layer_caches, self.mesh, (None, None, None, None))
                 elif kind == "mamba":
                     mamba_type = kv_cache_mamba_type.get(layer_name)
                     specs = _MAMBA_STATE_SHARDING_SPECS.get(mamba_type)

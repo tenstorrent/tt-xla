@@ -10,8 +10,8 @@ with no adapter. The implementations are plain PyTorch (no Triton, no
 through ``torch.compile(backend="tt")`` -> tt-mlir.
 """
 
-from .conv1d import tt_causal_conv1d_fn, tt_causal_conv1d_update
 from .chunk import tt_chunk_gated_delta_rule
+from .conv1d import tt_causal_conv1d_fn, tt_causal_conv1d_update
 from .gating import tt_fused_gdn_gating
 from .l2norm import tt_l2norm_fwd
 from .recurrent import tt_fused_recurrent_gated_delta_rule
