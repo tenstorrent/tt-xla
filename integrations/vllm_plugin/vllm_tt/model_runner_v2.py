@@ -277,6 +277,8 @@ class TTModelRunnerV2:
         self.num_prompt_logprobs: dict = {}
         self.kv_caches: list = []
         self.kv_cache_config = None
+        # layer_name -> target layer for cross-layer KV sharing (get_kv_cache_spec).
+        self.shared_kv_cache_layers: dict = {}
         # Per-step handoff between the two-phase execute_model / sample_tokens.
         self.scheduler_output = None
 
@@ -984,6 +986,79 @@ class TTModelRunnerV2:
                         f"Unsupported KV cache spec: {type(spec)}"
                     )
         return kv_caches
+
+    def get_kv_cache_spec(self) -> dict:
+        """Build the per-layer KVCacheSpec from the model's attention modules.
+
+        Salvaged from the v1 fork: walks the attention layers in the static
+        forward context and emits a Full / SlidingWindow / MLA spec each,
+        skipping cross-layer-shared (recorded in ``shared_kv_cache_layers``) and
+        encoder-only layers. The engine uses this to budget KV blocks
+        (``determine_available_memory``) and to build the ``KVCacheConfig`` passed
+        back to ``initialize_kv_cache``.
+        """
+        from vllm.config import get_layers_from_vllm_config
+        from vllm.model_executor.layers.attention.attention import Attention
+        from vllm.model_executor.layers.attention.mla_attention import MLAAttention
+        from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+        from vllm.v1.attention.backend import AttentionType
+        from vllm.v1.kv_cache_interface import (
+            FullAttentionSpec,
+            MLAAttentionSpec,
+            SlidingWindowSpec,
+        )
+
+        layers = get_layers_from_vllm_config(self.vllm_config, AttentionLayerBase)
+        block_size = self.vllm_config.cache_config.block_size
+        cache_dtype_str = self.vllm_config.cache_config.cache_dtype
+
+        kv_cache_spec: dict = {}
+        for layer_name, attn_module in layers.items():
+            if isinstance(attn_module, Attention):
+                if attn_module.kv_sharing_target_layer_name is not None:
+                    # Reuses another layer's KV cache; allocate nothing here.
+                    self.shared_kv_cache_layers[layer_name] = (
+                        attn_module.kv_sharing_target_layer_name
+                    )
+                    continue
+                if attn_module.attn_type == AttentionType.DECODER:
+                    if attn_module.sliding_window is not None:
+                        kv_cache_spec[layer_name] = SlidingWindowSpec(
+                            block_size=block_size,
+                            num_kv_heads=attn_module.num_kv_heads,
+                            head_size=attn_module.head_size,
+                            dtype=self.kv_cache_spec_dtype,
+                            sliding_window=attn_module.sliding_window,
+                        )
+                    else:
+                        kv_cache_spec[layer_name] = FullAttentionSpec(
+                            block_size=block_size,
+                            num_kv_heads=attn_module.num_kv_heads,
+                            head_size=attn_module.head_size,
+                            dtype=self.kv_cache_spec_dtype,
+                        )
+                elif attn_module.attn_type in (
+                    AttentionType.ENCODER,
+                    AttentionType.ENCODER_ONLY,
+                ):
+                    continue  # encoder-only attention needs no KV cache
+                elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
+                    raise NotImplementedError(
+                        "Encoder-decoder attention is not supported yet."
+                    )
+                else:
+                    raise ValueError(f"Unknown attention type: {attn_module.attn_type}")
+            elif isinstance(attn_module, MLAAttention):
+                if layer_name in kv_cache_spec:
+                    continue
+                kv_cache_spec[layer_name] = MLAAttentionSpec(
+                    block_size=block_size,
+                    num_kv_heads=1,
+                    head_size=attn_module.head_size,
+                    dtype=self.kv_cache_spec_dtype,
+                    cache_dtype_str=cache_dtype_str,
+                )
+        return kv_cache_spec
 
     def initialize_kv_cache(self, kv_cache_config: "KVCacheConfig") -> None:
         """Allocate KV caches and bind them into the forward context.
