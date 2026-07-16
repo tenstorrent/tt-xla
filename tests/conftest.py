@@ -520,8 +520,16 @@ def cleanup_cache_fixture():
 
 def _release_dynamo_bridge_tensors():
     """Workaround for torch_xla leak: after torch._dynamo.reset(), GraphInputMatcher
-    objects and their parent caches survive, holding all model-weight XLA tensors
-    (~26 GB for 8B TP). We find these by type and clear their parent dicts.
+    objects survive holding all model-weight XLA tensors (~26 GB for 8B TP). Release
+    those tensors by clearing the list that holds them directly on each matcher.
+
+    NOTE: do NOT use gc.get_referrers() here. Traversing the referrers of a
+    torch_xla GraphInputMatcher walks torch_xla/PJRT C-objects; if a device buffer
+    has already been freed the traversal dereferences freed memory and the process
+    segfaults (signal 11) during teardown — a native crash that the try/except
+    below cannot catch (observed on the AOTAutograd compile-dispatch tests). The
+    leaked tensors live directly in GraphInputMatcher.graph_input_xla_values, so
+    clearing that attribute frees them without any referrer walk.
     """
     from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
 
@@ -532,11 +540,8 @@ def _release_dynamo_bridge_tensors():
                     obj.xla_args = None
 
             if isinstance(obj, GraphInputMatcher):
-                for ref in gc.get_referrers(obj):
-                    if isinstance(ref, tuple):
-                        for d in gc.get_referrers(ref):
-                            if isinstance(d, dict):
-                                d.clear()
+                if getattr(obj, "graph_input_xla_values", None):
+                    obj.graph_input_xla_values = []
         except ReferenceError:
             # Skip objects that have been garbage collected
             continue
