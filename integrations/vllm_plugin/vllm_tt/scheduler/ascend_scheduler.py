@@ -802,16 +802,13 @@ class AscendScheduler(Scheduler):
                 stale_req_ids[:3],
             )
 
-        # NOTE(woosuk): As len(self.running) can be up to 1K or more, the below
-        # loop can be a performance bottleneck. We should do our best to avoid
-        # expensive operations inside the loop.
-        for request in self.running:
-            req_id = request.request_id
-            num_tokens_scheduled = num_scheduled_tokens.get(req_id, 0)
-            if num_tokens_scheduled == 0:
-                # The request was not scheduled in this step.
-                continue
-            if req_id in self.scheduled_req_ids:
-                self.scheduled_req_ids.remove(req_id)
+        # Clear every remaining request scheduled this step, not just ones in
+        # self.running -- a partial-prefill continuation stays out of
+        # self.running until it finishes, so it was never cleared here
+        # (#4521). Stale/async-race ids were already discarded and popped
+        # out of num_scheduled_tokens above, so this only sees legitimately
+        # completed-this-step schedules.
+        for req_id in num_scheduled_tokens:
+            self.scheduled_req_ids.discard(req_id)
 
         return super().update_from_output(scheduler_output, model_runner_output)
