@@ -835,7 +835,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   //   3. A no-input graph on a multi-device run: a const-folded replicated
   //      value (e.g. torch.arange) has no inputs to infer from and would
   //      otherwise default to 1x1, collapse the mesh, and break the live
-  //      sharded buffers (see https://github.com/tenstorrent/tt-xla/issues/5360).
+  //      sharded buffers (see
+  //      https://github.com/tenstorrent/tt-xla/issues/5360).
   // A purely replicated computation that merely has input arguments (e.g. a
   // single-device argmax) matches none of these: AnalyzeMeshPass correctly
   // leaves it at 1x1 to match what torch-xla executes, so we must not force it
