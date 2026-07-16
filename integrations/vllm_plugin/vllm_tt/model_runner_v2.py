@@ -9,10 +9,12 @@ subclassing ``GPUModelRunner``.
 
 This file is built in reviewable sub-increments. Present so far: the request
 lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
-input-token preparation, and the attention slot-mapping build (feeding
-``TTModelState.prepare_attn``). Still to land: ``__init__``/``load_model``
-(construct the state below), ``initialize_kv_cache``, the compiled forward
-graphs, and ``execute_model``/``sample_tokens``.
+input-token preparation, the attention slot-mapping build (feeding
+``TTModelState.prepare_attn``), and the sampled-token writeback (``postprocess``).
+Still to land: ``__init__``/``load_model`` (construct the state below),
+``initialize_kv_cache``, the compiled forward graphs, and the
+``execute_model``/``sample_tokens`` multi-pass driver that threads all of the
+above together.
 
 Layout note
 -----------
@@ -284,6 +286,45 @@ class TTModelRunnerV2:
         query_start_loc[num_reqs + 1 :] = query_start_loc[num_reqs]
 
         return input_ids, positions, query_start_loc, seq_lens, logits_indices
+
+    def postprocess(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        sampled_token_ids: list[list[int]],
+    ) -> list[list[int]]:
+        """Write sampled tokens back into ``TTRequestState`` (post_update substitute).
+
+        Host substitute for upstream's ``post_update`` Triton kernel, for TT's
+        no-spec-decode path (one token per sampling request). A request produces a
+        real token only once it has consumed all its prefill (``seq_len >=
+        prefill_len``); tokens from still-prefilling (partial-chunk) requests are
+        discarded. The kept token is appended at ``total_len`` -- which equals
+        ``seq_len`` at that point -- so the next step's input-prep gather
+        (``all_token_ids[num_computed:...]``) reads it. ``num_computed_tokens`` is
+        NOT advanced here: the scheduler supplies it via ``update_requests``.
+
+        Returns the per-batch-position sampled token ids with discarded
+        (still-prefilling) rows emptied, for the ModelRunnerOutput.
+        """
+        num_reqs = len(idx_mapping_np)
+        rs = self.req_states
+        valid: list[list[int]] = [list(row) for row in sampled_token_ids[:num_reqs]]
+
+        for b in range(num_reqs):
+            slot = int(idx_mapping_np[b])
+            seq_len = int(rs.num_computed_tokens[slot]) + int(num_scheduled_tokens[b])
+            if seq_len < int(rs.prefill_len[slot]):
+                # Still prefilling: ignore the sampled token from this partial req.
+                valid[b] = []
+                continue
+            token_id = int(valid[b][0])
+            pos = int(rs.total_len[slot])
+            rs.all_token_ids[slot, pos] = token_id
+            rs.total_len[slot] = pos + 1
+            rs.last_sampled_tokens[slot, 0] = token_id
+
+        return valid
 
     def _prepare_attn_tensors(
         self,
