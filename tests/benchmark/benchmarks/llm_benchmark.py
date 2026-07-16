@@ -185,10 +185,15 @@ def construct_inputs(
         _sel = [_prompts[i % len(_prompts)] for i in range(_bs)]
         _tok = [tokenizer(p, return_tensors="pt")["input_ids"][0] for p in _sel]
         _min_len = min(int(t.shape[0]) for t in _tok)
-        _min_len = min(_min_len, int(max_cache_len))
-        input_ids = torch.stack([t[:_min_len] for t in _tok], dim=0).to(
-            input_ids.dtype
-        )
+        _min_len = min(_min_len, int(max_cache_len) - 1)
+        # Truncate to the common length, then re-append each prompt's OWN final
+        # token (its "." / "?" terminator) so the batch is uniform (min+1) and every
+        # row ends on its sentence terminator. Without this the common-min truncation
+        # drops the trailing period, so the model's first generated token just
+        # completes the sentence ("." / "?") before answering.
+        input_ids = torch.stack(
+            [torch.cat([t[:_min_len], t[-1:]]) for t in _tok], dim=0
+        ).to(input_ids.dtype)
     elif os.environ.get("TTXLA_DIVERSE_BATCH") and input_ids.shape[0] > 1:
         # [EXPERIMENT] Make each batch row a DISTINCT token sequence so decode
         # expert routing spans all EP devices, avoiding the 0-token-device

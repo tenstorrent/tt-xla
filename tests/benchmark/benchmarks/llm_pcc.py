@@ -142,15 +142,20 @@ def _maybe_diverse_prefill(input_args, tokenizer, batch_size, max_cache_len):
     sel = [_prompts[i % len(_prompts)] for i in range(bs)]
     tok = [tokenizer(p, return_tensors="pt")["input_ids"][0] for p in sel]
     min_len = min(int(t.shape[0]) for t in tok)
-    min_len = min(min_len, int(max_cache_len))
-    ids = torch.stack([t[:min_len] for t in tok], dim=0).to(
+    min_len = min(min_len, int(max_cache_len) - 1)
+    # Truncate to the common length, then re-append each prompt's OWN final token
+    # (its "." / "?" terminator) so the batch is uniform (min+1) and every row ends
+    # on its sentence terminator. Without this the common-min truncation drops the
+    # trailing period, so the model's first generated token just completes the
+    # sentence before answering.
+    ids = torch.stack([torch.cat([t[:min_len], t[-1:]]) for t in tok], dim=0).to(
         input_args["input_ids"].dtype
     )
     input_args["input_ids"] = ids
-    input_args["cache_position"] = torch.arange(0, min_len)
+    input_args["cache_position"] = torch.arange(0, min_len + 1)
     logger.warning(
         f"[EXPERIMENT] diverse PREFILL: {bs} distinct real prompts, "
-        f"truncated to common len={min_len} tokens (no padding)"
+        f"truncated to common len={min_len}+terminator (no padding)"
     )
 
 
