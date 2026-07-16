@@ -12,8 +12,7 @@ flow, mirroring diffusers ``ZImagePipeline.__call__``:
 
 Each component compiles with the ``tt`` backend and runs on a single
 Blackhole chip. Source inference parameters (prompt, 1280x720, 50 steps,
-guidance_scale=4.0) are used so the run produces a realistic image, matching
-the pattern of the FLUX.1 / FLUX.2 / Janus-Pro component-based model tests.
+guidance_scale=4.0) are used so the run produces a realistic image.
 """
 
 from __future__ import annotations
@@ -141,9 +140,6 @@ class ZImagePipeline:
         # do not all fit resident on a single Blackhole (issue #4756), so each is
         # placed -> used -> evicted in turn, keeping peak DRAM ~= max(component).
         self.text_encoder = TextEncoderWrapper(load_text_encoder(self.dtype)).eval()
-        # Complex-valued RoPE only legalizes at batch=1 on the pinned tt-mlir
-        # (batch=2 broadcast fails, tt-mlir #8874), so classifier-free guidance
-        # runs cond and uncond as two separate batch=1 passes (as WAN does).
         self.transformer = CondTransformerWrapper(load_transformer(self.dtype)).eval()
         self.vae_decoder = VaeDecodeWrapper(load_vae(self.dtype)).eval()
         self.image_processor = VaeImageProcessor(

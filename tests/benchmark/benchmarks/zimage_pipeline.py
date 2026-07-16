@@ -12,12 +12,6 @@ compute module runs on one Blackhole chip, compiled with
   - text encoder (Qwen3)                 → components["text_encoder"]
   - transformer (ZImageTransformer2DModel) denoise loop → steps
   - VAE decoder (AutoencoderKL)          → components["vae"]
-
-Classifier-free guidance runs cond + uncond as two separate batch=1 passes
-(the transformer's complex RoPE only legalizes at batch=1 on the pinned
-tt-mlir; batch=2 fails, tt-mlir #8874). Z-Image has a single text encoder, so
-it reports only the components it runs — the harness drops absent components
-from the report (model-agnostic ``components``/``steps`` schema).
 """
 
 import gc
@@ -123,7 +117,7 @@ class ZImagePipeline_TT:
         # DRAM ~= max(component) not sum — the Qwen3 encoder + ~6.2B transformer
         # + VAE do not all sit on the single chip at once. Keeping the raw
         # modules lets each generate() (warmup + steady) rebuild its compiled
-        # wrappers fresh, mirroring the flux2 benchmark.
+        # wrappers fresh.
         self.text_encoder = _TextEncoderWrapper(load_text_encoder(DTYPE)).eval()
         self.transformer = _TransformerWrapper(load_transformer(DTYPE)).eval()
         self.vae = _VaeDecodeWrapper(load_vae(DTYPE)).eval()
@@ -199,7 +193,7 @@ class ZImagePipeline_TT:
             self.scheduler.set_begin_index(0)
             timesteps = self.scheduler.timesteps
 
-            # ── Denoising loop (transformer; CFG = 2 batch=1 passes) ─────
+            # ── Denoising loop (transformer) ─────
             logger.info(
                 f"[STAGE] Transformer denoising loop: start "
                 f"({num_inference_steps} steps)"
