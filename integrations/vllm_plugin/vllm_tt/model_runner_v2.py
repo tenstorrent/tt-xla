@@ -7,11 +7,21 @@ Phase 3 of the MRv2 adoption. Upstream's v2 runner is Triton/CUDA/UVA-native
 throughout, so TT forks it and substitutes host-side mechanisms rather than
 subclassing ``GPUModelRunner``.
 
-This file is built in reviewable sub-increments; only the request lifecycle is
-present so far. Still to land: ``__init__``/``load_model`` (construct the state
-below), ``initialize_kv_cache``, host ``prepare_inputs`` (the Triton-kernel
-substitutes filling ``TTInputBatch``), the compiled forward graphs, and
-``execute_model``/``sample_tokens``.
+This file is built in reviewable sub-increments. Present so far: the request
+lifecycle and the host input-token preparation. Still to land:
+``__init__``/``load_model`` (construct the state below), ``initialize_kv_cache``,
+the attention slot-mapping build feeding ``TTModelState.prepare_attn``, the
+compiled forward graphs, and ``execute_model``/``sample_tokens``.
+
+Layout note
+-----------
+TT's model forward is **2D** ``[num_reqs, padded_query_len]`` (optionally
+reshaped to 1D at the call boundary for ``flat_model_io`` models), unlike
+upstream's flat ``[num_tokens]`` layout. So the runner builds 2D
+``input_ids``/``positions`` itself (as the v1 fork does); ``TTInputBatch`` (a
+verbatim upstream port, flat) serves as the per-step bookkeeping view
+(``idx_mapping``/``num_scheduled_tokens``/``query_start_loc``/``seq_lens``/
+``logits_indices``) consumed by ``from_v2_states`` and the attn build.
 
 Lifecycle scope
 ---------------
@@ -36,6 +46,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 
 from vllm.sampling_params import SamplingType
@@ -134,3 +145,54 @@ class TTModelRunnerV2:
             new_block_ids = cached.new_block_ids[i]
             if new_block_ids is not None:
                 self.block_table.append_row(new_block_ids, slot)
+
+    def _prepare_input_tokens(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        target_num_reqs: int,
+        padded_query_len: int,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Host substitute for the v2 Triton input-prep kernels.
+
+        Builds the per-step token tensors for a batch whose batch position ``b``
+        maps to stable slot ``idx_mapping_np[b]`` and has
+        ``num_scheduled_tokens[b]`` scheduled tokens. Replaces upstream's
+        ``prepare_prefill_inputs`` + ``prepare_pos_seq_lens`` +
+        ``combine_sampled_and_draft_tokens``; the last collapses to nothing on TT
+        because decode tokens are read straight from ``all_token_ids`` (grown by
+        the sampled-token writeback) rather than injected separately, and there is
+        no spec decode.
+
+        Returns 2D ``input_ids``/``positions`` ``[target_num_reqs,
+        padded_query_len]`` (the TT forward layout; the runner copies these into
+        persistent device buffers) plus the flat bookkeeping arrays
+        ``query_start_loc`` ``[target_num_reqs + 1]``, ``seq_lens`` and
+        ``logits_indices`` ``[target_num_reqs]``. Padding rows/columns stay zero.
+        """
+        num_reqs = len(idx_mapping_np)
+        rs = self.req_states
+
+        input_ids = np.zeros((target_num_reqs, padded_query_len), dtype=np.int32)
+        positions = np.zeros((target_num_reqs, padded_query_len), dtype=np.int32)
+        seq_lens = np.zeros(target_num_reqs, dtype=np.int32)
+        logits_indices = np.zeros(target_num_reqs, dtype=np.int32)
+
+        for b in range(num_reqs):
+            slot = int(idx_mapping_np[b])
+            n = int(num_scheduled_tokens[b])
+            computed = int(rs.num_computed_tokens[slot])
+            # Same gather for prefill and decode: the scheduled tokens for this
+            # step are all_token_ids[computed : computed + n].
+            input_ids[b, :n] = rs.all_token_ids[slot, computed : computed + n]
+            positions[b, :n] = np.arange(n, dtype=np.int32) + computed
+            seq_lens[b] = computed + n
+            # One logit per request, at its last scheduled token (within-row).
+            logits_indices[b] = n - 1
+
+        query_start_loc = np.zeros(target_num_reqs + 1, dtype=np.int32)
+        np.cumsum(num_scheduled_tokens, out=query_start_loc[1 : num_reqs + 1])
+        # Non-decreasing pad tail (matches TTInputBatch.make_dummy).
+        query_start_loc[num_reqs + 1 :] = query_start_loc[num_reqs]
+
+        return input_ids, positions, query_start_loc, seq_lens, logits_indices
