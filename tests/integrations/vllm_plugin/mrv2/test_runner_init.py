@@ -39,20 +39,10 @@ def make_vllm_config(**tt_overrides):
     )
     cache_config = SimpleNamespace(block_size=32, cache_dtype="auto")
     scheduler_config = SimpleNamespace(max_num_seqs=8, max_num_batched_tokens=2048)
-    tt_config = SimpleNamespace(
-        enable_tensor_parallel=False,
-        enable_data_parallel=False,
-        experimental_kv_cache_dtype=None,
-        min_num_seqs=None,
-        max_prefill_num_seqs=None,
-        min_context_len=32,
-        decode_only=False,
-        flat_model_io=False,
-        cpu_sampling=False,
-        enable_decode_fused_graphs=False,
-    )
-    for k, v in tt_overrides.items():
-        setattr(tt_config, k, v)
+    # additional_config is a plain dict (the runner builds TTConfig(**it), as the
+    # engine does). min_context_len pins the token-padding ladder deterministically.
+    additional_config = {"min_context_len": 32}
+    additional_config.update(tt_overrides)
     return SimpleNamespace(
         model_config=model_config,
         cache_config=cache_config,
@@ -60,7 +50,7 @@ def make_vllm_config(**tt_overrides):
         parallel_config=object(),
         load_config=object(),
         lora_config=None,
-        additional_config=tt_config,
+        additional_config=additional_config,
     )
 
 
@@ -82,8 +72,15 @@ def test_init_scalars_and_smem_caps():
     assert r.num_reqs_most_model_len is None
     # get_max_num_seqs(256, 32) is huge, so the cap is max_num_reqs.
     assert r.num_reqs_max_model_len == 8
-    assert r.min_num_reqs == 8
-    assert r.max_prefill_num_reqs == 8
+    # These fall back to max_num_reqs when the TTConfig fields are unset (None).
+    assert r.min_num_reqs == (
+        r.max_num_reqs if r.tt_config.min_num_seqs is None else r.tt_config.min_num_seqs
+    )
+    assert r.max_prefill_num_reqs == (
+        r.max_num_reqs
+        if r.tt_config.max_prefill_num_seqs is None
+        else r.tt_config.max_prefill_num_seqs
+    )
 
 
 @pytest.mark.push

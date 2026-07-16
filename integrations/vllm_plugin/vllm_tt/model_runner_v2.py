@@ -123,6 +123,7 @@ class TTModelRunnerV2:
             TTAttentionBackend,
         )
         from .input_batch_v2 import TTInputBuffers
+        from .platform import TTConfig
         from .request_state import TTRequestState
         from .sampling_state_v2 import TTSamplingStates
 
@@ -133,8 +134,17 @@ class TTModelRunnerV2:
         self.parallel_config = vllm_config.parallel_config
         self.load_config = vllm_config.load_config
         self.lora_config = vllm_config.lora_config
-        self.tt_config = vllm_config.additional_config
         self.device = device
+
+        # additional_config arrives as a plain dict; build the typed TTConfig
+        # (as the v1 runner does) so the field reads below see real values.
+        self.tt_config = TTConfig(**vllm_config.additional_config)
+        if self.device.type == "xla":
+            import torch_xla
+
+            torch_xla.set_custom_compile_options(
+                self.tt_config.get_pjrt_compile_config()
+            )
 
         tt = self.tt_config
         self.enable_tensor_parallel = bool(getattr(tt, "enable_tensor_parallel", False))

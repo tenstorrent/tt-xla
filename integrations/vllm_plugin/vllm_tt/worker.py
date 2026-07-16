@@ -172,13 +172,25 @@ class TTWorker:
             xr.initialize_cache(per_rank_path, readonly=False)
 
         # Init ModelRunner here, so that we have access to self.device.
-        ModelRunnerClass = TTModelRunner
-        if self.model_config.runner_type == "pooling":
-            ModelRunnerClass = TTPoolingModelRunner
-
-        self.model_runner = ModelRunnerClass(
-            self.vllm_config, self.device, self.original_parallel_config
+        # Opt-in MRv2 runner (default off): gated on TT_USE_V2_MODEL_RUNNER. It is
+        # single-device generate-only for now and takes a 2-arg constructor (no
+        # original_parallel_config), so keep the v1 runner as the default path.
+        use_v2 = os.environ.get("TT_USE_V2_MODEL_RUNNER", "").lower() in (
+            "1",
+            "true",
+            "yes",
         )
+        if use_v2 and self.model_config.runner_type != "pooling":
+            from .model_runner_v2 import TTModelRunnerV2
+
+            self.model_runner = TTModelRunnerV2(self.vllm_config, self.device)
+        else:
+            ModelRunnerClass = TTModelRunner
+            if self.model_config.runner_type == "pooling":
+                ModelRunnerClass = TTPoolingModelRunner
+            self.model_runner = ModelRunnerClass(
+                self.vllm_config, self.device, self.original_parallel_config
+            )
 
         if rank == 0:
             # If usage stat is enabled, collect relevant info.
