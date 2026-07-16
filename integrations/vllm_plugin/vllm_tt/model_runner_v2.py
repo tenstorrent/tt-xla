@@ -15,9 +15,11 @@ the ``execute_model``/``sample_tokens`` two-phase driver that threads them
 together, ``initialize_kv_cache`` (device KV allocation), and
 ``__init__``/``load_model`` (single-device state construction + model load /
 compile), and ``_run_model_pass`` + the compiled forward/sample graph. The
-runner is structurally complete for the single-device greedy text path. Deferred:
-the multi-device SPMD/mesh path out of ``__init__``, ``get_mm_embeddings``, and
-the grammar / cpu_sampling / prompt-logprobs branches (driver-gated).
+runner is structurally complete for the single-device greedy text path, with the
+worker-facing surface (``get_kv_cache_spec``, ``capture_model``, ``get_model``,
+``reset_mm_cache``) in place. Deferred: the multi-device SPMD/mesh path out of
+``__init__``, ``get_mm_embeddings``, LoRA (``add_lora``), and the grammar /
+cpu_sampling / prompt-logprobs branches (driver-gated).
 
 Layout note
 -----------
@@ -223,6 +225,7 @@ class TTModelRunnerV2:
         self.supports_mm_inputs = bool(
             getattr(self.model_config, "is_multimodal_model", False)
         )
+        self.mm_budget = None  # set when multimodal profiling lands
 
         # SMEM row caps consumed by _select_batch.
         self.num_reqs_max_model_len = min(
@@ -1079,4 +1082,78 @@ class TTModelRunnerV2:
             kv_caches,
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Worker-facing shims + warmup.
+    # ------------------------------------------------------------------ #
+
+    def get_model(self):
+        return self.model
+
+    def reset_mm_cache(self) -> None:
+        if self.mm_budget is not None:
+            self.mm_budget.reset_cache()
+
+    def add_lora(self, lora_request) -> bool:
+        raise NotImplementedError("LoRA is not supported in the v2 runner yet.")
+
+    def _warmup_buckets(self) -> list[tuple[int, int]]:
+        """(target_num_reqs, padded_query_len) pairs to precompile.
+
+        Decode always runs at max_num_reqs; prefill runs at the min / max prefill
+        buckets. Each request-count bucket is compiled at every token-length
+        padding, matching the shapes _select_batch can produce at runtime.
+        """
+        targets = sorted(
+            {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs}
+        )
+        return [(t, q) for t in targets for q in self.num_tokens_paddings]
+
+    def capture_model(self) -> None:
+        """Precompile the forward/sample graph at every runtime bucket shape.
+
+        Avoids paying compile latency on the first real request. Warms the greedy
+        path (argmax) at each (num_reqs, query_len) bucket; the random-sampling,
+        multimodal, and cpu_sampling warmups are deferred with those runtime
+        paths. Needs the model + KV cache initialised, so it runs at stand-up.
+        """
+        if self.cpu_sampling:
+            raise NotImplementedError("cpu_sampling warmup path is not ported yet.")
+        torch._dynamo.config.dynamic_shapes = False
+        for target_num_reqs, padded_query_len in self._warmup_buckets():
+            self._precompile_bucket(target_num_reqs, padded_query_len)
+
+    def _precompile_bucket(self, target_num_reqs: int, padded_query_len: int) -> None:
+        from .metadata import XLASupportedSamplingMetadata
+
+        dev = self.device
+        input_ids = torch.zeros(
+            (target_num_reqs, padded_query_len), dtype=torch.int32, device=dev
+        )
+        positions = torch.zeros(
+            (target_num_reqs, padded_query_len), dtype=torch.int32, device=dev
+        )
+        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32, device=dev)
+        page_table = torch.zeros(
+            (target_num_reqs, self.max_num_blocks_per_req),
+            dtype=torch.int32,
+            device=dev,
+        )
+        cache_position = torch.zeros(target_num_reqs, dtype=torch.int32, device=dev)
+        batch_idx = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
+
+        attn_metadata = self.model_state.prepare_attn(
+            self.attention_layer_names,
+            page_table,
+            cache_position,
+            fill_page_table=page_table,
+            batch_idx=batch_idx,
+            num_users=target_num_reqs,
+            dp_size=self.dp_size,
+        )
+        # Defaults are all-greedy -> warms the argmax fast-path.
+        sampling_metadata = XLASupportedSamplingMetadata(all_greedy=True)
+        self._forward_and_sample(
+            input_ids, positions, logits_indices, attn_metadata, sampling_metadata
         )
