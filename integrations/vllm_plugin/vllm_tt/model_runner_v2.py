@@ -8,10 +8,11 @@ throughout, so TT forks it and substitutes host-side mechanisms rather than
 subclassing ``GPUModelRunner``.
 
 This file is built in reviewable sub-increments. Present so far: the request
-lifecycle, the host input-token preparation, and the attention slot-mapping
-build (feeding ``TTModelState.prepare_attn``). Still to land:
-``__init__``/``load_model`` (construct the state below), ``initialize_kv_cache``,
-the compiled forward graphs, and ``execute_model``/``sample_tokens``.
+lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
+input-token preparation, and the attention slot-mapping build (feeding
+``TTModelState.prepare_attn``). Still to land: ``__init__``/``load_model``
+(construct the state below), ``initialize_kv_cache``, the compiled forward
+graphs, and ``execute_model``/``sample_tokens``.
 
 Layout note
 -----------
@@ -44,6 +45,7 @@ sub-increment): ``req_states``, ``sampling_states``, ``block_table`` (a vLLM
 
 from __future__ import annotations
 
+import bisect
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -53,6 +55,13 @@ from vllm.sampling_params import SamplingType
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import SchedulerOutput
+
+
+def _get_padded_token_len(paddings: list[int], x: int) -> int:
+    """First padding >= x (the per-step query-length bucket)."""
+    index = bisect.bisect_left(paddings, x)
+    assert index < len(paddings)
+    return paddings[index]
 
 
 class TTModelRunnerV2:
@@ -145,6 +154,85 @@ class TTModelRunnerV2:
             new_block_ids = cached.new_block_ids[i]
             if new_block_ids is not None:
                 self.block_table.append_row(new_block_ids, slot)
+
+    def _order_scheduled_reqs(
+        self, scheduler_output: "SchedulerOutput"
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Order this step's scheduled requests decodes-first (by token count).
+
+        Returns parallel ``(slots, num_scheduled_tokens)`` arrays. Sorting by
+        ascending scheduled-token count (upstream v2 convention) groups the
+        1-token decodes ahead of the prefills so the multi-pass loop can emit
+        pure decode passes (dispatched to the decode graph) before prefills.
+        """
+        slots: list[int] = []
+        ntoks: list[int] = []
+        for req_id, n in scheduler_output.num_scheduled_tokens.items():
+            slot = self.req_states.req_id_to_index.get(req_id)
+            if slot is None:
+                continue
+            slots.append(slot)
+            ntoks.append(n)
+        ntoks_np = np.array(ntoks, dtype=np.int32)
+        order = np.argsort(ntoks_np, kind="stable")
+        return np.array(slots, dtype=np.int32)[order], ntoks_np[order]
+
+    def _select_batch(
+        self,
+        ordered_slots: np.ndarray,
+        ordered_num_tokens: np.ndarray,
+        start_index: int,
+    ) -> tuple[np.ndarray, np.ndarray, int, int, int]:
+        """Pick the sub-batch for one pass, applying the SMEM row caps.
+
+        Mirrors the v1 fork's per-pass clamping over the decode-first ordering:
+        a long request in the remaining tail forces the max-model-len row cap;
+        prefill passes are additionally capped at ``max_prefill_num_reqs`` and the
+        multi-pass loop picks up the rest. Returns ``(idx_mapping,
+        num_scheduled_tokens, target_num_reqs, padded_query_len, end_index)``.
+        """
+        # A long request anywhere in the remaining tail forces max-model-len mode
+        # (fewer rows fit SMEM), matching the v1 collection loop.
+        use_max_model_len = self.most_model_len is None
+        if not use_max_model_len and np.any(
+            ordered_num_tokens[start_index:] > self.most_model_len
+        ):
+            use_max_model_len = True
+        row_cap = (
+            self.num_reqs_max_model_len
+            if use_max_model_len
+            else self.num_reqs_most_model_len
+        )
+
+        end_index = min(len(ordered_slots), start_index + row_cap)
+        num_scheduled = ordered_num_tokens[start_index:end_index]
+
+        # Prefill pass over the cap -> trim; the next pass takes the remainder.
+        if (
+            len(num_scheduled) > self.max_prefill_num_reqs
+            and int(num_scheduled.max()) > 1
+        ):
+            end_index = start_index + self.max_prefill_num_reqs
+            num_scheduled = ordered_num_tokens[start_index:end_index]
+
+        idx_mapping = ordered_slots[start_index:end_index]
+        max_scheduled = int(num_scheduled.max())
+
+        if max_scheduled == 1:
+            # Decode always runs at the max request bucket.
+            target_num_reqs = self.max_num_reqs
+        else:
+            actual = len(num_scheduled)
+            target_num_reqs = (
+                self.min_num_reqs
+                if actual <= self.min_num_reqs
+                else self.max_prefill_num_reqs
+            )
+
+        padded_query_len = _get_padded_token_len(
+            self.num_tokens_paddings, max_scheduled
+        )
+        return idx_mapping, num_scheduled, target_num_reqs, padded_query_len, end_index
 
     def _prepare_input_tokens(
         self,
