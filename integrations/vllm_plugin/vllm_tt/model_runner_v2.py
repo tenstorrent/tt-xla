@@ -14,9 +14,10 @@ input-token preparation, the attention slot-mapping build (feeding
 the ``execute_model``/``sample_tokens`` two-phase driver that threads them
 together, ``initialize_kv_cache`` (device KV allocation), and
 ``__init__``/``load_model`` (single-device state construction + model load /
-compile). Still to land: the compiled forward graphs behind the single
-documented ``_run_model_pass`` hardware leaf (stubbed), and the multi-device
-SPMD/mesh path deferred out of ``__init__``.
+compile), and ``_run_model_pass`` + the compiled forward/sample graph. The
+runner is structurally complete for the single-device greedy text path. Deferred:
+the multi-device SPMD/mesh path out of ``__init__``, ``get_mm_embeddings``, and
+the grammar / cpu_sampling / prompt-logprobs branches (driver-gated).
 
 Layout note
 -----------
@@ -771,31 +772,132 @@ class TTModelRunnerV2:
     ) -> list[list[int]]:
         """Run one compiled forward + sample pass for the selected sub-batch.
 
-        The single hardware-coupled leaf of the driver -- stubbed until
-        ``__init__``/``load_model`` and the compiled graphs are ported (needs a TT
-        device to validate). Contract, salvaged from v1 sample_tokens 1888-1972 +
-        ``_model_decode``/``_model_prefill``:
-
-          1. copy the host ``input_ids``/``positions``/``page_table``/
-             ``fill_page_table``/``cache_position``/``logits_indices`` into the
-             persistent device buffers;
-          2. attn metadata: ``self.model_state.prepare_attn(self.attention_layer_names,
-             page_table_dev, cache_position_dev, fill_page_table_dev, batch_idx_dev,
-             target_num_reqs, self.dp_size)``;
-          3. sampling metadata:
-             ``XLASupportedSamplingMetadata.from_v2_states(self.req_states,
-             self.sampling_states, <view with num_reqs + idx_mapping_np>,
-             target_num_reqs, self.sampling_device, vocab_size=self.vocab_size)``;
-          4. dispatch the decode graph when ``padded_query_len == 1`` else the
-             prefill graph (or the unfused path under ``cpu_sampling``);
-          5. run the sampler and return ``sampled_token_ids`` as a batch-ordered
-             ``list[list[int]]``.
+        Copies the host arrays to the device, builds the attention metadata
+        (``TTModelState.prepare_attn``) and sampling metadata
+        (``XLASupportedSamplingMetadata.from_v2_states``), runs the compiled
+        forward + sample, and returns the batch-ordered sampled token ids.
+        Common text path only: grammar / cpu_sampling / prompt-logprobs are
+        gated off in the driver.
         """
-        raise NotImplementedError(
-            "compiled forward + sample pass requires the TT v2 runner "
-            "__init__/load_model + compiled graphs (MRv2 Phase 3, hardware "
-            "bring-up)."
+        from types import SimpleNamespace
+
+        from .metadata import XLASupportedSamplingMetadata
+
+        dev = self.device
+        input_ids_dev = torch.from_numpy(input_ids).to(dev)
+        positions_dev = torch.from_numpy(positions).to(dev)
+        page_table_dev = torch.from_numpy(page_table).to(dev)
+        fill_page_table_dev = torch.from_numpy(fill_page_table).to(dev)
+        cache_position_dev = torch.from_numpy(cache_position).to(dev)
+        logits_indices_dev = torch.from_numpy(logits_indices).to(dev)
+        batch_idx_dev = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
+
+        attn_metadata = self.model_state.prepare_attn(
+            self.attention_layer_names,
+            page_table_dev,
+            cache_position_dev,
+            fill_page_table=fill_page_table_dev,
+            batch_idx=batch_idx_dev,
+            num_users=target_num_reqs,
+            dp_size=self.dp_size,
         )
+        # from_v2_states only reads num_reqs + idx_mapping_np off the view.
+        batch_view = SimpleNamespace(
+            num_reqs=len(idx_mapping_np), idx_mapping_np=idx_mapping_np
+        )
+        sampling_metadata = XLASupportedSamplingMetadata.from_v2_states(
+            self.req_states,
+            self.sampling_states,
+            batch_view,
+            target_num_reqs,
+            self.sampling_device,
+            vocab_size=self.vocab_size,
+        )
+
+        selected = self._forward_and_sample(
+            input_ids_dev,
+            positions_dev,
+            logits_indices_dev,
+            attn_metadata,
+            sampling_metadata,
+        )
+        # [target_num_reqs, 1] -> per active-req list; drop padding rows.
+        return selected[: len(idx_mapping_np)].cpu().tolist()
+
+    def _forward_and_sample(
+        self, input_ids, positions, logits_indices, attn_metadata, sampling_metadata
+    ):
+        """Publish the attn metadata into the forward context, then run the graph."""
+        from vllm.forward_context import set_forward_context
+
+        num_tokens = input_ids.shape[0] * input_ids.shape[1]
+        with set_forward_context(
+            attn_metadata, self.vllm_config, num_tokens=num_tokens
+        ):
+            return self._forward_and_sample_compiled(
+                input_ids, positions, logits_indices, sampling_metadata
+            )
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _forward_and_sample_compiled(
+        self, input_ids, positions, logits_indices, sampling_metadata
+    ):
+        """Compiled model forward -> last-token select -> logits -> sample."""
+        model_input_ids, model_positions, model_embeds, restore_shape = (
+            self._prepare_model_call_tensors(input_ids, positions, None)
+        )
+        hidden_states = self.model(
+            input_ids=model_input_ids,
+            positions=model_positions,
+            inputs_embeds=model_embeds,
+        )
+        hidden_states = self._restore_model_hidden_states(hidden_states, restore_shape)
+        selected_states = self._select_hidden_states(hidden_states, logits_indices)
+        logits = self.model.compute_logits(selected_states)
+        return self._sample_from_logits(logits, sampling_metadata)
+
+    def _prepare_model_call_tensors(self, input_ids, positions, inputs_embeds):
+        """Optionally flatten the 2D [reqs, tokens] tensors to 1D for flat_model_io."""
+        if not self.use_flat_model_io:
+            return input_ids, positions, inputs_embeds, None
+        restore_shape = None
+        if input_ids is not None and input_ids.ndim > 1:
+            restore_shape = input_ids.shape
+            input_ids = input_ids.reshape(-1)
+        if inputs_embeds is not None and inputs_embeds.ndim > 2:
+            if restore_shape is None:
+                restore_shape = torch.Size(inputs_embeds.shape[:-1])
+            inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+        if positions.ndim > 1:
+            if restore_shape is None:
+                restore_shape = positions.shape
+            positions = positions.reshape(-1)
+        return input_ids, positions, inputs_embeds, restore_shape
+
+    def _restore_model_hidden_states(self, hidden_states, restore_shape):
+        if restore_shape is None or hidden_states.ndim != 2:
+            return hidden_states
+        return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
+    def _select_hidden_states(self, hidden_states, indices_do_sample):
+        # Gather each request's last-token hidden state: hidden is [reqs, tokens, H].
+        batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
+        return hidden_states[batch_indices, indices_do_sample, :]
+
+    def _sample_from_logits(self, logits, sampling_metadata):
+        # Greedy fast-path (argmax) avoids the fused sampling kernel; the sampler
+        # handles temperature/top-k/p/penalties/seeds otherwise.
+        if (
+            sampling_metadata.all_greedy
+            and sampling_metadata.no_penalties
+            and sampling_metadata.no_logit_bias
+            and sampling_metadata.no_bad_words
+            and sampling_metadata.no_allowed_token_ids
+            and sampling_metadata.no_min_tokens
+            and sampling_metadata.no_generators
+        ):
+            return torch.argmax(logits, dim=-1, keepdim=True)
+        return self.sampler(logits, sampling_metadata).sampled_token_ids
 
     # ------------------------------------------------------------------ #
     # KV cache allocation.
