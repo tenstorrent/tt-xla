@@ -61,6 +61,7 @@ compiled forward graphs).
 from __future__ import annotations
 
 import bisect
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -1097,6 +1098,68 @@ class TTModelRunnerV2:
 
     def add_lora(self, lora_request) -> bool:
         raise NotImplementedError("LoRA is not supported in the v2 runner yet.")
+
+    @contextmanager
+    def maybe_setup_dummy_loras(self, lora_config):
+        """No-op LoRA warmup context (LoRA deferred). Raises if LoRA is on."""
+        if lora_config is not None:
+            raise NotImplementedError("LoRA is not supported in the v2 runner yet.")
+        yield
+
+    def get_supported_tasks(self) -> tuple:
+        """Report the generation tasks this model supports (via TTModelState)."""
+        if self.model_config.runner_type != "generate":
+            raise NotImplementedError(
+                "Only the generate runner type is supported in the v2 runner."
+            )
+        assert (
+            self.model_state is not None
+        ), "load_model must run before get_supported_tasks"
+        return tuple(self.model_state.get_supported_generation_tasks())
+
+    def reset_dynamo_cache(self) -> None:
+        """Clear the compiled-model dynamo cache so it re-traces cleanly."""
+        from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
+
+        if self.model_config.is_multimodal_model:
+            compiled_model = self.model.get_language_model().model
+        else:
+            compiled_model = self.model.model
+        if isinstance(compiled_model, TorchCompileWithNoGuardsWrapper):
+            torch._dynamo.eval_frame.remove_from_cache(
+                compiled_model.original_code_object()
+            )
+            compiled_model.compiled = False
+            TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
+
+    def update_config(self, overrides: dict) -> None:
+        from vllm.config import update_config as _update_config
+
+        allowed_config_names = {"load_config", "model_config"}
+        for config_name, config_overrides in overrides.items():
+            assert config_name in allowed_config_names, (
+                f"Config `{config_name}` not supported. "
+                f"Allowed configs: {allowed_config_names}"
+            )
+            setattr(
+                self,
+                config_name,
+                _update_config(getattr(self, config_name), config_overrides),
+            )
+
+    def reload_weights(self) -> None:
+        raise NotImplementedError(
+            "reload_weights is not supported in the v2 runner yet."
+        )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        from vllm.distributed.kv_transfer import has_kv_transfer_group
+        from vllm.distributed.kv_transfer.kv_transfer_state import (
+            ensure_kv_transfer_shutdown,
+        )
+
+        if has_kv_transfer_group():
+            ensure_kv_transfer_shutdown()
 
     def _warmup_buckets(self) -> list[tuple[int, int]]:
         """(target_num_reqs, padded_query_len) pairs to precompile.

@@ -13,6 +13,8 @@ They pin the warmup shape coverage (decode + prefill request buckets x every
 token-length padding, deduplicated) and the worker-facing shim behavior.
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
@@ -80,3 +82,54 @@ def test_add_lora_not_supported():
     r = object.__new__(TTModelRunnerV2)
     with pytest.raises(NotImplementedError):
         r.add_lora(object())
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_maybe_setup_dummy_loras_noop_context():
+    r = object.__new__(TTModelRunnerV2)
+    with r.maybe_setup_dummy_loras(None):
+        pass  # no-op context must enter/exit cleanly
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_maybe_setup_dummy_loras_rejects_lora():
+    r = object.__new__(TTModelRunnerV2)
+    with pytest.raises(NotImplementedError):
+        with r.maybe_setup_dummy_loras(object()):
+            pass
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_get_supported_tasks_delegates_to_model_state():
+    r = object.__new__(TTModelRunnerV2)
+    r.model_config = SimpleNamespace(runner_type="generate")
+    r.model_state = SimpleNamespace(get_supported_generation_tasks=lambda: ["generate"])
+    assert r.get_supported_tasks() == ("generate",)
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_get_supported_tasks_rejects_non_generate():
+    r = object.__new__(TTModelRunnerV2)
+    r.model_config = SimpleNamespace(runner_type="pooling")
+    with pytest.raises(NotImplementedError):
+        r.get_supported_tasks()
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_update_config_rejects_unknown_config():
+    r = object.__new__(TTModelRunnerV2)
+    with pytest.raises(AssertionError):
+        r.update_config({"scheduler_config": {}})
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_reload_weights_not_supported():
+    r = object.__new__(TTModelRunnerV2)
+    with pytest.raises(NotImplementedError):
+        r.reload_weights()
