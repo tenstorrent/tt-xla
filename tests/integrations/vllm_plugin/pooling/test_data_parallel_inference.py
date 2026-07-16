@@ -12,6 +12,7 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
 
 @pytest.mark.push
 @pytest.mark.data_parallel
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -48,6 +49,7 @@ def test_data_parallel_inference_push(
 
 @pytest.mark.nightly
 @pytest.mark.data_parallel
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
