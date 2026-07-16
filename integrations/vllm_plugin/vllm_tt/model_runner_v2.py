@@ -1,61 +1,25 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TT Model Runner v2 (MRv2) -- fork of upstream ``vllm/v1/worker/gpu/model_runner.py``.
+"""TT Model Runner v2 (MRv2): a fork of upstream ``vllm/v1/worker/gpu/model_runner.py``.
 
-Phase 3 of the MRv2 adoption. Upstream's v2 runner is Triton/CUDA/UVA-native
-throughout, so TT forks it and substitutes host-side mechanisms rather than
-subclassing ``GPUModelRunner``.
+Upstream's v2 runner is Triton/CUDA/UVA-native, so TT forks it and substitutes
+host-side mechanisms (numpy input-prep, ``@torch.compile(backend="tt")`` graphs,
+TT attention metadata) instead of subclassing ``GPUModelRunner``. Two things
+differ from a naive port:
 
-This file is built in reviewable sub-increments. Present so far: the request
-lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
-input-token preparation, the attention slot-mapping build (feeding
-``TTModelState.prepare_attn``), the sampled-token writeback (``postprocess``),
-the ``execute_model``/``sample_tokens`` two-phase driver that threads them
-together, ``initialize_kv_cache`` (device KV allocation), and
-``__init__``/``load_model`` (single-device state construction + model load /
-compile), and ``_run_model_pass`` + the compiled forward/sample graph. The
-runner is structurally complete for the single-device greedy text path, with the
-worker-facing surface (``get_kv_cache_spec``, ``capture_model``, ``get_model``,
-``reset_mm_cache``) in place. Deferred: the multi-device SPMD/mesh path out of
-``__init__``, ``get_mm_embeddings``, LoRA (``add_lora``), and the grammar /
-cpu_sampling / prompt-logprobs branches (driver-gated).
+* 2D forward layout: TT's model takes ``[num_reqs, padded_query_len]`` (reshaped
+  to 1D at the call boundary for ``flat_model_io`` models), not upstream's flat
+  ``[num_tokens]``. The runner builds those 2D tensors itself; ``TTInputBatch``
+  is the flat per-step bookkeeping view consumed by ``from_v2_states`` and the
+  attn build.
+* Upstream v2 request semantics: requests keep a stable ``TTRequestState`` slot
+  for their lifetime (no condense); preempted requests are freed and resumed
+  ones return via ``scheduled_new_reqs``, so ``update_requests`` has no resumed
+  branch.
 
-Layout note
------------
-TT's model forward is **2D** ``[num_reqs, padded_query_len]`` (optionally
-reshaped to 1D at the call boundary for ``flat_model_io`` models), unlike
-upstream's flat ``[num_tokens]`` layout. So the runner builds 2D
-``input_ids``/``positions`` itself (as the v1 fork does); ``TTInputBatch`` (a
-verbatim upstream port, flat) serves as the per-step bookkeeping view
-(``idx_mapping``/``num_scheduled_tokens``/``query_start_loc``/``seq_lens``/
-``logits_indices``) consumed by ``from_v2_states`` and the attn build.
-
-Lifecycle scope
----------------
-``add_requests``/``update_requests``/``finish_requests`` drive the split v2
-state, following upstream v2 semantics (NOT the v1 fork's ``_update_states``):
-
-* Requests own a **stable slot** for their lifetime (``TTRequestState`` free
-  list) -- there is no v1-style condense/shuffle.
-* Preempted requests are removed here (slot freed); when the scheduler resumes
-  them it re-sends them via ``scheduled_new_reqs`` with ``num_computed_tokens``
-  already advanced, so there is no resumed-request branch in ``update_requests``.
-* Sampling params go to ``TTSamplingStates`` (keyed by the same slot), token
-  bookkeeping to ``TTRequestState``, block ids to the runner-owned block table.
-
-The runner instance is expected to carry (set up by ``__init__``, later
-sub-increment): the split state (``req_states``, ``sampling_states``,
-``block_table`` -- a vLLM ``MultiGroupBlockTable``, ``encoder_cache`` dict,
-``num_prompt_logprobs`` dict, ``model_state``); scalars (``vocab_size``,
-``max_num_blocks_per_req``, ``supports_mm_inputs``, and the SMEM-cap set read by
-``_select_batch``: ``most_model_len``/``num_reqs_max_model_len``/
-``num_reqs_most_model_len``/``min_num_reqs``/``max_prefill_num_reqs``/
-``max_num_reqs``/``num_tokens_paddings``); the per-step handoff
-``scheduler_output`` (initialised to None); and the device machinery reached
-only through ``_run_model_pass`` (persistent input/attn buffers, ``model``,
-``sampler``, ``sampling_device``, ``attention_layer_names``, ``dp_size``, and the
-compiled forward graphs).
+Deferred: multi-device SPMD/mesh, ``get_mm_embeddings``, LoRA, and the grammar /
+cpu_sampling / prompt-logprobs branches.
 """
 
 from __future__ import annotations
@@ -513,20 +477,11 @@ class TTModelRunnerV2:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Host substitute for the v2 Triton input-prep kernels.
 
-        Builds the per-step token tensors for a batch whose batch position ``b``
-        maps to stable slot ``idx_mapping_np[b]`` and has
-        ``num_scheduled_tokens[b]`` scheduled tokens. Replaces upstream's
-        ``prepare_prefill_inputs`` + ``prepare_pos_seq_lens`` +
-        ``combine_sampled_and_draft_tokens``; the last collapses to nothing on TT
-        because decode tokens are read straight from ``all_token_ids`` (grown by
-        the sampled-token writeback) rather than injected separately, and there is
-        no spec decode.
-
-        Returns 2D ``input_ids``/``positions`` ``[target_num_reqs,
-        padded_query_len]`` (the TT forward layout; the runner copies these into
-        persistent device buffers) plus the flat bookkeeping arrays
-        ``query_start_loc`` ``[target_num_reqs + 1]``, ``seq_lens`` and
-        ``logits_indices`` ``[target_num_reqs]``. Padding rows/columns stay zero.
+        Builds 2D input_ids/positions [target_num_reqs, padded_query_len] plus flat
+        query_start_loc/seq_lens/logits_indices from TTRequestState, indexed by
+        idx_mapping_np[b] -> stable slot. Prefill and decode share one gather
+        (all_token_ids[computed:computed+n]); the sampled token was already
+        appended by the writeback and there is no spec decode. Padding stays zero.
         """
         num_reqs = len(idx_mapping_np)
         rs = self.req_states
@@ -561,19 +516,13 @@ class TTModelRunnerV2:
         num_scheduled_tokens: np.ndarray,
         sampled_token_ids: list[list[int]],
     ) -> list[list[int]]:
-        """Write sampled tokens back into ``TTRequestState`` (post_update substitute).
+        """Write sampled tokens back into TTRequestState (post_update substitute).
 
-        Host substitute for upstream's ``post_update`` Triton kernel, for TT's
-        no-spec-decode path (one token per sampling request). A request produces a
-        real token only once it has consumed all its prefill (``seq_len >=
-        prefill_len``); tokens from still-prefilling (partial-chunk) requests are
-        discarded. The kept token is appended at ``total_len`` -- which equals
-        ``seq_len`` at that point -- so the next step's input-prep gather
-        (``all_token_ids[num_computed:...]``) reads it. ``num_computed_tokens`` is
-        NOT advanced here: the scheduler supplies it via ``update_requests``.
-
-        Returns the per-batch-position sampled token ids with discarded
-        (still-prefilling) rows emptied, for the ModelRunnerOutput.
+        A request emits a token only once past its prefill (seq_len >= prefill_len);
+        still-prefilling rows are discarded. The token lands at total_len (== seq_len
+        then) so the next step's gather reads it; num_computed is advanced by the
+        scheduler via update_requests, not here. Returns per-batch sampled ids with
+        discarded rows emptied.
         """
         num_reqs = len(idx_mapping_np)
         rs = self.req_states
@@ -604,13 +553,10 @@ class TTModelRunnerV2:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Host substitute for the v2 block-table / slot-mapping kernels.
 
-        Builds the paged-attention tensors ``TTModelState.prepare_attn`` packages
-        into a ``TTMetadata``: the read-path ``page_table``, the write-path
-        ``fill_page_table``, and ``cache_position``. Batch position ``b`` maps to
-        stable slot ``idx_mapping_np[b]``; the block table is gathered in batch
-        order. Returns numpy arrays ``[target_num_reqs, num_blocks_per_req]`` /
-        ``[target_num_reqs]`` (the runner copies them into persistent device
-        buffers). Padding rows are null (page_table 0, cache_position -1).
+        Builds the paged-attention tensors TTModelState.prepare_attn packages into
+        a TTMetadata: read-path page_table (gathered in batch order via the slot
+        mapping), write-path fill_page_table (prefix rolled), and cache_position
+        (seq_lens - 1). Padding rows are null (page_table 0, cache_position -1).
         """
         num_reqs = len(idx_mapping_np)
         block_table_cpu = self.block_table[0].get_cpu_tensor()
@@ -654,22 +600,14 @@ class TTModelRunnerV2:
 
         return page_table, fill_page_table, cache_position
 
-    # ------------------------------------------------------------------ #
-    # Two-phase step driver (mirrors the v1 fork + upstream v2 split).
-    # ------------------------------------------------------------------ #
-
     def execute_model(
         self,
         scheduler_output: "SchedulerOutput",
         intermediate_tensors=None,
     ):
-        """Phase 1: apply the scheduler delta, then hand off to sample_tokens.
-
-        Mirrors the v1 fork / upstream v2 two-phase contract (the worker calls
-        execute_model then sample_tokens). All host state updates happen here via
-        the tested lifecycle; the forward + sampling are deferred to
-        sample_tokens. Returns None on a normal step (output comes from
-        sample_tokens) or an empty output when nothing is scheduled.
+        """Phase 1 of the step: apply the scheduler delta via the lifecycle and
+        stash the step. Returns None (the forward + sampling run in sample_tokens),
+        or an empty output when nothing is scheduled.
         """
         assert (
             self.scheduler_output is None
@@ -698,13 +636,9 @@ class TTModelRunnerV2:
         return None
 
     def sample_tokens(self, grammar_output):
-        """Phase 2: run the (possibly multi-pass) batch loop and sample.
-
-        Composes the tested host stages -- decode-first ordering, SMEM
-        sub-batching, input-token prep, attention slot-mapping, and the
-        sampled-token writeback -- around the single hardware leaf
-        ``_run_model_pass``. The SMEM row caps mean a step may span several passes
-        (start_index advances); results are concatenated in processing order.
+        """Phase 2 of the step: run the decode-first, SMEM-clamped multi-pass batch
+        loop around the _run_model_pass hardware leaf, then assemble the
+        ModelRunnerOutput. A step may span several passes (start_index advances).
         """
         if self.scheduler_output is None:
             # PP non-final rank / nothing stashed: output is unused.
@@ -789,14 +723,11 @@ class TTModelRunnerV2:
         fill_page_table: np.ndarray,
         cache_position: np.ndarray,
     ) -> list[list[int]]:
-        """Run one compiled forward + sample pass for the selected sub-batch.
+        """Run one compiled forward+sample pass for the selected sub-batch.
 
-        Copies the host arrays to the device, builds the attention metadata
-        (``TTModelState.prepare_attn``) and sampling metadata
-        (``XLASupportedSamplingMetadata.from_v2_states``), runs the compiled
-        forward + sample, and returns the batch-ordered sampled token ids.
-        Common text path only: grammar / cpu_sampling / prompt-logprobs are
-        gated off in the driver.
+        Copies host arrays to device, builds attention metadata (prepare_attn) +
+        sampling metadata (from_v2_states), runs the compiled graph, and returns
+        the batch-ordered sampled token ids. Common text path only.
         """
         from types import SimpleNamespace
 
@@ -918,10 +849,6 @@ class TTModelRunnerV2:
             return torch.argmax(logits, dim=-1, keepdim=True)
         return self.sampler(logits, sampling_metadata).sampled_token_ids
 
-    # ------------------------------------------------------------------ #
-    # KV cache allocation.
-    # ------------------------------------------------------------------ #
-
     def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
         """Allocate the per-layer KV cache tensors on the TT device.
 
@@ -997,12 +924,9 @@ class TTModelRunnerV2:
     def get_kv_cache_spec(self) -> dict:
         """Build the per-layer KVCacheSpec from the model's attention modules.
 
-        Salvaged from the v1 fork: walks the attention layers in the static
-        forward context and emits a Full / SlidingWindow / MLA spec each,
-        skipping cross-layer-shared (recorded in ``shared_kv_cache_layers``) and
-        encoder-only layers. The engine uses this to budget KV blocks
-        (``determine_available_memory``) and to build the ``KVCacheConfig`` passed
-        back to ``initialize_kv_cache``.
+        Emits a Full / SlidingWindow / MLA spec per layer, skipping
+        cross-layer-shared (recorded in shared_kv_cache_layers) and encoder-only
+        layers. The engine uses it to budget KV blocks and build the KVCacheConfig.
         """
         from vllm.config import get_layers_from_vllm_config
         from vllm.model_executor.layers.attention.attention import Attention
@@ -1070,11 +994,8 @@ class TTModelRunnerV2:
     def initialize_kv_cache(self, kv_cache_config: "KVCacheConfig") -> None:
         """Allocate KV caches and bind them into the forward context.
 
-        Wraps ``_allocate_kv_caches`` with the engine integration. The common
-        single-device path allocates and binds; the SPMD KV-cache sharding and
-        KV-transfer registration (salvage v1 initialize_kv_cache 3436-3459) land
-        with the multi-device ``__init__``. ``self.kv_caches`` (a list) and
-        ``self.vllm_config`` are provided by ``__init__``.
+        SPMD KV-cache sharding and KV-transfer registration land with the
+        multi-device __init__.
         """
         from vllm.v1.worker.utils import bind_kv_cache
 
@@ -1087,10 +1008,6 @@ class TTModelRunnerV2:
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
-
-    # ------------------------------------------------------------------ #
-    # Worker-facing shims + warmup.
-    # ------------------------------------------------------------------ #
 
     def get_model(self):
         return self.model
@@ -1164,69 +1081,8 @@ class TTModelRunnerV2:
         if has_kv_transfer_group():
             ensure_kv_transfer_shutdown()
 
-    def _warmup_buckets(self) -> list[tuple[int, int]]:
-        """(target_num_reqs, padded_query_len) pairs to precompile.
-
-        Decode always runs at max_num_reqs; prefill runs at the min / max prefill
-        buckets. Each request-count bucket is compiled at every token-length
-        padding, matching the shapes _select_batch can produce at runtime.
-        """
-        targets = sorted(
-            {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs}
-        )
-        return [(t, q) for t in targets for q in self.num_tokens_paddings]
-
     def capture_model(self) -> None:
-        """Precompile the forward/sample graph at every runtime bucket shape.
-
-        Avoids paying compile latency on the first real request. Warms the greedy
-        path (argmax) at each (num_reqs, query_len) bucket; the random-sampling,
-        multimodal, and cpu_sampling warmups are deferred with those runtime
-        paths. Needs the model + KV cache initialised, so it runs at stand-up.
-        """
-        if self.cpu_sampling:
-            raise NotImplementedError("cpu_sampling warmup path is not ported yet.")
-        # TODO(mrv2): precompile with valid dummy attention metadata. The
-        # all-zeros dummies below fail to compile the paged-attention op, and a
-        # failed TT compile poisons torch_xla async state, so warmup is skipped
-        # for now -- graphs compile lazily on the first matching request (as v1's
-        # _dummy_run avoids by building valid dummies). See _precompile_bucket.
-        logger.warning(
-            "MRv2 capture_model: precompile warmup is skipped; graphs compile "
-            "lazily on first use (see TODO in capture_model)."
-        )
-        return
-
-    def _precompile_bucket(self, target_num_reqs: int, padded_query_len: int) -> None:
-        from .metadata import XLASupportedSamplingMetadata
-
-        dev = self.device
-        input_ids = torch.zeros(
-            (target_num_reqs, padded_query_len), dtype=torch.int32, device=dev
-        )
-        positions = torch.zeros(
-            (target_num_reqs, padded_query_len), dtype=torch.int32, device=dev
-        )
-        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32, device=dev)
-        page_table = torch.zeros(
-            (target_num_reqs, self.max_num_blocks_per_req),
-            dtype=torch.int32,
-            device=dev,
-        )
-        cache_position = torch.zeros(target_num_reqs, dtype=torch.int32, device=dev)
-        batch_idx = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
-
-        attn_metadata = self.model_state.prepare_attn(
-            self.attention_layer_names,
-            page_table,
-            cache_position,
-            fill_page_table=page_table,
-            batch_idx=batch_idx,
-            num_users=target_num_reqs,
-            dp_size=self.dp_size,
-        )
-        # Defaults are all-greedy -> warms the argmax fast-path.
-        sampling_metadata = XLASupportedSamplingMetadata(all_greedy=True)
-        self._forward_and_sample(
-            input_ids, positions, logits_indices, attn_metadata, sampling_metadata
-        )
+        # Warmup precompile is deferred: all-zeros dummy attention metadata fails
+        # to compile the paged-attention op, and a failed TT compile poisons
+        # torch_xla async state. Graphs compile lazily on first use instead.
+        logger.warning("MRv2 capture_model: warmup skipped; graphs compile lazily.")

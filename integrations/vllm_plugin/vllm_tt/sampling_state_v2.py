@@ -3,22 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """TT ``SamplingStates`` for vLLM Model Runner v2 (MRv2).
 
-Phase 3 of the MRv2 adoption: the persistent per-request sampling-param table.
-
-MRv2 keeps sampling params OUT of ``RequestState``/``InputBatch`` (see
-request_state.py / input_batch_v2.py) and in a dedicated sampler-owned state.
-Upstream backs that with UVA ``SamplingStates`` plus separate PenaltiesState /
-LogitBiasState / BadWordsState objects, all Triton-applied on device. TT applies
-sampling host-side and on the XLA graph via ``XLASupportedSamplingMetadata`` (see
-metadata.py), so this is a plain host-side slot table.
-
-* Keyed by ``req_state_idx`` (the stable slot from ``TTRequestState``), NOT the
-  transient batch position. Each step the runner maps batch_idx -> slot via
-  ``TTInputBatch.idx_mapping_np`` and ``make_batch_view`` gathers a batch-ordered,
-  padded view that ``XLASupportedSamplingMetadata.from_v2_states`` consumes.
-* Extraction from ``SamplingParams`` mirrors the v1 fork's
-  ``input_batch.py::add_request`` exactly (greedy -> temperature 0.0; disabled
-  top_k -> vocab_size; generators only when the request carries one).
+MRv2 keeps sampling params out of RequestState/InputBatch, in a sampler-owned
+table. TT applies sampling host-side / on the XLA graph via
+XLASupportedSamplingMetadata (metadata.py), so this is a plain host-side slot
+table keyed by req_state_idx (the stable TTRequestState slot). Each step the
+runner maps batch position -> slot via TTInputBatch.idx_mapping_np, and
+make_batch_view gathers a batch-ordered padded view for from_v2_states.
+Extraction from SamplingParams mirrors the v1 input_batch.py::add_request
+(greedy -> temperature 0.0; disabled top_k -> vocab_size).
 """
 
 from __future__ import annotations

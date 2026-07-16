@@ -1,16 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""CPU unit tests for the MRv2 runner warmup buckets + worker shims.
+"""CPU unit tests for the MRv2 runner worker-facing shims.
 
-``TTModelRunnerV2._warmup_buckets`` / ``get_model`` / ``reset_mm_cache`` /
-``add_lora`` (see vllm_tt/model_runner_v2.py) are pure host logic; the actual
-``capture_model`` precompile forward needs a model + TT device and runs at
-stand-up. Here the bucket enumeration and the shims run on cpu with injected
-state.
-
-They pin the warmup shape coverage (decode + prefill request buckets x every
-token-length padding, deduplicated) and the worker-facing shim behavior.
+get_model / reset_mm_cache / add_lora / maybe_setup_dummy_loras /
+get_supported_tasks / update_config / reload_weights are pure host logic that
+runs on cpu with injected state.
 """
 
 from types import SimpleNamespace
@@ -18,35 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
-
-
-def make_runner(
-    max_num_reqs=8, min_num_reqs=2, max_prefill_num_reqs=4, paddings=(1, 32)
-):
-    r = object.__new__(TTModelRunnerV2)
-    r.max_num_reqs = max_num_reqs
-    r.min_num_reqs = min_num_reqs
-    r.max_prefill_num_reqs = max_prefill_num_reqs
-    r.num_tokens_paddings = list(paddings)
-    return r
-
-
-@pytest.mark.push
-@pytest.mark.cpu
-def test_warmup_buckets_cover_request_and_token_shapes():
-    r = make_runner()
-    # targets = sorted({8, 2, 4}) = [2, 4, 8]; each x every token padding.
-    assert r._warmup_buckets() == [(2, 1), (2, 32), (4, 1), (4, 32), (8, 1), (8, 32)]
-
-
-@pytest.mark.push
-@pytest.mark.cpu
-def test_warmup_buckets_dedup_when_request_counts_equal():
-    r = make_runner(
-        max_num_reqs=8, min_num_reqs=8, max_prefill_num_reqs=8, paddings=(1, 16)
-    )
-    # All request-count buckets coincide -> a single target.
-    assert r._warmup_buckets() == [(8, 1), (8, 16)]
 
 
 @pytest.mark.push

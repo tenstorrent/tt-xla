@@ -18,18 +18,13 @@ table) and ``InputBatch`` (transient per-step view). This file is only the
   TT v2 runner (Phase 3) wires it in.
 * The model-agnostic methods (task discovery, the common 1D-positions input
   path, staged-write / add_request no-ops) are implemented for real here.
-* ``prepare_attn`` (Phase 3) assembles a ``TTMetadata`` from the per-step
-  device arrays the runner computes host-side and fans it out to every attention
-  layer -- the same ``dict.fromkeys(layer_names, meta)`` the v1 fork builds
-  inline. Its signature diverges from upstream's (which passes flat
-  ``block_tables``/``slot_mappings``): TT's paged ops consume
-  ``page_table``/``cache_position`` instead, so matching upstream would mean
-  re-porting Triton block-table kernels TT never uses.
-* ``get_mm_embeddings`` still raises NotImplementedError: its data seams (the
-  per-request multimodal-feature store, the padded ``input_ids`` layout it masks
-  against, and ``model.embed_multimodal``/``embed_input_ids``) are owned by the
-  TT v2 runner, which does not exist yet. It is co-implemented with that runner
-  rather than against a speculative interface. Contract documented on the method.
+* ``prepare_attn`` (Phase 3) assembles a ``TTMetadata`` from the per-step device
+  arrays the runner computes host-side and fans it out to every attention layer.
+  Its signature diverges from upstream's flat block_tables/slot_mappings because
+  TT's paged ops consume page_table/cache_position instead.
+* ``get_mm_embeddings`` still raises NotImplementedError: its seams (mm-feature
+  store, padded input_ids layout, model.embed_*) are runner-owned, so it is
+  co-implemented with the runner. Contract on the method.
 
 Why not subclass upstream ``DefaultModelState``?
 ------------------------------------------------
@@ -215,14 +210,11 @@ class TTModelState(ModelState):
     ) -> dict[str, Any]:
         """Assemble the per-layer attention-metadata dict for the model forward.
 
-        Upstream DefaultModelState delegates to build_attn_metadata() over flat
-        block_tables/slot_mappings; TT's attention backends (see attention_impls/)
-        consume a single ``TTMetadata`` built from paged tensors instead, so the
-        signature is adapted (see module docstring). The per-step tensors are
-        computed host-side by the runner; this method only packages them and fans
-        the shared metadata out to every attention layer -- mirroring the v1
-        fork's ``dict.fromkeys(self._attention_layer_names, attn_metadata)``.
-        ``fill_page_table`` defaults to ``page_table`` (no prefix roll).
+        TT's attention backends consume a single TTMetadata built from paged
+        tensors (page_table/cache_position/...), not upstream's flat
+        block_tables/slot_mappings, so the signature is adapted. The runner
+        computes the tensors host-side; this fans the shared metadata out to every
+        attention layer. fill_page_table defaults to page_table (no prefix roll).
         """
         from .attention_impls.attention import TTMetadata
 
