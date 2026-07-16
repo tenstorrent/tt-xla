@@ -18,13 +18,14 @@ the pattern of the FLUX.1 / FLUX.2 / Janus-Pro component-based model tests.
 
 from __future__ import annotations
 
+import gc
 import inspect
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
@@ -135,26 +136,20 @@ class ZImagePipeline:
             REPO_ID, subfolder="scheduler"
         )
 
-        text_encoder = TextEncoderWrapper(load_text_encoder(self.dtype)).eval()
-        transformer = load_transformer(self.dtype)
+        # Components are loaded on CPU and placed on-device one at a time (see
+        # _on_device): the ~6.2B transformer, the Qwen3 text encoder and the VAE
+        # do not all fit resident on a single Blackhole (issue #4756), so each is
+        # placed -> used -> evicted in turn, keeping peak DRAM ~= max(component).
+        self.text_encoder = TextEncoderWrapper(load_text_encoder(self.dtype)).eval()
         # Complex-valued RoPE only legalizes at batch=1 on the pinned tt-mlir
         # (batch=2 broadcast fails, tt-mlir #8874), so classifier-free guidance
         # runs cond and uncond as two separate batch=1 passes (as WAN does).
-        self.transformer = CondTransformerWrapper(transformer).eval()
-        vae = load_vae(self.dtype)
+        self.transformer = CondTransformerWrapper(load_transformer(self.dtype)).eval()
+        self.vae_decoder = VaeDecodeWrapper(load_vae(self.dtype)).eval()
         self.image_processor = VaeImageProcessor(
             vae_scale_factor=self.vae_scale_factor * 2
         )
-        vae_decoder = VaeDecodeWrapper(vae).eval()
-
-        device = xm.xla_device()
-        text_encoder.compile(backend="tt")
-        self.transformer.compile(backend="tt")
-        vae_decoder.compile(backend="tt")
-        self.text_encoder = text_encoder.to(device)
-        self.transformer = self.transformer.to(device)
-        self.vae_decoder = vae_decoder.to(device)
-        self._device = device
+        self._device = torch_xla.device()
 
     def _to_tt(self, x):
         return x.to(device=self._device)
@@ -163,7 +158,26 @@ class ZImagePipeline:
     def _to_cpu(x):
         return x.to("cpu")
 
-    def _encode_prompt(self, prompt: str) -> torch.Tensor:
+    @contextmanager
+    def _on_device(self, module):
+        """Place one component on-device (compiled), then evict it afterwards.
+
+        Keeps only a single heavy component resident at a time (see setup): the
+        module is moved to device and compiled with the tt backend for the
+        duration of the block, then moved back to CPU and its compiled graph
+        dropped so the next component has the DRAM headroom it needs.
+        """
+        module.to(self._device)
+        compiled = torch.compile(module, backend="tt")
+        try:
+            yield compiled
+        finally:
+            module.to("cpu")
+            del compiled
+            gc.collect()
+            torch_xla.sync()
+
+    def _encode_prompt(self, prompt: str, encoder) -> torch.Tensor:
         """Tokenize (chat template) -> penultimate hidden state, mask-trimmed."""
         messages = [{"role": "user", "content": prompt}]
         text = self.tokenizer.apply_chat_template(
@@ -182,15 +196,15 @@ class ZImagePipeline:
         input_ids = self._to_tt(text_inputs.input_ids)
         attention_mask = self._to_tt(text_inputs.attention_mask.bool())
 
-        hidden = self.text_encoder(input_ids, attention_mask)
+        hidden = encoder(input_ids, attention_mask)
         hidden = self._to_cpu(hidden)
         mask = text_inputs.attention_mask[0].bool()
         # Ragged, mask-trimmed embedding for this prompt: (valid_len, dim).
         return hidden[0][mask].to(self.dtype)
 
-    def _transformer_step(self, latents, timestep, cap_feats):
+    def _transformer_step(self, transformer, latents, timestep, cap_feats):
         """One batch=1 transformer pass; returns CPU fp32 (1, C, 1, H, W)."""
-        out = self.transformer(
+        out = transformer(
             self._to_tt(latents),
             self._to_tt(timestep),
             self._to_tt(cap_feats),
@@ -213,9 +227,13 @@ class ZImagePipeline:
         cpu = torch.device("cpu")
 
         with torch.no_grad():
-            # 1. Text encoding (Qwen3, penultimate layer).
-            cap_pos = self._encode_prompt(prompt)
-            cap_neg = self._encode_prompt(negative_prompt) if do_cfg else None
+            # 1. Text encoding (Qwen3, penultimate layer); encoder resident only
+            #    for this block, then evicted before the transformer is placed.
+            with self._on_device(self.text_encoder) as encoder:
+                cap_pos = self._encode_prompt(prompt, encoder)
+                cap_neg = (
+                    self._encode_prompt(negative_prompt, encoder) if do_cfg else None
+                )
 
             # 2. Latents (fp32 on CPU; scheduler math stays fp32).
             latent_h = 2 * (int(height) // (self.vae_scale_factor * 2))
@@ -246,41 +264,49 @@ class ZImagePipeline:
             )
             self.scheduler.set_begin_index(0)
 
-            # 4. Denoising loop.
-            for i, t in enumerate(timesteps):
-                timestep = t.expand(1)
-                timestep = (1000 - timestep) / 1000
-                latent_input = latents.to(self.dtype)
-                timestep_input = timestep.to(self.dtype)
+            # 4. Denoising loop; transformer resident only for this block, then
+            #    evicted before the VAE is placed.
+            with self._on_device(self.transformer) as transformer:
+                for i, t in enumerate(timesteps):
+                    timestep = t.expand(1)
+                    timestep = (1000 - timestep) / 1000
+                    latent_input = latents.to(self.dtype)
+                    timestep_input = timestep.to(self.dtype)
 
-                pos = self._transformer_step(latent_input, timestep_input, cap_pos)
+                    pos = self._transformer_step(
+                        transformer, latent_input, timestep_input, cap_pos
+                    )
 
-                if do_cfg:
-                    neg = self._transformer_step(latent_input, timestep_input, cap_neg)
-                    pred = pos + guidance_scale * (pos - neg)
-                    if cfg_normalization and float(cfg_normalization) > 0.0:
-                        ori = torch.linalg.vector_norm(pos)
-                        new = torch.linalg.vector_norm(pred)
-                        max_norm = ori * float(cfg_normalization)
-                        if new > max_norm:
-                            pred = pred * (max_norm / new)
-                    noise_pred = pred
-                else:
-                    noise_pred = pos
+                    if do_cfg:
+                        neg = self._transformer_step(
+                            transformer, latent_input, timestep_input, cap_neg
+                        )
+                        pred = pos + guidance_scale * (pos - neg)
+                        if cfg_normalization and float(cfg_normalization) > 0.0:
+                            ori = torch.linalg.vector_norm(pos)
+                            new = torch.linalg.vector_norm(pred)
+                            max_norm = ori * float(cfg_normalization)
+                            if new > max_norm:
+                                pred = pred * (max_norm / new)
+                        noise_pred = pred
+                    else:
+                        noise_pred = pos
 
-                noise_pred = noise_pred.squeeze(2)
-                noise_pred = -noise_pred
-                latents = self.scheduler.step(
-                    noise_pred.to(torch.float32), t, latents, return_dict=False
-                )[0]
-                logger.info(f"  denoise step {i + 1}/{num_inference_steps}")
+                    noise_pred = noise_pred.squeeze(2)
+                    noise_pred = -noise_pred
+                    latents = self.scheduler.step(
+                        noise_pred.to(torch.float32), t, latents, return_dict=False
+                    )[0]
+                    logger.info(f"  denoise step {i + 1}/{num_inference_steps}")
 
             if output_type == "latent":
                 return latents
 
-            # 5. VAE decode (scaling folded into the wrapper).
-            image = self.vae_decoder(self._to_tt(latents))
-            image = self._to_cpu(image).float()
+            # 5. VAE decode (scaling folded into the wrapper); VAE resident only
+            #    for this block.
+            with self._on_device(self.vae_decoder) as vae_decoder:
+                image = vae_decoder(self._to_tt(latents))
+                image = self._to_cpu(image).float()
             return self.image_processor.postprocess(image, output_type=output_type)
 
 

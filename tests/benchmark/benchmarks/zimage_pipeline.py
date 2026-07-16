@@ -25,7 +25,7 @@ import time
 from typing import Optional
 
 import torch
-import torch_xla.core.xla_model as xm
+import torch_xla
 from diffusers import FlowMatchEulerDiscreteScheduler
 from loguru import logger
 
@@ -115,23 +115,22 @@ class ZImagePipeline_TT:
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
             REPO_ID, subfolder="scheduler"
         )
-        self._device = xm.xla_device()
+        self._device = torch_xla.device()
 
-        # Load on CPU and only register the tt backend here. Each component is
-        # moved to device in generate() right before it runs and evicted after,
-        # so peak DRAM ~= max(component) not sum — the Qwen3 encoder + ~6.2B
-        # transformer + VAE do not all sit on the single chip at once.
+        # Load the raw modules on CPU. Each component is moved to device in
+        # generate() right before it runs, compiled fresh with torch.compile,
+        # then evicted (moved back to CPU + its compiled graph dropped) so peak
+        # DRAM ~= max(component) not sum — the Qwen3 encoder + ~6.2B transformer
+        # + VAE do not all sit on the single chip at once. Keeping the raw
+        # modules lets each generate() (warmup + steady) rebuild its compiled
+        # wrappers fresh, mirroring the flux2 benchmark.
         self.text_encoder = _TextEncoderWrapper(load_text_encoder(DTYPE)).eval()
         self.transformer = _TransformerWrapper(load_transformer(DTYPE)).eval()
         self.vae = _VaeDecodeWrapper(load_vae(DTYPE)).eval()
 
-        self.text_encoder.compile(backend="tt")
-        self.transformer.compile(backend="tt")
-        self.vae.compile(backend="tt")
-
-    def _encode(self, prompt: str) -> torch.Tensor:
+    def _encode(self, prompt: str, encoder) -> torch.Tensor:
         input_ids, attention_mask = tokenize_prompt(prompt)
-        hidden = self.text_encoder(
+        hidden = encoder(
             input_ids.to(self._device), attention_mask.bool().to(self._device)
         )
         hidden = hidden.cpu()  # forces sync
@@ -157,12 +156,15 @@ class ZImagePipeline_TT:
             # ── Text encoder (Qwen3) → prompt embeds, then evict ─────────
             logger.info("[STAGE] Text encoder: start")
             self.text_encoder = self.text_encoder.to(self._device)
+            te_compiled = torch.compile(self.text_encoder, backend="tt")
             t0 = time.perf_counter()
-            cap_pos = self._encode(prompt)
-            cap_neg = self._encode(NEGATIVE_PROMPT) if do_cfg else None
+            cap_pos = self._encode(prompt, te_compiled)
+            cap_neg = self._encode(NEGATIVE_PROMPT, te_compiled) if do_cfg else None
             self._perf["components"]["text_encoder"] = time.perf_counter() - t0
             self.text_encoder = self.text_encoder.to("cpu")
+            del te_compiled
             gc.collect()
+            torch_xla.sync()
             logger.info("[STAGE] Text encoder: done")
 
             # ── Latents (fp32 on CPU) ────────────────────────────────────
@@ -203,15 +205,16 @@ class ZImagePipeline_TT:
                 f"({num_inference_steps} steps)"
             )
             self.transformer = self.transformer.to(self._device)
+            tf_compiled = torch.compile(self.transformer, backend="tt")
             for i, t in enumerate(timesteps):
                 logger.info(f"[STEP] Transformer step {i + 1}/{num_inference_steps}")
                 timestep = ((1000 - t.expand(1)) / 1000).to(DTYPE)
                 latent_input = latents.to(DTYPE)
 
                 t0 = time.perf_counter()
-                pos = self._forward(latent_input, timestep, cap_pos)
+                pos = self._forward(tf_compiled, latent_input, timestep, cap_pos)
                 if do_cfg:
-                    neg = self._forward(latent_input, timestep, cap_neg)
+                    neg = self._forward(tf_compiled, latent_input, timestep, cap_neg)
                     pred = pos + GUIDANCE_SCALE * (pos - neg)
                 else:
                     pred = pos
@@ -222,24 +225,29 @@ class ZImagePipeline_TT:
                     noise_pred.to(torch.float32), t, latents, return_dict=False
                 )[0]
             self.transformer = self.transformer.to("cpu")
+            del tf_compiled
             gc.collect()
+            torch_xla.sync()
             logger.info("[STAGE] Transformer denoising loop: done")
 
             # ── VAE decode → raw pixels in [-1, 1], then evict ───────────
             logger.info("[STAGE] VAE decode: start")
             self.vae = self.vae.to(self._device)
+            vae_compiled = torch.compile(self.vae, backend="tt")
             t0 = time.perf_counter()
-            image = self.vae(latents.to(self._device)).cpu().float()
+            image = vae_compiled(latents.to(self._device)).cpu().float()
             self._perf["components"]["vae"] = time.perf_counter() - t0
             self.vae = self.vae.to("cpu")
+            del vae_compiled
             gc.collect()
+            torch_xla.sync()
             logger.info("[STAGE] VAE decode: done")
 
         self._perf["total"] = time.perf_counter() - t_total_start
         return image
 
-    def _forward(self, latents, timestep, cap_feats) -> torch.Tensor:
-        out = self.transformer(
+    def _forward(self, transformer, latents, timestep, cap_feats) -> torch.Tensor:
+        out = transformer(
             latents.to(self._device),
             timestep.to(self._device),
             cap_feats.to(self._device),
