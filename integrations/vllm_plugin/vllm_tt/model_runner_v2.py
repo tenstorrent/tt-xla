@@ -8,10 +8,10 @@ throughout, so TT forks it and substitutes host-side mechanisms rather than
 subclassing ``GPUModelRunner``.
 
 This file is built in reviewable sub-increments. Present so far: the request
-lifecycle and the host input-token preparation. Still to land:
+lifecycle, the host input-token preparation, and the attention slot-mapping
+build (feeding ``TTModelState.prepare_attn``). Still to land:
 ``__init__``/``load_model`` (construct the state below), ``initialize_kv_cache``,
-the attention slot-mapping build feeding ``TTModelState.prepare_attn``, the
-compiled forward graphs, and ``execute_model``/``sample_tokens``.
+the compiled forward graphs, and ``execute_model``/``sample_tokens``.
 
 Layout note
 -----------
@@ -196,3 +196,63 @@ class TTModelRunnerV2:
         query_start_loc[num_reqs + 1 :] = query_start_loc[num_reqs]
 
         return input_ids, positions, query_start_loc, seq_lens, logits_indices
+
+    def _prepare_attn_tensors(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        seq_lens: np.ndarray,
+        target_num_reqs: int,
+        num_blocks_per_req: int,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Host substitute for the v2 block-table / slot-mapping kernels.
+
+        Builds the paged-attention tensors ``TTModelState.prepare_attn`` packages
+        into a ``TTMetadata``: the read-path ``page_table``, the write-path
+        ``fill_page_table``, and ``cache_position``. Batch position ``b`` maps to
+        stable slot ``idx_mapping_np[b]``; the block table is gathered in batch
+        order. Returns numpy arrays ``[target_num_reqs, num_blocks_per_req]`` /
+        ``[target_num_reqs]`` (the runner copies them into persistent device
+        buffers). Padding rows are null (page_table 0, cache_position -1).
+        """
+        num_reqs = len(idx_mapping_np)
+        block_table_cpu = self.block_table[0].get_cpu_tensor()
+        if hasattr(block_table_cpu, "numpy"):
+            block_table_cpu = block_table_cpu.numpy()
+
+        page_table = np.zeros((target_num_reqs, num_blocks_per_req), dtype=np.int32)
+        for b in range(num_reqs):
+            slot = int(idx_mapping_np[b])
+            page_table[b, :] = block_table_cpu[slot, :num_blocks_per_req]
+
+        # Decode/write position per user; -1 for padding rows.
+        cache_position = np.full(target_num_reqs, -1, dtype=np.int32)
+        cache_position[:num_reqs] = seq_lens[:num_reqs] - 1
+
+        # Prefix caching: roll each row so paged_fill_cache writes the suffix
+        # blocks instead of overwriting shared prefix blocks. Per-row because
+        # prefix lengths differ.
+        offsets = np.zeros(num_reqs, dtype=np.int64)
+        for b in range(num_reqs):
+            slot = int(idx_mapping_np[b])
+            offsets[b] = (
+                int(self.req_states.num_computed_tokens[slot]) // self.block_size
+            )
+        if np.any(offsets > 0):
+            fill_page_table = page_table.copy()
+            for b in range(num_reqs):
+                if offsets[b] > 0:
+                    fill_page_table[b] = np.roll(page_table[b], -int(offsets[b]))
+        else:
+            fill_page_table = page_table
+
+        # A zero-scheduled (already-prefilled, re-batched) row would clobber its
+        # real KV with padding; redirect its fill to the null block. The read
+        # path keeps the real blocks.
+        zero_rows = np.nonzero(num_scheduled_tokens[:num_reqs] == 0)[0]
+        if len(zero_rows) > 0:
+            if fill_page_table is page_table:
+                fill_page_table = page_table.copy()
+            fill_page_table[zero_rows, :] = 0
+
+        return page_table, fill_page_table, cache_position
