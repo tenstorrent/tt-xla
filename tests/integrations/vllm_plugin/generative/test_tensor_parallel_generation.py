@@ -353,3 +353,49 @@ def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["model_name", "opt_level"],
+    [pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", 0)],
+)
+def test_tensor_parallel_generation_mistral_small_3_1(model_name: str, opt_level: int):
+    image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What action do you think I should take in this situation?",
+                },
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "limit_mm_per_prompt": {"image": 1},
+        "max_num_batched_tokens": 3025,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.01,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "optimization_level": opt_level,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.chat(messages, sampling_params=sampling_params)[0].outputs[0].text
+    print("output: ", output_text)
+    assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
