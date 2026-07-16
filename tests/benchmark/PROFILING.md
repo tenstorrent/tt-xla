@@ -19,6 +19,7 @@ tracy -p -r --sync-host-device -m pytest -svv tests/benchmark/test_llms.py::test
 | `--sync-host-device` | Synchronize host and device timelines |
 | `-o FOLDER` | Output folder for profiler artifacts (default: `.tracy_artifacts/`) |
 | `-n NAME` | Append a custom name to the report filename |
+| `--op-support-count N` | Max number of program executions (≈ dispatched ops) the device profiler buffer is sized for (default: `1000`). Raise it for large/many-op runs - see [Known issue: dropped device ops](#known-issue-dropped-device-ops-profiler-buffer-overflow). |
 
 ### Output artifacts
 
@@ -29,6 +30,10 @@ After a device profiling run, artifacts are saved in `.tracy_artifacts/reports/<
 | `ops_perf_results_<timestamp>.csv` | Per-op performance results (op name, duration, etc.) |
 | `profile_log_device.csv` | Raw device-side profiling data (can be very large, multiple GBs for many layers) |
 | `tracy_profile_log_host.tracy` | Host-side trace file, openable in Tracy GUI |
+
+### Known issue: dropped device ops (profiler buffer overflow)
+
+If report generation aborts with `AssertionError: Device data missing: Op <id> not present in cpp_device_perf_report.csv`, the device profiler's DRAM buffer (sized for `--op-support-count` programs, default `1000`) filled mid-run and silently dropped every op after that point. Raise `--op-support-count` above the run's total program count (e.g. `10000`) to capture the full run.
 
 ### Analyzing results with tt-perf-report
 
@@ -86,7 +91,7 @@ tracy -p --no-device -m pytest -svv tests/benchmark/test_llms.py::test_llama_3_1
 
 ### Known issue: `--no-device` does not produce a `.tracy` file
 
-When using `--no-device`, the `.tracy` capture file is not saved. The trace capture is guarded behind the `-r` flag, but `-r` with `--no-device` also doesn't work — the report directory is created but remains empty. You need one of the workarounds below to get a `.tracy` file for host-only profiling.
+When using `--no-device`, the `.tracy` capture file is not saved. The trace capture is guarded behind the `-r` flag, but `-r` with `--no-device` also doesn't work - the report directory is created but remains empty. You need one of the workarounds below to get a `.tracy` file for host-only profiling.
 
 #### Workaround 1: Connect with Tracy GUI live
 
@@ -124,7 +129,7 @@ tracy -p --no-device -m pytest -svv tests/benchmark/test_llms.py::test_llama_3_1
 
 ## Further Reading
 
-- [Tracy Profiler — TT-Metalium docs](https://docs.tenstorrent.com/tt-metal/latest/tt-metalium/tools/tracy_profiler.html) — host C++/Python profiling and basic device hookup
-- [Profiling TT-NN Operations](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/profiling_ttnn_operations.html) — perf CSV headers, TT-NN Visualizer
-- [Profiling TT-Metal with Tracy (slide deck)](https://docs.google.com/presentation/d/1E7gNhc8G6JZSkTxpbYq9p78BZ5MJTXtG) — Mo Memarian, May 2025
-- [Tracy Profiler GitHub](https://github.com/wolfpld/tracy) — official Tracy docs, GUI downloads, and intro videos
+- [Tracy Profiler - TT-Metalium docs](https://docs.tenstorrent.com/tt-metal/latest/tt-metalium/tools/tracy_profiler.html) - host C++/Python profiling and basic device hookup
+- [Profiling TT-NN Operations](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/profiling_ttnn_operations.html) - perf CSV headers, TT-NN Visualizer
+- [Profiling TT-Metal with Tracy (slide deck)](https://docs.google.com/presentation/d/1E7gNhc8G6JZSkTxpbYq9p78BZ5MJTXtG) - Mo Memarian, May 2025
+- [Tracy Profiler GitHub](https://github.com/wolfpld/tracy) - official Tracy docs, GUI downloads, and intro videos
