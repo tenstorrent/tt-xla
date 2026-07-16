@@ -24,7 +24,26 @@
 - CONTROL (no fix): https://github.com/tenstorrent/tt-xla/actions/runs/29525072439 (expect PCC=0.0 fail)
 - Original failing CI (issue): https://github.com/tenstorrent/tt-xla/actions/runs/29223626701
 
-**Proper long-term fix is upstream in tt-metal** (the trace capture/replay regression in `13adda80c11..38e954a066c`). The reorder is a tt-xla-side workaround that unblocks the uplift without a perf hit. Note: exact tt-metal commit not pinned (needs a tt-metal bisect). Reorder is unconditional; other paths (decode_only, multichip) use the same reorder — logically order-only, validated on single-chip.
+**Proper long-term fix is upstream in tt-metal** — see next section. The reorder is a tt-xla-side workaround that unblocks the uplift without a perf hit.
+
+---
+
+## TT-METAL ROOT CAUSE + PROPER FIX (so BOTH perf and PCC work under trace)
+
+The reorder only avoids the collision; the real bug is in tt-metal. Mechanism (evidence below):
+
+- tt-metal **metal-trace replays a program's runtime args VERBATIM** (it does not re-patch raw address args on replay).
+- The **SDPA-decode and KV-cache op program factories SMUGGLE raw buffer addresses into kernel runtime args** instead of declaring them as `Buffer*` bindings:
+  - `ttnn/.../transformer/sdpa_decode/device/sdpa_decode_program_factory.cpp:909-911` (`q/k/v_buffer->address()`), `:936` (`out`), `:825-828` (`pos/page_table/attn_mask/sink`)
+  - `ttnn/.../kv_cache/device/update_cache_multi_core_program_factory.cpp:306-320`, `fill_cache_multi_core_program_factory.cpp:165-177` (`dst/src` addresses)
+- So a captured decode trace bakes the **KV-cache buffer address** at capture time. It replays correctly only if that buffer stays at the same address. When a **perf-run trace + its buffers are already resident**, the PCC run's fresh KV-cache lands differently, so the baked address no longer matches the buffer at replay → the decode reads **stale/wrong memory** → logits explode → PCC 0.0. Running the PCC decode first (clean, deterministic allocation) keeps the baked address valid — which is exactly why the reorder fixes it.
+- This smuggling is present in the **baseline (good) tt-metal too** (identical lines), so it's a latent hazard; the new tt-metal changed buffer/RTA/trace behavior in `13adda80c11..38e954a066c` such that the baked address now goes stale. tt-metal is actively **purging this exact anti-pattern**: PR `#49141` adds a pre-commit guard (`scripts/detect_smuggled_rta.py`) against "a raw `tensor.buffer()->address()` pushed into kernel runtime args instead of a Buffer* binding via `emplace_runtime_args`", and PRs `#49132–#49138` migrated bcast/attn_matmul/batch_norm/reduction/eltwise/matmul/moreh/pool/normalization — **but NOT the transformer sdpa_decode / kv_cache ops.**
+
+**Proper fix (tt-metal PR):** migrate the `sdpa_decode`, `update_cache`, and `fill_cache` program factories to declare their buffer addresses as `Buffer*` **BufferBindings** (`emplace_runtime_args`) instead of raw `->address()` runtime args — matching the `#49132–#49138` migration. Then metal-trace patches the addresses on every replay, the baked address can't go stale, and **both the perf run and the PCC run work under trace** (no reorder needed).
+
+**Exact regressing commit: not pinned** (candidates that changed RTA/trace dispatch in range: `#48686` WRITE_PACKED_LARGE_UNICAST >341 RTAs, `#48034` per-core RTA reserve; plus general DRAM-allocation changes). Definitive pin = a tt-metal bisect of `13adda80c11..38e954a066c` using the `--num-layers 1` full-flow perf-first repro (good=PCC passes, bad=0.0). No existing tt-metal issue found for this exact symptom.
+
+Reorder caveat: applied unconditionally; decode_only/multichip use the same reorder (logically order-only), validated on single-chip.
 
 ---
 
