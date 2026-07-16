@@ -1,0 +1,143 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""CPU unit tests for the MRv2 runner __init__ state construction.
+
+``TTModelRunnerV2.__init__`` (see vllm_tt/model_runner_v2.py) extracts config
+scalars and builds the split v2 state. It reads a fixed set of vllm_config
+attributes, so a duck-typed fake config exercises it on cpu with no engine, no
+model, and no TT hardware (device=cpu). ``load_model`` needs a real model/loader
+and is validated at engine stand-up, not here.
+
+They pin the wiring: scalar/SMEM-cap derivation, the token-padding ladder, the
+constructed state tables, the not-yet-loaded (None) model handles, and the
+single-device guard.
+"""
+
+from types import SimpleNamespace
+
+import pytest
+import torch
+
+from vllm_tt.model_runner_v2 import TTModelRunnerV2
+from vllm_tt.request_state import TTRequestState
+from vllm_tt.sampling_state_v2 import TTSamplingStates
+
+
+def make_vllm_config(**tt_overrides):
+    model_config = SimpleNamespace(
+        dtype=torch.bfloat16,
+        max_model_len=256,
+        get_sliding_window=lambda: None,
+        get_num_layers_by_block_type=lambda pc, t: 2,
+        get_num_attention_heads=lambda pc: 8,
+        get_num_kv_heads=lambda pc: 8,
+        get_head_size=lambda: 64,
+        get_vocab_size=lambda: 1000,
+        get_inputs_embeds_size=lambda: 512,
+        is_multimodal_model=False,
+    )
+    cache_config = SimpleNamespace(block_size=32, cache_dtype="auto")
+    scheduler_config = SimpleNamespace(max_num_seqs=8, max_num_batched_tokens=2048)
+    tt_config = SimpleNamespace(
+        enable_tensor_parallel=False,
+        enable_data_parallel=False,
+        experimental_kv_cache_dtype=None,
+        min_num_seqs=None,
+        max_prefill_num_seqs=None,
+        min_context_len=32,
+        decode_only=False,
+        flat_model_io=False,
+        cpu_sampling=False,
+        enable_decode_fused_graphs=False,
+    )
+    for k, v in tt_overrides.items():
+        setattr(tt_config, k, v)
+    return SimpleNamespace(
+        model_config=model_config,
+        cache_config=cache_config,
+        scheduler_config=scheduler_config,
+        parallel_config=object(),
+        load_config=object(),
+        lora_config=None,
+        additional_config=tt_config,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_scalars_and_smem_caps():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+
+    assert r.block_size == 32
+    assert r.max_model_len == 256
+    assert r.max_num_reqs == 8
+    assert r.vocab_size == 1000
+    assert r.max_num_blocks_per_req == 8  # cdiv(256, 32)
+    assert r.num_kv_heads == 8
+    assert r.head_size == 64
+    assert r.kv_cache_dtype == torch.bfloat16  # cache_dtype="auto" -> model dtype
+    assert r.supports_mm_inputs is False
+    # No VLLM_TPU_MOST_MODEL_LEN by default -> only the max-model-len cap applies.
+    assert r.num_reqs_most_model_len is None
+    # get_max_num_seqs(256, 32) is huge, so the cap is max_num_reqs.
+    assert r.num_reqs_max_model_len == 8
+    assert r.min_num_reqs == 8
+    assert r.max_prefill_num_reqs == 8
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_token_padding_ladder():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+    # _get_token_paddings(32, min(2048, 256)=256): [1] + powers of two up to >=256.
+    assert r.num_tokens_paddings == [1, 32, 64, 128, 256]
+    assert r.max_num_tokens == 256
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_decode_only_restricts_paddings():
+    r = TTModelRunnerV2(make_vllm_config(decode_only=True), torch.device("cpu"))
+    assert r.num_tokens_paddings == [1]
+    assert r.max_num_tokens == 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_builds_split_state_tables():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+
+    assert isinstance(r.req_states, TTRequestState)
+    assert r.req_states.max_num_reqs == 8
+    assert r.req_states.max_model_len == 256
+    assert isinstance(r.sampling_states, TTSamplingStates)
+    # Block table + input buffers are constructed and correctly sized.
+    assert hasattr(r.block_table, "add_row")
+    assert tuple(r.input_buffers.input_ids.shape) == (r.max_num_tokens,)
+    # Runtime-side state initialised empty.
+    assert r.encoder_cache == {}
+    assert r.num_prompt_logprobs == {}
+    assert r.kv_caches == []
+    assert r.scheduler_output is None
+    assert r.dp_size == 1
+    assert r.enable_tensor_parallel is False
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_model_handles_none_until_load():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+    assert r.model is None
+    assert r.model_state is None
+    assert r.sampler is None
+    assert r.attention_layer_names == ()
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_rejects_multi_device():
+    with pytest.raises(NotImplementedError):
+        TTModelRunnerV2(
+            make_vllm_config(enable_tensor_parallel=True), torch.device("cpu")
+        )

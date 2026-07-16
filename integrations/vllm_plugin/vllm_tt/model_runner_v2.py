@@ -12,10 +12,11 @@ lifecycle, the decode-first batch selection / SMEM multi-pass clamping, the host
 input-token preparation, the attention slot-mapping build (feeding
 ``TTModelState.prepare_attn``), the sampled-token writeback (``postprocess``),
 the ``execute_model``/``sample_tokens`` two-phase driver that threads them
-together, and ``initialize_kv_cache`` (device KV allocation). Still to land:
-``__init__``/``load_model`` (construct the state below) and the compiled forward
-graphs -- reached through the single documented ``_run_model_pass`` hardware
-leaf, which is stubbed until those are ported.
+together, ``initialize_kv_cache`` (device KV allocation), and
+``__init__``/``load_model`` (single-device state construction + model load /
+compile). Still to land: the compiled forward graphs behind the single
+documented ``_run_model_pass`` hardware leaf (stubbed), and the multi-device
+SPMD/mesh path deferred out of ``__init__``.
 
 Layout note
 -----------
@@ -62,9 +63,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
+import vllm.envs as envs
 from vllm.sampling_params import SamplingType
+from vllm.utils.math_utils import cdiv
 
 if TYPE_CHECKING:
+    from vllm.config import VllmConfig
     from vllm.v1.core.sched.output import SchedulerOutput
     from vllm.v1.kv_cache_interface import KVCacheConfig
 
@@ -76,8 +80,242 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     return paddings[index]
 
 
+def _adjust_min_token(min_token_size: int) -> int:
+    """Round min_token_size up to a power of two that is >= 32 (32B alignment)."""
+    if (min_token_size & (min_token_size - 1)) == 0 and min_token_size >= 32:
+        return min_token_size
+    if min_token_size > 32:
+        return 1 << (min_token_size - 1).bit_length()
+    return 32
+
+
+def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
+    """Exponential token-length ladder from min_token_size up past max_token_size.
+
+    Always starts with 1 to support single-token decode steps.
+    """
+    num = _adjust_min_token(min_token_size)
+    paddings = [1]
+    while True:
+        paddings.append(num)
+        if num >= max_token_size:
+            break
+        num *= 2
+    return paddings
+
+
 class TTModelRunnerV2:
-    """Tenstorrent MRv2 model runner (lifecycle sub-increment; see module doc)."""
+    """Tenstorrent MRv2 model runner (see module docstring)."""
+
+    def __init__(self, vllm_config: "VllmConfig", device: torch.device) -> None:
+        """Construct the split v2 state + config scalars (single-device path).
+
+        Multi-device SPMD (mesh / tensor + data parallel) is deferred; this
+        constructor raises if those TT config flags are set. The model itself is
+        loaded and compiled in ``load_model``; ``model``/``model_state``/``sampler``
+        are None until then.
+        """
+        from vllm.v1.worker.block_table import MultiGroupBlockTable
+
+        from .attention_impls.attention import (
+            TPU_STR_DTYPE_TO_TORCH_DTYPE,
+            TTAttentionBackend,
+        )
+        from .input_batch_v2 import TTInputBuffers
+        from .request_state import TTRequestState
+        from .sampling_state_v2 import TTSamplingStates
+
+        self.vllm_config = vllm_config
+        self.model_config = vllm_config.model_config
+        self.cache_config = vllm_config.cache_config
+        self.scheduler_config = vllm_config.scheduler_config
+        self.parallel_config = vllm_config.parallel_config
+        self.load_config = vllm_config.load_config
+        self.lora_config = vllm_config.lora_config
+        self.tt_config = vllm_config.additional_config
+        self.device = device
+
+        tt = self.tt_config
+        self.enable_tensor_parallel = bool(getattr(tt, "enable_tensor_parallel", False))
+        self.enable_data_parallel = bool(getattr(tt, "enable_data_parallel", False))
+        if self.enable_tensor_parallel or self.enable_data_parallel:
+            raise NotImplementedError(
+                "Multi-device (SPMD mesh) __init__ is deferred; single device only."
+            )
+        self.dp_size = 1
+        self.mesh = None
+        self.original_parallel_config = None
+
+        self.dtype = self.model_config.dtype
+        if self.cache_config.cache_dtype == "auto":
+            self.kv_cache_dtype = (
+                TPU_STR_DTYPE_TO_TORCH_DTYPE[self.dtype]
+                if isinstance(self.dtype, str)
+                else self.dtype
+            )
+        else:
+            self.kv_cache_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE[
+                self.cache_config.cache_dtype
+            ]
+        # 1-byte accounting stand-in so vLLM budgets blocks for the BFP8 footprint.
+        self.kv_cache_spec_dtype = (
+            torch.uint8
+            if getattr(tt, "experimental_kv_cache_dtype", None) == "bfp_bf8"
+            else self.kv_cache_dtype
+        )
+
+        self.block_size = self.cache_config.block_size
+        self.max_model_len = self.model_config.max_model_len
+        self.max_num_reqs = self.scheduler_config.max_num_seqs
+        self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
+        self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
+        self.num_blocks_per_most_len_req = (
+            cdiv(self.most_model_len, self.block_size)
+            if self.most_model_len is not None
+            else None
+        )
+
+        # Prefill request-count bucketing bounds (decode always uses max_num_reqs).
+        self.min_num_reqs = getattr(tt, "min_num_seqs", None) or self.max_num_reqs
+        self.max_prefill_num_reqs = (
+            getattr(tt, "max_prefill_num_seqs", None) or self.max_num_reqs
+        )
+
+        max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
+        min_context_len = getattr(tt, "min_context_len", 32)
+        if max_num_batched_tokens < min_context_len:
+            min_context_len = max_num_batched_tokens
+        self.prefill_chunk_budget = min(
+            getattr(
+                self.scheduler_config, "tt_prefill_chunk_size", max_num_batched_tokens
+            )
+            or max_num_batched_tokens,
+            self.max_model_len,
+        )
+        self.num_tokens_paddings = _get_token_paddings(
+            min_context_len, self.prefill_chunk_budget
+        )
+        if getattr(tt, "decode_only", False):
+            self.num_tokens_paddings = [1]
+        self.max_num_tokens = self.num_tokens_paddings[-1]
+
+        # Model dims.
+        self.num_attn_layers = self.model_config.get_num_layers_by_block_type(
+            self.parallel_config, "attention"
+        )
+        self.num_query_heads = self.model_config.get_num_attention_heads(
+            self.parallel_config
+        )
+        self.num_kv_heads = self.model_config.get_num_kv_heads(self.parallel_config)
+        self.head_size = self.model_config.get_head_size()
+        self.vocab_size = self.model_config.get_vocab_size()
+        self.supports_mm_inputs = bool(
+            getattr(self.model_config, "is_multimodal_model", False)
+        )
+
+        # SMEM row caps consumed by _select_batch.
+        self.num_reqs_max_model_len = min(
+            TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
+            self.max_num_reqs,
+        )
+        self.num_reqs_most_model_len = (
+            min(
+                TTAttentionBackend.get_max_num_seqs(
+                    self.most_model_len, self.block_size
+                ),
+                self.max_num_reqs,
+            )
+            if self.most_model_len is not None
+            else None
+        )
+
+        # Driver / graph knobs read later.
+        self.use_flat_model_io = bool(getattr(tt, "flat_model_io", False))
+        self.cpu_sampling = bool(getattr(tt, "cpu_sampling", False))
+        self.enable_decode_fused_graphs = bool(
+            getattr(tt, "enable_decode_fused_graphs", False)
+        )
+        self.sampling_device = torch.device("cpu") if self.cpu_sampling else self.device
+
+        # Split v2 state.
+        self.req_states = TTRequestState(
+            max_num_reqs=self.max_num_reqs,
+            max_model_len=self.max_model_len,
+            max_num_batched_tokens=self.max_num_tokens,
+            num_speculative_steps=0,
+            vocab_size=self.vocab_size,
+            device=self.device,
+        )
+        self.sampling_states = TTSamplingStates(
+            max_num_reqs=self.max_num_reqs, vocab_size=self.vocab_size
+        )
+        self.block_table = MultiGroupBlockTable(
+            max_num_reqs=self.max_num_reqs,
+            max_model_len=self.max_model_len,
+            max_num_batched_tokens=self.max_num_tokens,
+            pin_memory=False,
+            device=torch.device("cpu"),
+            block_sizes=[self.block_size],
+            kernel_block_sizes=[self.block_size],
+        )
+        self.input_buffers = TTInputBuffers(
+            self.max_num_reqs, self.max_num_tokens, self.device
+        )
+
+        self.encoder_cache: dict = {}
+        self.num_prompt_logprobs: dict = {}
+        self.kv_caches: list = []
+        self.kv_cache_config = None
+        # Per-step handoff between the two-phase execute_model / sample_tokens.
+        self.scheduler_output = None
+
+        # Filled by load_model.
+        self.model = None
+        self.model_state = None
+        self.sampler = None
+        self._attention_layer_names: tuple = ()
+        self.attention_layer_names: tuple = ()
+
+    def load_model(self) -> None:
+        """Load, place, and compile the model; build ModelState + sampler.
+
+        Single-device path (salvaged from the v1 fork): the multi-device weight
+        sharding, the vocab-embedding TP-rank patch, LoRA, the num-layers override,
+        and per-tensor weight-dtype overrides are deferred with the SPMD ``__init__``.
+        Needs a real model + loader, so it is validated at engine stand-up.
+        """
+        from vllm.config import get_layers_from_vllm_config, set_current_vllm_config
+        from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+        from vllm.model_executor.model_loader import get_model_loader
+
+        from .model_state import TTModelState
+        from .overrides import repair_stale_moe_closures, replace_modules
+        from .sampler import Sampler
+
+        loader = get_model_loader(self.load_config)
+        with set_current_vllm_config(self.vllm_config):
+            model = loader.load_model(
+                vllm_config=self.vllm_config, model_config=self.model_config
+            ).eval()
+        replace_modules(model)
+        self.model = model.to(self.device)
+
+        # Repair MoE routing closures that captured CPU tensors before to(device).
+        repair_stale_moe_closures(self.model)
+
+        self.model.compile(backend="tt", dynamic=False)
+        self.sampler = Sampler()
+
+        encoder_cache = self.encoder_cache if self.supports_mm_inputs else None
+        self.model_state = TTModelState(
+            self.vllm_config, self.model, encoder_cache, self.device
+        )
+
+        # Cache the attention layer names for the per-step prepare_attn fan-out.
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, AttentionLayerBase).keys()
+        )
+        self.attention_layer_names = self._attention_layer_names
 
     def _remove_request(self, req_id: str) -> None:
         """Free a request's slot across every per-slot table. Idempotent."""
