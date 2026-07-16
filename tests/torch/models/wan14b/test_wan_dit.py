@@ -30,6 +30,7 @@ from typing import Optional
 import pytest
 import torch
 from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -126,4 +127,5 @@ def _run(resolution: str, sharded: bool) -> None:
             compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
+            comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.97)),
         )

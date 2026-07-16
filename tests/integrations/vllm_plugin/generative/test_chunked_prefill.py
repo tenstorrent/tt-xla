@@ -182,7 +182,6 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
         enable_prefix_caching=False,
         additional_config={
             "prefill_chunk_size": chunk,
-            "enable_const_eval": True,
             "min_context_len": 32,
         },
     )

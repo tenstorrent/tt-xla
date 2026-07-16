@@ -23,7 +23,6 @@ def _make_llm(model_name: str) -> vllm.LLM:
         "gpu_memory_utilization": 0.002,
         "disable_log_stats": True,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": MAX_MODEL_LEN,
             "num_hidden_layers": NUM_HIDDEN_LAYERS,
             "max_prefill_num_seqs": MAX_PREFILL_NUM_SEQS,
