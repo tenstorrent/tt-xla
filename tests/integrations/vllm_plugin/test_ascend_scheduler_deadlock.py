@@ -146,6 +146,5 @@ def test_partial_prefill_chunk_does_not_deadlock_decode():
     sched.max_num_scheduled_tokens = _BLOCK_SIZE - 1
     out3 = sched.schedule()
     assert out3.total_num_scheduled_tokens > 0, (
-        "decode did not proceed for the other running requests (the #5664 "
-        "deadlock)"
+        "decode did not proceed for the other running requests (the #5664 " "deadlock)"
     )
