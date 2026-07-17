@@ -152,7 +152,18 @@ def check_host_memory(model_name: str) -> float:
 
 @pytest.fixture(autouse=True)
 def _test_timeout(request):
-    """Kill any test that hangs longer than 2x its recorded duration."""
+    """Kill any test that hangs longer than 2x its recorded duration.
+
+    Tests marked ``notimeout`` opt out of this per-test SIGALRM hang guard and
+    rely on the job-level 240-minute timeout instead (see
+    ``calculate_test_timeout.py``). Use it for long full-depth runs whose
+    duration is not yet recorded in ``.test_durations`` (otherwise they'd hit
+    the 1h fallback here regardless of the 240m job budget).
+    """
+
+    if request.node.get_closest_marker("notimeout") is not None:
+        yield
+        return
 
     timeout_seconds = _get_timeout_seconds(request.node.nodeid)
 
