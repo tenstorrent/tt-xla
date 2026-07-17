@@ -83,3 +83,84 @@ def test_slice_oob_empty(start, end):
         out = model(x).to("cpu")
 
     assert out.shape == expected
+
+
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.ops.aten.slice.Tensor",
+)
+@pytest.mark.parametrize(
+    ["start", "end"],
+    [
+        (-1023, None),  # neg_start: x[:, :, -1023:, :]  -> full dim (clamped)
+        (None, -1023),  # neg_end:   x[:, :, :-1023, :]  -> empty (clamped)
+    ],
+    ids=["neg_start", "neg_end"],
+)
+def test_slice_oob_eager(start, end):
+    """OOB negative slice run eagerly on an XLA tensor: exercises the eager
+    TorchFunctionOverride.__getitem__ clamp (the graph-break path, #4465)."""
+    xr.set_device_type("TT")
+    torch.manual_seed(42)
+
+    x_cpu = torch.randn(SHAPE, dtype=torch.bfloat16)
+    expected = x_cpu[:, :, start:end, :]
+
+    out = x_cpu.to(xm.xla_device())[:, :, start:end, :].to("cpu")
+
+    assert out.shape == expected.shape
+    if out.numel() > 0:
+        assert torch.allclose(out.float(), expected.float())
+
+
+@pytest.mark.parametrize(
+    ["shape", "key", "expected_key", "expected_changed"],
+    [
+        # size-1 dim, start -2 -> -1 (the krea VAE decoder pattern)
+        (
+            (1, 16, 1, 60, 104),
+            (slice(None), slice(None), slice(-2, None), slice(None), slice(None)),
+            (slice(None), slice(None), slice(-1, None), slice(None), slice(None)),
+            True,
+        ),
+        # in-range negative slice: untouched
+        (
+            (1, 16, 4, 60, 104),
+            (slice(None), slice(None), slice(-2, None)),
+            (slice(None), slice(None), slice(-2, None)),
+            False,
+        ),
+        # negative stop out of range
+        ((5,), (slice(None, -9),), (slice(None, -5),), True),
+        # single (non-tuple) slice key
+        ((3,), slice(-9, None), slice(-3, None), True),
+        # None / newaxis keeps the dim mapping correct
+        (
+            (1, 1),
+            (None, slice(-3, None), slice(None)),
+            (None, slice(-1, None), slice(None)),
+            True,
+        ),
+        # Ellipsis -> bail (ambiguous dim mapping)
+        ((1, 2, 3), (Ellipsis, slice(-9, None)), (Ellipsis, slice(-9, None)), False),
+        # int index consumes a dim; following slice clamps against the right dim
+        ((4, 1), (0, slice(-5, None)), (0, slice(-1, None)), True),
+    ],
+    ids=[
+        "size1_start",
+        "in_range",
+        "neg_stop",
+        "single_slice",
+        "newaxis",
+        "ellipsis_bail",
+        "int_index",
+    ],
+)
+def test_clamp_neg_slice_key(shape, key, expected_key, expected_changed):
+    """Unit test for the shared clamp helper (no device required)."""
+    from tt_torch.slice_bounds import clamp_neg_slice_key
+
+    new_key, changed = clamp_neg_slice_key(torch.Size(shape), key)
+    assert changed == expected_changed
+    assert new_key == expected_key
