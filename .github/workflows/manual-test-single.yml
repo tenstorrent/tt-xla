@@ -70,7 +70,7 @@ on:
         required: false
         type: string
       install_vllm_wheel:
-        description: 'Install vllm-tt wheel in the test job'
+        description: 'Install vllm-tt (+ upstream vllm) in the test job. Auto-enabled when Dir contains vllm_plugin.'
         required: false
         default: false
         type: boolean
@@ -107,6 +107,10 @@ jobs:
     steps:
       - id: generate
         run: |
+          # Install the vllm-tt wheel (and its install_requires, including upstream
+          # `vllm`) when the caller opts in OR when Dir clearly targets the vLLM
+          # plugin tests. Without this, conftest.py fails with:
+          #   ModuleNotFoundError: No module named 'vllm'
           TEST_CONFIG=$(jq -n \
             --arg runs_on '${{ inputs.runs_on }}' \
             --arg dir '${{ inputs.dir }}' \
@@ -116,10 +120,24 @@ jobs:
             --arg contains '${{ inputs.contains }}' \
             --arg install_vllm_wheel '${{ inputs.install_vllm_wheel }}' \
             --argjson parallel_groups '${{ inputs.parallel_groups }}' \
-            '[{"runs-on": $runs_on,"name": "Test","dir": $dir,"test-mark": $mark,"shared-runners": $shared_runners,"args": $args,"contains": $contains,"parallel-groups": $parallel_groups,"extra-wheel": (if $install_vllm_wheel == "true" then "vllm" else "" end)}]')
+            '
+            def wants_vllm:
+              ($install_vllm_wheel == "true")
+              or ($dir | test("vllm_plugin"; "i"));
+            [{
+              "runs-on": $runs_on,
+              "name": "Test",
+              "dir": $dir,
+              "test-mark": $mark,
+              "shared-runners": $shared_runners,
+              "args": $args,
+              "contains": $contains,
+              "parallel-groups": $parallel_groups,
+              "extra-wheel": (if wants_vllm then "vllm" else "" end)
+            }]
+            ')
 
-          echo $TEST_CONFIG
-
+          echo "$TEST_CONFIG"
           echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
 
   test:
