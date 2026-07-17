@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
+from .sharding_rule import make_fully_replicated_sharding_rule
 
 
 @torch.library.custom_op(
@@ -2288,6 +2290,36 @@ def _validate_tt_lang_op_out_indices(
         seen.add(idx)
 
 
+def _resolve_tt_lang_sharding_rule(
+    sharding_rule: str,
+    tensors: Sequence[torch.Tensor],
+    out_indices: Sequence[int],
+    *,
+    kernel_id: str,
+) -> str:
+    """Return ``sharding_rule``, or synthesize a full-replication default.
+
+    An empty rule means the caller did not opt into sharding propagation.
+    Rather than leaving the frontend attribute absent (and forcing tt-mlir
+    to special-case that), we emit an explicit
+    ``need_replication``-on-all-factors rule derived from the tensor shapes
+    and warn so the implicit replication is visible.
+    """
+    if sharding_rule:
+        return sharding_rule
+    warnings.warn(
+        f"tt::tt_lang_op({kernel_id!r}): no sharding_rule provided; "
+        "emitting an explicit full-replication rule so all operands/"
+        "results are replicated. Pass sharding_rule= (e.g. via "
+        "tt_torch.make_sharding_rule) to allow sharding propagation.",
+        stacklevel=3,
+    )
+    return make_fully_replicated_sharding_rule(
+        [tuple(t.shape) for t in tensors],
+        out_indices=out_indices,
+    )
+
+
 @torch.library.custom_op("tt::tt_lang_op", mutates_args=[], device_types=["xla"])
 def tt_lang_op(
     tensors: List[torch.Tensor],
@@ -2306,12 +2338,16 @@ def tt_lang_op(
     ``out``-tagged input tensors in shape and dtype, so the plugin sees
     the real (post-Shardy) types.
 
-    A non-empty ``sharding_rule`` is forwarded as the
+    A ``sharding_rule`` is always forwarded as the
     ``xla.sdy.sharding_rule`` frontend attribute; tt-mlir's
     ``register-custom-sharding-rule`` pass recognizes it and hands the
     parsed ``sdy.op_sharding_rule`` to Shardy so the rule participates in
     sharding inference. Build the string with
     :func:`tt_torch.make_sharding_rule` or pass raw MLIR text.
+
+    When ``sharding_rule`` is empty, an explicit full-replication rule is
+    synthesized from the operand/result shapes (and a warning is emitted)
+    so tt-mlir does not need a missing-attribute fallback.
 
     The op is registered only for the XLA dispatch key; calling it on a
     CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
@@ -2326,16 +2362,18 @@ def tt_lang_op(
 
     output_shapes = [list(tensors[i].shape) for i in out_indices]
     output_dtypes = [tensors[i].dtype for i in out_indices]
+    sharding_rule = _resolve_tt_lang_sharding_rule(
+        sharding_rule, tensors, out_indices, kernel_id=kernel_id
+    )
 
     frontend_attributes = {
         "kernel_id": kernel_id,
         "arg_roles": arg_roles,
         "version_tag": version_tag,
+        "xla.sdy.sharding_rule": sharding_rule,
     }
     if shard_spec:
         frontend_attributes["shard_spec"] = shard_spec
-    if sharding_rule:
-        frontend_attributes["xla.sdy.sharding_rule"] = sharding_rule
 
     result = stablehlo_custom_call.stablehlo_custom_call(
         list(tensors),
@@ -2377,6 +2415,10 @@ def tt_lang_op_dispatch(
 
     Lets @tt_torch.tt_lang_operation call sites read cleanly without remembering the
     positional argument order.
+
+    An empty ``sharding_rule`` is forwarded as-is; ``tt_lang_op`` synthesizes
+    an explicit full-replication rule (and warns) before emitting the
+    ``stablehlo.custom_call``.
     """
     return torch.ops.tt.tt_lang_op(
         list(tensors),

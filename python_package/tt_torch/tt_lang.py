@@ -237,14 +237,14 @@ def tt_lang_operation(
         Optional Shardy sharding rule for this operation as raw MLIR text
         (e.g. ``"#sdy.op_sharding_rule<([i, j], [j, k])->([i, k]) {i=8, j=16, k=32}, custom>"``).
         Build it with :func:`tt_torch.make_sharding_rule` (which returns
-        such a string) or pass your own. Emitted as the
-        ``xla.sdy.sharding_rule`` ``frontend_attribute`` on the underlying
-        ``stablehlo.custom_call`` and recognized by tt-mlir's
+        such a string and defaults to ``is_custom=True``) or pass your own.
+        Emitted as the ``xla.sdy.sharding_rule`` ``frontend_attribute`` on
+        the underlying ``stablehlo.custom_call`` and recognized by tt-mlir's
         ``register-custom-sharding-rule`` pass, which parses it into a real
-        ``sdy.op_sharding_rule`` handed to Shardy propagation. Rules built
-        via ``make_sharding_rule`` default to
-        ``is_custom=True``, which Shardy preserves through the entire
-        pipeline; use one when you want the rule to survive rewrites.
+        ``sdy.op_sharding_rule`` handed to Shardy propagation. When omitted
+        (or ``""``), ``tt_lang_op`` synthesizes an explicit full-replication
+        rule from the call-site tensor shapes so every tt-lang op carries a
+        rule.
     version_tag:
         Cache-busting tag. Defaults to a short hash of the operation source.
 

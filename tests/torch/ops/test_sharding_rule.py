@@ -11,24 +11,27 @@ promotes the frontend attribute into a real ``sdy.op_sharding_rule`` and
 hands it to Shardy is covered by lit tests in tt-mlir
 (``.../shardy/op_propagation_registry/tt_lang_custom_rule*.mlir``).
 
-The final test, ``test_tt_lang_eltwise_add_custom_sharding_rule_e2e``, is a
-real multi-device hardware test: it compiles a tt-lang kernel carrying a
-custom ``sharding_rule``, runs it sharded across a device mesh, and compares
-the gathered result against a CPU golden. It is gated behind multi-device
-markers, and its device-only imports (torch_xla SPMD, infra) are done lazily
-inside the test so the Python-only tests above still collect and run on
-machines without a device. (``ttl`` is imported at module scope because
-tt-lang kernels must resolve it as a global; it is a required dependency, so
-this does not affect the Python-only tests.)
+The multi-device e2e tests compile a tt-lang kernel carrying a custom
+``sharding_rule``, run it across a device mesh, and compare against a CPU
+golden -- one case where the rule allows dim-0 propagation, and one where
+``need_replication`` blocks it. They are gated behind multi-device markers,
+and their device-only imports (torch_xla SPMD, infra) are done lazily inside
+the tests so the Python-only tests above still collect and run on machines
+without a device. (``ttl`` is imported at module scope because tt-lang
+kernels must resolve it as a global; it is a required dependency, so this
+does not affect the Python-only tests.)
 """
 
 import pytest
 import torch
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.tt_lang_op
+from jaxlib.mlir import ir
+from jaxlib.mlir.dialects import sdy
 
 import ttl
 from tt_torch import make_sharding_rule
 from tt_torch import tt_lang as tt_lang_mod
+from tt_torch.sharding_rule import make_fully_replicated_sharding_rule
 from tt_torch.tt_lang import tt_lang_operation
 
 
@@ -44,26 +47,62 @@ def clean_registry():
             tt_lang_mod._register(entry)
 
 
+def assert_rule(
+    text,
+    *,
+    factor_sizes,
+    operands,
+    results,
+    reduction=(),
+    need_replication=(),
+    permutation=(),
+    blocked=(),
+    is_custom=True,
+):
+    """Compare a printed rule to a structurally-built ``OpShardingRuleAttr``.
+
+    Avoids brittle exact-string checks that break on jaxlib printer changes.
+    """
+    with ir.Context() as ctx, ir.Location.unknown():
+        sdy.register_dialect(ctx)
+
+        def tensor_mapping(dims):
+            return sdy.TensorMappingAttr.get(
+                [sdy.DimMappingAttr.get([i]) for i in dims]
+            )
+
+        want = sdy.OpShardingRuleAttr.get(
+            factor_sizes=list(factor_sizes),
+            operand_mappings=[tensor_mapping(d) for d in operands],
+            result_mappings=[tensor_mapping(d) for d in results],
+            reduction_factors=list(reduction),
+            need_replication_factors=list(need_replication),
+            permutation_factors=list(permutation),
+            blocked_propagation_factors=list(blocked),
+            is_custom=is_custom,
+        )
+        assert ir.Attribute.parse(text) == want
+
+
 # ---------------------------------------------------------------------------
-# make_sharding_rule: happy-path formatting
-#
-# make_sharding_rule builds the rule through Shardy's own MLIR bindings, so
-# the expected strings below are exactly what Shardy's canonical printer
-# emits (note ``->`` has no surrounding spaces, unlike hand-written text).
+# make_sharding_rule: happy-path structure (via Shardy attr equality)
 # ---------------------------------------------------------------------------
 
 
 def test_make_sharding_rule_matmul_shape():
-    """A canonical matmul rule matches the printer format Shardy uses."""
+    """A canonical matmul rule matches the OpShardingRuleAttr Shardy builds."""
     rule = make_sharding_rule(
         operand_mappings=[("B", "M"), ("M", "N")],
         result_mappings=[("B", "N")],
         factor_sizes={"B": 8, "M": 16, "N": 32},
         reduction_factors=["M"],
     )
-    assert rule == (
-        "#sdy.op_sharding_rule<([i, j], [j, k])->([i, k]) "
-        "{i=8, j=16, k=32} reduction={j}, custom>"
+    assert_rule(
+        rule,
+        factor_sizes=[8, 16, 32],
+        operands=[[0, 1], [1, 2]],
+        results=[[0, 2]],
+        reduction=[1],
     )
 
 
@@ -73,8 +112,11 @@ def test_make_sharding_rule_pointwise_no_reduction():
         result_mappings=[("i", "j")],
         factor_sizes={"i": 8, "j": 8},
     )
-    assert rule == (
-        "#sdy.op_sharding_rule<([i, j], [i, j])->([i, j]) {i=8, j=8}, custom>"
+    assert_rule(
+        rule,
+        factor_sizes=[8, 8],
+        operands=[[0, 1], [0, 1]],
+        results=[[0, 1]],
     )
 
 
@@ -89,10 +131,16 @@ def test_make_sharding_rule_all_factor_types_and_no_custom():
         blocked_propagation_factors=["a"],
         is_custom=False,
     )
-    assert rule == (
-        "#sdy.op_sharding_rule<([i, j, k, l])->([i, j, k, l]) "
-        "{i=2, j=3, k=4, l=5} reduction={j} need_replication={k} "
-        "permutation={l} blocked_propagation={i}>"
+    assert_rule(
+        rule,
+        factor_sizes=[2, 3, 4, 5],
+        operands=[[0, 1, 2, 3]],
+        results=[[0, 1, 2, 3]],
+        reduction=[1],
+        need_replication=[2],
+        permutation=[3],
+        blocked=[0],
+        is_custom=False,
     )
 
 
@@ -102,7 +150,7 @@ def test_make_sharding_rule_scalar_operand():
         result_mappings=[()],
         factor_sizes={},
     )
-    assert rule == "#sdy.op_sharding_rule<([])->([]), custom>"
+    assert_rule(rule, factor_sizes=[], operands=[[]], results=[[]])
 
 
 def test_make_sharding_rule_uses_first_appearance_order_for_symbols():
@@ -115,7 +163,7 @@ def test_make_sharding_rule_uses_first_appearance_order_for_symbols():
         result_mappings=[("M", "N")],
         factor_sizes={"N": 4, "M": 8},
     )
-    assert rule == "#sdy.op_sharding_rule<([i])->([i, j]) {i=8, j=4}, custom>"
+    assert_rule(rule, factor_sizes=[8, 4], operands=[[0]], results=[[0, 1]])
 
 
 def test_make_sharding_rule_factor_sizes_dict_key_order_does_not_leak():
@@ -127,7 +175,7 @@ def test_make_sharding_rule_factor_sizes_dict_key_order_does_not_leak():
         result_mappings=[("a",)],
         factor_sizes={"b": 2, "a": 4},  # 'b' declared first, but unused
     )
-    assert rule == "#sdy.op_sharding_rule<([i])->([i]) {i=4, j=2}, custom>"
+    assert_rule(rule, factor_sizes=[4, 2], operands=[[0]], results=[[0]])
 
 
 def test_make_sharding_rule_reduction_over_many_factors():
@@ -137,9 +185,40 @@ def test_make_sharding_rule_reduction_over_many_factors():
         factor_sizes={"i": 4, "j": 8, "k": 16},
         reduction_factors=["j", "k"],
     )
-    assert rule == (
-        "#sdy.op_sharding_rule<([i, j, k])->([i]) {i=4, j=8, k=16} "
-        "reduction={j, k}, custom>"
+    assert_rule(
+        rule,
+        factor_sizes=[4, 8, 16],
+        operands=[[0, 1, 2]],
+        results=[[0]],
+        reduction=[1, 2],
+    )
+
+
+def test_make_fully_replicated_sharding_rule_pointwise():
+    rule = make_fully_replicated_sharding_rule(
+        [(8, 16), (8, 16), (8, 16)],
+        out_indices=[2],
+    )
+    assert_rule(
+        rule,
+        factor_sizes=[8, 16],
+        operands=[[0, 1], [0, 1], [0, 1]],
+        results=[[0, 1]],
+        need_replication=[0, 1],
+    )
+
+
+def test_make_fully_replicated_sharding_rule_distinct_shapes():
+    rule = make_fully_replicated_sharding_rule(
+        [(4,), (4, 8), (4, 8)],
+        out_indices=[2],
+    )
+    assert_rule(
+        rule,
+        factor_sizes=[4, 4, 8],
+        operands=[[0], [1, 2], [1, 2]],
+        results=[[1, 2]],
+        need_replication=[0, 1, 2],
     )
 
 
@@ -329,17 +408,49 @@ def test_tt_lang_op_dispatch_default_sharding_rule_is_empty(monkeypatch):
     )
 
     assert len(captured) == 1
+    # Dispatch forwards ""; tt_lang_op synthesizes the replication rule.
     assert captured[0][6] == ""
 
 
+def test_resolve_empty_sharding_rule_warns_and_replicates():
+    """Empty sharding_rule -> warn + explicit full-replication rule."""
+    from tt_torch.custom_ops import _resolve_tt_lang_sharding_rule
+
+    a = torch.zeros(4, 8)
+    b = torch.zeros(4, 8)
+    out = torch.zeros(4, 8)
+    with pytest.warns(UserWarning, match="no sharding_rule provided"):
+        rule = _resolve_tt_lang_sharding_rule(
+            "", [a, b, out], [2], kernel_id="unit.empty_rule"
+        )
+    assert_rule(
+        rule,
+        factor_sizes=[4, 8],
+        operands=[[0, 1], [0, 1], [0, 1]],
+        results=[[0, 1]],
+        need_replication=[0, 1],
+    )
+
+
+def test_resolve_nonempty_sharding_rule_passthrough():
+    from tt_torch.custom_ops import _resolve_tt_lang_sharding_rule
+
+    a = torch.zeros(2)
+    rule = "#sdy.op_sharding_rule<([i])->([i]) {i=2}, custom>"
+    assert (
+        _resolve_tt_lang_sharding_rule(rule, [a], [0], kernel_id="unit.passthrough")
+        == rule
+    )
+
+
 # ---------------------------------------------------------------------------
-# End-to-end hardware test: a tt-lang kernel carrying a custom sharding_rule
-# runs sharded across a device mesh and matches the CPU golden.
+# End-to-end hardware tests: a tt-lang kernel carrying a custom sharding_rule
+# runs across a device mesh and matches the CPU golden.
 #
-# This is the only test in the file that needs real hardware and the tt-lang
-# kernel compiler. All hardware imports are kept lazy (inside the builder /
-# test) so the pure-Python tests above still collect on machines without a
-# device or ``ttl``.
+# These are the only tests in the file that need real hardware and the
+# tt-lang kernel compiler. All hardware imports are kept lazy (inside the
+# builder / test) so the pure-Python tests above still collect on machines
+# without a device or ``ttl``.
 # ---------------------------------------------------------------------------
 
 # Per-shard rows must be a multiple of TILE_SIZE * GRANULARITY (the kernel
@@ -436,6 +547,18 @@ def _make_sharded_eltwise_add_operation(operation_id: str, sharding_rule: str):
     return add_op
 
 
+def _eltwise_add_e2e_setup(num_devices: int):
+    """Shared mesh/shape setup for the multi-device eltwise-add e2e tests."""
+    import numpy as np
+    from torch_xla.distributed.spmd import Mesh
+
+    # Global shape: one row-block (64 rows) per device after sharding dim 0.
+    rows = TILE_SIZE * GRANULARITY * num_devices
+    cols = 64
+    mesh = Mesh(np.array(range(num_devices)), (1, num_devices), ("batch", "model"))
+    return rows, cols, mesh
+
+
 @pytest.mark.push
 @pytest.mark.dual_chip
 @pytest.mark.llmbox
@@ -448,21 +571,20 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
       * it rides the ``stablehlo.custom_call`` as the ``xla.sdy.sharding_rule``
         frontend attribute,
       * tt-mlir's ``register-custom-sharding-rule`` pass promotes it and hands
-        it to Shardy, which propagates the dim-0 (``"model"``) sharding through
-        the custom call so the kernel runs on ``rows/num_devices`` row-shards,
+        it to Shardy, which propagates the dim-0 (``"model"``) sharding from
+        ``a`` through the custom call onto ``b`` / ``out``,
       * the gathered result equals the un-sharded ``a + b``.
 
-    Without the custom rule the custom_call has no registered sharding rule and
-    would fall back to replication, so a passing sharded run demonstrates the
-    rule actually drove propagation.
+    Without the custom rule the custom_call would get an explicit
+    full-replication rule, so a passing sharded run demonstrates the
+    user rule actually drove propagation.
     """
-    import numpy as np
+    import torch_xla
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.spmd as xs
     import torch_xla.runtime as xr
     from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
     from infra.utilities.torch_multichip_utils import enable_spmd
-    from torch_xla.distributed.spmd import Mesh
 
     enable_spmd()
     xr.set_device_type("TT")
@@ -471,17 +593,14 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
     if num_devices < 2:
         pytest.skip(f"needs a multi-device mesh, got {num_devices} device(s)")
 
-    # Global shape: one row-block (64 rows) per device after sharding dim 0.
-    rows = TILE_SIZE * GRANULARITY * num_devices
-    cols = 64
+    rows, cols, mesh = _eltwise_add_e2e_setup(num_devices)
 
-    # Shard dim 0 across the "model" axis; dim 1 stays replicated.
-    mesh = Mesh(np.array(range(num_devices)), (1, num_devices), ("batch", "model"))
-
-    # Pointwise rule over the *global* shape: factor "i" covers dim 0 (rows),
-    # "j" covers dim 1 (cols). No reduction, so Shardy is free to shard "i".
+    # Pointwise rule over the *global* shape, covering all custom_call
+    # operands (a, b, out) plus the single result. Factor "i" covers dim 0
+    # (rows), "j" covers dim 1 (cols). No need_replication, so Shardy is
+    # free to shard "i".
     sharding_rule = make_sharding_rule(
-        operand_mappings=[("i", "j"), ("i", "j")],
+        operand_mappings=[("i", "j"), ("i", "j"), ("i", "j")],
         result_mappings=[("i", "j")],
         factor_sizes={"i": rows, "j": cols},
     )
@@ -499,12 +618,89 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
     b_xla = b_cpu.to(device)
     out_xla = torch.zeros_like(a_cpu).to(device)
 
+    # Only seed sharding on ``a``; the pointwise rule should propagate it.
     xs.mark_sharding(a_xla, mesh, ("model", None))
-    xs.mark_sharding(b_xla, mesh, ("model", None))
-    xs.mark_sharding(out_xla, mesh, ("model", None))
+    a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(a_xla)
+
+    # The wrapper is destination-passing-style (copy_ into ``out_xla``) but
+    # also returns the functional XLA result, which carries the post-Shardy
+    # sharding annotation we want to assert on.
+    result_xla = add_op(a_xla, b_xla, out_xla)
+    assert torch_xla._XLAC._get_xla_sharding_spec(result_xla) == a_shard_spec, (
+        "pointwise sharding_rule should propagate a's dim-0 sharding onto the "
+        f"result; a={a_shard_spec!r}, "
+        f"result={torch_xla._XLAC._get_xla_sharding_spec(result_xla)!r}"
+    )
+    result = result_xla.to("cpu")
+
+    assert (
+        result.shape == golden.shape
+    ), f"shape mismatch: {result.shape} vs {golden.shape}"
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(result, golden)
+
+
+@pytest.mark.push
+@pytest.mark.dual_chip
+@pytest.mark.llmbox
+def test_tt_lang_eltwise_add_need_replication_blocks_propagation_e2e(
+    clean_registry,
+):
+    """End-to-end: ``need_replication`` blocks sharding propagation.
+
+    Same eltwise-add kernel as the sharded e2e, but the rule marks every
+    factor as ``need_replication``. Seeding a dim-0 sharding on ``a`` alone
+    must not propagate onto ``out``; the op still produces the correct
+    fully-replicated result.
+    """
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+    from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
+    from infra.utilities.torch_multichip_utils import enable_spmd
+
+    enable_spmd()
+    xr.set_device_type("TT")
+
+    num_devices = xr.global_runtime_device_count()
+    if num_devices < 2:
+        pytest.skip(f"needs a multi-device mesh, got {num_devices} device(s)")
+
+    rows, cols, mesh = _eltwise_add_e2e_setup(num_devices)
+
+    sharding_rule = make_sharding_rule(
+        operand_mappings=[("i", "j"), ("i", "j"), ("i", "j")],
+        result_mappings=[("i", "j")],
+        factor_sizes={"i": rows, "j": cols},
+        need_replication_factors=["i", "j"],
+    )
+
+    add_op = _make_sharded_eltwise_add_operation(
+        f"tt_xla.e2e.need_replication_eltwise_add.{rows}x{cols}.v1",
+        sharding_rule,
+    )
+
+    a_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
+    b_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
+    golden = a_cpu + b_cpu
+
+    device = xm.xla_device()
+    a_xla = a_cpu.to(device)
+    b_xla = b_cpu.to(device)
+    out_xla = torch.zeros_like(a_cpu).to(device)
+
+    xs.mark_sharding(a_xla, mesh, ("model", None))
+    a_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(a_xla)
 
     result_xla = add_op(a_xla, b_xla, out_xla)
-    xm.mark_step()
+    result_shard_spec = torch_xla._XLAC._get_xla_sharding_spec(result_xla)
+    assert result_shard_spec != a_shard_spec, (
+        "need_replication should block propagating a's sharding onto the "
+        f"result; both have {a_shard_spec!r}"
+    )
     result = result_xla.to("cpu")
 
     assert (

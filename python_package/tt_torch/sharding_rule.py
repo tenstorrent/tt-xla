@@ -135,9 +135,12 @@ def make_sharding_rule(
             when sharded.
         blocked_propagation_factors: Factor names along which shardings
             must not be propagated.
-        is_custom: Emit the ``custom`` marker. A custom rule is preserved
+        is_custom: Emit the ``custom`` marker. Defaults to ``True``, which
+            is what tt-lang always wants: a custom rule is preserved
             forever by Shardy propagation and is required for user-defined
-            rules on ``stablehlo.custom_call`` ops.
+            rules on ``stablehlo.custom_call`` ops. Leave this at the
+            default unless you are constructing a non-tt-lang rule and
+            intentionally want Shardy to be free to rewrite it.
 
     Returns:
         A string of the form
@@ -195,3 +198,63 @@ def make_sharding_rule(
             is_custom=is_custom,
         )
         return str(rule)
+
+
+def make_fully_replicated_sharding_rule(
+    operand_shapes: Sequence[Sequence[int]],
+    *,
+    out_indices: Sequence[int],
+) -> str:
+    """Build an explicit full-replication ``sdy.op_sharding_rule`` for an op.
+
+    Every operand/result dimension is mapped to a factor listed in
+    ``need_replication_factors``, so Shardy must keep all tensors fully
+    replicated. Operand shapes that are identical reuse the same factor
+    names (pointwise-friendly). Result mappings mirror the corresponding
+    destination-passing-style ``out`` operands.
+
+    This is the default rule emitted for tt-lang ops when the caller does
+    not supply a ``sharding_rule``, so tt-mlir always sees an explicit
+    rule rather than having to special-case a missing attribute.
+    """
+    if not operand_shapes:
+        raise ValueError("operand_shapes must contain at least one shape")
+    if not out_indices:
+        raise ValueError("out_indices must contain at least one index")
+    for idx in out_indices:
+        if not 0 <= idx < len(operand_shapes):
+            raise ValueError(
+                f"out index {idx} out of range for {len(operand_shapes)} operands"
+            )
+
+    shape_to_mapping: dict[tuple[int, ...], tuple[str, ...]] = {}
+    factor_sizes: dict[str, int] = {}
+    all_factors: list[str] = []
+    counter = 0
+
+    def mapping_for(shape: Sequence[int]) -> tuple[str, ...]:
+        nonlocal counter
+        key = tuple(int(dim) for dim in shape)
+        cached = shape_to_mapping.get(key)
+        if cached is not None:
+            return cached
+        names: list[str] = []
+        for dim in key:
+            name = f"f{counter}"
+            counter += 1
+            factor_sizes[name] = dim
+            all_factors.append(name)
+            names.append(name)
+        mapping = tuple(names)
+        shape_to_mapping[key] = mapping
+        return mapping
+
+    operand_mappings = [mapping_for(shape) for shape in operand_shapes]
+    result_mappings = [operand_mappings[idx] for idx in out_indices]
+    return make_sharding_rule(
+        operand_mappings=operand_mappings,
+        result_mappings=result_mappings,
+        factor_sizes=factor_sizes,
+        need_replication_factors=all_factors,
+        is_custom=True,
+    )
