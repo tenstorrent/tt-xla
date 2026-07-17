@@ -387,6 +387,10 @@ def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
 @pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
+# Full-depth 123B across a context sweep: durations aren't recorded yet and a
+# cold model download + full-depth compile exceeds the 1h SIGALRM fallback.
+# notimeout opts out of the per-test hang guard and uses the 240m job budget.
+@pytest.mark.notimeout
 @pytest.mark.parametrize(
     ["enable_const_eval", "experimental_weight_dtype"],
     [
