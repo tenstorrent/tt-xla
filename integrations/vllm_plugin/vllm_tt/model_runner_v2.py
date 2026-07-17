@@ -919,7 +919,9 @@ class TTModelRunnerV2:
         fill_page_table_dev = torch.from_numpy(fill_page_table).to(dev)
         cache_position_dev = torch.from_numpy(cache_position).to(dev)
         logits_indices_dev = torch.from_numpy(logits_indices).to(dev)
-        batch_idx_dev = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
+        batch_idx_dev = torch.from_numpy(np.arange(target_num_reqs, dtype=np.int32)).to(
+            dev
+        )
 
         # Pin input shardings eagerly (not inside the compiled graph, whose
         # dynamo trace can't run safe_mark_sharding's replicate-fallback logging).
