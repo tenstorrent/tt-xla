@@ -46,6 +46,7 @@ def make_runner(max_num_reqs=4, max_model_len=32):
     r.vocab_size = VOCAB
     r.dp_size = 1
     r.parallel_mode = ParallelismMode.DISABLED
+    r.enable_tensor_parallel = False
     r.block_size = 16
     r.max_num_blocks_per_req = 4
     r.attention_layer_names = ("layer.0", "layer.1")

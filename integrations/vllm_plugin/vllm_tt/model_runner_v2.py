@@ -901,6 +901,10 @@ class TTModelRunnerV2:
         logits_indices_dev = torch.from_numpy(logits_indices).to(dev)
         batch_idx_dev = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
 
+        # Pin input shardings eagerly (not inside the compiled graph, whose
+        # dynamo trace can't run safe_mark_sharding's replicate-fallback logging).
+        self._pin_input_shardings(input_ids_dev, positions_dev, None)
+
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -964,8 +968,6 @@ class TTModelRunnerV2:
         self, input_ids, positions, logits_indices, sampling_metadata
     ):
         """Compiled model forward -> last-token select -> logits -> sample."""
-        # Pin input shardings on the 2D tensors before the flatten (mirrors v1).
-        self._pin_input_shardings(input_ids, positions, None)
         model_input_ids, model_positions, model_embeds, restore_shape = (
             self._prepare_model_call_tensors(input_ids, positions, None)
         )
