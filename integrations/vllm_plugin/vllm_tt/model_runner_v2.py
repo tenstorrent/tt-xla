@@ -560,15 +560,20 @@ class TTModelRunnerV2:
         """
         sched = scheduler_output.num_scheduled_tokens
         if self.dp_size > 1:
-            # DP: a request's batch position determines its DP replica, so it must
-            # be stable across prefill and decode (KV is written and read on the
-            # same replica). Order all active slots ascending by slot and pad the
-            # unscheduled ones with 0 tokens so positions never shift step-to-step.
-            items = sorted(
-                self.req_states.req_id_to_index.items(), key=lambda kv: kv[1]
+            # DP: a request's batch position picks its DP replica, so it must equal
+            # the request's stable slot for its whole life (KV is written at prefill
+            # and read at decode on the same replica). Return the FULL replica grid
+            # -- every slot 0..max_num_reqs-1, position b == slot b -- with per-slot
+            # token counts (0 for inactive or unscheduled slots); _select_batch runs
+            # it as one full-width pass. Listing only active slots (or ranking them)
+            # would shift a lone prefilling request to position 0 and read its KV off
+            # the wrong replica at decode.
+            idx_to_req = self.req_states.index_to_req_id
+            slots = np.arange(self.max_num_reqs, dtype=np.int32)
+            ntoks_np = np.array(
+                [sched.get(idx_to_req.get(s), 0) for s in range(self.max_num_reqs)],
+                dtype=np.int32,
             )
-            slots = np.array([slot for _, slot in items], dtype=np.int32)
-            ntoks_np = np.array([sched.get(rid, 0) for rid, _ in items], dtype=np.int32)
             return slots, ntoks_np
 
         slots: list[int] = []
@@ -597,6 +602,21 @@ class TTModelRunnerV2:
         multi-pass loop picks up the rest. Returns ``(idx_mapping,
         num_scheduled_tokens, target_num_reqs, padded_query_len, end_index)``.
         """
+        if self.dp_size > 1:
+            # DP grid is one full-width pass; positions already map to replicas
+            # (see _order_scheduled_reqs), so no SMEM re-clamp or reorder here.
+            max_scheduled = max(int(ordered_num_tokens.max()), 1)
+            padded_query_len = _get_padded_token_len(
+                self.num_tokens_paddings, max_scheduled
+            )
+            return (
+                ordered_slots,
+                ordered_num_tokens,
+                self.max_num_reqs,
+                padded_query_len,
+                len(ordered_slots),
+            )
+
         # A long request anywhere in the remaining tail forces max-model-len mode
         # (fewer rows fit SMEM), matching the v1 collection loop.
         use_max_model_len = self.most_model_len is None
@@ -1327,8 +1347,102 @@ class TTModelRunnerV2:
         if has_kv_transfer_group():
             ensure_kv_transfer_shutdown()
 
+    def _warmup_buckets(self) -> list[tuple[int, int]]:
+        """(target_num_reqs, padded_query_len) pairs to precompile.
+
+        Decode always runs at max_num_reqs; prefill runs at the min / max prefill
+        buckets. Each request-count bucket is compiled at every token-length
+        padding, matching the shapes _select_batch can produce at runtime.
+        """
+        targets = sorted(
+            {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs}
+        )
+        return [(t, q) for t in targets for q in self.num_tokens_paddings]
+
     def capture_model(self) -> None:
-        # Warmup precompile is deferred: all-zeros dummy attention metadata fails
-        # to compile the paged-attention op, and a failed TT compile poisons
-        # torch_xla async state. Graphs compile lazily on first use instead.
-        logger.warning("MRv2 capture_model: warmup skipped; graphs compile lazily.")
+        """Precompile the forward/sample graph at every runtime bucket shape.
+
+        Warms the graph once with the DP input/KV shardings pinned so the first
+        real request pays no compile latency and traces the same graph warmup did.
+        Uses valid dummy attention metadata (non-zero cache_position, real
+        batch_idx) — all-zeros dummies fail to compile the paged-attention op.
+        Greedy (argmax) path only; sampler / multimodal / cpu_sampling warmups are
+        deferred with those runtime paths.
+        """
+        if self.cpu_sampling:
+            raise NotImplementedError("cpu_sampling warmup path is not ported yet.")
+        import time
+
+        import torch_xla
+
+        torch._dynamo.config.dynamic_shapes = False
+        start = time.perf_counter()
+        buckets = self._warmup_buckets()
+        logger.info("MRv2 warmup: precompiling %d bucket(s).", len(buckets))
+        for target_num_reqs, padded_query_len in buckets:
+            logger.info(
+                "MRv2 warmup: num_reqs=%d, query_len=%d",
+                target_num_reqs,
+                padded_query_len,
+            )
+            self._precompile_bucket(target_num_reqs, padded_query_len)
+            # Sync per bucket so prefill and decode graphs stay separate.
+            torch_xla.sync()
+        torch_xla.sync()
+        logger.info("MRv2 warmup finished in %.2f [secs].", time.perf_counter() - start)
+
+    def _precompile_bucket(self, target_num_reqs: int, padded_query_len: int) -> None:
+        """Trace the fused forward+sample graph for one bucket with valid dummies.
+
+        Mirrors _run_model_pass's device-tensor + sharding sequence so the warmed
+        graph matches inference exactly (input shardings pinned eagerly; page /
+        cache / batch_idx sharded on the DP batch axis).
+        """
+        from .metadata import XLASupportedSamplingMetadata
+
+        dev = self.device
+        input_ids = torch.zeros(
+            (target_num_reqs, padded_query_len), dtype=torch.int32
+        ).to(dev)
+        positions = torch.zeros(
+            (target_num_reqs, padded_query_len), dtype=torch.int32
+        ).to(dev)
+        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32).to(dev)
+        page_table = torch.zeros(
+            (target_num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
+        ).to(dev)
+        fill_page_table = torch.zeros(
+            (target_num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
+        ).to(dev)
+        # Non-zero write position: all-zeros makes the paged cache op fail to
+        # compile (matches v1's _dummy_run, which uses ones).
+        cache_position = torch.ones(target_num_reqs, dtype=torch.int32).to(dev)
+        # from_numpy (not on-device arange) so the DP "batch" sharding sticks.
+        batch_idx = torch.from_numpy(
+            np.arange(target_num_reqs, dtype=np.int32)
+        ).to(dev)
+
+        self._pin_input_shardings(input_ids, positions, None)
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+            safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+
+        attn_metadata = self.model_state.prepare_attn(
+            self.attention_layer_names,
+            page_table,
+            cache_position,
+            fill_page_table=fill_page_table,
+            batch_idx=batch_idx,
+            num_users=target_num_reqs,
+            dp_size=self.dp_size,
+        )
+        # Defaults are all-greedy -> warms the argmax fast-path.
+        sampling_metadata = XLASupportedSamplingMetadata(all_greedy=True)
+        self._forward_and_sample(
+            input_ids, positions, logits_indices, attn_metadata, sampling_metadata
+        )
