@@ -209,7 +209,8 @@ class TTWorker:
         Reads the same PJRT runtime attributes as ``_get_device_dram_bytes``.
         ``device_count`` is the real chip count from the runtime, not
         ``world_size`` (which is forced to 1 under SPMD, where a single worker
-        drives all chips).
+        drives all chips). ``mesh_shape`` is read from the model runner after
+        it resolves the configured parallel mode and optional explicit mesh.
         """
         arch = ""
         device_count = 1
@@ -222,7 +223,16 @@ class TTWorker:
                 device_count = xr.global_runtime_device_count()
         except Exception as e:
             logger.warning("get_device_info: could not read device attributes (%s)", e)
-        return {"arch": arch, "device_count": max(int(device_count), 1)}
+
+        mesh = getattr(self.model_runner, "mesh", None)
+        mesh_shape = (
+            tuple(int(dim) for dim in mesh.mesh_shape) if mesh is not None else None
+        )
+        return {
+            "arch": arch,
+            "device_count": max(int(device_count), 1),
+            "mesh_shape": mesh_shape,
+        }
 
     def determine_available_memory(self) -> int:
         if self.model_config.runner_type == "pooling":

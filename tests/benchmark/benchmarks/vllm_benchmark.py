@@ -70,7 +70,6 @@ class VLLMEmbeddingBenchmarkConfig:
 
 def _get_device_info_from_engine(
     llm: vllm.LLM,
-    additional_config: Dict[str, Any],
 ) -> Tuple[str, int, Optional[Tuple[int, int]]]:
     """
     Read real TT device info from the live vLLM engine's worker(s).
@@ -80,24 +79,20 @@ def _get_device_info_from_engine(
     """
     arch = ""
     device_count = 1
+    mesh_shape = None
     try:
         results = llm.collective_rpc("get_device_info")
         if results and results[0]:
             info = results[0]
             arch = align_arch(str(info.get("arch", "")).lower())
             device_count = max(int(info.get("device_count", 1)), 1)
+            resolved_mesh = info.get("mesh_shape")
+            if isinstance(resolved_mesh, (list, tuple)) and len(resolved_mesh) == 2:
+                mesh_shape = (int(resolved_mesh[0]), int(resolved_mesh[1]))
     except Exception as e:
         print(
             f"Warning: could not read TT device info from engine ({e}); using defaults."
         )
-
-    mesh_shape = None
-    if additional_config.get("enable_tensor_parallel", False):
-        configured_mesh = additional_config.get("mesh_shape")
-        if isinstance(configured_mesh, (list, tuple)) and len(configured_mesh) == 2:
-            mesh_shape = (int(configured_mesh[0]), int(configured_mesh[1]))
-        elif device_count > 1:
-            mesh_shape = (device_count, 1)
 
     return arch, max(int(device_count), 1), mesh_shape
 
@@ -242,9 +237,7 @@ def benchmark_vllm(
     )
 
     llm = _create_llm(config)
-    arch, device_count, mesh_shape = _get_device_info_from_engine(
-        llm, config.additional_config
-    )
+    arch, device_count, mesh_shape = _get_device_info_from_engine(llm)
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
@@ -379,7 +372,7 @@ def benchmark_vllm_embedding(
     print(f"  LLM args: {llm_args}")
     llm = vllm.LLM(**llm_args)
 
-    arch, device_count, _ = _get_device_info_from_engine(llm, config.additional_config)
+    arch, device_count, _ = _get_device_info_from_engine(llm)
 
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
