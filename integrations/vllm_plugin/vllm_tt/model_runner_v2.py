@@ -77,11 +77,17 @@ def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
 class TTModelRunnerV2:
     """Tenstorrent MRv2 model runner (see module docstring)."""
 
-    def __init__(self, vllm_config: "VllmConfig", device: torch.device) -> None:
-        """Construct the split v2 state + config scalars (single-device path).
+    def __init__(
+        self,
+        vllm_config: "VllmConfig",
+        device: torch.device,
+        original_parallel_config=None,
+    ) -> None:
+        """Construct the split v2 state + config scalars.
 
-        Multi-device SPMD (mesh / tensor + data parallel) is deferred; this
-        constructor raises if those TT config flags are set. The model itself is
+        When TP/DP is enabled the SPMD device mesh is built here (see
+        ``_build_device_mesh``); ``original_parallel_config`` carries the real
+        (pre-collapse) parallel sizes from the worker. The model itself is
         loaded and compiled in ``load_model``; ``model``/``model_state``/``sampler``
         are None until then.
         """
@@ -95,6 +101,7 @@ class TTModelRunnerV2:
         from .platform import TTConfig
         from .request_state import TTRequestState
         from .sampling_state_v2 import TTSamplingStates
+        from .vllm_distributed_utils import ParallelismMode
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -129,13 +136,18 @@ class TTModelRunnerV2:
         tt = self.tt_config
         self.enable_tensor_parallel = bool(getattr(tt, "enable_tensor_parallel", False))
         self.enable_data_parallel = bool(getattr(tt, "enable_data_parallel", False))
-        if self.enable_tensor_parallel or self.enable_data_parallel:
-            raise NotImplementedError(
-                "Multi-device (SPMD mesh) __init__ is deferred; single device only."
-            )
+        self.use_2d_mesh = getattr(tt, "use_2d_mesh", True)
+        self.is_sharded_compute_logits = False
+        self.original_parallel_config = original_parallel_config
+
+        # max_num_reqs may be rounded up to a dp_size multiple by the mesh build,
+        # so it must be set before it sizes the state tables below.
+        self.max_num_reqs = self.scheduler_config.max_num_seqs
         self.dp_size = 1
         self.mesh = None
-        self.original_parallel_config = None
+        self.parallel_mode = ParallelismMode.DISABLED
+        if self.enable_tensor_parallel or self.enable_data_parallel:
+            self._build_device_mesh()
 
         self.dtype = self.model_config.dtype
         if self.cache_config.cache_dtype == "auto":
@@ -157,7 +169,6 @@ class TTModelRunnerV2:
 
         self.block_size = self.cache_config.block_size
         self.max_model_len = self.model_config.max_model_len
-        self.max_num_reqs = self.scheduler_config.max_num_seqs
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
@@ -269,6 +280,78 @@ class TTModelRunnerV2:
         self.sampler = None
         self._attention_layer_names: tuple = ()
         self.attention_layer_names: tuple = ()
+
+    def _build_device_mesh(self) -> None:
+        """Select the parallelism mode and build the SPMD device mesh.
+
+        Ported from the v1 runner: disables TP/DP that the available device count
+        can't support, derives the ``(batch, model)`` mesh via
+        ``determine_mesh_shape``, sets ``dp_size`` (>1 only in DP modes), and
+        rounds ``max_num_reqs`` up to a ``dp_size`` multiple. No-ops to the
+        single-device path (mesh stays None) when both flags end up disabled.
+        """
+        import torch_xla.distributed.spmd as xs
+        import torch_xla.runtime as xr
+
+        from .vllm_distributed_utils import ParallelismMode
+        from .vllm_utils import determine_mesh_shape
+
+        num_devices = xr.global_runtime_device_count()
+        if self.enable_tensor_parallel and num_devices == 1:
+            logger.warning("Tensor parallel needs >1 device; found 1. Disabling TP.")
+            self.enable_tensor_parallel = False
+        if self.enable_data_parallel and (self.max_num_reqs <= 1 or num_devices == 1):
+            logger.warning(
+                "Data parallel needs >1 device and max_num_seqs > 1. Disabling DP."
+            )
+            self.enable_data_parallel = False
+
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, matching the mesh determine_mesh_shape builds.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            self.parallel_mode = (
+                ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+                if (self.use_2d_mesh or explicit_2d_mesh)
+                else ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+            )
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
+            return
+
+        mesh_shape = determine_mesh_shape(
+            num_devices, self.parallel_mode, self.tt_config.mesh_shape
+        )
+        device_ids = np.array(range(num_devices))
+        self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+        # mesh_shape[0] ("batch" axis) is a DP replica count only in DP modes; in
+        # pure-TP the batch axis is a TP axis, so dp_size stays 1.
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            self.dp_size = mesh_shape[0]
+        self.use_2d_mesh = 1 not in mesh_shape
+        xs.set_global_mesh(self.mesh)
+
+        if self.enable_data_parallel and self.dp_size > 1:
+            remainder = self.max_num_reqs % self.dp_size
+            if remainder != 0:
+                adjusted = self.max_num_reqs + self.dp_size - remainder
+                logger.warning(
+                    "Data parallel requires max_num_reqs divisible by dp_size; "
+                    "adjusting from %d to %d.",
+                    self.max_num_reqs,
+                    adjusted,
+                )
+                self.max_num_reqs = adjusted
 
     def load_model(self) -> None:
         """Load, place, and compile the model; build ModelState + sampler.

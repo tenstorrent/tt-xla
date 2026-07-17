@@ -14,13 +14,29 @@ constructed state tables, the not-yet-loaded (None) model handles, and the
 single-device guard.
 """
 
+from contextlib import contextmanager
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import torch
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates
+from vllm_tt.vllm_distributed_utils import ParallelismMode
+
+
+@contextmanager
+def fake_mesh(num_devices):
+    """Stub the torch_xla runtime/SPMD calls so mesh build is hw-independent."""
+    with patch(
+        "torch_xla.runtime.global_runtime_device_count", return_value=num_devices
+    ), patch(
+        "torch_xla.distributed.spmd.Mesh", side_effect=lambda ids, shape, names: shape
+    ), patch(
+        "torch_xla.distributed.spmd.set_global_mesh"
+    ):
+        yield
 
 
 def make_vllm_config(**tt_overrides):
@@ -133,11 +149,51 @@ def test_init_model_handles_none_until_load():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_init_rejects_multi_device():
-    with pytest.raises(NotImplementedError):
-        TTModelRunnerV2(
+def test_init_single_device_when_flags_off():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+    assert r.parallel_mode == ParallelismMode.DISABLED
+    assert r.mesh is None
+    assert r.dp_size == 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_tp_only_builds_2d_mesh():
+    with fake_mesh(8):
+        r = TTModelRunnerV2(
             make_vllm_config(enable_tensor_parallel=True), torch.device("cpu")
         )
+    # Pure TP on 8 devices -> (2,4) mesh, but dp_size stays 1 (batch axis is a TP axis).
+    assert r.parallel_mode == ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+    assert r.mesh == (2, 4)
+    assert r.dp_size == 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_dp_tp_sets_dp_size():
+    with fake_mesh(8):
+        r = TTModelRunnerV2(
+            make_vllm_config(enable_tensor_parallel=True, enable_data_parallel=True),
+            torch.device("cpu"),
+        )
+    assert r.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+    assert r.dp_size == 2  # mesh_shape[0] of (2,4)
+    assert r.max_num_reqs % r.dp_size == 0
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_single_device_disables_parallel():
+    with fake_mesh(1):
+        r = TTModelRunnerV2(
+            make_vllm_config(enable_tensor_parallel=True, enable_data_parallel=True),
+            torch.device("cpu"),
+        )
+    # One device -> both disabled, falls back to the single-device path.
+    assert r.parallel_mode == ParallelismMode.DISABLED
+    assert r.mesh is None
+    assert r.dp_size == 1
 
 
 @pytest.mark.push
