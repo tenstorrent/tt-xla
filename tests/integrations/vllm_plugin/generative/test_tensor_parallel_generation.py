@@ -4,6 +4,7 @@
 import pytest
 import vllm
 from conftest import (
+    CHUNKED_PREFILL_PROMPT,
     GROUNDED_BATCH_CHECKS,
     assert_batch_grounded,
     assert_output_coherent,
@@ -75,6 +76,47 @@ def test_tensor_parallel_generation_llmbox_small(
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
+def test_tensor_parallel_chunked_prefill_n300(model_name: str):
+    """Chunked prefill under pure TP on n300 (tt-xla #4986/#5691).
+
+    prefill_chunk_size << prompt length splits the prompt into several
+    block-aligned chunks, so chunks 2..N route through the cached-prefix
+    chunked-SDPA path while the KV cache and attention are sharded across the 2
+    chips. No existing multichip test exercised this (all use max_model_len=32
+    with prompts that fit one chunk). Greedy for determinism; coherence catches
+    a corrupted cached-prefix (garbage) or a TP-shard hang.
+
+    On push + nightly to protect chunked prefill in the TP path per #5691 (a
+    #5579-class break fatals at engine init here too).
+    """
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "min_context_len": 128,
+            "enable_tensor_parallel": True,
+            # Opt in to chunked prefill; platform.py derives
+            # max_num_batched_tokens from this.
+            "prefill_chunk_size": 128,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = (
+        llm.generate([CHUNKED_PREFILL_PROMPT], sampling_params)[0].outputs[0].text
+    )
+    print(f"output: {output_text}")
+    assert_output_coherent(output_text)
 
 
 @pytest.mark.nightly
