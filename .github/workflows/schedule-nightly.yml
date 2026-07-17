@@ -1,7 +1,11 @@
 name: On nightly
 
 on:
-  workflow_dispatch: # TEMP: manual trigger for release-wheel perf smoke test (revert before merge)
+  # TEMP: run the trimmed nightly on every push to this branch (a push event uses the
+  # workflow file from the pushed commit, so this works without changing main). Revert before merge.
+  push:
+    branches:
+      - jzx/tmp_disable_multilinux_profiling
   schedule:
     - cron: '0 0 * * 1-6'
     - cron: '0 0 * * 0' # on Sundays, run with dump_irs=true
