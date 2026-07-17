@@ -18,7 +18,6 @@ from types import SimpleNamespace
 
 import pytest
 from vllm.sampling_params import SamplingParams
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates

@@ -11,7 +11,6 @@ runs on cpu with injected state.
 from types import SimpleNamespace
 
 import pytest
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 
 

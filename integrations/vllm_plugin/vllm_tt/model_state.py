@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """TT ``ModelState`` for vLLM Model Runner v2 (MRv2).
 
 This is Phase 1 of the MRv2 adoption: the model-specific ``ModelState`` layer.
@@ -41,7 +44,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn as nn
-
 from vllm.tasks import GenerationTask
 from vllm.v1.worker.gpu.model_states.interface import ModelState
 
@@ -105,9 +107,7 @@ class TTModelState(ModelState):
             supports_realtime,
             supports_transcription,
         )
-        from vllm.model_executor.models.interfaces_base import (
-            is_text_generation_model,
-        )
+        from vllm.model_executor.models.interfaces_base import is_text_generation_model
 
         supported_tasks: list[GenerationTask] = []
 

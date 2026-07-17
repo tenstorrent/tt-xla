@@ -17,7 +17,6 @@ The output feeds ``TTModelState.prepare_attn`` (tested separately).
 import numpy as np
 import pytest
 import torch
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 

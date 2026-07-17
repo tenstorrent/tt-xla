@@ -16,7 +16,6 @@ These do NOT exercise the end-to-end runner path -- nothing consumes
 
 import numpy as np
 import pytest
-
 from vllm_tt.request_state import TTRequestState
 
 

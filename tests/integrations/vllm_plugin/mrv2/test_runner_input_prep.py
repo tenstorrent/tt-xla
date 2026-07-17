@@ -15,7 +15,6 @@ prefill/decode gather, the computed-token position offset (chunked prefill), the
 
 import numpy as np
 import pytest
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 

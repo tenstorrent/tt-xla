@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import torch
-
 from vllm.sampling_params import SamplingType
 
 from .metadata import DEFAULT_SAMPLING_PARAMS

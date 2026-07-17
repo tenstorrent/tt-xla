@@ -21,7 +21,6 @@ from vllm.v1.kv_cache_interface import (
     KVCacheGroupSpec,
     KVCacheTensor,
 )
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 
 BLOCK_SIZE = 32

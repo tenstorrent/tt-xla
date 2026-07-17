@@ -18,7 +18,6 @@ import numpy as np
 import pytest
 import torch
 from vllm.sampling_params import SamplingParams
-
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.model_state import TTModelState
 from vllm_tt.request_state import TTRequestState

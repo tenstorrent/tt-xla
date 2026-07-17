@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """TT ``InputBatch`` for vLLM Model Runner v2 (MRv2).
 
 Phase 2 of the MRv2 adoption: the transient per-step batch view. Mirrors
@@ -31,7 +34,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
-
 from vllm.utils import random_uuid
 
 

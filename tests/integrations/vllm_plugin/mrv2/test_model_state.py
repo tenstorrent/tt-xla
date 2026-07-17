@@ -13,7 +13,6 @@ instance state, so these run on cpu with no TT hardware and no model
 
 import pytest
 import torch
-
 from vllm_tt.attention_impls.attention import TTMetadata
 from vllm_tt.model_state import TTModelState
 

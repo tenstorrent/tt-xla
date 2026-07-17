@@ -12,7 +12,6 @@ Runs on cpu (device=torch.device("cpu")), no TT hardware.
 
 import pytest
 import torch
-
 from vllm_tt.input_batch_v2 import TTInputBatch, TTInputBuffers
 
 

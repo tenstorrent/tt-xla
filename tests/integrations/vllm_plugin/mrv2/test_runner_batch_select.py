@@ -14,10 +14,10 @@ multi-pass split, and the decode/prefill target-bucket + padded query length.
 The outputs feed ``_prepare_input_tokens`` and ``_prepare_attn_tensors``.
 """
 
-import numpy as np
-import pytest
 from types import SimpleNamespace
 
+import numpy as np
+import pytest
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 

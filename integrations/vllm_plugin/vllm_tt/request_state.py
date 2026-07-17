@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """TT ``RequestState`` for vLLM Model Runner v2 (MRv2).
 
 Phase 2 of the MRv2 adoption: the persistent per-request slot table. Mirrors

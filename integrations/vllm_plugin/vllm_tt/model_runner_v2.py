@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-
 import vllm.envs as envs
 from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv

@@ -19,7 +19,6 @@ import numpy as np
 import pytest
 import torch
 from vllm.sampling_params import SamplingParams
-
 from vllm_tt.metadata import DEFAULT_SAMPLING_PARAMS, XLASupportedSamplingMetadata
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates
