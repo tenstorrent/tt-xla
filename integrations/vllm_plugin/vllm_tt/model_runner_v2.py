@@ -356,18 +356,22 @@ class TTModelRunnerV2:
     def load_model(self) -> None:
         """Load, place, and compile the model; build ModelState + sampler.
 
-        Single-device path (salvaged from the v1 fork): the multi-device weight
-        sharding, the vocab-embedding TP-rank patch, LoRA, and per-tensor
-        weight-dtype overrides are deferred with the SPMD ``__init__``.
-        Needs a real model + loader, so it is validated at engine stand-up.
+        Under TP the weights are sharded across the mesh (via ``shard_model``)
+        and the embedding load is wrapped in the vocab TP-rank patch. LoRA and
+        per-tensor weight-dtype overrides are still deferred. Needs a real model
+        + loader, so it is validated at engine stand-up.
         """
+        from contextlib import nullcontext
+
         from vllm.config import get_layers_from_vllm_config, set_current_vllm_config
         from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+        from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
         from vllm.model_executor.model_loader import get_model_loader
 
         from .model_state import TTModelState
         from .overrides import repair_stale_moe_closures, replace_modules
         from .sampler import Sampler
+        from .vllm_distributed_utils import ParallelismMode, shard_model
 
         loader = get_model_loader(self.load_config)
 
@@ -383,7 +387,21 @@ class TTModelRunnerV2:
 
             loader.get_all_weights = filtered_get_all_weights
 
-        with set_current_vllm_config(self.vllm_config):
+        # xm's rank assignment differs from gloo's; the embedding all-gather
+        # ordering depends on the xm rank, so patch it only for the weight load.
+        vocab_rank_patch = nullcontext()
+        if self.enable_tensor_parallel:
+            from unittest.mock import patch
+
+            import torch_xla.runtime as xr
+
+            vocab_rank_patch = patch(
+                "vllm.model_executor.layers.vocab_parallel_embedding."
+                "get_tensor_model_parallel_rank",
+                return_value=xr.global_ordinal(),
+            )
+
+        with set_current_vllm_config(self.vllm_config), vocab_rank_patch:
             model = loader.load_model(
                 vllm_config=self.vllm_config, model_config=self.model_config
             ).eval()
@@ -392,6 +410,22 @@ class TTModelRunnerV2:
 
         # Repair MoE routing closures that captured CPU tensors before to(device).
         repair_stale_moe_closures(self.model)
+
+        # Shard weights across the mesh before compile so the annotations are
+        # captured in the traced graph. Pure-TP always shards on the batch axis
+        # (it is itself a TP axis there); DP+TP honours the config knob.
+        if self.enable_tensor_parallel:
+            shard_on_batch_axis = (
+                self.tt_config.shard_weights_on_batch_axis
+                if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                else True
+            )
+            shard_model(self.model, self.mesh, shard_on_batch_axis)
+
+        # MM models nest lm_head, so walk the tree for any ParallelLMHead.
+        self.is_sharded_compute_logits = self.enable_tensor_parallel and any(
+            isinstance(m, ParallelLMHead) for m in self.model.modules()
+        )
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
