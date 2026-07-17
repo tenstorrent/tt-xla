@@ -25,6 +25,7 @@ from vllm_tt.sampling_state_v2 import TTSamplingStates
 
 def make_vllm_config(**tt_overrides):
     model_config = SimpleNamespace(
+        hf_config=SimpleNamespace(num_hidden_layers=2),
         dtype=torch.bfloat16,
         max_model_len=256,
         get_sliding_window=lambda: None,
@@ -137,3 +138,36 @@ def test_init_rejects_multi_device():
         TTModelRunnerV2(
             make_vllm_config(enable_tensor_parallel=True), torch.device("cpu")
         )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_no_layer_override_by_default():
+    cfg = make_vllm_config()
+    r = TTModelRunnerV2(cfg, torch.device("cpu"))
+    # Default num_hidden_layers=0 -> no override, hf_config untouched.
+    assert r._original_num_layers is None
+    assert r._target_num_layers is None
+    assert cfg.model_config.hf_config.num_hidden_layers == 2
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_applies_layer_override():
+    cfg = make_vllm_config(num_hidden_layers=1)
+    r = TTModelRunnerV2(cfg, torch.device("cpu"))
+    # Override mutates hf_config so only the target layers get built.
+    assert r._original_num_layers == 2
+    assert r._target_num_layers == 1
+    assert cfg.model_config.hf_config.num_hidden_layers == 1
+    # The weight filter drops layers >= target and keeps the rest.
+    weights = [
+        ("model.layers.0.self_attn.qkv_proj.weight", 0),
+        ("model.layers.1.self_attn.qkv_proj.weight", 1),
+        ("model.embed_tokens.weight", 2),
+    ]
+    kept = [n for n, _ in r._filter_weights_for_layer_override(iter(weights))]
+    assert kept == [
+        "model.layers.0.self_attn.qkv_proj.weight",
+        "model.embed_tokens.weight",
+    ]

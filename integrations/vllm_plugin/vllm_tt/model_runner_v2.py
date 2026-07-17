@@ -115,6 +115,17 @@ class TTModelRunnerV2:
                 self.tt_config.get_pjrt_compile_config()
             )
 
+        # Override number of hidden layers if specified in TTConfig. Must run
+        # before load_model so only the target layers are built; the weight
+        # loader is filtered to match in load_model.
+        from .vllm_utils import apply_hidden_layer_override
+
+        self._original_num_layers, self._target_num_layers = (
+            apply_hidden_layer_override(
+                self.model_config.hf_config, self.tt_config.num_hidden_layers
+            )
+        )
+
         tt = self.tt_config
         self.enable_tensor_parallel = bool(getattr(tt, "enable_tensor_parallel", False))
         self.enable_data_parallel = bool(getattr(tt, "enable_data_parallel", False))
@@ -263,8 +274,8 @@ class TTModelRunnerV2:
         """Load, place, and compile the model; build ModelState + sampler.
 
         Single-device path (salvaged from the v1 fork): the multi-device weight
-        sharding, the vocab-embedding TP-rank patch, LoRA, the num-layers override,
-        and per-tensor weight-dtype overrides are deferred with the SPMD ``__init__``.
+        sharding, the vocab-embedding TP-rank patch, LoRA, and per-tensor
+        weight-dtype overrides are deferred with the SPMD ``__init__``.
         Needs a real model + loader, so it is validated at engine stand-up.
         """
         from vllm.config import get_layers_from_vllm_config, set_current_vllm_config
@@ -276,6 +287,19 @@ class TTModelRunnerV2:
         from .sampler import Sampler
 
         loader = get_model_loader(self.load_config)
+
+        # Under a layer override the checkpoint still holds every layer's
+        # weights; filter the loader so it only feeds the built layers.
+        if self._original_num_layers is not None:
+            original_get_all_weights = loader.get_all_weights
+
+            def filtered_get_all_weights(model_config, model):
+                return self._filter_weights_for_layer_override(
+                    original_get_all_weights(model_config, model)
+                )
+
+            loader.get_all_weights = filtered_get_all_weights
+
         with set_current_vllm_config(self.vllm_config):
             model = loader.load_model(
                 vllm_config=self.vllm_config, model_config=self.model_config
@@ -299,6 +323,25 @@ class TTModelRunnerV2:
             get_layers_from_vllm_config(self.vllm_config, AttentionLayerBase).keys()
         )
         self.attention_layer_names = self._attention_layer_names
+
+    def _filter_weights_for_layer_override(self, weights_iterator):
+        """Drop checkpoint weights for layers beyond the override target."""
+        if self._original_num_layers is None or self._target_num_layers is None:
+            yield from weights_iterator
+            return
+        for weight_name, weight_tensor in weights_iterator:
+            skip = False
+            if "layers." in weight_name:
+                parts = weight_name.split(".")
+                for i, part in enumerate(parts):
+                    if part == "layers" and i + 1 < len(parts):
+                        try:
+                            skip = int(parts[i + 1]) >= self._target_num_layers
+                        except ValueError:
+                            skip = False
+                        break
+            if not skip:
+                yield weight_name, weight_tensor
 
     def _remove_request(self, req_id: str) -> None:
         """Free a request's slot across every per-slot table. Idempotent."""
