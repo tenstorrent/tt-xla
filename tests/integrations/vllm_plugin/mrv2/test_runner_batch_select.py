@@ -42,6 +42,7 @@ def make_runner(**scalars):
     r.min_num_reqs = scalars.get("min_num_reqs", 1)
     r.max_num_reqs = scalars.get("max_num_reqs", 4)
     r.num_tokens_paddings = scalars.get("num_tokens_paddings", PADDINGS)
+    r.dp_size = scalars.get("dp_size", 1)
     return r
 
 
@@ -73,6 +74,30 @@ def test_order_skips_reqs_without_slot():
     slots, ntoks = r._order_scheduled_reqs(so)
     assert slots.tolist() == [s_a]
     assert ntoks.tolist() == [1]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_order_dp_stable_positions_pads_unscheduled():
+    # Under DP a request's position (= its DP replica) must be stable across
+    # steps, so ordering covers all active slots (sorted) with unscheduled ones
+    # padded to 0 tokens, regardless of which are scheduled this step.
+    r = make_runner(dp_size=2)
+    for rid, prompt in [("A", [1]), ("B", [1, 2]), ("C", [3])]:
+        r.req_states.add_request(rid, len(prompt), prompt, 0)
+    s_a = r.req_states.req_id_to_index["A"]
+    s_b = r.req_states.req_id_to_index["B"]
+    s_c = r.req_states.req_id_to_index["C"]
+
+    # Only B is scheduled this step; A and C are padded, positions kept by slot.
+    so = SimpleNamespace(num_scheduled_tokens={"B": 5})
+    slots, ntoks = r._order_scheduled_reqs(so)
+
+    order = sorted([s_a, s_b, s_c])
+    assert slots.tolist() == order
+    assert ntoks[order.index(s_b)] == 5
+    assert ntoks[order.index(s_a)] == 0
+    assert ntoks[order.index(s_c)] == 0
 
 
 @pytest.mark.push

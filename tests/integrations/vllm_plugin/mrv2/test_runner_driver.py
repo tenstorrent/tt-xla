@@ -79,6 +79,7 @@ def make_runner(max_num_reqs=8, max_model_len=32, max_num_blocks_per_req=4):
     r.max_prefill_num_reqs = max_num_reqs
     r.max_num_reqs = max_num_reqs
     r.num_tokens_paddings = [1, 32, 64, 128]
+    r.dp_size = 1
     return r
 
 

@@ -558,9 +558,22 @@ class TTModelRunnerV2:
         1-token decodes ahead of the prefills so the multi-pass loop can emit
         pure decode passes (dispatched to the decode graph) before prefills.
         """
+        sched = scheduler_output.num_scheduled_tokens
+        if self.dp_size > 1:
+            # DP: a request's batch position determines its DP replica, so it must
+            # be stable across prefill and decode (KV is written and read on the
+            # same replica). Order all active slots ascending by slot and pad the
+            # unscheduled ones with 0 tokens so positions never shift step-to-step.
+            items = sorted(
+                self.req_states.req_id_to_index.items(), key=lambda kv: kv[1]
+            )
+            slots = np.array([slot for _, slot in items], dtype=np.int32)
+            ntoks_np = np.array([sched.get(rid, 0) for rid, _ in items], dtype=np.int32)
+            return slots, ntoks_np
+
         slots: list[int] = []
         ntoks: list[int] = []
-        for req_id, n in scheduler_output.num_scheduled_tokens.items():
+        for req_id, n in sched.items():
             slot = self.req_states.req_id_to_index.get(req_id)
             if slot is None:
                 continue
@@ -689,6 +702,10 @@ class TTModelRunnerV2:
 
         for b in range(num_reqs):
             slot = int(idx_mapping_np[b])
+            if int(num_scheduled_tokens[b]) == 0:
+                # DP padding row (unscheduled this step): emits no token.
+                valid[b] = []
+                continue
             seq_len = int(rs.num_computed_tokens[slot]) + int(num_scheduled_tokens[b])
             if seq_len < int(rs.prefill_len[slot]):
                 # Still prefilling: ignore the sampled token from this partial req.
@@ -855,6 +872,9 @@ class TTModelRunnerV2:
 
             valid = self.postprocess(idx_mapping, num_scheduled, sampled)
             for b in range(len(idx_mapping)):
+                if int(num_scheduled[b]) == 0:
+                    # DP padding row: not scheduled this step, don't report it.
+                    continue
                 slot = int(idx_mapping[b])
                 out_req_ids.append(self.req_states.index_to_req_id[slot])
                 out_sampled.append(valid[b])
