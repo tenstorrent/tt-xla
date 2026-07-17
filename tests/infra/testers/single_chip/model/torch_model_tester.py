@@ -4,6 +4,7 @@
 
 import collections
 import os
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
@@ -364,6 +365,7 @@ class TorchModelTester(ModelTester):
         self,
         fb_reference,
         assert_exact: bool = True,
+        test_nodeid: str = None,
     ) -> None:
         """Verify EmitPy (codegen_py) execution matches flatbuffer execution.
 
@@ -384,7 +386,28 @@ class TorchModelTester(ModelTester):
             else {}
         )
 
-        emitpy_export_path = tempfile.mkdtemp(prefix="emitpy_test_")
+        # When TTXLA_EMITPY_PRESERVE_ROOT is set, export the codegen artifacts
+        # (main.py, ttnn.mlir, tensors/, ...) into a stable, non-deleted
+        # directory named <preserve_root>/<test_name>_<run_num> so they can be
+        # inspected / instrumented afterwards. Otherwise fall back to a tempdir
+        # that is cleaned up at the end.
+        preserve_root = os.environ.get("TTXLA_EMITPY_PRESERVE_ROOT")
+        preserve = False
+        if preserve_root:
+            name = test_nodeid or "emitpy"
+            if "[" in name:
+                name = name[name.index("[") + 1 : -1]
+            name = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+            os.makedirs(preserve_root, exist_ok=True)
+            run_num = 0
+            while os.path.exists(os.path.join(preserve_root, f"{name}_{run_num}")):
+                run_num += 1
+            emitpy_export_path = os.path.join(preserve_root, f"{name}_{run_num}")
+            os.makedirs(emitpy_export_path)
+            preserve = True
+            print(f"EmitPy artifacts preserved at: {emitpy_export_path}", flush=True)
+        else:
+            emitpy_export_path = tempfile.mkdtemp(prefix="emitpy_test_")
         try:
             # Nuke all dynamo and XLA caches so the next torch.compile call
             # produces a fresh executable rather than reusing the already-compiled
@@ -428,7 +451,8 @@ class TorchModelTester(ModelTester):
             torch._dynamo.reset()
             xr.clear_computation_cache()
 
-            shutil.rmtree(emitpy_export_path, ignore_errors=True)
+            if not preserve:
+                shutil.rmtree(emitpy_export_path, ignore_errors=True)
 
     # @override
     def _apply_model_dtype(self) -> None:

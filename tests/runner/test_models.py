@@ -221,6 +221,7 @@ def _run_model_test_impl(
                     tester.verify_emitpy(
                         fb_reference=tt_result,
                         assert_exact=test_metadata.emitpy_assert_exact,
+                        test_nodeid=request.node.nodeid,
                     )
 
         except Exception as e:
