@@ -32,8 +32,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import vllm.envs as envs
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv
+
+from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +104,6 @@ class TTModelRunnerV2:
         from .platform import TTConfig
         from .request_state import TTRequestState
         from .sampling_state_v2 import TTSamplingStates
-        from .vllm_distributed_utils import ParallelismMode
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -293,7 +295,6 @@ class TTModelRunnerV2:
         import torch_xla.distributed.spmd as xs
         import torch_xla.runtime as xr
 
-        from .vllm_distributed_utils import ParallelismMode
         from .vllm_utils import determine_mesh_shape
 
         num_devices = xr.global_runtime_device_count()
@@ -371,7 +372,6 @@ class TTModelRunnerV2:
         from .model_state import TTModelState
         from .overrides import repair_stale_moe_closures, replace_modules
         from .sampler import Sampler
-        from .vllm_distributed_utils import ParallelismMode, shard_model
 
         loader = get_model_loader(self.load_config)
 
@@ -901,6 +901,18 @@ class TTModelRunnerV2:
         logits_indices_dev = torch.from_numpy(logits_indices).to(dev)
         batch_idx_dev = torch.arange(target_num_reqs, dtype=torch.int32, device=dev)
 
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # These share the DP-sharded K/V input's per-device leading dim;
+            # batch_idx feeds paged_fill_cache, whose verifier requires dim0 to
+            # equal the per-device batch.
+            safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position_dev, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx_dev, self.mesh, ("batch",))
+            safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
+
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
             page_table_dev,
@@ -952,6 +964,8 @@ class TTModelRunnerV2:
         self, input_ids, positions, logits_indices, sampling_metadata
     ):
         """Compiled model forward -> last-token select -> logits -> sample."""
+        # Pin input shardings on the 2D tensors before the flatten (mirrors v1).
+        self._pin_input_shardings(input_ids, positions, None)
         model_input_ids, model_positions, model_embeds, restore_shape = (
             self._prepare_model_call_tensors(input_ids, positions, None)
         )
@@ -963,7 +977,34 @@ class TTModelRunnerV2:
         hidden_states = self._restore_model_hidden_states(hidden_states, restore_shape)
         selected_states = self._select_hidden_states(hidden_states, logits_indices)
         logits = self.model.compute_logits(selected_states)
+        # Replicate sharded logits: hooks can't reach ParallelLMHead
+        # (quant_method.apply bypasses __call__) and all_gather is a no-op at
+        # world_size 1, so the constraint must sit inside the compiled graph.
+        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return self._sample_from_logits(logits, sampling_metadata)
+
+    def _pin_input_shardings(self, input_ids, positions, inputs_embeds) -> None:
+        """Pin model inputs on the batch/mesh axis so warmup and inference trace
+        the same graph. No-op off the SPMD path (ported from the v1 runner)."""
+        if not self.enable_tensor_parallel and self.parallel_mode not in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            return
+        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
+        batch_axis = "batch" if self.use_2d_mesh else "model"
+        if input_ids is not None:
+            safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
+        if inputs_embeds is not None:
+            safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+        # positions: pin only for DP modes; under pure-TP it drives GSPMD into a
+        # batch-axis reduce_scatter that hits a tt-mlir to_layout bug.
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(positions, self.mesh, (batch_axis, None))
 
     def _prepare_model_call_tensors(self, input_ids, positions, inputs_embeds):
         """Optionally flatten the 2D [reqs, tokens] tensors to 1D for flat_model_io."""
@@ -991,7 +1032,10 @@ class TTModelRunnerV2:
     def _select_hidden_states(self, hidden_states, indices_do_sample):
         # Gather each request's last-token hidden state: hidden is [reqs, tokens, H].
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        return hidden_states[batch_indices, indices_do_sample, :]
+        result = hidden_states[batch_indices, indices_do_sample, :]
+        if self.enable_tensor_parallel and self.use_2d_mesh:
+            result = sharding_constraint_tensor(result, self.mesh, (None, None))
+        return result
 
     def _sample_from_logits(self, logits, sampling_metadata):
         # Greedy fast-path (argmax) avoids the fused sampling kernel; the sampler
@@ -1151,10 +1195,8 @@ class TTModelRunnerV2:
         return kv_cache_spec
 
     def initialize_kv_cache(self, kv_cache_config: "KVCacheConfig") -> None:
-        """Allocate KV caches and bind them into the forward context.
-
-        SPMD KV-cache sharding and KV-transfer registration land with the
-        multi-device __init__.
+        """Allocate KV caches, bind them into the forward context, and (under TP)
+        shard them across the mesh. KV-transfer registration is still deferred.
         """
         from vllm.v1.worker.utils import bind_kv_cache
 
@@ -1167,6 +1209,27 @@ class TTModelRunnerV2:
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
+
+        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+            # DP+TP: leave replicated; each device writes its own slice via
+            # paged_update_cache. A TP-only spec puts block_size on the DP axis
+            # and fails ttir.paged_update_cache (follow-up).
+            return
+        if self.enable_tensor_parallel:
+            import torch_xla.distributed.spmd as xs
+
+            for entry in self.kv_caches:
+                is_pair = isinstance(entry, (list, tuple))
+                for cache in entry if is_pair else [entry]:
+                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    if is_pair:
+                        # Shard standard K/V on num_kv_heads over the "model" axis.
+                        safe_mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                    else:
+                        # Replicate the MLA latent KV cache.
+                        xs.mark_sharding(cache, self.mesh, (None, None, None, None))
 
     def get_model(self):
         return self.model

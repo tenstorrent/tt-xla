@@ -22,6 +22,7 @@ from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.model_state import TTModelState
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates
+from vllm_tt.vllm_distributed_utils import ParallelismMode
 
 VOCAB = 1000
 BLOCK_MAP = [[10, 11, 12, 13], [20, 21, 22, 23], [30, 31, 32, 33], [0, 0, 0, 0]]
@@ -44,6 +45,7 @@ def make_runner(max_num_reqs=4, max_model_len=32):
     r.sampling_device = torch.device("cpu")
     r.vocab_size = VOCAB
     r.dp_size = 1
+    r.parallel_mode = ParallelismMode.DISABLED
     r.block_size = 16
     r.max_num_blocks_per_req = 4
     r.attention_layer_names = ("layer.0", "layer.1")
