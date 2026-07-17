@@ -20,7 +20,7 @@ from vllm.model_executor.layers.linear import (
     QKVParallelLinear,
     RowParallelLinear,
 )
-from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
+from vllm.model_executor.layers.mamba.gdn.base import GatedDeltaNetAttention
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
@@ -465,7 +465,13 @@ def shard_model(
 
     def _process_module(module, name=None, parent=None):
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
-            if get_fqn(module) == module_type:
+            matches_module_type = get_fqn(module) == module_type
+            if module_type == "GatedDeltaNetAttention":
+                # vLLM 0.22 moved the implementation into a Qwen-specific
+                # subclass. Match the shared base so the subclass receives
+                # _tt_mesh and the GDN head-alignment constraints.
+                matches_module_type = isinstance(module, GatedDeltaNetAttention)
+            if matches_module_type:
                 wrapped_module = wrapping_func(
                     module, mesh, shard_weights_on_batch_axis
                 )

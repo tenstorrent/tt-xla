@@ -19,7 +19,7 @@ import torch
 from einops import rearrange
 from tt_torch.sharding import sharding_constraint_tensor
 from vllm.forward_context import get_forward_context
-from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
+from vllm.model_executor.layers.mamba.gdn.base import GatedDeltaNetAttention
 
 from . import (
     tt_causal_conv1d_fn,
@@ -36,6 +36,17 @@ from . import (
 # The recurrence avoids all C x C tensors; for short sequences the token loop is
 # cheap. Flip back to False to restore the chunk-parallel path.
 _PREFILL_USE_RECURRENT = False
+
+# QKV sharding strategy for the interleaved-GQA projection (Qwen3.x GDN):
+#   False -> merged [q|k|v] layout; the conv output is gathered (replicated) on
+#            its channel dim before the split, then q/k/v/g/beta are re-sharded
+#            per head via explicit sharding constraints (see _core_prefill).
+#   True  -> gather-free grouped layout: keep the native per-head-group channel
+#            order and reorder the conv weight to match, so a contiguous shard is
+#            already head-parallel (no gather, no constraints needed).
+# The grouped path depends on conv1d.weight being in [q|k|v] order at load time;
+# the gather path does not touch the conv weight, so it is the safer default.
+_USE_GROUPED_QKV = True
 
 
 def _prefill_delta_rule(q, k, v, g, beta, scale, initial_state, cu_seqlens):
@@ -128,16 +139,25 @@ def _input_projection(self: GatedDeltaNetAttention, hidden_states: torch.Tensor)
     ba, _ = self.in_proj_ba(hidden_states)
     if self.gqa_interleaved_layout:
         query, key, value, z, b, a = self.fix_query_key_value_ordering(mixed_qkvz, ba)
-        # Pack the channels in the native per-head-group order
-        # ([q_g, k_g, v_g x gpv] for each group g) rather than de-interleaving to
-        # a merged [q | k | v]. A contiguous "model" shard then covers whole head
-        # groups, so the downstream conv/split are aligned head-parallel and need
-        # no cross-device gather. _rearrange_mixed_qkv_grouped inverts this, and
-        # override_gdn_linear_attn_module reorders the conv weight to match.
-        # query, key: (l, ng, head_k_dim); value: (l, num_v_heads, head_v_dim).
-        ng = self.num_k_heads // self.tp_size
-        value_g = value.reshape(value.size(0), ng, -1)  # (l, ng, gpv*head_v_dim)
-        mixed_qkv = torch.cat((query, key, value_g), dim=2).reshape(query.size(0), -1)
+        if getattr(self, "_tt_grouped_qkv", False):
+            # Grouped (gather-free): pack channels in the native per-head-group
+            # order ([q_g, k_g, v_g x gpv] per group g). A contiguous "model" shard
+            # then covers whole head groups, so the conv/split are aligned
+            # head-parallel with no gather. _rearrange_mixed_qkv_grouped inverts
+            # this and override_gdn_linear_attn_module reorders the conv weight.
+            # query, key: (l, ng, head_k_dim); value: (l, num_v_heads, head_v_dim).
+            ng = self.num_k_heads // self.tp_size
+            value_g = value.reshape(value.size(0), ng, -1)  # (l, ng, gpv*head_v)
+            mixed_qkv = torch.cat((query, key, value_g), dim=2).reshape(
+                query.size(0), -1
+            )
+        else:
+            # Merged [q | k | v]: the gather path (see _core_prefill/_core_decode)
+            # replicates the channel dim before the split and re-shards per head.
+            query, key, value = map(
+                lambda x: rearrange(x, "l p d -> l (p d)"), (query, key, value)
+            )
+            mixed_qkv = torch.cat((query, key, value), dim=-1)
         return mixed_qkv, z, b.contiguous(), a.contiguous()
 
     qkv_size = (self.key_dim * 2 + self.value_dim) // self.tp_size
@@ -433,7 +453,9 @@ def override_gdn_linear_attn_module(layer: torch.nn.Module) -> torch.nn.Module:
     # same grouped channel order (runs post weight-load, pre-shard) and swap in the
     # de-interleaving rearrange. Other projection layouts keep the merged [q|k|v]
     # path (with the pre-split gather in _core_prefill/_core_decode).
-    layer._tt_grouped_qkv = bool(getattr(layer, "gqa_interleaved_layout", False))
+    layer._tt_grouped_qkv = _USE_GROUPED_QKV and bool(
+        getattr(layer, "gqa_interleaved_layout", False)
+    )
     if layer._tt_grouped_qkv:
         perm = _grouped_qkv_perm(layer).to(layer.conv1d.weight.device)
         with torch.no_grad():

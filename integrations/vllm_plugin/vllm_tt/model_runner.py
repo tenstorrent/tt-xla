@@ -42,7 +42,7 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
     ChunkedLocalAttention,
 )
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
-from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
+from vllm.model_executor.layers.mamba.gdn.base import GatedDeltaNetAttention
 from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
@@ -70,6 +70,7 @@ from vllm.utils.platform_utils import is_pin_memory_available
 from vllm.utils.torch_utils import get_dtype_size
 from vllm.v1.attention.backend import AttentionType
 from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadata
+from vllm.v1.attention.backends.registry import MambaAttentionBackendEnum
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
@@ -167,13 +168,20 @@ def _get_layer_kv_cache_spec(
 # tensor list built from it), in the fixed order the owning attention layer's
 # `get_state_shape()` returns them.
 #
-# "gdn_attention" (GatedDeltaNetAttention.get_state_shape, via
+# GDN_ATTN (GatedDeltaNetAttention.get_state_shape, via
 # MambaStateShapeCalculator.gated_delta_net_state_shape) returns
-# (conv_state_shape, temporal_state_shape):
-#   conv_state:     (num_blocks, kernel_window, conv_dim / tp_size)
-#   temporal_state: (num_blocks, num_v_heads / tp_size, head_v_dim, head_k_dim)
-_MAMBA_STATE_SHARDING_SPECS: dict[str, tuple[tuple[str | None, ...], ...]] = {
-    "gdn_attention": (
+# (conv_state_shape, temporal_state_shape). Confirmed on vLLM 0.22.1 with
+# is_conv_state_dim_first()==False (SD conv layout):
+#   conv_state:     (num_blocks, kernel_window, conv_dim / tp_size)   -> shard conv_dim (last)
+#   temporal_state: (num_blocks, num_v_heads / tp_size, head_v_dim, head_k_dim) -> shard num_v_heads
+# Both shard contiguously on "model", which matches the head-group-contiguous
+# layout of q/k/v/g/beta in layers/gdn/attention.py (device s holds conv groups
+# 4s:4s+4 and v-heads 12s:12s+12), so the sharded state is head-consistent with
+# the activations feeding the delta rule.
+_MAMBA_STATE_SHARDING_SPECS: dict[
+    MambaAttentionBackendEnum, tuple[tuple[str | None, ...], ...]
+] = {
+    MambaAttentionBackendEnum.GDN_ATTN: (
         (None, None, "model"),
         (None, "model", None, None),
     ),
