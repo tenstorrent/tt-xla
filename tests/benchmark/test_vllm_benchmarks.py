@@ -20,7 +20,7 @@ from utils import resolve_display_name, sanitize_model_name
 #   TT_BENCHMARK_TEMPERATURE=<float>      default 0.0 (greedy)
 #   TT_BENCHMARK_CPU_SAMPLING=1           default 0 (device sampling)
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
-#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     default "" (e.g. bfp_bf8, bfp_bf4)
+#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test kv cache dtype)
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
 #   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
 #   TT_BENCHMARK_WEIGHT_OVERRIDES=<path>  JSON file of {glob: dtype} per-tensor mixed-precision overrides
@@ -30,7 +30,7 @@ from utils import resolve_display_name, sanitize_model_name
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
-_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE", "")
+_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE")
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
@@ -50,6 +50,7 @@ def _config(
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
+    experimental_kv_cache_dtype: str = "bfp_bf8",
     # None => leave the compute-kernel-config knob unset so compiler
     # can set the default value or leave it up to ttnn.
     # Only set this deliberately, never as a frontend default.
@@ -65,17 +66,19 @@ def _config(
     additional = {"enable_trace": True}
     if experimental_weight_dtype:
         additional["experimental_weight_dtype"] = experimental_weight_dtype
+    if experimental_kv_cache_dtype:
+        additional["experimental_kv_cache_dtype"] = experimental_kv_cache_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level:
         additional["optimization_level"] = optimization_level
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
-    if _BENCH_KV_CACHE_DTYPE:
-        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     additional.update(additional_config_extra)
     if _BENCH_WEIGHT_DTYPE is not None:
         additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
+    if _BENCH_KV_CACHE_DTYPE is not None:
+        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     if _BENCH_WEIGHT_OVERRIDES is not None:
         # Path to a JSON {glob: dtype} file; loaded plugin-side by
         # apply_weight_dtype_overrides. Takes precedence over the uniform dtype.
@@ -111,18 +114,18 @@ def _tp_config(
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
-    # Allow callers to override weight dtype without passing the same keyword
-    # twice to _config (once explicitly and once via **tp_defaults).
+    # Allow callers to override weight/kv-cache dtype without passing the same
+    # keyword twice to _config (once explicitly and once via **tp_defaults).
     experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "")
+    experimental_kv_cache_dtype = tp_defaults.pop("experimental_kv_cache_dtype", "")
     fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", None)
     return _config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
         optimization_level=optimization_level,
-        # Keep TP configs as-is: the single-device alignment default
-        # (bfp_bf8 weight dtype) does not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
     )
@@ -146,6 +149,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",
+        experimental_kv_cache_dtype="",
         cpu_sampling=False,
         flat_model_io=True,
     )
