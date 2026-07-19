@@ -90,12 +90,17 @@ class ZImageConfig:
         height: int = HEIGHT,
         width: int = WIDTH,
         compile_options: Optional[dict] = None,
+        vae_tiling: bool = True,
     ):
         self.height = height
         self.width = width
         self.vae_scale_factor = VAE_SCALE_FACTOR
         # Forwarded for parity with the other imagegen pipelines; unused inline.
         self.compile_options = compile_options or {}
+        # Tiled VAE decode keeps the 1280x720 decode activations small so the
+        # host-side spike during decode stays bounded. Flip off to revert to a
+        # single full-frame decode.
+        self.vae_tiling = vae_tiling
 
 
 class ZImagePipeline_TT:
@@ -110,17 +115,6 @@ class ZImagePipeline_TT:
             REPO_ID, subfolder="scheduler"
         )
         self._device = torch_xla.device()
-
-        # Load the raw modules on CPU. Each component is moved to device in
-        # generate() right before it runs, compiled fresh with torch.compile,
-        # then evicted (moved back to CPU + its compiled graph dropped) so peak
-        # DRAM ~= max(component) not sum — the Qwen3 encoder + ~6.2B transformer
-        # + VAE do not all sit on the single chip at once. Keeping the raw
-        # modules lets each generate() (warmup + steady) rebuild its compiled
-        # wrappers fresh.
-        self.text_encoder = _TextEncoderWrapper(load_text_encoder(DTYPE)).eval()
-        self.transformer = _TransformerWrapper(load_transformer(DTYPE)).eval()
-        self.vae = _VaeDecodeWrapper(load_vae(DTYPE)).eval()
 
     def _encode(self, prompt: str, encoder) -> torch.Tensor:
         input_ids, attention_mask = tokenize_prompt(prompt)
@@ -147,16 +141,18 @@ class ZImagePipeline_TT:
         t_total_start = time.perf_counter()
 
         with torch.no_grad():
-            # ── Text encoder (Qwen3) → prompt embeds, then evict ─────────
+            # ── Text encoder (Qwen3) → prompt embeds, then free ──────────
+            # Loaded here (not in setup) and fully released at the end of the
+            # stage so its ~7.5 GB never overlaps the transformer or VAE on host.
             logger.info("[STAGE] Text encoder: start")
-            self.text_encoder = self.text_encoder.to(self._device)
-            te_compiled = torch.compile(self.text_encoder, backend="tt")
+            text_encoder = _TextEncoderWrapper(load_text_encoder(DTYPE)).eval()
+            text_encoder = text_encoder.to(self._device)
+            te_compiled = torch.compile(text_encoder, backend="tt")
             t0 = time.perf_counter()
             cap_pos = self._encode(prompt, te_compiled)
             cap_neg = self._encode(NEGATIVE_PROMPT, te_compiled) if do_cfg else None
             self._perf["components"]["text_encoder"] = time.perf_counter() - t0
-            self.text_encoder = self.text_encoder.to("cpu")
-            del te_compiled
+            del te_compiled, text_encoder
             gc.collect()
             torch_xla.sync()
             logger.info("[STAGE] Text encoder: done")
@@ -198,8 +194,9 @@ class ZImagePipeline_TT:
                 f"[STAGE] Transformer denoising loop: start "
                 f"({num_inference_steps} steps)"
             )
-            self.transformer = self.transformer.to(self._device)
-            tf_compiled = torch.compile(self.transformer, backend="tt")
+            transformer = _TransformerWrapper(load_transformer(DTYPE)).eval()
+            transformer = transformer.to(self._device)
+            tf_compiled = torch.compile(transformer, backend="tt")
             for i, t in enumerate(timesteps):
                 logger.info(f"[STEP] Transformer step {i + 1}/{num_inference_steps}")
                 timestep = ((1000 - t.expand(1)) / 1000).to(DTYPE)
@@ -218,21 +215,26 @@ class ZImagePipeline_TT:
                 latents = self.scheduler.step(
                     noise_pred.to(torch.float32), t, latents, return_dict=False
                 )[0]
-            self.transformer = self.transformer.to("cpu")
-            del tf_compiled
+            # Free the transformer (~12 GB) + its compiled graph before the VAE
+            # decode so the decode stage runs with only the VAE resident on host.
+            del tf_compiled, transformer
             gc.collect()
             torch_xla.sync()
             logger.info("[STAGE] Transformer denoising loop: done")
 
-            # ── VAE decode → raw pixels in [-1, 1], then evict ───────────
+            # ── VAE decode → raw pixels in [-1, 1], then free ────────────
             logger.info("[STAGE] VAE decode: start")
-            self.vae = self.vae.to(self._device)
-            vae_compiled = torch.compile(self.vae, backend="tt")
+            vae_wrapper = _VaeDecodeWrapper(load_vae(DTYPE)).eval()
+            if self.config.vae_tiling and hasattr(vae_wrapper.vae, "enable_tiling"):
+                # Tiled decode bounds the 1280x720 decode activations (and their
+                # host staging) to a single tile instead of the full frame.
+                vae_wrapper.vae.enable_tiling()
+            vae_wrapper = vae_wrapper.to(self._device)
+            vae_compiled = torch.compile(vae_wrapper, backend="tt")
             t0 = time.perf_counter()
             image = vae_compiled(latents.to(self._device)).cpu().float()
             self._perf["components"]["vae"] = time.perf_counter() - t0
-            self.vae = self.vae.to("cpu")
-            del vae_compiled
+            del vae_compiled, vae_wrapper
             gc.collect()
             torch_xla.sync()
             logger.info("[STAGE] VAE decode: done")
