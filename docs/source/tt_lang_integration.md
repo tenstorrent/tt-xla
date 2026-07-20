@@ -218,7 +218,7 @@ monkey-patch and the env-var dance.
 
 `tt-mlir`'s `TTNNToFlatbuffer.cpp` contains
 `createOp(FlatbufferObjectCache &, TTLangOp)`, which parses the
-`kernel_artifact` JSON (gated on `format_version == 1`) and emits a
+`kernel_artifact` JSON (gated on `format_version == 2`) and emits a
 `GenericOp` flatbuffer record:
 
 * one `KernelDescriptor` per `kernels[*]` entry, with
@@ -309,7 +309,13 @@ This avoids three problems an offline derivation would have:
    `{start, end}` pair. When tt-lang gains multi-rectangle kernels the
    schema bumps to `core_range_set: [{start, end}, ...]`.
 
-2. **Sharded memory_config parsing.** `_ttnn_memory_config_from_layout`
+2. **PipeNet resources.** format_version 2 requires
+   `num_pipe_sync_semaphores`, `num_pipe_global_semaphores`, and
+   `pipe_sram_scratch_bytes`. The lower-to-generic pass allocates L1
+   scratch, creates global semaphores, and emits program-local
+   `KernelSemaphoreAttr`s from those counts.
+
+3. **Sharded memory_config parsing.** `_ttnn_memory_config_from_layout`
    currently only distinguishes DRAM vs L1 (both interleaved) -- the
    only two cases tt-lang's compile path accepts today. When tt-lang
    grows sharded-kernel support we need a full parser that threads

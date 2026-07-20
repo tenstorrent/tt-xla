@@ -363,8 +363,8 @@ class _FakeCompiledKernel:
         self.kernel_tensor_indices = [(0, 1, 2), (0, 1), (2,)]
         self.num_tensors = num_tensors
         self.num_pipe_sync_semaphores = 1
-        self.pipe_sram_scratch_bytes = 0
         self.num_pipe_global_semaphores = 0
+        self.pipe_sram_scratch_bytes = 0
 
 
 @pytest.fixture
@@ -469,8 +469,8 @@ def test_resolve_operation_returns_json_artifact(clean_registry, fake_ttl):
     assert payload["format_version"] == tt_lang_mod._ARTIFACT_FORMAT_VERSION
     assert payload["num_tensors"] == 3
     assert payload["num_pipe_sync_semaphores"] == 1
-    assert payload["pipe_sram_scratch_bytes"] == 0
     assert payload["num_pipe_global_semaphores"] == 0
+    assert payload["pipe_sram_scratch_bytes"] == 0
     assert payload["core_range"] == {"start": [0, 0], "end": [0, 0]}
 
     kernels = payload["kernels"]

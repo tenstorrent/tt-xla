@@ -34,7 +34,7 @@ from tt_torch.custom_ops import tt_lang_op_dispatch
 # The tt-mlir flatbuffer emitter checks the same value; bump on any
 # breaking schema change. Schema documented at the
 # ``_serialize_compiled_operation`` definition below.
-_ARTIFACT_FORMAT_VERSION = 1
+_ARTIFACT_FORMAT_VERSION = 2
 
 
 _VALID_ROLES = frozenset({"in", "out"})
@@ -875,7 +875,7 @@ def _serialize_compiled_operation(
     The payload structure is::
 
         {
-          "format_version": 1,
+          "format_version": 2,
           "kernels": [
             {
               "thread_type":   "compute" | "noc",
@@ -887,10 +887,10 @@ def _serialize_compiled_operation(
           "core_range":  {"start": [x, y], "end": [x, y]},
           "cb_configs":  [{...}, ...],            # see _serialize_cb_config
           "num_tensors":                 <int>,
-          "num_pipe_sync_semaphores":     <int>,  # PipeNet sync-semaphore count
-          "pipe_sram_scratch_bytes":     <int>,  # per-core PipeNet SRAM scratch
-          "num_pipe_global_semaphores":  <int>,  # GlobalSemaphore ready counters
-          "operand_metadata":            { ... } # see resolve_operation
+          "num_pipe_sync_semaphores":    <int>,
+          "num_pipe_global_semaphores":  <int>,
+          "pipe_sram_scratch_bytes":     <int>,
+          "operand_metadata":            { ... }  # see resolve_operation
         }
 
     Every field is structured (no Python ``repr`` strings). The cpp
@@ -928,22 +928,9 @@ def _serialize_compiled_operation(
         "core_range": _serialize_core_range(compiled.core_ranges),
         "cb_configs": [_serialize_cb_config(c) for c in compiled.cb_configs],
         "num_tensors": int(compiled.num_tensors),
-        # Emit tt-lang's CompiledTTNNKernel field name. Older ttl builds
-        # exposed this as num_pipe_nets; accept either when reading from
-        # `compiled`, but always serialize as num_pipe_sync_semaphores.
-        "num_pipe_sync_semaphores": int(
-            getattr(
-                compiled,
-                "num_pipe_sync_semaphores",
-                getattr(compiled, "num_pipe_nets", 0),
-            )
-        ),
-        "pipe_sram_scratch_bytes": int(
-            getattr(compiled, "pipe_sram_scratch_bytes", 0)
-        ),
-        "num_pipe_global_semaphores": int(
-            getattr(compiled, "num_pipe_global_semaphores", 0)
-        ),
+        "num_pipe_sync_semaphores": int(compiled.num_pipe_sync_semaphores),
+        "num_pipe_global_semaphores": int(compiled.num_pipe_global_semaphores),
+        "pipe_sram_scratch_bytes": int(compiled.pipe_sram_scratch_bytes),
     }
     if operand_metadata is not None:
         payload["operand_metadata"] = operand_metadata
