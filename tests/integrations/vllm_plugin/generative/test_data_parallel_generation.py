@@ -10,7 +10,8 @@ so each replica sees a disjoint subset of sentences.
 
 import pytest
 import vllm
-from conftest import CHUNKED_PREFILL_PROMPT, assert_output_coherent, check_host_memory
+from chunked_prefill_data import CHUNKED_PREFILL_PROMPT
+from conftest import assert_output_coherent, check_host_memory
 
 
 @pytest.mark.push
@@ -88,7 +89,6 @@ def test_data_parallel_generation_n300_wider_batch(model_name: str):
 
 
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
@@ -99,8 +99,6 @@ def test_data_parallel_chunked_prefill_n300(model_name: str):
     length splits each into several block-aligned chunks so both replicas run
     the cached-prefix chunked-SDPA path in parallel. Greedy for determinism;
     coherence per replica catches a corrupted cached-prefix or a DP hang.
-
-    On push + nightly to protect chunked prefill in the DP path per #5691.
     """
     prompts = [CHUNKED_PREFILL_PROMPT, CHUNKED_PREFILL_PROMPT]
     sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)

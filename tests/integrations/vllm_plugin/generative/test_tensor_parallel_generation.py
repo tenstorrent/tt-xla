@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
+from chunked_prefill_data import CHUNKED_PREFILL_PROMPT
 from conftest import (
-    CHUNKED_PREFILL_PROMPT,
     GROUNDED_BATCH_CHECKS,
     assert_batch_grounded,
     assert_output_coherent,
@@ -78,7 +78,6 @@ def test_tensor_parallel_generation_llmbox_small(
     check_host_memory(model_name)
 
 
-@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
@@ -92,9 +91,6 @@ def test_tensor_parallel_chunked_prefill_n300(model_name: str):
     chips. No existing multichip test exercised this (all use max_model_len=32
     with prompts that fit one chunk). Greedy for determinism; coherence catches
     a corrupted cached-prefix (garbage) or a TP-shard hang.
-
-    On push + nightly to protect chunked prefill in the TP path per #5691 (a
-    #5579-class break fatals at engine init here too).
     """
     sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
     llm_args = {
