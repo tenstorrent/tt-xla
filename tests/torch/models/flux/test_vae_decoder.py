@@ -16,6 +16,10 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 from . import skip_on_wormhole
 
 
+# Hangs on blackhole (240-min job timeout); skipped so it can't hang the job. See #5678.
+@pytest.mark.skip(
+    reason="VAE decoder hangs on blackhole (240-min job timeout). https://github.com/tenstorrent/tt-xla/issues/5678"
+)
 @pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.model_test

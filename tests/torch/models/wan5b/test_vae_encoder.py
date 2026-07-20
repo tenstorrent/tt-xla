@@ -59,6 +59,12 @@ def test_vae_encoder_480p_sharded():
     _run("480p", sharded=True)
 
 
+# strict=False: fails on galaxy-bh (Fabric Router Sync: Timeout after 10000 ms on Device 0,
+# fabric_firmware_initializer.cpp:263); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh Fabric Router Sync: Timeout after 10000 ms (fabric_firmware_initializer.cpp:263). Tracked by https://github.com/tenstorrent/tt-xla/issues/5679.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
@@ -68,6 +74,10 @@ def test_vae_encoder_480p():
     _run("480p", sharded=False)
 
 
+@pytest.mark.xfail(
+    reason="galaxy-bh Fabric Router Sync: Timeout after 10000 ms (fabric_firmware_initializer.cpp:263). Tracked by https://github.com/tenstorrent/tt-xla/issues/5679.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
