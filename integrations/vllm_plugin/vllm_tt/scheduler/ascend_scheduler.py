@@ -802,16 +802,10 @@ class AscendScheduler(Scheduler):
                 stale_req_ids[:3],
             )
 
-        # NOTE(woosuk): As len(self.running) can be up to 1K or more, the below
-        # loop can be a performance bottleneck. We should do our best to avoid
-        # expensive operations inside the loop.
-        for request in self.running:
-            req_id = request.request_id
-            num_tokens_scheduled = num_scheduled_tokens.get(req_id, 0)
-            if num_tokens_scheduled == 0:
-                # The request was not scheduled in this step.
-                continue
-            if req_id in self.scheduled_req_ids:
-                self.scheduled_req_ids.remove(req_id)
+        # Clear by what was scheduled, not self.running: a partial-prefill
+        # continuation stays out of self.running, so iterating it would leak the
+        # partial's id and block decode forever (gated on empty). (tt-xla #5664)
+        for req_id in num_scheduled_tokens:
+            self.scheduled_req_ids.discard(req_id)
 
         return super().update_from_output(scheduler_output, model_runner_output)
