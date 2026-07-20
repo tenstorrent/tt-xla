@@ -77,7 +77,7 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "testing"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
 
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
