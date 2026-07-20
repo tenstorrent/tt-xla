@@ -6,7 +6,7 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # set(TT_MLIR_VERSION "ba8aa2aca750fa530773edf5c903bf3964915bd1")
-    set(TT_MLIR_VERSION "sshon/wip-moe-compute-260715")
+    set(TT_MLIR_VERSION "sshon/wip-moe-compute-260720")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
