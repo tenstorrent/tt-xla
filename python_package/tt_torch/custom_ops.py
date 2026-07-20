@@ -2339,9 +2339,9 @@ def tt_lang_op(
     the real (post-Shardy) types.
 
     A ``sharding_rule`` is always forwarded as the
-    ``xla.sdy.sharding_rule`` frontend attribute; tt-mlir's
-    ``register-custom-sharding-rule`` pass recognizes it and hands the
-    parsed ``sdy.op_sharding_rule`` to Shardy so the rule participates in
+    ``xla.sdy.custom_sharding_rule`` frontend attribute; tt-mlir's
+    ``register-user-sharding-rule`` pass promotes it to an ``sdy.sharding_rule``
+    op attribute and hands it to Shardy so the rule participates in
     sharding inference. Build the string with
     :func:`tt_torch.make_sharding_rule` or pass raw MLIR text.
 
@@ -2370,7 +2370,7 @@ def tt_lang_op(
         "kernel_id": kernel_id,
         "arg_roles": arg_roles,
         "version_tag": version_tag,
-        "xla.sdy.sharding_rule": sharding_rule,
+        "xla.sdy.custom_sharding_rule": sharding_rule,
     }
     if shard_spec:
         frontend_attributes["shard_spec"] = shard_spec

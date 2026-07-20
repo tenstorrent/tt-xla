@@ -106,7 +106,6 @@ def make_sharding_rule(
     need_replication_factors: Iterable[str] = (),
     permutation_factors: Iterable[str] = (),
     blocked_propagation_factors: Iterable[str] = (),
-    is_custom: bool = True,
 ) -> str:
     """Build the MLIR text of an ``sdy.op_sharding_rule`` attribute.
 
@@ -115,9 +114,13 @@ def make_sharding_rule(
     matches Shardy's canonical printer exactly and structural errors (e.g. a
     factor index out of range) surface at construction time. The returned
     string can be attached to a ``stablehlo.custom_call`` under the
-    ``xla.sdy.sharding_rule`` frontend attribute; tt-mlir's
-    ``register-custom-sharding-rule`` pass recognizes it and parses it back
+    ``xla.sdy.custom_sharding_rule`` frontend attribute; tt-mlir's
+    ``register-user-sharding-rule`` pass recognizes it and parses it back
     into a real ``sdy.op_sharding_rule`` handed to Shardy propagation.
+
+    Every rule is emitted with the ``custom`` marker so Shardy preserves it
+    through propagation; that is required for user-defined rules on
+    ``stablehlo.custom_call`` ops.
 
     Args:
         operand_mappings: One sequence per operand, each listing the factor
@@ -135,12 +138,6 @@ def make_sharding_rule(
             when sharded.
         blocked_propagation_factors: Factor names along which shardings
             must not be propagated.
-        is_custom: Emit the ``custom`` marker. Defaults to ``True``, which
-            is what tt-lang always wants: a custom rule is preserved
-            forever by Shardy propagation and is required for user-defined
-            rules on ``stablehlo.custom_call`` ops. Leave this at the
-            default unless you are constructing a non-tt-lang rule and
-            intentionally want Shardy to be free to rewrite it.
 
     Returns:
         A string of the form
@@ -195,7 +192,7 @@ def make_sharding_rule(
             blocked_propagation_factors=_factor_indices(
                 "blocked_propagation", blocked_propagation_factors, name_to_index
             ),
-            is_custom=is_custom,
+            is_custom=True,
         )
         return str(rule)
 
@@ -256,5 +253,4 @@ def make_fully_replicated_sharding_rule(
         result_mappings=result_mappings,
         factor_sizes=factor_sizes,
         need_replication_factors=all_factors,
-        is_custom=True,
     )
