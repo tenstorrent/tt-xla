@@ -127,6 +127,28 @@ def _tp_config(
     )
 
 
+def _sharded_sampling_tp_config(
+    model: str, batch_size: int, *, mesh_shape, temperature: float = 0.8
+):
+    # Non-greedy device sampling on a 2D mesh: temperature>0 + cpu_sampling=False
+    # hits the vocab-sharded composite_topk path (#4494). opt-level 0 is required
+    # because device sampling under trace needs opt<1, and opt>0 would force
+    # cpu_sampling=True and bypass the composite.
+    cfg = _tp_config(
+        model,
+        batch_size,
+        gpu_memory_utilization=0.15,
+        optimization_level=0,
+        use_2d_mesh=True,
+        mesh_shape=mesh_shape,
+        enable_const_eval=True,
+        experimental_weight_dtype="bfp_bf8",
+        cpu_sampling=False,
+    )
+    cfg.temperature = temperature
+    return cfg
+
+
 def _gemma4_tp_config(model: str, batch_size: int):
     # Gemma-4 is a multimodal model run text-only on a TP mesh. Mirrors
     # tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py
@@ -263,6 +285,13 @@ TP_CONFIGS = [
         id="llama-3.1-70b-qb2-tp",
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
+    # Non-greedy sampling on a 2D mesh (#4494); mesh [4, 8] = 16032-wide shards.
+    pytest.param(
+        _sharded_sampling_tp_config(
+            "meta-llama/Llama-3.1-8B-Instruct", 32, mesh_shape=[4, 8]
+        ),
+        id="llama-3.1-8b-sharded-sampling-galaxy-tp",
+    ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
