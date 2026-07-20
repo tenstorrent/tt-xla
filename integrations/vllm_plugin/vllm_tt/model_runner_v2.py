@@ -54,9 +54,18 @@ def _adjust_min_token(min_token_size: int) -> int:
     """Round min_token_size up to a power of two that is >= 32 (32B alignment)."""
     if (min_token_size & (min_token_size - 1)) == 0 and min_token_size >= 32:
         return min_token_size
+
+    # Default fallback is 32 (smallest valid input length).
+    adjusted_value = 32
     if min_token_size > 32:
-        return 1 << (min_token_size - 1).bit_length()
-    return 32
+        # Round up to the next power of two.
+        adjusted_value = 1 << (min_token_size - 1).bit_length()
+
+    logger.warning(
+        f"Flag min_context_len={min_token_size} is not a power of two and divisible by 32. "
+        f"Adjusting to the next power of two. Using min_context_len={adjusted_value}."
+    )
+    return adjusted_value
 
 
 def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
@@ -108,12 +117,6 @@ class TTModelRunnerV2:
         # additional_config arrives as a plain dict; build the typed TTConfig
         # (as the v1 runner does) so the field reads below see real values.
         self.tt_config = TTConfig(**vllm_config.additional_config)
-        if self.device.type == "xla":
-            import torch_xla
-
-            torch_xla.set_custom_compile_options(
-                self.tt_config.get_pjrt_compile_config()
-            )
 
         # Override number of hidden layers if specified in TTConfig. Must run
         # before load_model so only the target layers are built; the weight
@@ -861,9 +864,15 @@ class TTModelRunnerV2:
                 restore_shape = torch.Size(inputs_embeds.shape[:-1])
             inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
         if positions.ndim > 1:
-            if restore_shape is None:
-                restore_shape = positions.shape
-            positions = positions.reshape(-1)
+            if self.uses_mrope:
+                assert positions.ndim == 3 and positions.shape[0] == 3
+                positions = positions.reshape(3, -1)
+            else:
+                positions = positions.reshape(-1)
+
+        assert (
+            restore_shape is not None
+        ), "restore_shape should be set if any input is flattened."
         return input_ids, positions, inputs_embeds, restore_shape
 
     def _restore_model_hidden_states(self, hidden_states, restore_shape):

@@ -130,7 +130,6 @@ class TTWorker:
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
     def init_device(self):
-        # os.environ["PJRT_DEVICE"] = "TT"
         xr.set_device_type("TT")
         torch.set_grad_enabled(False)
         torch.set_default_dtype(self.model_config.dtype)
@@ -144,6 +143,10 @@ class TTWorker:
         # the distributed runtime.
         self.device = torch_xla.device()
         self.device_config.device = self.device
+
+        # Apply PJRT compile options once per worker after the XLA runtime is
+        # initialized and before any model runner is constructed.
+        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         # Set random seed.
         set_random_seed(self.model_config.seed)

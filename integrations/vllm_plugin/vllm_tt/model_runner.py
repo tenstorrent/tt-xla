@@ -231,7 +231,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
-        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
