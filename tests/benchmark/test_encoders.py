@@ -518,9 +518,8 @@ def test_xtts_v2(output_file, request):
             for k, v in inputs.items()
         }
 
-    # XTTS stays float32 (mixed-dtype submodules); opt_level 0 matches the decode
-    # path the e2e pipeline runs (the layout optimizer can OOM with weights
-    # resident). One token per step, so the "sequence length" is 1.
+    # XTTS stays float32 (mixed-dtype submodules); one token per step, so the
+    # "sequence length" is 1.
     data_format = "float32"
     batch_size = 1
 

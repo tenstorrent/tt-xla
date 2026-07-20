@@ -2724,25 +2724,16 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
 
-  # XTTS-v2 (coqui/XTTS-v2) per-nn.Module component bring-up - https://github.com/tenstorrent/tt-xla/issues/5216
+  # XTTS-v2 (coqui/XTTS-v2) per-nn.Module component bring-up
   xtts_v2/pytorch-speaker_encoder-single_device-inference:
     status: EXPECTED_PASSING
 
   xtts_v2/pytorch-conditioning-single_device-inference:
     status: EXPECTED_PASSING
-    # Was KNOWN_FAILURE_XFAIL (ttnn.group_norm non-tile-aligned flattened height,
-    # #5483). tt-mlir #8935 (group_norm decomposition at conversion) is applied
-    # locally; flipped to EXPECTED_PASSING to confirm the fix.
-    # assert_pcc: false
-    # status: KNOWN_FAILURE_XFAIL
-    # bringup_status: FAILED_TTMLIR_COMPILATION
 
   xtts_v2/pytorch-gpt_prefill-single_device-inference:
     status: EXPECTED_PASSING
 
-  # One KV-cached decode step (the graph the autoregressive loop reuses every
-  # token). Cache is prefilled on CPU and handed in as inputs; the wrapper
-  # rebuilds a fresh StaticCache from clones so the forward is pure.
   xtts_v2/pytorch-gpt_decode-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -2751,4 +2742,4 @@ test_config:
 
   xtts_v2/pytorch-hifigan_decoder-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9876. Required: pcc=0.99.
+    required_pcc: 0.98  # pcc=0.9876 < default 0.99

@@ -4,9 +4,8 @@
 
 """Standalone bring-up test for the XTTS-v2 autoregressive decode loop.
 
-Asserts the two properties the e2e pipeline relies on against ``GptCachedStep``:
-per-step decode logits match CPU (PCC), and the decode graph compiles once and is
-reused every step (no per-step recompile). Needs coqui-tts, weights, and a TT device.
+Asserts per-step decode logits match CPU (PCC) and the decode graph compiles
+once and is reused every step. Needs coqui-tts, weights, and a TT device.
 """
 
 import os
@@ -44,12 +43,9 @@ def _pcc(a: torch.Tensor, b: torch.Tensor) -> float:
 def _run_decode_loop(decode_step, prefix_emb, cfg, start_token, n_steps, device):
     """Prefill ``[prefix, START]`` then run ``n_steps`` greedy decode steps.
 
-    Mirrors ``XTTSPipeline._generate_codes_tt`` exactly (StaticCache built on CPU
-    then moved to ``device``; one token per step; growing attention mask over a
-    fixed-length cache). Returns ``(per_step_logits, compile_counts)`` where
-    ``per_step_logits[i]`` is the last-position logit row for step ``i`` (on CPU)
-    and ``compile_counts[i]`` is the cumulative torch_xla compile count observed
-    right after step ``i`` (``None`` entries on CPU).
+    Mirrors ``XTTSPipeline._generate_codes_tt``. Returns ``(per_step_logits,
+    compile_counts)``: per-step last-position logit rows (on CPU) and cumulative
+    torch_xla compile counts (``None`` on CPU).
     """
     from transformers import StaticCache
 
@@ -136,12 +132,9 @@ _LOADER_PATH = str(
 def xtts():
     """Build the full XTTS model once, with the loader's own requirements.
 
-    This test does not run through ``tests/runner/test_models.py`` (which wraps
-    every component test in ``RequirementsManager.for_loader``), so we invoke the
-    same manager here to install the loader's ``requirements.txt``
-    (``coqui-tts`` + ``torchaudio``) for the duration and roll it back on exit --
-    the manager stays open for the whole module (it yields inside the ``with``),
-    since the loader's input derivation and this test both use torchaudio.
+    Invokes ``RequirementsManager.for_loader`` to install the loader's
+    ``requirements.txt`` (``coqui-tts`` + ``torchaudio``) for the module and roll
+    it back on exit.
     """
     from tests.runner.requirements import RequirementsManager
 

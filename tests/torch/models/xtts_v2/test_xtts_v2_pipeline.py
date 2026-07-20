@@ -5,9 +5,8 @@
 """XTTS-v2 (coqui/XTTS-v2) nightly end-to-end text-to-speech pipeline test.
 
 Runs the full ``Xtts.inference`` path with every learned nn.Module on TT and
-asserts the output artifact is valid (a finite, non-empty 24 kHz waveform). xfail
-(non-strict) pending the conditioning group_norm (#5483 / tt-mlir #8935) and
-HiFi-GAN squeeze (#5375 / #5388) fixes. Needs coqui-tts, weights, and a TT device.
+asserts the output artifact is a finite, non-empty 24 kHz waveform. Needs
+coqui-tts, weights, and a TT device.
 """
 
 import os
@@ -36,20 +35,12 @@ MAX_AUDIO_TOKENS = 32
 OUTPUT_SAMPLE_RATE = 24000
 
 
-@pytest.mark.xfail(
-    reason=(
-        "e2e on TT blocked by conditioning ttnn.group_norm tile-alignment "
-        "(#5483 / tt-mlir #8935) and HiFi-GAN squeeze->prims::view_of "
-        "functionalization (#5375 / #5388); flips to xpass once both land."
-    ),
-    strict=False,
-)
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name="XTTS_v2_Pipeline",
     model_group=ModelGroup.RED,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.FAILED_TTMLIR_COMPILATION,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_xtts_v2_pipeline():
     """Run the full XTTS-v2 pipeline (all learned modules on TT) and check output."""
