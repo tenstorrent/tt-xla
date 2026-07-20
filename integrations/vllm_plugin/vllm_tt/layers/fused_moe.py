@@ -26,12 +26,95 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
-from vllm.model_executor.layers.fused_moe.shared_fused_moe import SharedFusedMoE
+from vllm.model_executor.layers.fused_moe.oracle.unquantized import (
+    UnquantizedMoeBackend,
+)
+from vllm.model_executor.layers.fused_moe.unquantized_fused_moe_method import (
+    UnquantizedFusedMoEMethod,
+)
+
+
+class TTUnquantizedFusedMoEMethod(UnquantizedFusedMoEMethod):
+    """TT-scoped override for unquantized FusedMoE method behavior.
+
+    Keeps the fallback logic local to TT FusedMoE instances instead of
+    monkey-patching vLLM globally.
+    """
+
+    @property
+    def is_monolithic(self) -> bool:
+        # TT uses a compile-time constant monolithic path so the runner can
+        # stay on the TT-specific apply_monolithic fallback without tracing a
+        # runtime branch on moe_kernel state.
+        return True
+
+    def apply_monolithic(self, layer, x, router_logits, input_ids=None):
+        if (
+            self.unquantized_backend != UnquantizedMoeBackend.CPU
+            and self.moe_kernel is None
+            and hasattr(layer, "forward_native")
+        ):
+            # TTFusedMoE exposes forward_native(hidden_states, router_logits)
+            # that does routing + experts in a TT-friendly way without
+            # relying on vLLM's internal moe kernel object.
+            return layer.forward_native(x, router_logits)
+        return super().apply_monolithic(layer, x, router_logits, input_ids)
 
 
 @CustomOp.register_oot(name="FusedMoE")
 class TTFusedMoE(FusedMoE):
     """OOT FusedMoE specialised for the TT compile pipeline (see module docstring)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Use a TT-scoped quant method override rather than monkey-patching
+        # UnquantizedFusedMoEMethod globally.
+        if isinstance(self.quant_method, UnquantizedFusedMoEMethod) and not isinstance(
+            self.quant_method, TTUnquantizedFusedMoEMethod
+        ):
+            tt_method = TTUnquantizedFusedMoEMethod(self.moe_config)
+
+            # Preserve runtime state initialized by vLLM on the original method.
+            for attr in (
+                "moe_kernel",
+                "moe_quant_config",
+                "cpu_fused_moe",
+                "unquantized_backend",
+                "experts_cls",
+            ):
+                if hasattr(self.quant_method, attr):
+                    setattr(tt_method, attr, getattr(self.quant_method, attr))
+
+            self.quant_method = tt_method
+            self.base_quant_method = tt_method
+            self.runner._replace_quant_method(tt_method)
+
+        # vLLM::MoERunner calling sequence:
+        # forward
+        # └── _forward_entry
+        #     └── vllm.moe_forward or vllm.moe_forward_shared (custom op)
+        #         └── _forward_impl
+        #
+        # Override the runner's custom-op entry point to dispatch directly to the
+        # TT MoE implementation.
+        def _forward_entry_direct(
+            hidden_states,
+            router_logits,
+            shared_experts_input,
+            input_ids,
+            _layer_name,
+            _hidden_dim_unpadded,
+        ):
+            return self.runner._forward_impl(
+                self,
+                hidden_states,
+                router_logits,
+                shared_experts_input,
+                input_ids,
+            )
+
+        self.runner._forward_entry = _forward_entry_direct
 
     # vLLM FusedMoE → tt_torch.moe_backend expert-module interface adapter.
     @property
@@ -58,7 +141,8 @@ class TTFusedMoE(FusedMoE):
         if self.activation == MoEActivation.SILU:
             return F.silu(gate) * up
         if self.activation == MoEActivation.GELU:
-            # HF Gemma-4 uses tanh-approximated GELU; vLLM's "gelu" maps here.
+            return F.gelu(gate, approximate="tanh") * up
+        if self.activation == MoEActivation.GELU_TANH:
             return F.gelu(gate, approximate="tanh") * up
         raise NotImplementedError(
             f"TTFusedMoE: activation {self.activation} not supported"
@@ -98,17 +182,3 @@ class TTFusedMoE(FusedMoE):
         else:
             out_flat = tt_dense_experts_forward(self, h_flat, topk_ids, topk_weights)
         return out_flat.view(orig_shape)
-
-
-@CustomOp.register_oot(name="SharedFusedMoE")
-class TTSharedFusedMoE(SharedFusedMoE, TTFusedMoE):
-    """
-    OOT implementation of the SharedFusedMoE class. Used by models that have
-    shared experts.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Our vLLM plugin doesn't support overlapping the shared experts'
-        # forward with the all2all dispatch, so we disable it.
-        self.use_overlapped = False

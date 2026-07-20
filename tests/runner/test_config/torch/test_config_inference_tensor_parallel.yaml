@@ -64,7 +64,7 @@ test_config:
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'sdy.all_slice' op operates on axis '_axis_0' which is already bound by a parent sdy.manual_computation op - https://github.com/tenstorrent/tt-mlir/issues/8861"
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9603734111616014. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/5642"
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:

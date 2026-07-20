@@ -131,10 +131,9 @@ class SDXLLightningPipeline:
         device = xm.xla_device()
         # Per-component forward+sync times (reset every generate() call).
         self._perf = {
-            "te1": None,
-            "te2": None,
-            "unet_steps": [],
-            "vae": None,
+            "components": {},
+            "steps": [],
+            "step_metric_name": "unet_step",
             "total": None,
         }
         t_total_start = time.perf_counter()
@@ -166,7 +165,7 @@ class SDXLLightningPipeline:
             # TT → CPU (cpu cast forces sync — timer ends after this)
             if self.config.text_encoder_on_tt:
                 prompt_embeds_1 = prompt_embeds_1.to("cpu")
-            self._perf["te1"] = time.perf_counter() - t0
+            self._perf["components"]["text_encoder_1"] = time.perf_counter() - t0
 
             if self.config.text_encoder_on_tt:
                 self.text_encoder = self.text_encoder.to("cpu")
@@ -194,7 +193,7 @@ class SDXLLightningPipeline:
             if self.config.text_encoder_2_on_tt:
                 prompt_embeds_2 = prompt_embeds_2.to("cpu")
                 pooled_prompt_embeds = pooled_prompt_embeds.to("cpu")
-            self._perf["te2"] = time.perf_counter() - t0
+            self._perf["components"]["text_encoder_2"] = time.perf_counter() - t0
 
             if self.config.text_encoder_2_on_tt:
                 self.text_encoder_2 = self.text_encoder_2.to("cpu")
@@ -262,7 +261,7 @@ class SDXLLightningPipeline:
                 # TT → CPU (cpu cast forces sync — timer ends after this)
                 if self.config.unet_on_tt:
                     noise_pred = noise_pred.to("cpu").to(torch.float32)
-                self._perf["unet_steps"].append(time.perf_counter() - t0)
+                self._perf["steps"].append(time.perf_counter() - t0)
 
                 # No CFG combine (guidance_scale=0): use noise_pred directly.
                 latents = self.scheduler.step(
@@ -291,7 +290,7 @@ class SDXLLightningPipeline:
             # TT → CPU (cpu cast forces sync — timer ends after this)
             if self.config.vae_on_tt:
                 image = image.to("cpu")
-            self._perf["vae"] = time.perf_counter() - t0
+            self._perf["components"]["vae"] = time.perf_counter() - t0
 
             if self.config.vae_on_tt:
                 self.vae = self.vae.to("cpu")

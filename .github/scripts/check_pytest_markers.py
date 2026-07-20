@@ -69,7 +69,44 @@ def _extract_markers_from_decorators(decorators: List[ast.expr]) -> Set[str]:
         marker_name = _extract_marker_name(decorator)
         if marker_name:
             markers.add(marker_name)
+        markers |= _extract_parametrize_arch_markers(decorator)
     return markers
+
+
+# Markers that tests/utils.py:parametrize_arch is allowed to attach; mirrors
+# its own valid_archs set.
+_PARAMETRIZE_ARCH_MARKERS = {"single_device", "dual_chip", "llmbox", "galaxy"}
+_PARAMETRIZE_ARCH_DEFAULT = "single_device"
+
+
+def _extract_parametrize_arch_markers(decorator: ast.expr) -> Set[str]:
+    """Extract device markers from a ``@parametrize_arch([...])`` decorator.
+
+    ``parametrize_arch`` (tests/utils.py) expands to
+    ``pytest.mark.parametrize("arch", [pytest.param(arch, marks=pytest.mark.X), ...])``
+    at runtime, so the markers it attaches are invisible to the plain
+    ``@pytest.mark.X`` / ``pytestmark`` matching in ``_extract_marker_name``.
+    Special-case it by reading the literal arch list passed in, falling back
+    to its default (``["single_device"]``) when called with no arguments.
+    """
+    if not (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name)):
+        return set()
+    if decorator.func.id != "parametrize_arch":
+        return set()
+
+    if not decorator.args:
+        return {_PARAMETRIZE_ARCH_DEFAULT}
+
+    archs_arg = decorator.args[0]
+    if not isinstance(archs_arg, (ast.List, ast.Tuple)):
+        return set()
+
+    markers = {
+        elt.value
+        for elt in archs_arg.elts
+        if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+    }
+    return markers & _PARAMETRIZE_ARCH_MARKERS
 
 
 def _extract_module_pytestmark_markers(tree: ast.Module) -> Set[str]:

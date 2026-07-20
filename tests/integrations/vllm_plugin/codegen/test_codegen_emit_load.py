@@ -42,6 +42,10 @@ def insert_sentinel(main_py: Path, sentinel: Path):
     main_py.write_text("".join(lines))
 
 
+@pytest.mark.skip(
+    reason="codegen load needs EmitPy execution (PythonModelRunner), which the "
+    "manylinux CI wheel omits; see tenstorrent/tt-xla#5481",
+)
 @pytest.mark.nightly
 @pytest.mark.single_device
 def test_vllm_codegen_emit_then_load(tmp_path):

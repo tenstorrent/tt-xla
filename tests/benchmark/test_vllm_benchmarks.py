@@ -50,7 +50,10 @@ def _config(
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
-    fp32_dest_acc_en: bool | None = False,
+    # None => leave the compute-kernel-config knob unset so compiler
+    # can set the default value or leave it up to ttnn.
+    # Only set this deliberately, never as a frontend default.
+    fp32_dest_acc_en: bool | None = None,
     **additional_config_extra,
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
@@ -66,8 +69,6 @@ def _config(
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level:
         additional["optimization_level"] = optimization_level
-        # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
-        additional["cpu_sampling"] = True
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     if _BENCH_KV_CACHE_DTYPE:
@@ -119,8 +120,8 @@ def _tp_config(
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
         optimization_level=optimization_level,
-        # Keep TP configs as-is: the single-device alignment defaults
-        # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
+        # Keep TP configs as-is: the single-device alignment default
+        # (bfp_bf8 weight dtype) does not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
@@ -332,6 +333,60 @@ EMBEDDING_CONFIGS = [
 ]
 
 
+def _dp_embedding_config(
+    model: str,
+    batch_size: int = 32,
+    *,
+    max_model_len: int = 512,
+    gpu_memory_utilization: float = 0.05,
+    optimization_level: int = 1,
+    experimental_weight_dtype: str = "",
+    enable_trace: bool = True,
+    **additional_config_extra,
+):
+    additional = {
+        "enable_data_parallel": True,
+        "optimization_level": optimization_level,
+        "enable_trace": enable_trace,
+    }
+    if experimental_weight_dtype:
+        additional["experimental_weight_dtype"] = experimental_weight_dtype
+    additional.update(additional_config_extra)
+    return VLLMEmbeddingBenchmarkConfig(
+        model=model,
+        batch_size=batch_size,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=gpu_memory_utilization,
+        additional_config=additional,
+    )
+
+
+DP_EMBEDDING_CONFIGS = [
+    pytest.param(
+        _dp_embedding_config(
+            "Qwen/Qwen3-Embedding-0.6B",
+            32,
+            max_model_len=128,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="qwen3-embedding-0.6b-dp-batch32",
+    ),
+    pytest.param(
+        _dp_embedding_config(
+            "Qwen/Qwen3-Embedding-4B",
+            32,
+            max_model_len=128,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="qwen3-embedding-4b-dp-batch32",
+    ),
+    pytest.param(
+        _dp_embedding_config("BAAI/bge-m3", 32, experimental_weight_dtype="bfp_bf8"),
+        id="bge-m3-dp-batch32",
+    ),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -360,4 +415,9 @@ def test_vllm_tp_benchmark(config, output_file, request):
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
 def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", DP_EMBEDDING_CONFIGS)
+def test_vllm_embedding_dp_benchmark(config, output_file, request):
     _run_vllm_embedding_benchmark(config, output_file, request)

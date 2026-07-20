@@ -12,6 +12,7 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
 
 @pytest.mark.push
 @pytest.mark.data_parallel
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -48,6 +49,7 @@ def test_data_parallel_inference_push(
 
 @pytest.mark.nightly
 @pytest.mark.data_parallel
+@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
@@ -85,4 +87,53 @@ def test_data_parallel_inference_nightly(
         enable_data_parallel=True,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.parametrize(
+    ["model_name", "baseline_path"],
+    [
+        pytest.param(
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
+        ),
+        pytest.param(
+            "BAAI/bge-m3",
+            "baseline/bge_m3_baseline.pt",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "max_num_reqs, max_num_batched_tokens",
+    [
+        (4, 128),
+    ],
+)
+def test_data_parallel_inference_galaxy_wh_6u(
+    model_name: str,
+    baseline_path: str,
+    max_num_reqs: int,
+    max_num_batched_tokens: int,
+):
+    """
+    Test data parallel inference with vLLM for small embedding models on a
+    Wormhole 6U galaxy. These models fit on a single device, so the model is
+    replicated across the galaxy's chips and independent batches run in
+    parallel (rather than tensor-parallel splitting a single model).
+    """
+
+    run_pooling_test(
+        model_name,
+        baseline_path,
+        max_model_len=64,
+        enable_data_parallel=True,
+        max_num_reqs=max_num_reqs,
+        max_num_batched_tokens=max_num_batched_tokens,
+        optimization_level=1,
+        enable_trace=True,
+        experimental_weight_dtype="bfp_bf8",
+        enable_const_eval=True,
     )

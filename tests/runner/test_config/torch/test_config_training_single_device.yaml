@@ -1596,8 +1596,8 @@ test_config:
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   efficientdet/pytorch-D0-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "TorchDynamo NameError: cannot access free variable 'named_children' (efficientdet/pytorch/src/efficientdet.py:506 in BiFPN.forward)"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "tt-mlir aborts on unsigned ui32 ElementsAttr from max_pool2d_with_indices (torch 2.11). Fix: https://github.com/tenstorrent/tt-mlir/pull/9032"
   falcon/pytorch-3_3B_Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]

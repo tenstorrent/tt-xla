@@ -6,6 +6,7 @@
 
 import os
 import sys
+import time
 from collections.abc import Callable
 from typing import Any, Optional, TypeVar
 
@@ -36,6 +37,7 @@ from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
+from vllm.v1.worker.worker_base import CompilationTimes
 
 from .attention_impls.attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
@@ -99,12 +101,6 @@ class TTWorker:
             self.cache_dtype = self.model_config.dtype
         else:
             self.cache_dtype = STR_DTYPE_TO_TORCH_DTYPE[self.cache_config.cache_dtype]
-
-        if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
-            from vllm.utils.import_utils import init_cached_hf_modules
-
-            init_cached_hf_modules()
 
         # Delay profiler initialization to the start of the profiling.
         # This is because in vLLM V1, MP runtime is initialized before the
@@ -348,13 +344,16 @@ class TTWorker:
     def reload_weights(self) -> None:
         self.model_runner.reload_weights()
 
-    def compile_or_warm_up_model(self) -> None:
+    def compile_or_warm_up_model(self) -> CompilationTimes:
+        start = time.perf_counter()
         if not self.model_config.enforce_eager:
             self.model_runner.capture_model()
+        language_model_time = time.perf_counter() - start
 
         # Reset the seed to ensure that the random state is not affected by
         # the model initialization and profiling.
         set_random_seed(self.model_config.seed)
+        return CompilationTimes(language_model=language_model_time, encoder=0.0)
 
     def reset_mm_cache(self) -> None:
         self.model_runner.reset_mm_cache()
@@ -374,7 +373,8 @@ class TTWorker:
         return self.model_runner.get_kv_cache_spec()
 
     def initialize_from_config(self, kv_cache_config: KVCacheConfig) -> None:
-        """Allocate GPU KV cache with the specified kv_cache_config."""
+        """Allocate KV cache with the specified kv_cache_config."""
+        ensure_kv_transfer_initialized(self.vllm_config, kv_cache_config)
         self.model_runner.initialize_kv_cache(kv_cache_config)
 
     def check_health(self) -> None:
@@ -406,8 +406,6 @@ class TTWorker:
         ensure_model_parallel_initialized(
             parallel_config.tensor_parallel_size, parallel_config.pipeline_parallel_size
         )
-
-        ensure_kv_transfer_initialized(vllm_config)
 
     def shutdown(self) -> None:
         self.model_runner.ensure_kv_transfer_shutdown()

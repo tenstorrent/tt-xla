@@ -27,7 +27,9 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -96,7 +98,7 @@ from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
-from .vllm_distributed_utils import shard_model
+from .vllm_distributed_utils import ParallelismMode, shard_model
 from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
@@ -273,6 +275,26 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.enable_data_parallel = False
 
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
+        self.use_2d_mesh = self.tt_config.use_2d_mesh
+
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, so the chosen mode matches the mesh that
+            # determine_mesh_shape will actually build.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            if self.use_2d_mesh or explicit_2d_mesh:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+            else:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -286,12 +308,29 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         # Setup for parallel execution.
-        if self.enable_tensor_parallel or self.enable_data_parallel:
+        # dp_size = size of the mesh's "batch" axis; 1 for pure-TP/DISABLED,
+        # which makes the divisibility checks below no-ops.
+        self.dp_size = 1
+        if self.parallel_mode != ParallelismMode.DISABLED:
+            # An explicit tt_config.mesh_shape overrides the mode-derived shape.
             mesh_shape = determine_mesh_shape(
-                self.num_devices, self.tt_config.use_2d_mesh, self.tt_config.mesh_shape
+                self.num_devices, self.parallel_mode, self.tt_config.mesh_shape
             )
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            self.dp_size = mesh_shape[0]
+
+        if self.enable_data_parallel and self.dp_size > 1:
+            remainder = self.max_num_reqs % self.dp_size
+            if remainder != 0:
+                adjusted_max_num_reqs = self.max_num_reqs + self.dp_size - remainder
+                logger.warning(
+                    "Data parallel requires max_num_reqs divisible by dp_size. "
+                    "Adjusting max_num_reqs from %d to %d.",
+                    self.max_num_reqs,
+                    adjusted_max_num_reqs,
+                )
+                self.max_num_reqs = adjusted_max_num_reqs
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -682,6 +721,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, req_id in enumerate(req_data.req_ids):
             req_state = self.requests[req_id]
             num_computed_tokens = req_data.num_computed_tokens[i]
+            new_block_ids = req_data.new_block_ids[i]
 
             # Update the cached states.
             req_state.num_computed_tokens = num_computed_tokens
@@ -696,7 +736,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Update the persistent batch.
             self.input_batch.num_computed_tokens_cpu[req_index] = num_computed_tokens
-            if new_block_ids is not None:
+            if new_block_ids is not None and self.input_batch.block_table:
                 self.input_batch.block_table.append_row(new_block_ids, req_index)
 
         # Add the new or resumed requests to the persistent batch.
@@ -906,14 +946,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
             arange = torch.cat([arange, padding], dim=1)
 
-        # Add additional rows to make batch divisible by num_devices so inputs
-        # can be divided equally between devices for data parallel execution.
+        # Pad the batch to a multiple of dp_size (the DP axis only, not
+        # num_devices) so it divides equally across DP replicas.
         if self.enable_data_parallel:
-            # Compute how many extra rows are needed to make batch divisible by num_devices.
-            remainder = self.input_ids_cpu.shape[0] % self.num_devices
+            remainder = self.input_ids_cpu.shape[0] % self.dp_size
             if remainder > 0:
                 self.num_additional_inputs = (
-                    self.num_devices - remainder
+                    self.dp_size - remainder
                 )  # number of zero rows to add
                 # Create zero rows with same number of columns as input_ids_cpu
                 zero_rows = torch.zeros(
@@ -975,7 +1014,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         if self.enable_data_parallel and attn_mask is not None:
-            xs.mark_sharding(attn_mask, self.mesh, ("model", None, None, None))
+            xs.mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1008,10 +1047,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1199,7 +1237,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch_xla.sync(wait=False)
         start_index = 0
         num_scheduled_tokens = scheduler_output.total_num_scheduled_tokens
-        combined_pooler_outputs: list[torch.Tensor] = []
+        combined_pooler_output: list[Optional[torch.Tensor]] = []
 
         while start_index < self.input_batch.num_reqs:
             (
@@ -1217,8 +1255,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Mark inputs for data parallel sharding.
             if self.enable_data_parallel:
-                xs.mark_sharding(input_ids, self.mesh, ("model", None))
-                xs.mark_sharding(self.position_ids, self.mesh, ("model", None))
+                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
+                xs.mark_sharding(self.position_ids, self.mesh, ("batch", None))
 
             # Run the decoder
             with set_forward_context(
@@ -1298,7 +1336,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else:
                     pooler_output.append(None)
 
-            combined_pooler_outputs.append(pooler_batch)
+            combined_pooler_output.extend(pooler_output)
             start_index = end_index
 
         req_ids = cast(list[str], self.input_batch.req_ids[: self.input_batch.num_reqs])
@@ -1310,7 +1348,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampled_token_ids=[],  # no sampling for pooling models
             logprobs=None,  # no logprobs
             prompt_logprobs_dict={},  # empty
-            pooler_output=pooler_output,
+            pooler_output=combined_pooler_output,
             kv_connector_output=None,
         )
 
@@ -1378,8 +1416,16 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
+                    # shard_weights_on_batch_axis (FSDP-style) is a DP+TP-only
+                    # knob; in pure-TP the "batch" axis is itself a TP axis, so
+                    # weights must always be sharded on it there.
+                    shard_on_batch_axis = (
+                        self.tt_config.shard_weights_on_batch_axis
+                        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                        else True
+                    )
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(model, self.mesh, shard_on_batch_axis)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1407,6 +1453,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.model.compile(backend="tt", dynamic=False)
         logger.info(f"Compiled model: \n{self.model}")
+
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
 
     def reload_weights(self) -> None:
         assert (
@@ -1436,8 +1487,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Mark inputs for data parallel sharding.
         if self.enable_data_parallel:
-            xs.mark_sharding(input_ids, self.mesh, ("model", None))
-            xs.mark_sharding(position_ids, self.mesh, ("model", None))
+            xs.mark_sharding(input_ids, self.mesh, ("batch", None))
+            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
 
         # Default Configurations: valid for single input per batch.
         attn_mask = None
@@ -1458,7 +1509,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Mark attention mask for data parallel sharding.
         if self.enable_data_parallel and attn_mask is not None:
-            xs.mark_sharding(attn_mask, self.mesh, ("model", None, None, None))
+            xs.mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1466,10 +1517,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_users=num_reqs,
         )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
 
         with (
             self.maybe_select_dummy_loras(
@@ -1499,12 +1549,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_precompile_all
             else [self.max_num_reqs]
         )
-        # Keep only batch sizes divisible by num_devices for data-parallel model
-        # execution.
+        # Keep only batch sizes divisible by dp_size (the DP axis; TP partners
+        # within a replica are not DP slots).
         if self.enable_data_parallel:
             num_req_variants = [
-                reqs for reqs in num_req_variants if reqs % self.num_devices == 0
+                reqs for reqs in num_req_variants if reqs % self.dp_size == 0
             ]
+            if not num_req_variants:
+                rounded = (
+                    (self.max_num_reqs + self.dp_size - 1) // self.dp_size
+                ) * self.dp_size
+                num_req_variants = [rounded]
 
         start = time.perf_counter()
         for num_reqs in num_req_variants:
@@ -1753,6 +1808,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _get_req_paddings(min_req_size: int, max_req_size: int) -> list[int]:

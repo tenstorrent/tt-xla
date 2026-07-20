@@ -8,7 +8,8 @@ import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, RunMode, run_graph_test
+from utils import BringupStatus, Category, ModelGroup
 
 from third_party.tt_forge_models.krea_realtime_video.pytorch import (
     ModelLoader,
@@ -16,8 +17,15 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
 )
 
 
-@pytest.mark.xfail(
-    reason="VAE temporal slice fails on TT (out-of-range slice on size-1 dim) — https://github.com/tenstorrent/tt-xla/issues/4465"
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name="KreaRealtimeVideo_VAEDecoder",
+    model_group=ModelGroup.RED,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_vae_decoder():
     xr.set_device_type("TT")

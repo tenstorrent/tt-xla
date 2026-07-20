@@ -27,6 +27,7 @@ from tt_torch.composite_ops import (
 )
 
 from tests.infra.evaluators.evaluation_config import ComparisonConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.testers.single_chip.graph.graph_tester import run_graph_test
 
 
@@ -778,4 +779,62 @@ def test_patched_sdpa(
         comparison_config=ComparisonConfig(),
         framework=Framework.TORCH,
         torch_options=options,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "qkv_shape, mask_shape",
+    [
+        ((1, 28, 5224, 128), (1, 1, 1, 5224)),
+        ((1, 28, 1000, 128), (1, 28, 1000, 1000)),
+        ((1, 8, 256, 64), (1, 1, 1, 256)),
+        ((2, 12, 512, 128), (2, 12, 1, 512)),
+        ((1, 16, 128, 64), (1, 16, 1, 128)),
+    ],
+)
+def test_sdpa_bool_mask_broadcast(monkeypatch, qkv_shape, mask_shape):
+    """Tensor-parallel fusion of SDPA with a bool attn_mask (head-sharded Q/K/V)."""
+    monkeypatch.setenv("TT_XLA_CATCH_BOOL_MASK_SDPA", "1")
+
+    num_devices = xr.global_runtime_device_count()
+    num_heads = qkv_shape[1]
+    if num_heads % num_devices != 0:
+        pytest.skip(f"num_heads={num_heads} not divisible by num_devices={num_devices}")
+
+    class SDPAModel(torch.nn.Module):
+        def forward(self, query, key, value, attn_mask):
+            return F.scaled_dot_product_attention(
+                query, key, value, attn_mask=attn_mask
+            )
+
+    query = torch.randn(*qkv_shape, dtype=torch.bfloat16)
+    key = torch.randn(*qkv_shape, dtype=torch.bfloat16)
+    value = torch.randn(*qkv_shape, dtype=torch.bfloat16)
+
+    seq_k = mask_shape[-1]
+    attn_mask = torch.ones(*mask_shape, dtype=torch.bool)
+    attn_mask[..., -seq_k // 4 :] = False  # padding -> masked
+
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(args, kwargs):
+        head_sharded = (None, "model", None, None)
+        spec = {args[0]: head_sharded, args[1]: head_sharded, args[2]: head_sharded}
+        # A per-head mask is head-sharded like Q/K/V; a head-broadcast mask stays replicated.
+        if args[3].shape[1] != 1:
+            spec[args[3]] = head_sharded
+        return spec
+
+    run_graph_test(
+        SDPAModel(),
+        [query, key, value, attn_mask],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        compiler_config=CompilerConfig(optimization_level=1),
     )
