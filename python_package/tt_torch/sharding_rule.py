@@ -207,8 +207,12 @@ def make_fully_replicated_sharding_rule(
     Every operand/result dimension is mapped to a factor listed in
     ``need_replication_factors``, so Shardy must keep all tensors fully
     replicated. Operand shapes that are identical reuse the same factor
-    names (pointwise-friendly). Result mappings mirror the corresponding
-    destination-passing-style ``out`` operands.
+    names (pointwise-friendly).
+
+    The SHLO ``tt.tt_lang_op`` custom_call is functional (``in`` tensors
+    only); DPS ``out`` buffers are reintroduced later in StableHLO→TTIR.
+    This rule therefore maps only the ``in``-tagged shapes as operands and
+    the ``out``-tagged shapes as results.
 
     This is the default rule emitted for tt-lang ops when the caller does
     not supply a ``sharding_rule``, so tt-mlir always sees an explicit
@@ -218,6 +222,7 @@ def make_fully_replicated_sharding_rule(
         raise ValueError("operand_shapes must contain at least one shape")
     if not out_indices:
         raise ValueError("out_indices must contain at least one index")
+    out_set = set(out_indices)
     for idx in out_indices:
         if not 0 <= idx < len(operand_shapes):
             raise ValueError(
@@ -246,10 +251,20 @@ def make_fully_replicated_sharding_rule(
         shape_to_mapping[key] = mapping
         return mapping
 
-    operand_mappings = [mapping_for(shape) for shape in operand_shapes]
-    result_mappings = [operand_mappings[idx] for idx in out_indices]
+    in_mappings = [
+        mapping_for(shape)
+        for i, shape in enumerate(operand_shapes)
+        if i not in out_set
+    ]
+    if not in_mappings:
+        raise ValueError(
+            "make_fully_replicated_sharding_rule requires at least one "
+            "'in' operand shape; pure-out ops are not supported on the "
+            "functional SHLO path."
+        )
+    result_mappings = [mapping_for(operand_shapes[i]) for i in out_indices]
     return make_sharding_rule(
-        operand_mappings=operand_mappings,
+        operand_mappings=in_mappings,
         result_mappings=result_mappings,
         factor_sizes=factor_sizes,
         need_replication_factors=all_factors,

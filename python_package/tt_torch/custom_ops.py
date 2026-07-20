@@ -2332,18 +2332,21 @@ def tt_lang_op(
 ) -> List[torch.Tensor]:
     """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
 
-    Emits ``stablehlo.custom_call @tt.tt_lang_op`` with
-    ``kernel_id`` / ``arg_roles`` / ``version_tag`` / ``shard_spec`` in
-    ``frontend_attributes``. The custom call's results mirror the
-    ``out``-tagged input tensors in shape and dtype, so the plugin sees
-    the real (post-Shardy) types.
+    Emits a *functional* ``stablehlo.custom_call @tt.tt_lang_op`` whose
+    operands are the ``in``-tagged tensors only. Results mirror the
+    ``out``-tagged tensors in shape and dtype. The logical DPS
+    ``arg_roles`` (including ``out``) still rides in
+    ``frontend_attributes`` so StableHLO→TTIR can reintroduce matching
+    destination buffers after Shardy has refined result types.
 
     A ``sharding_rule`` is always forwarded as the
     ``xla.sdy.custom_sharding_rule`` frontend attribute; tt-mlir's
     ``register-user-sharding-rule`` pass promotes it to an ``sdy.sharding_rule``
     op attribute and hands it to Shardy so the rule participates in
     sharding inference. Build the string with
-    :func:`tt_torch.make_sharding_rule` or pass raw MLIR text.
+    :func:`tt_torch.make_sharding_rule` or pass raw MLIR text. The rule
+    must describe the functional custom_call (``in`` operands + results),
+    not the pre-allocated Python ``out`` buffers.
 
     When ``sharding_rule`` is empty, an explicit full-replication rule is
     synthesized from the operand/result shapes (and a warning is emitted)
@@ -2359,6 +2362,16 @@ def tt_lang_op(
     if not tensors:
         raise ValueError("tt::tt_lang_op requires at least one tensor operand.")
     _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+
+    out_set = set(out_indices)
+    in_tensors = [t for i, t in enumerate(tensors) if i not in out_set]
+    if not in_tensors:
+        raise ValueError(
+            "tt::tt_lang_op requires at least one 'in' tensor; the SHLO "
+            "custom_call is functional (ins only) and DPS outs are "
+            "synthesized later in StableHLO→TTIR."
+        )
+    call_operands = in_tensors
 
     output_shapes = [list(tensors[i].shape) for i in out_indices]
     output_dtypes = [tensors[i].dtype for i in out_indices]
@@ -2376,7 +2389,7 @@ def tt_lang_op(
         frontend_attributes["shard_spec"] = shard_spec
 
     result = stablehlo_custom_call.stablehlo_custom_call(
-        list(tensors),
+        call_operands,
         "tt.tt_lang_op",
         output_shapes,
         output_dtypes,

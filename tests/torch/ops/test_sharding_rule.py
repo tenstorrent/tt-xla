@@ -193,6 +193,8 @@ def test_make_sharding_rule_reduction_over_many_factors():
 
 
 def test_make_fully_replicated_sharding_rule_pointwise():
+    # Functional SHLO form: only "in" tensors are rule operands; "out"
+    # shapes appear as results.
     rule = make_fully_replicated_sharding_rule(
         [(8, 16), (8, 16), (8, 16)],
         out_indices=[2],
@@ -200,7 +202,7 @@ def test_make_fully_replicated_sharding_rule_pointwise():
     assert_rule(
         rule,
         factor_sizes=[8, 16],
-        operands=[[0, 1], [0, 1], [0, 1]],
+        operands=[[0, 1], [0, 1]],
         results=[[0, 1]],
         need_replication=[0, 1],
     )
@@ -214,7 +216,7 @@ def test_make_fully_replicated_sharding_rule_distinct_shapes():
     assert_rule(
         rule,
         factor_sizes=[4, 4, 8],
-        operands=[[0], [1, 2], [1, 2]],
+        operands=[[0], [1, 2]],
         results=[[1, 2]],
         need_replication=[0, 1, 2],
     )
@@ -424,7 +426,7 @@ def test_resolve_empty_sharding_rule_warns_and_replicates():
     assert_rule(
         rule,
         factor_sizes=[4, 8],
-        operands=[[0, 1], [0, 1], [0, 1]],
+        operands=[[0, 1], [0, 1]],
         results=[[0, 1]],
         need_replication=[0, 1],
     )
@@ -592,12 +594,13 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
 
     rows, cols, mesh = _eltwise_add_e2e_setup(num_devices)
 
-    # Pointwise rule over the *global* shape, covering all custom_call
-    # operands (a, b, out) plus the single result. Factor "i" covers dim 0
-    # (rows), "j" covers dim 1 (cols). No need_replication, so Shardy is
-    # free to shard "i".
+    # Pointwise rule over the *global* shape for the functional SHLO
+    # custom_call: operands are the "in" tensors (a, b); the result covers
+    # the Python "out". Factor "i" is dim 0 (rows), "j" is dim 1 (cols).
+    # No need_replication, so Shardy is free to shard "i". DPS outs are
+    # reintroduced in StableHLO→TTIR from the post-Shardy result type.
     sharding_rule = make_sharding_rule(
-        operand_mappings=[("i", "j"), ("i", "j"), ("i", "j")],
+        operand_mappings=[("i", "j"), ("i", "j")],
         result_mappings=[("i", "j")],
         factor_sizes={"i": rows, "j": cols},
     )
@@ -615,12 +618,13 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
     b_xla = b_cpu.to(device)
     out_xla = torch.zeros_like(a_cpu).to(device)
 
-    # Pre-shard every custom_call operand (mirrors the tt-mlir lit test, which
-    # annotates all operands before propagation). The DPS ``out`` operand must
-    # be sharded too: TTIR requires each ``out`` operand's type to match the
-    # corresponding result. IR-level proof that the rule propagates onto the
-    # result lives in tt-mlir's ``tt_lang_custom_rule.mlir``; torch_xla does
-    # not surface custom_call result shardings via ``_get_xla_sharding_spec``.
+    # Functional SHLO custom_call: only ``a``/``b`` are operands; TTIR
+    # synthesizes the DPS ``out`` init from the post-Shardy result type.
+    # Mark ``a`` and ``b``: torch_xla annotates unmarked inputs as explicit
+    # replicated (``[{}, {}]``), which blocks Shardy from reshaping ``b`` to
+    # match ``a`` via the shared factor (lit with truly unconstrained ``b``
+    # propagates; e2e mark-only-``a`` leaves ``b`` at global 512x64 → PCC~0.56).
+    # Mark ``out`` on the host for the wrapper's ``copy_``/gather destination.
     xs.mark_sharding(a_xla, mesh, ("model", None))
     xs.mark_sharding(b_xla, mesh, ("model", None))
     xs.mark_sharding(out_xla, mesh, ("model", None))
@@ -667,7 +671,7 @@ def test_tt_lang_eltwise_add_need_replication_blocks_propagation_e2e(
     rows, cols, mesh = _eltwise_add_e2e_setup(num_devices)
 
     sharding_rule = make_sharding_rule(
-        operand_mappings=[("i", "j"), ("i", "j"), ("i", "j")],
+        operand_mappings=[("i", "j"), ("i", "j")],
         result_mappings=[("i", "j")],
         factor_sizes={"i": rows, "j": cols},
         need_replication_factors=["i", "j"],
@@ -687,6 +691,8 @@ def test_tt_lang_eltwise_add_need_replication_blocks_propagation_e2e(
     b_xla = b_cpu.to(device)
     out_xla = torch.zeros_like(a_cpu).to(device)
 
+    # Inputs arrive sharded; need_replication forces a reshard to
+    # replicated before the kernel. Mark ``out`` for host copy_/gather.
     xs.mark_sharding(a_xla, mesh, ("model", None))
     xs.mark_sharding(b_xla, mesh, ("model", None))
     xs.mark_sharding(out_xla, mesh, ("model", None))
