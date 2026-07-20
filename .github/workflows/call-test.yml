@@ -231,6 +231,9 @@ jobs:
           fi
         fi
 
+    # Only multi-host topologies need remote worker containers started over SSH.
+    # Single-host multi-process topologies (e.g. n300-llmbox 2x4) run all ranks
+    # on this host and let the runtime spawn local workers, so they skip this.
     - name: Start multihost worker containers
       if: ${{ matrix.build.multihost }}
       shell: bash
@@ -242,6 +245,14 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+
+    # Any job that names a topology gets its TT_DISTRIBUTED_* env sourced before
+    # pytest (see the run step below). Gated on `topology`, not `multihost`, so
+    # single-host distributed jobs get the env without the worker-container step.
+    - name: Generate topology environment exports
+      if: ${{ matrix.build.topology }}
+      shell: bash
+      run: |
         source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
