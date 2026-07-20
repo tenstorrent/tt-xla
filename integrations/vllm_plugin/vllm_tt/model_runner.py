@@ -1830,9 +1830,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
 
         if positions.ndim > 1:
-            if restore_shape is None:
-                restore_shape = positions.shape
-            positions = positions.reshape(-1)
+            if self.uses_mrope:
+                assert positions.ndim == 3 and positions.shape[0] == 3
+                positions = positions.reshape(3, -1)
+            else:
+                positions = positions.reshape(-1)
+
+        assert (
+            restore_shape is not None
+        ), "restore_shape should be set if any input is flattened."
 
         return input_ids, positions, inputs_embeds, restore_shape
 
