@@ -23,12 +23,29 @@ keep the first failure record seen.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 MAX_TB_BYTES = 2_000  # per-failure traceback cap (bounds runaway tracebacks)
+
+
+def _validate_path(user_path: str, kind: str) -> Path:
+    resolved = Path(user_path).resolve()
+    allowed_bases = [
+        Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve(),
+        Path.cwd().resolve(),
+        Path("/tmp").resolve(),
+    ]
+    if not any(resolved == b or b in resolved.parents for b in allowed_bases):
+        raise SystemExit(
+            f"::error::{kind} path '{user_path}' resolves to '{resolved}', "
+            f"outside allowed bases {[str(b) for b in allowed_bases]}"
+        )
+    return resolved
+
 
 LOG_ERROR_PATTERNS = re.compile(
     r"(FAILED|ERROR|ModuleNotFoundError|ImportError|AttributeError"
@@ -169,7 +186,10 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    inputs_dir = Path(args.inputs_dir)
+    inputs_dir = _validate_path(args.inputs_dir, "inputs-dir")
+    out_context = _validate_path(args.out_context, "out-context")
+    out_failed_tests = _validate_path(args.out_failed_tests, "out-failed-tests")
+
     if not inputs_dir.exists():
         print(f"::error::inputs dir not found: {inputs_dir}", file=sys.stderr)
         return 2
@@ -182,8 +202,8 @@ def main() -> int:
     failures = dedupe_by_test(raw_failures)
     log_excerpts = extract_errors_from_logs(inputs_dir)
 
-    Path(args.out_context).write_text(format_output(failures, log_excerpts))
-    Path(args.out_failed_tests).write_text(
+    out_context.write_text(format_output(failures, log_excerpts))
+    out_failed_tests.write_text(
         "\n".join(f["test"] for f in failures) + ("\n" if failures else "")
     )
 

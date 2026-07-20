@@ -31,6 +31,10 @@ jobs:
         with:
           ref: main
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
       - name: Detect new transformers release
         id: check
         env:
@@ -154,7 +158,7 @@ jobs:
           CUR:      ${{ needs.detect.outputs.current_version }}
           BASELINE: ${{ steps.baseline.outputs.run_id }}
         run: |
-          gh workflow run workflow-transformers-uplift.yml \
+          gh workflow run call-transformers-uplift.yml \
             --ref "$BRANCH" \
             -f iteration=1 \
             -f target_version="$NEW" \

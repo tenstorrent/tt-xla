@@ -22,9 +22,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
+
+
+def _validate_path(user_path: str, kind: str) -> Path:
+    resolved = Path(user_path).resolve()
+    allowed_bases = [
+        Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve(),
+        Path.cwd().resolve(),
+        Path("/tmp").resolve(),
+    ]
+    if not any(resolved == b or b in resolved.parents for b in allowed_bases):
+        raise SystemExit(
+            f"::error::{kind} path '{user_path}' resolves to '{resolved}', "
+            f"outside allowed bases {[str(b) for b in allowed_bases]}"
+        )
+    return resolved
+
 
 LOG_ERROR_PATTERNS = re.compile(
     r"(FAILED|ERROR|ModuleNotFoundError|ImportError|AttributeError"
@@ -117,18 +134,22 @@ def main() -> int:
     ap.add_argument("--out-failed-tests", required=True)
     args = ap.parse_args()
 
-    inputs_dir = Path(args.inputs_dir)
+    inputs_dir = _validate_path(args.inputs_dir, "inputs-dir")
+    matrix_file = _validate_path(args.matrix_file, "matrix-file")
+    out_context = _validate_path(args.out_context, "out-context")
+    out_failed_tests = _validate_path(args.out_failed_tests, "out-failed-tests")
+
     if not inputs_dir.exists():
         print(f"::error::inputs dir not found: {inputs_dir}", file=sys.stderr)
         return 2
 
-    pytest_map = build_pytest_map(Path(args.matrix_file))
+    pytest_map = build_pytest_map(matrix_file)
 
     log_files = sorted(inputs_dir.rglob("*.log"))
     if not log_files:
         print(f"::warning::no log files under {inputs_dir}", file=sys.stderr)
-        Path(args.out_context).write_text("")
-        Path(args.out_failed_tests).write_text("")
+        out_context.write_text("")
+        out_failed_tests.write_text("")
         return 0
 
     # Dedup by model — same model failing on n150 + p150 yields two logs
@@ -142,14 +163,12 @@ def main() -> int:
         seen.add(model)
         results.append((model, runner, chunks))
 
-    Path(args.out_context).write_text(format_output(results, pytest_map))
+    out_context.write_text(format_output(results, pytest_map))
     # last_failed.txt: one pytest command per line (rerunnable as-is).
     # Unknown models (no matrix entry) are skipped so the file stays
     # executable; they're still flagged in failure_context.txt.
     rerun_lines = [pytest_map[m] for m, _, _ in results if m in pytest_map]
-    Path(args.out_failed_tests).write_text(
-        "\n".join(rerun_lines) + ("\n" if rerun_lines else "")
-    )
+    out_failed_tests.write_text("\n".join(rerun_lines) + ("\n" if rerun_lines else ""))
 
     print(
         f"Parsed {len(log_files)} log files; "
