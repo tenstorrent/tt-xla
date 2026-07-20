@@ -171,8 +171,6 @@ jobs:
         run: |
           source venv/activate
           uv pip install wheels/*.whl
-          uv pip install --force-reinstall --no-deps \
-            "transformers==${TARGET_VERSION}"
 
       - name: Download failure context
         uses: actions/download-artifact@v4
@@ -186,8 +184,11 @@ jobs:
             claude --version
             exit 0
           fi
-          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
-          npm install -g @anthropic-ai/claude-code
+          curl -fsSL https://claude.ai/install.sh | bash
+          # Installer drops the launcher in ~/.local/bin; expose it to
+          # this and later steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           claude --version
 
       - name: Invoke Claude fix skill
@@ -214,6 +215,11 @@ jobs:
           ITER:   ${{ inputs.iteration }}
           TAG:    ${{ inputs.tag }}
         run: |
+          if [[ "$BRANCH" =~ ^(main|master)$ ]]; then
+            echo "::error::refusing to commit uplift fixes to protected branch '$BRANCH'"
+            exit 1
+          fi
+
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
