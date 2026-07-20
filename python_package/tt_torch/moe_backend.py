@@ -620,9 +620,53 @@ def _tt_moe_decode_forward(
     )
 
     experts = _get_expert_adapter(self)
-    M, H = hidden_states.shape
     K = top_k_index.shape[-1]
     dtype = hidden_states.dtype
+
+    # Coverage padding: imbalanced decode routing (e.g. DeepSeek routes only a
+    # fraction of its 256 experts) can leave some EP devices fully zero-token,
+    # which stalls the moe_compute combine cross-device barrier -> hang. Append a
+    # few zero-weight coverage tokens whose top-k indices hit >=1 expert on every
+    # device; their rows are sliced off the output below, so real results are
+    # unchanged.
+    total_devices, dispatch, _, cluster_axis = _mesh_info()
+    num_experts = int(experts.num_experts)
+    if total_devices > 1 and num_experts % total_devices == 0:
+        _epd = num_experts // total_devices
+        _min_cov = (total_devices + K - 1) // K
+        _cov = ((_min_cov + REDUCTION_SIZE - 1) // REDUCTION_SIZE) * REDUCTION_SIZE
+        # Only pad if the coverage tokens fit the moe_compute per-device token
+        # capacity; a batch large enough to overflow it is already well-distributed
+        # and needs no coverage (padding it regressed gpt-oss bs128). max_tokens =
+        # 32 * data_parallel * output_height_shard_dim, data_parallel = largest
+        # d<=4 dividing hidden_tiles with 12%d==0 (moe_compute_device_operation.cpp
+        # :448-459); per-rank budget = max_tokens // dispatch-ring-size.
+        _hidden_tiles = hidden_states.shape[1] // 32
+        _dp = 1
+        for _d in (4, 3, 2, 1):
+            if _hidden_tiles % _d == 0 and 12 % _d == 0:
+                _dp = _d
+                break
+        _max_tokens = 32 * _dp * int(_config["moe_output_height_shard_dim"])
+        _budget = _max_tokens // max(int(dispatch), 1)
+        if hidden_states.shape[0] + _cov <= _budget:
+            # Device d's first expert = d * experts_per_device; hitting all of them
+            # covers every device. Tile to fill K columns (redundant hits are fine).
+            _dev0 = torch.arange(total_devices, device=hidden_states.device) * _epd
+            _reps = (_cov * K + total_devices - 1) // total_devices
+            _cover_idx = (
+                _dev0.repeat(_reps)[: _cov * K].view(_cov, K).to(top_k_index.dtype)
+            )
+            hidden_states = torch.cat(
+                [hidden_states, hidden_states.new_zeros(_cov, hidden_states.shape[1])],
+                dim=0,
+            )
+            top_k_index = torch.cat([top_k_index, _cover_idx], dim=0)
+            top_k_weights = torch.cat(
+                [top_k_weights, top_k_weights.new_zeros(_cov, K)], dim=0
+            )
+
+    M, H = hidden_states.shape
 
     # Prefer the stacked all-layer weights (preprocess_tt_moe_compute_stacked_weights):
     # ONE shared [L,E,...] weight that the runtime prepare packs into a single
@@ -646,7 +690,6 @@ def _tt_moe_decode_forward(
     indices = top_k_index.view(1, 1, M, K)
     scores = top_k_weights.to(dtype).view(1, 1, M, K)
 
-    _, _, _, cluster_axis = _mesh_info()
     # layer_id selects this layer's block inside the packed multi-layer weight
     # buffer (dm0.cpp offset = layer_id * layer_pages_per_ring_core). Real per-layer
     # index with stacked weights; 0 otherwise.
@@ -900,6 +943,156 @@ def get_tt_moe_shard_specs(
             shard_specs[down_bias] = (expert_axis, None)
 
     return shard_specs
+
+
+class _TtFusedMoEWrapper(nn.Module):
+    """Route a DeepSeek-style routed-MoE layer through the fused ``tt.moe_decode``
+    decode kernel.
+
+    DeepSeek's ``DeepseekV3MoE`` uses a ``ModuleList`` of per-expert MLPs with
+    separate ``gate_proj``/``up_proj``/``down_proj`` and its own ``forward`` — it
+    does NOT dispatch through HF's ``ExpertsInterface``, so (unlike GPT-OSS) it
+    cannot select the fused backend via ``config._experts_implementation``. This
+    wrapper replaces the whole MoE module (mirroring ``enable_sparse_mlp``) and
+    dispatches on device:
+
+      * decode (flattened token count <= ``moe_decode_token_threshold``) emits
+        ``tt.moe_decode`` -> tt-mlir ``ttnn.moe_compute``;
+      * prefill uses the sparse EP path (``_tt_experts_forward_ep``), which
+        supports separate gate/up (the dense-bmm prefill path requires a fused
+        ``gate_up_proj``).
+
+    Shared experts (GPT-OSS has none) are added on device after the routed
+    output. CPU runs the original module (routed + shared) as the golden path.
+    Configure cluster_axis / activation / token threshold via
+    ``register_tt_moe_backend`` before running.
+    """
+
+    def __init__(self, moe_module: nn.Module, num_experts: int):
+        super().__init__()
+        from .sparse_mlp import DeepseekV3MoEToA2AAdapter
+
+        # Original module kept for the CPU golden path (routed + shared). Use
+        # object.__setattr__ so nn.Module does not register it as a submodule —
+        # its params are already referenced via gate/experts/shared_experts below,
+        # and registering it would make Dynamo trace its (numpy-y) forward.
+        object.__setattr__(self, "_original_mlp", moe_module)
+
+        # Gate. Two patterns (mirrors sparse_mlp.RouterAdapter):
+        #  * DeepSeek/Kimi MoEGate returns (topk_idx, topk_weight) directly
+        #    (routed_scaling_factor / norm_topk_prob already applied), taking a 3D
+        #    [batch, seq, hidden] input which it flattens internally.
+        #  * GLM-style routers (Glm4MoeTopkRouter) return raw logits and need the
+        #    MoE module's route_tokens_to_experts to produce (idx, weight); they
+        #    operate on a flattened 2D [T, hidden] input.
+        self.gate = moe_module.gate
+        self._gate_returns_idx_first = hasattr(moe_module.gate, "n_routed_experts")
+        self._route_fn = None
+        if hasattr(moe_module, "route_tokens_to_experts"):
+            self._route_fn = DeepseekV3MoEToA2AAdapter._build_route_fn(moe_module)
+
+        # Stack the per-expert weights into [E, ...] parameters. Both StackedExperts
+        # (ModuleList of per-expert gate/up/down MLPs — DeepSeek/Kimi) and
+        # PreStackedFusedExperts (a fused gate_up_proj Parameter — GLM
+        # Glm4MoeNaiveMoe) expose gate/up as [E, H, N] and down as [E, N, H]
+        # (nn.Linear .weight.T orientation = the sparse_matmul [.., in, out]
+        # layout), so the moe_backend adapters treat them as pre-transposed.
+        experts_module = moe_module.experts
+        pre_stacked_fused = (
+            hasattr(experts_module, "gate_up_proj")
+            and isinstance(experts_module.gate_up_proj, nn.Parameter)
+            and not hasattr(experts_module, "__iter__")
+        )
+        if pre_stacked_fused:
+            self.experts = DeepseekV3MoEToA2AAdapter.PreStackedFusedExperts(
+                experts_module
+            )
+        else:
+            experts_list = [e for e in experts_module if e is not None]
+            self.experts = DeepseekV3MoEToA2AAdapter.StackedExperts(experts_list)
+        self.experts.num_experts = int(num_experts)
+        self.experts.is_transposed = True
+
+        self.shared_experts = getattr(moe_module, "shared_experts", None)
+
+    def _route(self, hidden_states):
+        """Return (topk_idx, topk_weight) from the gate, handling both the
+        tuple-returning DeepSeek/Kimi MoEGate and the raw-logits GLM router."""
+        gate_input = hidden_states
+        if hidden_states.dim() == 3 and not self._gate_returns_idx_first:
+            gate_input = hidden_states.reshape(-1, hidden_states.shape[-1])
+        gate_output = self.gate(gate_input)
+        if self._route_fn is not None:
+            return self._route_fn(gate_output)
+        out1, out2 = gate_output
+        return (out1, out2) if self._gate_returns_idx_first else (out2, out1)
+
+    @torch.compiler.disable
+    def _cpu_forward(self, hidden_states, *args, **kwargs):
+        return self._original_mlp(hidden_states, *args, **kwargs)
+
+    def forward(self, hidden_states, *args, **kwargs):
+        if hidden_states.device.type == "cpu":
+            return self._cpu_forward(hidden_states, *args, **kwargs)
+
+        batch, seq_len, hidden = hidden_states.shape
+        topk_idx, topk_weight = self._route(hidden_states)  # [T, K], [T, K]
+        tokens = hidden_states.reshape(-1, hidden)  # [T, H]
+
+        total, dispatch, _, cluster_axis = _mesh_info()
+        token_count = tokens.shape[0]
+        is_decode = (
+            dispatch > 1 and token_count <= _config["moe_decode_token_threshold"]
+        )
+        if is_decode:
+            routed = _tt_moe_decode_forward(self.experts, tokens, topk_idx, topk_weight)
+        else:
+            routed = _tt_experts_forward_ep(
+                self.experts,
+                tokens,
+                topk_idx,
+                topk_weight,
+                total,
+                dispatch,
+                cluster_axis,
+            )
+
+        out = routed.reshape(batch, seq_len, hidden)
+        if self.shared_experts is not None:
+            out = out + self.shared_experts(hidden_states)
+        return out
+
+
+def enable_tt_moe_fused_mlp(
+    model: nn.Module, config: Optional[object] = None
+) -> nn.Module:
+    """Replace DeepSeek-style routed-MoE layers with the fused tt.moe_decode wrapper.
+
+    Targets layers whose ``mlp`` exposes both ``gate`` and ``experts`` (the routed
+    MoE layers); DeepSeek's leading dense layers (``first_k_dense_replace``) keep
+    their plain MLP. Mirrors ``enable_sparse_mlp`` but emits ``tt.moe_decode``
+    (``ttnn.moe_compute``) at decode instead of the sparse_matmul chain.
+    """
+    if config is None:
+        config = getattr(model, "config", None)
+    num_experts = getattr(config, "n_routed_experts", None) or getattr(
+        config, "num_local_experts", None
+    )
+
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        return model
+
+    for layer in layers:
+        mlp = getattr(layer, "mlp", None)
+        if mlp is None or not (hasattr(mlp, "gate") and hasattr(mlp, "experts")):
+            continue
+        ne = num_experts
+        if ne is None:
+            ne = len([e for e in mlp.experts if e is not None])
+        layer.mlp = _TtFusedMoEWrapper(mlp, ne)
+
+    return model
 
 
 register_tt_moe_backend()
