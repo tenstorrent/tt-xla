@@ -251,9 +251,6 @@ jobs:
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
-        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
