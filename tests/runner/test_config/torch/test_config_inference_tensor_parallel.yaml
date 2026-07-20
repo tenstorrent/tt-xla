@@ -54,9 +54,6 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     inject_custom_moe: true
-    # NOTE: intentionally not tagged with the `multi_host_cluster` marker so it
-    # is excluded from the n300-llmbox multi-host push job. Reduce-scatter op
-    # hang on this model - tracked by https://github.com/tenstorrent/tt-xla/issues/3650
 
   gpt_oss/pytorch-120B-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -77,9 +74,6 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    # Selected by the n300-llmbox multi-host push job (dir points at the runner,
-    # test-mark "push and multi_host_cluster"). supported_archs excludes n150/p150
-    # so these markers cannot leak into the single-chip push jobs.
     markers: [push, multi_host_cluster]
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
