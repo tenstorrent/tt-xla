@@ -449,6 +449,36 @@ class RequirementsManager:
 
         importlib.invalidate_caches()
 
+        # transformers installs Module.smart_apply; that attribute survives a
+        # sys.modules purge. Newer signatures take is_remote_code; older pins
+        # only redefine smart_apply when absent, so a 5.x→4.x downgrade leaves
+        # the new patch and breaks initialize_weights (TypeError).
+        if "transformers" in affected_normalized:
+            self._clear_transformers_monkeypatches()
+
+    @staticmethod
+    def _clear_transformers_monkeypatches() -> None:
+        """Remove transformers monkey-patches that outlive sys.modules purges."""
+        try:
+            import torch
+        except ImportError:
+            return
+
+        if hasattr(torch.nn.Module, "smart_apply"):
+            try:
+                delattr(torch.nn.Module, "smart_apply")
+                _dbg("[Requirements] cleared torch.nn.Module.smart_apply")
+            except Exception as e:
+                _dbg(f"[Requirements] failed to clear smart_apply: {e}")
+
+        try:
+            import torch._dynamo as dynamo
+
+            dynamo.reset()
+            _dbg("[Requirements] reset torch._dynamo after transformers purge")
+        except Exception as e:
+            _dbg(f"[Requirements] torch._dynamo.reset failed: {e}")
+
     @staticmethod
     def _unregister_arrow_ext_types(module) -> None:
         """Unregister any pyarrow extension types defined in *module*.

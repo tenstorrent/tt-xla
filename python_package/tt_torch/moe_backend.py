@@ -16,6 +16,7 @@ Works with any ``@use_experts_implementation`` Experts module that exposes
 
 from __future__ import annotations
 
+import sys
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
@@ -526,7 +527,17 @@ def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
             and requested_experts not in _HF_BUILTIN_EXPERTS_KEYS
         ):
             return requested_experts
-        return original_validator(self, requested_experts)
+        # After RequirementsManager purges transformers.* from sys.modules,
+        # stale model classes can still reference purged modules. HF's
+        # validator does an unsafe sys.modules[cls.__module__] lookup
+        # (huggingface/transformers#45003) and raises KeyError.
+        module_name = type(self).__module__
+        if module_name not in sys.modules:
+            return requested_experts
+        try:
+            return original_validator(self, requested_experts)
+        except KeyError:
+            return requested_experts
 
     patched_validator._tt_patched = True
     PreTrainedModel.get_correct_experts_implementation = patched_validator
