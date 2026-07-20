@@ -13,12 +13,12 @@ from infra import Framework, run_graph_test
 from third_party.tt_forge_models.longcat_image.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 271581184 B DRAM buffer "
-    "across 12 banks, where each bank needs to store 22634496 B, but bank size is "
-    "1071821792 B (allocated: 1038028800 B, free: 33792992 B, largest free block: "
-    "14088192 B) — ~7.7B Qwen2.5-VL text encoder (fp32) does not fit a single "
-    "n150; needs multi-chip tensor-parallel (mesh [1,2]) — "
+@pytest.mark.skip(
+    reason="Out of Memory: ~7.7B Qwen2.5-VL text encoder (bf16) does not fit a "
+    "single n150 — device DRAM fills up (1057376288 B allocated of 1070773184 B "
+    "bank size) then a further 135790592 B buffer cannot be allocated (only "
+    "13396896 B free). Needs multi-chip tensor-parallel (mesh [1,2]); skipped to "
+    "avoid wasting compute on a known single-chip OOM — "
     "https://github.com/tenstorrent/tt-xla/issues/5168"
 )
 def test_text_encoder():
@@ -26,8 +26,8 @@ def test_text_encoder():
     torch.manual_seed(42)
 
     loader = ModelLoader(ModelVariant.TEXT_ENCODER)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     run_graph_test(
         model,

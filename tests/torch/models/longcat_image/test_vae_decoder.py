@@ -18,8 +18,8 @@ def test_vae_decoder():
     torch.manual_seed(42)
 
     loader = ModelLoader(ModelVariant.VAE)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     run_graph_test(
         model,
