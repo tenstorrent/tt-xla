@@ -77,8 +77,10 @@ test_config:
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     required_pcc: 0.98 # PCC dropped to 0.9894 on n300-llmbox - https://github.com/tenstorrent/tt-xla/issues/4154
+    bringup_status: FAILED_RUNTIME
+    reason: "Bad StatusOr access: INTERNAL: Error code: 13; TT_FATAL Can't get device from mesh buffer, already deallocated (mesh_buffer.cpp:311). Tracked by https://github.com/tenstorrent/tt-xla/issues/4488 (same test; surface error varies run-to-run)."
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -276,8 +278,10 @@ test_config:
 
   gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox,lb-blackhole]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+    bringup_status: FAILED_RUNTIME
+    reason: "Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM (352 MB across 12 banks, bank_manager.cpp:462). Tracked by https://github.com/tenstorrent/tt-xla/issues/4007."
 
   command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]

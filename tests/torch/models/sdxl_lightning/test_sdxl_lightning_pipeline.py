@@ -299,6 +299,13 @@ class SDXLLightningPipeline:
             return image
 
 
+# run=False: the failure is a C++ abort (TT_THROW allocator.cpp:282 "Unsupported buffer
+# type!", core dumped / exit 134) that kills the pytest process, so a normal xfail cannot
+# catch it — the body must not run.
+@pytest.mark.xfail(
+    reason='TT_THROW allocator.cpp:282 "Unsupported buffer type!" — C++ abort (core dumped).',
+    run=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device

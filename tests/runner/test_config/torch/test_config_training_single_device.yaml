@@ -1782,8 +1782,10 @@ test_config:
         status: KNOWN_FAILURE_XFAIL
         assert_pcc: false
       p150:
-        status: EXPECTED_PASSING
+        status: KNOWN_FAILURE_XFAIL
         assert_pcc: false
+        bringup_status: FAILED_RUNTIME
+        reason: "Bad StatusOr access: INTERNAL: Error code: 13 during backward (torch_xla._XLAC._xla_sync_multi). Tracked by https://github.com/tenstorrent/tt-xla/issues/5685."
   yolov7/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
