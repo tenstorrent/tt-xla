@@ -1731,7 +1731,7 @@ def test_gpt_oss_120b_tp_moe_fused_galaxy(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            trace_enabled=bool(os.environ.get("TTXLA_ENABLE_TRACE")),
+            trace_enabled=True,
             optimization_level=1,
             experimental_weight_dtype="bfp_bf8",
             experimental_kv_cache_dtype=None,
@@ -1790,7 +1790,7 @@ def test_gpt_oss_20b_tp_moe_fused_galaxy(
             shard_spec_fn=_gpt_oss_120b_moe_fused_galaxy_shard_spec_fn,
             input_output_sharding_spec=("batch", None),
             kv_cache_sharding_spec=("batch", "model", None, None),
-            trace_enabled=bool(os.environ.get("TTXLA_ENABLE_TRACE")),
+            trace_enabled=True,
             optimization_level=1,
             experimental_weight_dtype="bfp_bf8",
             experimental_kv_cache_dtype=None,
@@ -2018,29 +2018,50 @@ def test_kimi_k2_tp_galaxy_2_layers(
     max_output_tokens,
     decode_only,
 ):
+    from tt_torch import register_tt_moe_backend
+
     from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=2,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        input_output_sharding_spec=("batch", None),
-        use_mla_cache=True,
-        experimental_kv_cache_dtype=None,
-        optimization_level=0,
-        trace_enabled=False,
-        required_pcc=0.99,
+    # Kimi K2 is the vendored DeepSeek-V3 arch; route its MoE through the fused
+    # tt.moe_decode (ttnn.moe_compute) decode kernel (same knobs as DeepSeek).
+    # bs=32 not 64: Kimi's 12 experts/device (384/32) vs DeepSeek's 8 overflow the
+    # moe_compute per-core tilize CBs at bs=64; total_tokens = dispatch_ring x
+    # batch, so halving batch clears it (moe_output_height_shard_dim doesn't help).
+    bs = batch_size if batch_size is not None else 32
+    register_tt_moe_backend(
+        cluster_axis=0,
+        use_interleaved=False,
+        moe_decode_activation="silu",
+        moe_decode_token_threshold=bs,
     )
+
+    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=2,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            input_output_sharding_spec=("batch", None),
+            use_mla_cache=True,
+            experimental_kv_cache_dtype=None,
+            # opt level 1 promotes the tt.moe_decode composite to ttnn.moe_compute.
+            optimization_level=1,
+            # Trace disabled: fused-decode trace capture is not yet supported for
+            # this model (see test_deepseek_v3_1_tp_galaxy_4_layers).
+            trace_enabled=False,
+            required_pcc=0.99,
+        )
+    finally:
+        register_tt_moe_backend()
 
 
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
@@ -2552,8 +2573,14 @@ def test_gpt_oss_20b_tp_batch_size_1_qb2(
 
 
 def _deepseek_v3_1_shard_spec_fn(model_loader, model):
-    """Sharding specs for DeepSeek V3.1 on 4x8 galaxy mesh with TP 8, DP 4, EP 32."""
-    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+    """Sharding specs for DeepSeek V3.1 fused moe_compute on the (8,4) galaxy mesh.
+
+    Routed MoE layers run through the fused tt.moe_decode (ttnn.moe_compute) path
+    via _TtFusedMoEWrapper: EP-shard the stacked expert weights compound over both
+    axes ("batch"=cluster/dispatch axis, "model") and TP-shard the router / shared
+    experts on "model".
+    """
+    from tt_torch.moe_backend import _TtFusedMoEWrapper
 
     shard_specs = {}
 
@@ -2573,26 +2600,25 @@ def _deepseek_v3_1_shard_spec_fn(model_loader, model):
         shard_specs[layer.post_attention_layernorm.weight] = ("model",)
 
         mlp = layer.mlp
-        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
-            inner = mlp.mlp if hasattr(mlp, "mlp") else mlp
-            shard_specs[inner.router.gate.weight] = (None, "model")
-            shard_specs[inner.experts.gate_proj] = (
+        if isinstance(mlp, _TtFusedMoEWrapper):
+            shard_specs[mlp.gate.weight] = (None, "model")
+            shard_specs[mlp.experts.gate_proj] = (
                 ("batch", "model"),
                 None,
                 None,
             )
-            shard_specs[inner.experts.up_proj] = (
+            shard_specs[mlp.experts.up_proj] = (
                 ("batch", "model"),
                 None,
                 None,
             )
-            shard_specs[inner.experts.down_proj] = (
+            shard_specs[mlp.experts.down_proj] = (
                 ("batch", "model"),
                 None,
                 None,
             )
             for bias_name in ("gate_proj_bias", "up_proj_bias", "down_proj_bias"):
-                b = getattr(inner.experts, bias_name, None)
+                b = getattr(mlp.experts, bias_name, None)
                 if b is not None:
                     shard_specs[b] = (("batch", "model"), None)
 
@@ -2609,6 +2635,19 @@ def _deepseek_v3_1_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+def _deepseek_v3_1_mesh_config_fn(model_loader, num_devices):
+    """(8,4) galaxy mesh for DeepSeek fused moe_compute: EP-8 x TP-4.
+
+    DeepSeek's moe_compute (hidden=7168) deadlocks on a 4-device dispatch ring —
+    tt-metal only validates it on 8- and 16-device rings (test_moe_compute_6U.py).
+    Putting the size-8 axis on cluster_axis=0 ("batch") gives an 8-device EP ring;
+    attention TP is 4-way on "model". The by-name shard spec adapts to the sizes.
+    """
+    if num_devices != 32:
+        raise ValueError("DeepSeek V3.1 galaxy benchmark expects 32 devices.")
+    return (8, 4), ("batch", "model")
+
+
 # This test only runs 4 layers so we expect to see incoherent output
 def test_deepseek_v3_1_tp_galaxy_4_layers(
     output_file,
@@ -2619,30 +2658,54 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
     max_output_tokens,
     decode_only,
 ):
+    from tt_torch import register_tt_moe_backend
+
     from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=4 if num_layers is None else num_layers,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        input_output_sharding_spec=("batch", None),
-        use_mla_cache=True,
-        optimization_level=0,
-        trace_enabled=False,
-        shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
-        experimental_kv_cache_dtype=None,
-        required_pcc=0.99,
+    # DeepSeek routed experts run through the fused tt.moe_decode (ttnn.moe_compute)
+    # decode kernel. cluster_axis=0 = EP dispatch ring (EP-8 on the (8,4) mesh).
+    # Separate gate/up (no interleave), silu SwiGLU. Decode is one token per
+    # sequence, so pin the prefill/decode threshold to the batch size.
+    bs = batch_size if batch_size is not None else 64  # 128 hangs, #4565
+    register_tt_moe_backend(
+        cluster_axis=0,
+        use_interleaved=False,
+        moe_decode_activation="silu",
+        moe_decode_token_threshold=bs,
     )
+
+    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=4 if num_layers is None else num_layers,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            input_output_sharding_spec=("batch", None),
+            use_mla_cache=True,
+            # opt level 1 promotes the tt.moe_decode composite to ttnn.moe_compute.
+            optimization_level=1,
+            # Trace disabled: the fused-decode graph moves the lm_head output to
+            # host (ttnn.from_device) inside the trace region, which
+            # capture_or_execute_trace rejects ("all output tensors must be on
+            # device").
+            trace_enabled=False,
+            shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
+            experimental_kv_cache_dtype=None,
+            required_pcc=0.99,
+        )
+    finally:
+        # Restore default experts config so the global flags don't leak into
+        # other tests that share this process.
+        register_tt_moe_backend()
 
 
 def _glm_4_7_shard_spec_fn(model_loader, model):
@@ -2652,13 +2715,17 @@ def _glm_4_7_shard_spec_fn(model_loader, model):
     Embedding is replicated, lm_head is vocab-parallel, and attention / dense MLP / shared experts are col->row parallel along model axis TP - 8.
     Routed expert weights are sharded across both model and batch axes EP - 32, matching DeepSeek V3.x / Kimi K2.
     """
-    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+    from tt_torch.moe_backend import _TtFusedMoEWrapper
 
     shard_specs = {}
 
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
-    shard_specs[model.lm_head.weight] = ("model", None)
+    # Vocab-parallel on "batch" to match the lm_head output sharding_constraint
+    # hook (llm_benchmark.py). ("model", None) puts vocab on a different axis than
+    # the hook, forcing an axis->axis reshard that lowers to sdy.collective_permute
+    # (tt-mlir #3370, unimplemented); ("batch", None) matches gpt-oss -> no reshard.
+    shard_specs[model.lm_head.weight] = ("batch", None)
 
     for layer in model.model.layers:
         shard_specs[layer.input_layernorm.weight] = (None,)
@@ -2681,12 +2748,11 @@ def _glm_4_7_shard_spec_fn(model_loader, model):
 
         mlp = layer.mlp
 
-        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
-            inner = mlp.mlp
-            shard_specs[inner.router.gate.weight] = (None, None)
-            shard_specs[inner.experts.gate_proj] = (("batch", "model"), None, None)
-            shard_specs[inner.experts.up_proj] = (("batch", "model"), None, None)
-            shard_specs[inner.experts.down_proj] = (("batch", "model"), None, None)
+        if isinstance(mlp, _TtFusedMoEWrapper):
+            shard_specs[mlp.gate.weight] = (None, None)
+            shard_specs[mlp.experts.gate_proj] = (("batch", "model"), None, None)
+            shard_specs[mlp.experts.up_proj] = (("batch", "model"), None, None)
+            shard_specs[mlp.experts.down_proj] = (("batch", "model"), None, None)
 
             shared = getattr(mlp, "shared_experts", None)
             if shared is not None:
@@ -2712,27 +2778,46 @@ def test_glm_4_7_tp_galaxy_4_layers(
     max_output_tokens,
     decode_only,
 ):
+    from tt_torch import register_tt_moe_backend
+
     from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
+    # GLM-4 routed experts run through the fused tt.moe_decode (ttnn.moe_compute)
+    # decode kernel. _TtFusedMoEWrapper adapts GLM's raw-logits router + pre-stacked
+    # fused gate_up_proj experts. silu SwiGLU, separate gate/up (split from fused).
+    bs = batch_size if batch_size is not None else 64  # 128 hangs, #4565
+    register_tt_moe_backend(
+        cluster_axis=0,
+        use_interleaved=False,
+        moe_decode_activation="silu",
+        moe_decode_token_threshold=bs,
+    )
+
     variant = ModelVariant.GLM_4_7
 
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=4 if num_layers is None else num_layers,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        optimization_level=0,
-        trace_enabled=False,
-        shard_spec_fn=_glm_4_7_shard_spec_fn,
-        input_output_sharding_spec=("batch", None),
-        kv_cache_sharding_spec=("batch", "model", None, None),
-        required_pcc=0.99,
-    )
+    try:
+        test_llm_tp(
+            ModelLoader,
+            variant,
+            output_file,
+            num_layers=4 if num_layers is None else num_layers,
+            request=request,
+            accuracy_testing=accuracy_testing,
+            batch_size=bs,
+            max_output_tokens=max_output_tokens,
+            decode_only=decode_only,
+            # opt level 1 promotes the tt.moe_decode composite to ttnn.moe_compute.
+            optimization_level=1,
+            # Trace disabled: fused-decode trace capture is not yet supported for
+            # this model (see test_deepseek_v3_1_tp_galaxy_4_layers).
+            trace_enabled=False,
+            shard_spec_fn=_glm_4_7_shard_spec_fn,
+            input_output_sharding_spec=("batch", None),
+            kv_cache_sharding_spec=("batch", "model", None, None),
+            required_pcc=0.99,
+        )
+    finally:
+        register_tt_moe_backend()
