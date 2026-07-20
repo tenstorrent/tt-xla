@@ -99,6 +99,36 @@ def _make_prompt(i):
     )
 
 
+def _wait_for_server(host, port, api_key, timeout, poll_secs):
+    """Block until the vLLM server is ready or timeout elapses.
+
+    Polls GET /health, which returns HTTP 200 only once the engine has finished
+    startup ("Application startup complete" in the server log). Returns True when
+    ready, False on timeout. timeout <= 0 disables waiting (returns immediately).
+    """
+    if timeout <= 0:
+        return True
+    url = f"http://{host}:{port}/health"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    deadline = time.time() + timeout
+    last_err = None
+    print(f"Waiting up to {timeout}s for server at {url} ...", flush=True)
+    while time.time() < deadline:
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=poll_secs) as resp:
+                if 200 <= resp.status < 300:
+                    print("Server is ready.", flush=True)
+                    return True
+        except Exception as e:  # connection refused / 503 while still starting up
+            last_err = e
+        time.sleep(poll_secs)
+    print(f"Server not ready after {timeout}s (last error: {last_err!r})", flush=True)
+    return False
+
+
 def _send_one(url, api_key, model, prompt, max_tokens):
     body = json.dumps(
         {
@@ -128,6 +158,19 @@ def main():
     ap.add_argument("--concurrency", type=int, default=32)
     ap.add_argument("--max-tokens", type=int, default=1024)
     ap.add_argument("--sample-secs", type=int, default=15)
+    ap.add_argument(
+        "--startup-timeout",
+        type=int,
+        default=1800,
+        help="Max seconds to wait for the server /health to be ready before "
+        "flooding (compile can take minutes); 0 disables the wait.",
+    )
+    ap.add_argument(
+        "--startup-poll-secs",
+        type=int,
+        default=5,
+        help="Seconds between /health readiness polls.",
+    )
     ap.add_argument("--api-key", default=os.environ.get("OPENAI_API_KEY", ""))
     ap.add_argument(
         "--engine-pid",
@@ -138,6 +181,14 @@ def main():
     a = ap.parse_args()
 
     url = f"http://{a.host}:{a.port}/v1/chat/completions"
+
+    if not _wait_for_server(
+        a.host, a.port, a.api_key, a.startup_timeout, a.startup_poll_secs
+    ):
+        raise SystemExit("Server did not become ready; aborting probe.")
+
+    # Detect the EngineCore pid only after startup: the process (and its real
+    # baseline RSS) does not stabilize until the engine has finished loading.
     engine_pid = a.engine_pid or _find_engine_core_pid()
     base_rss = _proc_rss_kb(engine_pid) if engine_pid else 0
     peak_rss = base_rss
