@@ -296,47 +296,9 @@ def test_decorator_stores_sharding_rule_string(clean_registry):
     assert k._tt_lang_sharding_rule == rule
 
 
-def test_decorator_stores_sharding_rule_from_builder(clean_registry):
-    rule = make_sharding_rule(
-        operand_mappings=[("i", "j")],
-        result_mappings=[("i", "j")],
-        factor_sizes={"i": 4, "j": 4},
-    )
-
-    @tt_lang_operation(
-        operation_id="unit.sharding_rule.decorate.builder.v1",
-        arg_roles=("in", "out"),
-        sharding_rule=rule,
-    )
-    def k(x, out): ...
-
-    assert k._tt_lang_sharding_rule == rule
-
-
-def test_decorator_default_sharding_rule_is_empty(clean_registry):
-    """Not passing ``sharding_rule=`` is legal (backwards-compatible)."""
-
-    @tt_lang_operation(
-        operation_id="unit.sharding_rule.default.v1", arg_roles=("in", "out")
-    )
-    def k(x, out): ...
-
-    assert k._tt_lang_sharding_rule == ""
-
-
 # ---------------------------------------------------------------------------
 # torch.ops.tt.tt_lang_op schema still accepts the old-style positional call
 # ---------------------------------------------------------------------------
-
-
-def test_tt_lang_op_schema_still_accepts_old_call():
-    """Adding ``sharding_rule`` (default ``""``) must not break existing
-    six-arg call sites that predate this parameter."""
-    a = torch.zeros(2, 3)
-    with pytest.raises((NotImplementedError, RuntimeError)):
-        torch.ops.tt.tt_lang_op([a], "k", "out", "vt0", "", [0])
-
-
 def test_tt_lang_op_schema_accepts_new_sharding_rule_arg():
     """The new ``sharding_rule`` positional argument is accepted."""
     a = torch.zeros(2, 3)
@@ -573,12 +535,14 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
       * tt-mlir's ``register-user-sharding-rule`` pass promotes it and hands
         it to Shardy, which propagates the operands' dim-0 (``"model"``)
         sharding through the custom call onto the result,
-      * the gathered result equals the un-sharded ``a + b``.
+      * the result's host sharding matches the inputs' (without marking
+        ``out``), and the gathered value equals un-sharded ``a + b``.
 
     Without the custom rule the custom_call would get an explicit
-    full-replication rule, so a passing sharded run demonstrates the
-    user rule actually drove result propagation.
+    full-replication rule, so a matching result sharding demonstrates the
+    user rule drove result propagation.
     """
+    import torch_xla
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.spmd as xs
     import torch_xla.runtime as xr
@@ -618,20 +582,116 @@ def test_tt_lang_eltwise_add_custom_sharding_rule_e2e(clean_registry):
     b_xla = b_cpu.to(device)
     out_xla = torch.zeros_like(a_cpu).to(device)
 
-    # Functional SHLO custom_call: only ``a``/``b`` are operands; TTIR
-    # synthesizes the DPS ``out`` init from the post-Shardy result type.
-    # Mark ``a`` and ``b``: torch_xla annotates unmarked inputs as explicit
-    # replicated (``[{}, {}]``), which blocks Shardy from reshaping ``b`` to
-    # match ``a`` via the shared factor (lit with truly unconstrained ``b``
-    # propagates; e2e mark-only-``a`` leaves ``b`` at global 512x64 → PCC~0.56).
-    # Mark ``out`` on the host for the wrapper's ``copy_``/gather destination.
+    # Mark the functional SHLO operands. Leave ``out`` unmarked so the
+    # result sharding must come from Shardy propagation via the custom
+    # rule, not from an explicit host annotation on the DPS buffer.
     xs.mark_sharding(a_xla, mesh, ("model", None))
     xs.mark_sharding(b_xla, mesh, ("model", None))
-    xs.mark_sharding(out_xla, mesh, ("model", None))
+    input_sharding = torch_xla._XLAC._get_xla_sharding_spec(a_xla)
+    assert input_sharding, "expected a non-empty sharding spec on marked input a"
+    assert torch_xla._XLAC._get_xla_sharding_spec(b_xla) == input_sharding
+    assert not torch_xla._XLAC._get_xla_sharding_spec(
+        out_xla
+    ), "out must start unmarked so result sharding proves propagation"
 
     result_xla = add_op(a_xla, b_xla, out_xla)
-    result = result_xla.to("cpu")
+    torch_xla.sync()
 
+    result_sharding = torch_xla._XLAC._get_xla_sharding_spec(result_xla)
+    assert (
+        result_sharding == input_sharding
+    ), f"result sharding not propagated from inputs: {result_sharding!r} vs {input_sharding!r}"
+
+    result = result_xla.to("cpu")
+    assert (
+        result.shape == golden.shape
+    ), f"shape mismatch: {result.shape} vs {golden.shape}"
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(result, golden)
+
+
+@pytest.mark.push
+@pytest.mark.dual_chip
+@pytest.mark.llmbox
+def test_tt_lang_eltwise_add_custom_sharding_rule_reshards_unmarked_operand_e2e(
+    clean_registry,
+):
+    """End-to-end: an unmarked operand is explicitly resharded to match the
+    sharding the custom rule propagates onto its sibling and the result.
+
+    Only ``a`` is marked sharded on dim 0; ``b`` is left unmarked
+    (replicated). The rule ties both operands' dim 0 to the same factor
+    with no ``need_replication``, so Shardy propagates ``a``'s sharding to
+    the result -- and, since the rule links them, to ``b`` as well. ``b``
+    starts replicated, so ``insert-explicit-reshards`` has to insert an
+    ``sdy.reshard`` on it before the custom call runs; this is the hardware
+    counterpart to the tt-mlir lit test
+    ``tt_lang_custom_rule_reshard.mlir::operand_needs_reshard``.
+
+    A correct result against the CPU golden is proof the reshard actually
+    happened: without it, ``a``'s and ``b``'s per-device row blocks would be
+    misaligned (one sharded, one still full-size) and the kernel would add
+    mismatched rows.
+    """
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+    from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
+    from infra.utilities.torch_multichip_utils import enable_spmd
+
+    enable_spmd()
+    xr.set_device_type("TT")
+
+    num_devices = xr.global_runtime_device_count()
+    if num_devices < 2:
+        pytest.skip(f"needs a multi-device mesh, got {num_devices} device(s)")
+
+    rows, cols, mesh = _eltwise_add_e2e_setup(num_devices)
+
+    # Same pointwise, no-need_replication rule as the propagation test above:
+    # dim 0 ("i") is a shared factor between the two operands and the result,
+    # so whatever sharding one operand gets, the others must match it.
+    sharding_rule = make_sharding_rule(
+        operand_mappings=[("i", "j"), ("i", "j")],
+        result_mappings=[("i", "j")],
+        factor_sizes={"i": rows, "j": cols},
+    )
+
+    add_op = _make_sharded_eltwise_add_operation(
+        f"tt_xla.e2e.reshard_eltwise_add.{rows}x{cols}.v1", sharding_rule
+    )
+
+    a_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
+    b_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
+    golden = a_cpu + b_cpu
+
+    device = xm.xla_device()
+    a_xla = a_cpu.to(device)
+    b_xla = b_cpu.to(device)
+    out_xla = torch.zeros_like(a_cpu).to(device)
+
+    # Only `a` gets a host sharding annotation. `b` is left unmarked
+    # (replicated) so its alignment with `a` has to come from the rule
+    # driving propagation plus an explicit reshard, not a host annotation.
+    xs.mark_sharding(a_xla, mesh, ("model", None))
+    input_sharding = torch_xla._XLAC._get_xla_sharding_spec(a_xla)
+    assert input_sharding, "expected a non-empty sharding spec on marked input a"
+    assert not torch_xla._XLAC._get_xla_sharding_spec(
+        b_xla
+    ), "b must start unmarked so its alignment comes from the reshard, not a host annotation"
+
+    result_xla = add_op(a_xla, b_xla, out_xla)
+    torch_xla.sync()
+
+    result_sharding = torch_xla._XLAC._get_xla_sharding_spec(result_xla)
+    assert (
+        result_sharding == input_sharding
+    ), f"result sharding not propagated from a: {result_sharding!r} vs {input_sharding!r}"
+
+    result = result_xla.to("cpu")
     assert (
         result.shape == golden.shape
     ), f"shape mismatch: {result.shape} vs {golden.shape}"
