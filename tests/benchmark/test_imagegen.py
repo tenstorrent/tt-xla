@@ -507,3 +507,51 @@ def test_janus_pro_7b(output_file, request):
         output_file=output_file,
         request=request,
     )
+
+
+def test_glm_image(output_file, request):
+    """GLM-Image diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    Unlike the single-chip SD models above, GLM-Image's DiT transformer runs
+    tensor-parallel across a multi-chip mesh (the AR vision-language encoder, T5
+    glyph encoder, FlowMatchEuler scheduler and VAE decode stay on CPU). The
+    matrix pins this entry to an llmbox (n300-llmbox) runner so the mesh is available.
+    """
+    from benchmarks.glm_image_pipeline import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+        GlmImageConfig,
+        GlmImagePipeline,
+    )
+
+    prompt = PROMPT
+    num_inference_steps = 50
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); AR / T5 / scheduler
+        # / VAE on CPU. compile_options are already applied globally by the harness.
+        pipeline = GlmImagePipeline(config=GlmImageConfig())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                seed=DEFAULT_SEED,
+                num_inference_steps=steps,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="glm-image",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        output_image_path="test_glm_image_output.png",
+    )
