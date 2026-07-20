@@ -4,11 +4,12 @@
 
 """Stable Diffusion 1.5 — nightly e2e pipeline test.
 
-Runs the full text-to-image pipeline end-to-end: the UNet (the heavy net) runs
-on Tenstorrent via ``torch.compile(backend="tt")`` while the precision-sensitive
-CLIP text encoder, the scheduler and the VAE stay on CPU. The reusable pipeline
-implementation lives in ``tt_forge_models`` and is shared with the image-gen
-benchmark (``tests/benchmark/test_imagegen.py``).
+Runs the full text-to-image pipeline end-to-end: the CLIP text encoder and the
+UNet (the heavy net) both run on Tenstorrent via ``torch.compile(backend="tt")``.
+The scheduler and the VAE decoder stay on CPU (VAE-on-TT currently produces
+noise from group-norm precision). The reusable pipeline implementation lives in
+``tt_forge_models`` and is shared with the image-gen benchmark
+(``tests/benchmark/test_imagegen.py``).
 """
 
 from pathlib import Path
@@ -39,8 +40,11 @@ def run_sd15_pipeline(
     num_inference_steps: int = 50,
 ):
     """Run the Stable Diffusion 1.5 pipeline and save the output image."""
-    # CLIP on CPU (precision-sensitive); UNet on TT.
-    config = SD15Config(clip_on_tt=False)
+    # CLIP + UNet on TT. CLIP runs in bf16 on device; the output stays a valid
+    # image (verified — near-identical to the CPU-CLIP baseline). VAE decode is
+    # kept on CPU: running it on TT currently produces noise (group_norm
+    # precision), even with optimization_level=1.
+    config = SD15Config(clip_on_tt=True)
     pipeline = SD15Pipeline(config=config)
     pipeline.setup()
 
