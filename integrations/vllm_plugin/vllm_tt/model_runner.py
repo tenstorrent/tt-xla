@@ -2194,7 +2194,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
                     ).eval()
-                replace_modules(model)
+                replace_modules(model, use_flat_model_io=self.use_flat_model_io)
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
