@@ -5,7 +5,40 @@
 from types import SimpleNamespace
 
 import pytest
-from vllm_tt.metadata_routing import build_per_layer_attn_metadata
+from vllm_tt.metadata_routing import (
+    build_layer_to_kv_cache_group_idx,
+    build_per_layer_attn_metadata,
+)
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_build_layer_to_kv_cache_group_idx_maps_all_group_layers():
+    groups = [
+        SimpleNamespace(layer_names=["l0", "l1"]),
+        SimpleNamespace(layer_names=["l2"]),
+    ]
+
+    routed = build_layer_to_kv_cache_group_idx(groups)
+
+    assert routed == {"l0": 0, "l1": 0, "l2": 1}
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_build_layer_to_kv_cache_group_idx_includes_shared_layer_entries():
+    # Represents the post-kv-sharing group layout where an extra layer was
+    # appended to a target group.
+    groups = [
+        SimpleNamespace(layer_names=["target", "shared_layer"]),
+        SimpleNamespace(layer_names=["other"]),
+    ]
+
+    routed = build_layer_to_kv_cache_group_idx(groups)
+
+    assert routed["target"] == 0
+    assert routed["shared_layer"] == 0
+    assert routed["other"] == 1
 
 
 @pytest.mark.push

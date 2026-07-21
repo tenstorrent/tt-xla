@@ -104,7 +104,10 @@ from .attention_impls.attention_mla import TTMLAAttentionBackend
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
-from .metadata_routing import build_per_layer_attn_metadata
+from .metadata_routing import (
+    build_layer_to_kv_cache_group_idx,
+    build_per_layer_attn_metadata,
+)
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
@@ -2269,11 +2272,82 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
+    def _build_dummy_group_attn_metadata(
+        self,
+        num_reqs: int,
+        use_max_model_len: bool,
+        prefix_chunk: bool,
+    ) -> dict[str, TTMetadata]:
+        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+
+        batch_idx = (
+            self.batch_idx_min_reqs
+            if num_reqs == self.min_num_reqs
+            else (
+                self.batch_idx_max_prefill_reqs
+                if num_reqs == self.max_prefill_num_reqs
+                else self.batch_idx_max_reqs
+            )
+        )
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+
+        chunk_start_idx = None
+        if prefix_chunk:
+            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
+
+        group_attn_metadata: dict[int, TTMetadata] = {}
+        for group_idx in range(self._active_kv_cache_group_count):
+            num_blocks = (
+                self._kv_cache_group_num_blocks_max[group_idx]
+                if use_max_model_len
+                else self._kv_cache_group_num_blocks_most[group_idx]
+            )
+            page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+                self.device
+            )
+            fill_page_table = page_table
+            if prefix_chunk:
+                fill_page_table = torch.zeros(
+                    (num_reqs, num_blocks), dtype=torch.int32
+                ).to(self.device)
+
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(page_table, self.mesh, ("batch", None))
+                if fill_page_table is not page_table:
+                    safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+
+            group_attn_metadata[group_idx] = TTMetadata(
+                page_table=page_table,
+                cache_position=cache_position,
+                is_causal=True,
+                attn_mask=None,
+                dp_size=self.dp_size,
+                fill_page_table=fill_page_table,
+                chunk_start_idx=chunk_start_idx,
+                batch_idx=batch_idx,
+                num_users=num_reqs,
+            )
+
+        return build_per_layer_attn_metadata(
+            self._attention_layer_names,
+            self._layer_to_kv_cache_group_idx,
+            group_attn_metadata,
+        )
+
+    @torch.no_grad()
     def _dummy_run(
         self,
         num_tokens: int,
         num_reqs: int,
-        num_blocks: int,
+        use_max_model_len: bool,
         prefix_chunk: bool = False,
     ) -> None:
         # Start with token ids so _get_model_inputs runs embed_input_ids and the
@@ -2296,59 +2370,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 safe_mark_sharding(input_ids, self.mesh, ("batch", None))
             safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
-        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-            self.device
-        )
-        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
-
-        batch_idx = (
-            self.batch_idx_min_reqs
-            if num_reqs == self.min_num_reqs
-            else (
-                self.batch_idx_max_prefill_reqs
-                if num_reqs == self.max_prefill_num_reqs
-                else self.batch_idx_max_reqs
-            )
-        )
-        if self.parallel_mode in (
-            ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PARALLEL,
-        ):
-            # page_table / cache_position / batch_idx must share the K/V input's
-            # per-device leading dim, so shard them on "batch" to match the
-            # DP-sharded inputs (batch_idx feeds paged_fill_cache).
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
-            safe_mark_sharding(cache_position, self.mesh, ("batch",))
-            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
-
-        # prefix_chunk=True precompiles the cached-prefix prefill graph: chunk_start_idx
-        # routes attention through the chunked SDPA op. Only reached when the op is
-        # usable (see _precompile_backbone gating on _chunked_sdpa_active).
-        fill_page_table = None
-        chunk_start_idx = None
-        if prefix_chunk:
-            # A continuation chunk uses a distinct fill_page_table at runtime;
-            # pass a separate tensor so the traced graph has matching input arity
-            # (else an extra graph recompiles at runtime).
-            fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-                self.device
-            )
-            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
-
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            dp_size=self.dp_size,
-            fill_page_table=fill_page_table,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=num_reqs,
-        )
-
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
+        per_layer_attn_metadata = self._build_dummy_group_attn_metadata(
+            num_reqs=num_reqs,
+            use_max_model_len=use_max_model_len,
+            prefix_chunk=prefix_chunk,
         )
         if self.uses_mrope:
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
@@ -2698,57 +2723,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_inputs_embeds = torch.zeros(
             (num_reqs, num_tokens, hsize), dtype=self._hidden_states_dtype
         ).to(self.device)
-        page_table = torch.zeros(
-            (num_reqs, self.max_num_blocks_per_req),
-            dtype=torch.int32,
-        ).to(self.device)
-        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
-        batch_idx = (
-            self.batch_idx_min_reqs
-            if num_reqs == self.min_num_reqs
-            else (
-                self.batch_idx_max_prefill_reqs
-                if num_reqs == self.max_prefill_num_reqs
-                else self.batch_idx_max_reqs
-            )
+        # Mirror runtime's max-vs-most choice so warmup compiles per-group
+        # metadata with the same page-table widths as serving.
+        use_max_model_len = self.most_model_len is None or num_tokens > cast(
+            int, self.most_model_len
         )
-        if self.parallel_mode in (
-            ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PARALLEL,
-        ):
-            # batch_idx feeds paged_fill_cache; shard it on "batch" like
-            # page_table / cache_position so its per-device dim0 matches the
-            # DP-sharded K/V input.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
-            safe_mark_sharding(cache_position, self.mesh, ("batch",))
-            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
-
-        # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
-        # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
-        # attention through the chunked op, and a distinct fill_page_table tensor
-        # keeps the traced input arity matching runtime.
-        fill_page_table = page_table
-        chunk_start_idx = None
-        if prefix_chunk:
-            fill_page_table = torch.zeros(
-                (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
-            ).to(self.device)
-            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
-
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            fill_page_table=fill_page_table,
-            dp_size=self.dp_size,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=num_reqs,
-        )
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
+        per_layer_attn_metadata = self._build_dummy_group_attn_metadata(
+            num_reqs=num_reqs,
+            use_max_model_len=use_max_model_len,
+            prefix_chunk=prefix_chunk,
         )
 
         dummy_inputs, dummy_inputs_embeds = self._get_model_inputs(
@@ -2999,7 +2983,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._dummy_run(
                 num_tokens,
                 num_reqs_max,
-                self.max_num_blocks_per_req,
+                use_max_model_len=True,
                 prefix_chunk=prefix_chunk,
             )
             # Sync per token count so prefill and decode graphs stay separate.
@@ -3016,7 +3000,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._dummy_run(
                     num_tokens,
                     num_reqs_most,
-                    self.num_blocks_per_most_len_req,
+                    use_max_model_len=False,
                     prefix_chunk=prefix_chunk,
                 )
                 torch_xla.sync()
@@ -3309,15 +3293,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Trigger compilation for general shape.
         torch._dynamo.config.dynamic_shapes = False
-        self._dummy_run(
-            num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
-        )
+        self._dummy_run(num_tokens, self.num_reqs_max_model_len, use_max_model_len=True)
         torch_xla.sync()
         if self.most_model_len is not None:
             self._dummy_run(
                 num_tokens,
                 self.num_reqs_most_model_len,
-                self.num_blocks_per_most_len_req,
+                use_max_model_len=False,
             )
         torch_xla.sync(wait=False)
         self.encoder_cache.clear()
@@ -3476,9 +3458,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.most_model_len, group_block_size
                 )
 
-            for layer_name in kv_cache_group.layer_names:
-                self._layer_to_kv_cache_group_idx[layer_name] = group_idx
-
             max_num_blocks = self._kv_cache_group_num_blocks_max[group_idx]
             self._page_table_dev_max_by_group[group_idx] = {
                 num_reqs: _alloc_dev(
@@ -3525,6 +3504,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
+        # Build this mapping only after kv_cache_groups are finalized, since
+        # cross-layer sharing mutates group layer lists in-place.
+        self._layer_to_kv_cache_group_idx = build_layer_to_kv_cache_group_idx(
+            kv_cache_config.kv_cache_groups
+        )
 
         bind_kv_cache(
             kv_caches,
