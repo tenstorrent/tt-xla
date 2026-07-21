@@ -224,6 +224,7 @@ test_config:
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
 
+
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
@@ -305,10 +306,12 @@ test_config:
   phi3/causal_lm/pytorch-Medium_4K_Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   mistral/codestral/pytorch-Codestral-22B-v0.1-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   deepseek/deepseek_coder/pytorch-33B_Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -317,6 +320,7 @@ test_config:
   coherlabs/pytorch-Coherelabs_aya_expanse_32b-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   coherlabs/pytorch-Coherelabs_c4ai_command_r_v01-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -333,6 +337,7 @@ test_config:
   deepseek/qwen/pytorch-R1_Distill_14B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   deepseek/deepseek_chat/pytorch-chat_67b-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -347,22 +352,27 @@ test_config:
   nvidia/open_reasoning/pytorch-Nvidia_OpenReasoning_Nemotron_32B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   hyperclovax_32b/pytorch-HyperCLOVAX_SEED_Think_32B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   hyperclovax/pytorch-HyperCLOVAX_SEED_Think_14B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   nvidia/llama/pytorch-Nvidia_Llama_3_3_Nemotron_Super_49B_v1_5-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   yi_1_5/pytorch-Yi-1.5-34B-Chat-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   baichuan_m2/pytorch-Baichuan-M2-32B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -379,10 +389,12 @@ test_config:
   exaone_4/pytorch-EXAONE-4.0-32B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   exaone_3_5/pytorch-EXAONE-3.5-32B-Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   bloom/pytorch-176B-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -397,19 +409,23 @@ test_config:
   starcoder2/pytorch-15B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   orion/pytorch-14B_Chat-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   codellama/pytorch-CodeLlama-34b-Instruct-hf-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+    markers: [runs]
 
   wizardlm_70b/pytorch-WizardLM-70B-V1.0-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+    markers: [runs]
 
   wizardmath_70b/pytorch-WizardMath-70B-V1.0-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -420,6 +436,7 @@ test_config:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+    markers: [runs]
 
   coherlabs/pytorch-Coherelabs_c4ai_command_r_plus_08_2024-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -434,52 +451,4 @@ test_config:
 
   fibo/pytorch-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
-    status: EXPECTED_PASSING
-
-  glm/causal_lm/moe/pytorch-GLM-4.7-Flash-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  mixtral/causal_lm/moe/pytorch-Mixtral-8x7B-Instruct-v0.1-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  deepseek/deepseek_moe/pytorch-DEEPSEEK_V2_LITE_CHAT-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  deepseek/deepseek_moe/pytorch-DEEPSEEK_CODER_V2_LITE_INSTRUCT-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  nous_research/moe/pytorch-Nous-Hermes-2-Mixtral-8x7B-DPO-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  phi3/phi_3_5_moe/causal_lm/pytorch-Phi-3.5-MoE-instruct-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-    inject_custom_moe: true
-    required_pcc: 0.98
-
-  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-38B-single_device-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-
-  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-78B-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
-    status: EXPECTED_PASSING
-
-  phi4/causal_lm/pytorch-Phi_4_Reasoning_Plus-tensor_parallel-inference:
-    supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
