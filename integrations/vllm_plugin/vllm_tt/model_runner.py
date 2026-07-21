@@ -104,6 +104,7 @@ from .attention_impls.attention_mla import TTMLAAttentionBackend
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
+from .metadata_routing import build_per_layer_attn_metadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
@@ -519,6 +520,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kernel_block_sizes=[self.block_size],
             is_pooling_model=False,
         )
+        self._input_batch_block_sizes: list[int] = [self.block_size]
 
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
@@ -690,6 +692,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # means this layer will perform attention using the keys and values
         # from the KV cache of `shared_kv_cache_layers[layer_name]`.
         self.shared_kv_cache_layers: dict[str, str] = {}
+        self._active_kv_cache_group_count = 1
+        self._layer_to_kv_cache_group_idx: dict[str, int] = {}
+        self._kv_cache_group_block_sizes: dict[int, int] = {0: self.block_size}
+        self._kv_cache_group_num_blocks_max: dict[int, int] = {
+            0: self.max_num_blocks_per_req
+        }
+        self._kv_cache_group_num_blocks_most: dict[int, int] = {}
+        if (
+            self.most_model_len is not None
+            and self.num_blocks_per_most_len_req is not None
+        ):
+            self._kv_cache_group_num_blocks_most[0] = self.num_blocks_per_most_len_req
+        self._page_table_dev_max_by_group: dict[int, dict[int, torch.Tensor]] = {
+            0: self._page_table_dev_max
+        }
+        self._fill_page_table_dev_max_by_group: dict[int, dict[int, torch.Tensor]] = {
+            0: self._fill_page_table_dev_max
+        }
+        self._page_table_dev_most_by_group: dict[int, dict[int, torch.Tensor]] = {}
+        self._fill_page_table_dev_most_by_group: dict[int, dict[int, torch.Tensor]] = {}
+        if self.most_model_len is not None:
+            self._page_table_dev_most_by_group[0] = self._page_table_dev_most
+            self._fill_page_table_dev_most_by_group[0] = self._fill_page_table_dev_most
 
         # tensors for structured decoding
         self.grammar_bitmask_cpu = torch.zeros(
@@ -1345,95 +1370,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if use_max_model_len:
             assert self.num_reqs_max_model_len is not None
-            page_table = self.block_table_cpu[
-                :target_num_reqs, : self.max_num_blocks_per_req
-            ]
-            page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.max_num_blocks_per_req
-                ]
-            )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
             assert self.num_reqs_most_model_len is not None
-            page_table = self.block_table_cpu[
-                :target_num_reqs, : self.num_blocks_per_most_len_req
-            ]
-            page_table[:actual_num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.num_blocks_per_most_len_req
-                ]
-            )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
         cache_position = seq_lens - 1
         cache_position = cache_position[:target_num_reqs]
 
-        if actual_num_reqs == 1:
-            cache_position[1:] = -1
-            page_table[1:, :] = 0
-
-        # With prefix caching, some blocks are already filled. Roll each
-        # user's page_table row so paged_fill_cache writes to suffix blocks
-        # instead of overwriting shared prefix blocks. Each user may have a
-        # different prefix length, so we roll per-row. Done outside the
-        # compiled graph to avoid shape-change recompilation.
-        offsets = (
-            self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
-            // self.block_size
-            if actual_num_reqs > 0
-            else np.array([], dtype=np.int64)
-        )
-        if np.any(offsets > 0):
-            fill_page_table = page_table.clone()
-            for i in range(actual_num_reqs):
-                if offsets[i] > 0:
-                    fill_page_table[i] = torch.roll(
-                        page_table[i], shifts=-int(offsets[i])
-                    )
-        else:
-            fill_page_table = page_table
-
-        # A running (already-prefilled) request re-batched into a later prefill
-        # step contributes 0 new tokens. paged_fill_cache still writes its row,
-        # and since fill_page_table[row] points at that request's real blocks, it
-        # clobbers the KV written in the earlier step with padding. Under DP+TP
-        # such an inactive row lands inside the active range (row 0), not at the
-        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
-        # the null block (0); the read-path page_table keeps the real blocks.
-        zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
-        if len(zero_sched_rows) > 0:
-            if fill_page_table is page_table:
-                fill_page_table = page_table.clone()
-            fill_page_table[zero_sched_rows, :] = 0
-
         if use_max_model_len:
             cache_position_dev = self._cache_position_dev_max[target_num_reqs]
-            page_table_dev = self._page_table_dev_max[target_num_reqs]
-            fill_page_table_dev_buf = self._fill_page_table_dev_max[target_num_reqs]
         else:
             cache_position_dev = self._cache_position_dev_most[target_num_reqs]
-            page_table_dev = self._page_table_dev_most[target_num_reqs]
-            fill_page_table_dev_buf = self._fill_page_table_dev_most[target_num_reqs]
 
         # Clear unused rows so persistent device buffers don't keep stale
         # block indices from a previous call (would surface as KV bleed).
         cache_position[actual_num_reqs:] = -1
-        page_table[actual_num_reqs:, :] = 0
-        if fill_page_table is not page_table:
-            fill_page_table[actual_num_reqs:, :] = 0
-
         cache_position_dev.copy_(cache_position)
-        page_table_dev.copy_(page_table)
-        if fill_page_table is page_table:
-            fill_page_table_dev = page_table_dev
-        else:
-            fill_page_table_dev_buf.copy_(fill_page_table)
-            fill_page_table_dev = fill_page_table_dev_buf
-
         cache_position = cache_position_dev
-        page_table = page_table_dev
-        fill_page_table = fill_page_table_dev
 
         batch_idx = (
             self.batch_idx_min_reqs
@@ -1448,15 +1402,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # page_table / cache_position / batch_idx must share the K/V input's
-            # per-device leading dim, so shard them on "batch" to match the
-            # DP-sharded inputs. batch_idx feeds paged_fill_cache, whose verifier
-            # requires its dim0 to equal the per-device batch.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
-            if fill_page_table is not page_table:
-                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         # Cached-prefix prefill chunk (L > 1 and num_computed > 0): attends over
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
@@ -1485,17 +1432,94 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            fill_page_table=fill_page_table,
-            dp_size=self.dp_size,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=target_num_reqs,
-        )
+        group_attn_metadata: dict[int, TTMetadata] = {}
+        zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
+        for group_idx in range(self._active_kv_cache_group_count):
+            if use_max_model_len:
+                num_blocks = self._kv_cache_group_num_blocks_max[group_idx]
+            else:
+                num_blocks = self._kv_cache_group_num_blocks_most[group_idx]
+
+            page_table = torch.zeros(
+                (target_num_reqs, num_blocks),
+                dtype=self.block_table_cpu.dtype,
+                device="cpu",
+            )
+            page_table[:actual_num_reqs, :num_blocks] = self.input_batch.block_table[
+                group_idx
+            ].get_cpu_tensor()[:actual_num_reqs, :num_blocks]
+
+            if actual_num_reqs == 1:
+                page_table[1:, :] = 0
+
+            block_size = self._kv_cache_group_block_sizes[group_idx]
+            offsets = (
+                self.input_batch.num_computed_tokens_cpu[:actual_num_reqs] // block_size
+                if actual_num_reqs > 0
+                else np.array([], dtype=np.int64)
+            )
+
+            if np.any(offsets > 0):
+                fill_page_table = page_table.clone()
+                for i in range(actual_num_reqs):
+                    if offsets[i] > 0:
+                        fill_page_table[i] = torch.roll(
+                            page_table[i], shifts=-int(offsets[i])
+                        )
+            else:
+                fill_page_table = page_table
+
+            if len(zero_sched_rows) > 0:
+                if fill_page_table is page_table:
+                    fill_page_table = page_table.clone()
+                fill_page_table[zero_sched_rows, :] = 0
+
+            page_table[actual_num_reqs:, :] = 0
+            if fill_page_table is not page_table:
+                fill_page_table[actual_num_reqs:, :] = 0
+
+            if use_max_model_len:
+                page_table_dev = self._page_table_dev_max_by_group[group_idx][
+                    target_num_reqs
+                ]
+                fill_page_table_dev_buf = self._fill_page_table_dev_max_by_group[
+                    group_idx
+                ][target_num_reqs]
+            else:
+                page_table_dev = self._page_table_dev_most_by_group[group_idx][
+                    target_num_reqs
+                ]
+                fill_page_table_dev_buf = self._fill_page_table_dev_most_by_group[
+                    group_idx
+                ][target_num_reqs]
+
+            page_table_dev.copy_(page_table)
+            if fill_page_table is page_table:
+                fill_page_table_dev = page_table_dev
+            else:
+                fill_page_table_dev_buf.copy_(fill_page_table)
+                fill_page_table_dev = fill_page_table_dev_buf
+
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
+                if fill_page_table_dev is not page_table_dev:
+                    safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
+
+            group_attn_metadata[group_idx] = TTMetadata(
+                page_table=page_table_dev,
+                cache_position=cache_position,
+                is_causal=True,
+                attn_mask=None,
+                fill_page_table=fill_page_table_dev,
+                dp_size=self.dp_size,
+                chunk_start_idx=chunk_start_idx,
+                batch_idx=batch_idx,
+                num_users=target_num_reqs,
+            )
+
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
@@ -1520,8 +1544,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
+        per_layer_attn_metadata = build_per_layer_attn_metadata(
+            self._attention_layer_names,
+            self._layer_to_kv_cache_group_idx,
+            group_attn_metadata,
         )
         return (
             per_layer_attn_metadata,
@@ -3327,12 +3353,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_config: Configuration for the KV cache, including the KV
             cache size of each layer
         """
-        if len(kv_cache_config.kv_cache_groups) > 1:
-            raise NotImplementedError(
-                "Hybrid models with more than one KV cache type are not "
-                "supported yet."
-            )
-
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
         # layers. In that case, we should not raise an error but just skip the
@@ -3343,10 +3363,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             return
 
-        if (
-            kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-            != self.block_size
-        ):
+        group_block_sizes: list[int] = []
+        for kv_cache_group in kv_cache_config.kv_cache_groups:
+            assert kv_cache_group.layer_names, "KV cache group has no layers."
+            group_spec = _get_layer_kv_cache_spec(
+                kv_cache_group.kv_cache_spec, kv_cache_group.layer_names[0]
+            )
+            group_block_sizes.append(int(group_spec.block_size))
+
+        if self._input_batch_block_sizes != group_block_sizes:
             self.input_batch = InputBatch(
                 max_num_reqs=self.max_num_reqs,
                 max_model_len=self.max_model_len,
@@ -3354,14 +3379,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 device="cpu",
                 pin_memory=self.pin_memory,
                 vocab_size=self.model_config.get_vocab_size(),
-                block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
-                kernel_block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
+                block_sizes=group_block_sizes,
+                kernel_block_sizes=group_block_sizes,
                 is_pooling_model=False,
             )
+            self._input_batch_block_sizes = group_block_sizes
         # Verify dtype compatibility between block_table_cpu and input_batch
         assert (
             self.block_table_cpu.dtype
@@ -3425,6 +3447,81 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     kv_caches[layer_name] = [k_cache, v_cache]
                 else:
                     raise NotImplementedError
+
+        self._active_kv_cache_group_count = len(kv_cache_config.kv_cache_groups)
+        self._layer_to_kv_cache_group_idx = {}
+        self._kv_cache_group_block_sizes = {}
+        self._kv_cache_group_num_blocks_max = {}
+        self._kv_cache_group_num_blocks_most = {}
+        self._page_table_dev_max_by_group = {}
+        self._fill_page_table_dev_max_by_group = {}
+        self._page_table_dev_most_by_group = {}
+        self._fill_page_table_dev_most_by_group = {}
+
+        def _alloc_dev(shape, dtype):
+            return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
+
+        for group_idx, kv_cache_group in enumerate(kv_cache_config.kv_cache_groups):
+            assert kv_cache_group.layer_names, "KV cache group has no layers."
+            group_spec = _get_layer_kv_cache_spec(
+                kv_cache_group.kv_cache_spec, kv_cache_group.layer_names[0]
+            )
+            group_block_size = int(group_spec.block_size)
+            self._kv_cache_group_block_sizes[group_idx] = group_block_size
+            self._kv_cache_group_num_blocks_max[group_idx] = cdiv(
+                self.max_model_len, group_block_size
+            )
+            if self.most_model_len is not None:
+                self._kv_cache_group_num_blocks_most[group_idx] = cdiv(
+                    self.most_model_len, group_block_size
+                )
+
+            for layer_name in kv_cache_group.layer_names:
+                self._layer_to_kv_cache_group_idx[layer_name] = group_idx
+
+            max_num_blocks = self._kv_cache_group_num_blocks_max[group_idx]
+            self._page_table_dev_max_by_group[group_idx] = {
+                num_reqs: _alloc_dev(
+                    (num_reqs, max_num_blocks), self.block_table_cpu.dtype
+                )
+                for num_reqs in {
+                    self.min_num_reqs,
+                    self.max_prefill_num_reqs,
+                    self.num_reqs_max_model_len,
+                }
+            }
+            self._fill_page_table_dev_max_by_group[group_idx] = {
+                num_reqs: _alloc_dev(
+                    (num_reqs, max_num_blocks), self.block_table_cpu.dtype
+                )
+                for num_reqs in {
+                    self.min_num_reqs,
+                    self.max_prefill_num_reqs,
+                    self.num_reqs_max_model_len,
+                }
+            }
+
+            if self.most_model_len is not None:
+                assert self.num_reqs_most_model_len is not None
+                most_num_blocks = self._kv_cache_group_num_blocks_most[group_idx]
+                self._page_table_dev_most_by_group[group_idx] = {
+                    num_reqs: _alloc_dev(
+                        (num_reqs, most_num_blocks), self.block_table_cpu.dtype
+                    )
+                    for num_reqs in {
+                        self.min_num_reqs,
+                        self.num_reqs_most_model_len,
+                    }
+                }
+                self._fill_page_table_dev_most_by_group[group_idx] = {
+                    num_reqs: _alloc_dev(
+                        (num_reqs, most_num_blocks), self.block_table_cpu.dtype
+                    )
+                    for num_reqs in {
+                        self.min_num_reqs,
+                        self.num_reqs_most_model_len,
+                    }
+                }
 
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
