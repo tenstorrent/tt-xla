@@ -474,6 +474,12 @@ class TTPlatform(Platform):
                 "vllm_tt.scheduler.AscendScheduler"
             )
 
+        # TT does not support asynchronous scheduling (is_async_output_supported
+        # is False). v0.25.1 auto-enables it when left unset, which drives the
+        # AscendScheduler stale-request path into an endless preempt/retry loop.
+        # Force it off.
+        vllm_config.scheduler_config.async_scheduling = False
+
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:

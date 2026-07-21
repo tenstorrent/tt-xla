@@ -40,4 +40,11 @@ def register_oot_layers():
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
 
+    # Disabled for the v0.25.1 uplift: upstream turned FusedMoE from a
+    # subclassable class into a factory function returning a MoERunner, and the
+    # op_registry_oot["FusedMoE"] hook this override relied on is no longer
+    # consulted. Re-enabling requires rewriting against the new runner_cls /
+    # routed_experts_cls (MoERunner / RoutedExperts) injection points. Tracked
+    # with Sungjoon (owner of tt_torch.moe_backend). MoE models are unsupported
+    # until then; non-MoE models are unaffected.
     # from .layers.fused_moe import TTFusedMoE  # noqa: F401
