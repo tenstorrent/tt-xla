@@ -3400,12 +3400,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 elif isinstance(kv_cache_spec, AttentionSpec):
                     if self.enable_tensor_parallel:
                         num_kv_heads = kv_cache_spec.num_kv_heads
-                        assert self.original_parallel_config is not None
-                        tp_size = self.original_parallel_config.tensor_parallel_size
-                        # TODO: Handle kv cache duplication under SPMD mode.
+                        if hasattr(self.mesh, "shape"):
+                            tp_size = self.mesh.shape()["model"]
+                        else:
+                            tp_size = dict(
+                                zip(self.mesh.axis_names, self.mesh.mesh_shape)
+                            )["model"]
+                        # mark_sharding() below does the real sharding; this
+                        # just fails loudly instead of it silently falling
+                        # back to replication (see safe_mark_sharding).
                         assert num_kv_heads % tp_size == 0, (
                             f"num_kv_heads {num_kv_heads} must be divisible by "
-                            f"tp_size {tp_size} under SPMD mode"
+                            f"tp_size {tp_size} for correct KV-head sharding"
                         )
                     kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
                         num_blocks,
