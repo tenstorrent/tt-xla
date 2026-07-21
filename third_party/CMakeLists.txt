@@ -5,7 +5,10 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "3abca428352b5fad791dfbe69f6a3147d2e44d0b")
+    # Pinned to the "Inplace cache ops." commit on branch djstefanovic/ttirinplaceops.
+    # This carries the TTIR_InplaceOp change (result-less update_cache/fill_cache/
+    # paged_*), required to regenerate the single-layer LLM model IRs.
+    set(TT_MLIR_VERSION "d66d735aedcfa4f6ef36952d8a43c5e3d8a6af5c")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
