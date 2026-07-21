@@ -74,6 +74,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
+    markers: [push, multi_host_cluster]
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
