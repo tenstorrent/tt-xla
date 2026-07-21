@@ -296,7 +296,7 @@ def composite_argmax(
     """
     dim = _normalize_dim(dim, input.dim())
     attrs = {"dim": dim, "keepdim": keepdim}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.argmax", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.argmax", attr=attrs)
     input = builder.mark_inputs(input)
     output = torch.argmax(input, dim=dim, keepdim=keepdim)
     output = builder.mark_outputs(output)
@@ -565,6 +565,25 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
     return True
 
 
+def _check_argmax_constraints(node: torch.fx.Node) -> bool:
+    """
+    Skip the composite when torch.argmax is called without an explicit dim.
+    Native torch.argmax(x) flattens the input and returns a scalar index, but
+    composite_argmax defaults to dim=-1, so applying it to a bare argmax would
+    silently change the output shape. Fall back to the native op in that case.
+    dim is the second positional arg or the `dim` kwarg; None (explicit or
+    defaulted) means "flatten", so we reject it.
+    """
+    dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+    if dim is None:
+        logger.debug(
+            "composite argmax requires an explicit dim, "
+            "skipping composite and using native implementation."
+        )
+        return False
+    return True
+
+
 def can_apply_composite(node: torch.fx.Node) -> bool:
     """
     Check whether a composite replacement should be applied for the given node.
@@ -579,6 +598,7 @@ Maps torch API calls to constraint functions.
 """
 constraints = {
     torch.nn.functional.scaled_dot_product_attention: _check_sdpa_constraints,
+    torch.argmax: _check_argmax_constraints,
 }
 
 

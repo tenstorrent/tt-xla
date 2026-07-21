@@ -2540,6 +2540,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start = time.perf_counter()
         all_greedy_options = [True, False]
         apply_grammar_options = [True, False]
+        # logprobs gates whether the fused graph returns full-vocab logits or a
+        # placeholder; the two are distinct executables, so warm both to avoid a
+        # blocking recompile on the first logprobs request.
+        logprobs_options = [False, True]
         num_tokens_paddings = self.num_tokens_paddings
         if self.tt_config.decode_only:
             num_tokens_paddings = [1]  # Only compile the decode path
@@ -2564,6 +2568,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "all_greedy": all_greedy,
                 "apply_grammar": apply_grammar,
                 "prefix_chunk": prefix_chunk,
+                "logprobs": logprobs,
             }
             for (
                 num_reqs,
@@ -2571,12 +2576,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 all_greedy,
                 apply_grammar,
                 prefix_chunk,
+                logprobs,
             ) in product(
                 num_reqs_options,
                 num_tokens_paddings,
                 all_greedy_options,
                 apply_grammar_options,
                 prefix_chunk_options,
+                logprobs_options,
             )
             # The cached-prefix variant only applies to prefill buckets; the
             # decode bucket (num_tokens == 1) always takes the standard path.
@@ -2660,6 +2667,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         all_greedy = config["all_greedy"]
         apply_grammar = config["apply_grammar"]
         prefix_chunk = config.get("prefix_chunk", False)
+        logprobs = config.get("logprobs", False)
         hsize = self.model_config.get_hidden_size()
 
         dummy_inputs = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
@@ -2740,6 +2748,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.vocab_size,
         )
         dummy_sampling_metadata.all_greedy = all_greedy
+        dummy_sampling_metadata.logprobs = logprobs
 
         dummy_require_struct_decoding = None
         dummy_grammar_bitmask = None
@@ -3590,11 +3599,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_generators
         ):
             if self.is_sharded_compute_logits:
-                # Greedy: gather logits to full and take a plain argmax. Faster
-                # than the sharded distributed argmax at these batch/seq sizes
-                # (host/dispatch-bound), and the distributed composite_argmax
-                # mis-executes at runtime here anyway. Sampling paths stay
-                # vocab-sharded via the (None,"model") entry constraint above.
+                # Greedy: gather logits to full (replicated) and argmax over the
+                # whole vocab. torch.argmax still lowers through composite_argmax
+                # (globally overridden in composite_ops), but on a replicated
+                # tensor it's a local reduction over the full vocab returning the
+                # correct global index -- not the distributed sharded reduction,
+                # which mis-executes at runtime here and is no faster at these
+                # batch/seq sizes (host/dispatch-bound) anyway. Sampling paths
+                # stay vocab-sharded via the (None,"model") entry constraint above.
                 logits_full = sharding_constraint_tensor(
                     logits, self.mesh, (None, None)
                 )
