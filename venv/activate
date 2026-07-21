@@ -17,6 +17,18 @@ export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations
 export UV_INDEX_STRATEGY=unsafe-best-match
 
 export TTMLIR_VENV_DIR="$(pwd)/venv"
+
+# Guard: refuse to proceed while a *different* virtualenv is active. Activating
+# our venv from inside another one is confusing; creating it from inside another
+# one bakes the foreign venv's absolute path/interpreter into bin/activate,
+# producing the "relocated virtualenv" breakage. Require a clean shell.
+if [ -n "$VIRTUAL_ENV" ] && [ "$VIRTUAL_ENV" != "$TTMLIR_VENV_DIR" ]; then
+  echo "ERROR: another virtualenv is already active:" >&2
+  echo "  $VIRTUAL_ENV" >&2
+  echo "Run 'deactivate' (or open a fresh shell) before sourcing venv/activate." >&2
+  return 1
+fi
+
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
   # The Python venv's bin/activate bakes in the absolute path where the venv was
@@ -35,8 +47,22 @@ if [ -d $TTMLIR_VENV_DIR/bin ]; then
   fi
 else
   [ -z "$PIP" ] && { command -v uv &> /dev/null && PIP="uv pip" || PIP="pip"; } # Uv/pip backward compatibility
-  echo "Creating virtual environment in $TTMLIR_VENV_DIR"
-  python3.12 -m venv $TTMLIR_VENV_DIR
+  # Resolve a *base* (non-venv) python3.12. Creating the venv from another
+  # venv's interpreter bakes that parent venv into the new one. VIRTUAL_ENV is
+  # already ruled out by the guard above, but a venv's bin/ can still sit on
+  # PATH without VIRTUAL_ENV set, so verify sys.prefix == sys.base_prefix.
+  PYTHON_BIN="$(command -v python3.12)"
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "ERROR: python3.12 not found on PATH." >&2
+    return 1
+  fi
+  if ! "$PYTHON_BIN" -c 'import sys; sys.exit(0 if sys.prefix == sys.base_prefix else 1)'; then
+    echo "ERROR: python3.12 ($PYTHON_BIN) is itself inside a virtualenv." >&2
+    echo "Adjust PATH so python3.12 resolves to the base interpreter, then retry." >&2
+    return 1
+  fi
+  echo "Creating virtual environment in $TTMLIR_VENV_DIR (using $PYTHON_BIN)"
+  "$PYTHON_BIN" -m venv $TTMLIR_VENV_DIR
   source $TTMLIR_VENV_DIR/bin/activate
   $PIP install --upgrade pip
   # Requirements for third party projects are installed during their build in `CMakeLists.txt`
