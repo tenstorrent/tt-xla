@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Shared conftest for vLLM generative tests."""
-
 import json
 import math
 import re
