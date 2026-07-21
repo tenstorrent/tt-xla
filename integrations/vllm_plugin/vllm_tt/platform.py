@@ -283,6 +283,21 @@ class TTPlatform(Platform):
         raise NotImplementedError
 
     @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
+
+    @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
 
