@@ -3599,14 +3599,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_generators
         ):
             if self.is_sharded_compute_logits:
-                # Greedy: gather logits to full (replicated) and argmax over the
-                # whole vocab. torch.argmax still lowers through composite_argmax
-                # (globally overridden in composite_ops), but on a replicated
-                # tensor it's a local reduction over the full vocab returning the
-                # correct global index -- not the distributed sharded reduction,
-                # which mis-executes at runtime here and is no faster at these
-                # batch/seq sizes (host/dispatch-bound) anyway. Sampling paths
-                # stay vocab-sharded via the (None,"model") entry constraint above.
+                # Greedy: gather logits to full and argmax over the whole vocab.
+                # We gather (rather than stay vocab-sharded like the sampling path
+                # below) because the distributed sharded argmax mis-executes at
+                # runtime here, and greedy steps are host/dispatch-bound so it
+                # would be no faster even if correct. torch.argmax still lowers to
+                # composite_argmax, but on the replicated tensor that's a local
+                # reduction over the full vocab, giving the correct global index.
                 logits_full = sharding_constraint_tensor(
                     logits, self.mesh, (None, None)
                 )
