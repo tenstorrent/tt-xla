@@ -43,17 +43,8 @@ def insert_sentinel(main_py: Path, sentinel: Path):
 
 
 @pytest.mark.skip(
-    reason=(
-        "Pre-existing compiler failure, unrelated to buffer keying: the emit "
-        "subprocess trips the known torch-xla 'Bad StatusOr access: INTERNAL: "
-        "Error code: 13' at torch_xla.sync during graph extraction "
-        "(https://github.com/tenstorrent/tt-xla/issues/5338). It also fails on "
-        "main. On device this can manifest as a hang rather than a fast crash; "
-        "the subprocess then runs out its 3000s timeout and leaves the device "
-        "wedged, cascading a 240-min job timeout into the next test "
-        "(test_b1_prefill_ttft). Skip until #5338 is fixed so it cannot wedge "
-        "the shared device for neighbouring tests."
-    )
+    reason="codegen load needs EmitPy execution (PythonModelRunner), which the "
+    "manylinux CI wheel omits; see tenstorrent/tt-xla#5481",
 )
 @pytest.mark.nightly
 @pytest.mark.single_device

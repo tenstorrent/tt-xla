@@ -21,6 +21,7 @@ def test_conv2d_with_relu(request):
             super().__init__()
             self.conv = nn.Conv2d(16, 32, kernel_size=3, padding=1, bias=False)
 
+        @torch.inference_mode()
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return F.relu(self.conv(x))
 
@@ -43,6 +44,7 @@ def test_conv2d_with_relu6(request):
             super().__init__()
             self.conv = nn.Conv2d(16, 32, kernel_size=3, padding=1, bias=False)
 
+        @torch.inference_mode()
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return F.relu6(self.conv(x))
 
@@ -65,6 +67,7 @@ def test_conv2d_with_silu(request):
             super().__init__()
             self.conv = nn.Conv2d(16, 32, kernel_size=3, padding=1, bias=False)
 
+        @torch.inference_mode()
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return F.silu(self.conv(x))
 
@@ -87,6 +90,7 @@ def test_conv2d_with_sigmoid(request):
             super().__init__()
             self.conv = nn.Conv2d(16, 32, kernel_size=3, padding=1, bias=False)
 
+        @torch.inference_mode()
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return torch.sigmoid(self.conv(x))
 

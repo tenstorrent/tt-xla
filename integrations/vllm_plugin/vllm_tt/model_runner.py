@@ -1378,7 +1378,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 :target_num_reqs, : self.max_num_blocks_per_req
             ]
             page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:actual_num_reqs]
+                self.input_batch.block_table[0].get_cpu_tensor()[
+                    :actual_num_reqs, : self.max_num_blocks_per_req
+                ]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
