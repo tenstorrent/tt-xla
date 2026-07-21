@@ -39,4 +39,5 @@ def register_oot_layers():
 
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
-    from .layers.fused_moe import TTFusedMoE  # noqa: F401
+
+    # from .layers.fused_moe import TTFusedMoE  # noqa: F401
