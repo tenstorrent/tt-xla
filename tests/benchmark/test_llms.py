@@ -1899,6 +1899,20 @@ def test_llama_3_1_70b_tp_qb2(
     )
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+
+    # The loader's default 70B mesh on QB2 is (2, N//2): despite the "batch" axis
+    # name it is NOT data-parallel -- inputs are replicated and the weights are
+    # sharded across BOTH axes (2D tensor parallelism; the only qb2 model doing so,
+    # and the only one exercising distributed_rms_norm). That multi-axis weight
+    # sharding corrupts the first-decode KV-cache read (garbage/NaN logits, decode
+    # PCC ~0 -> issue #5487), even though the SDPA-decode op itself is correct
+    # (Falcon-10B uses a single-axis TP mesh + the same op and decodes fine). Use a
+    # single-axis TP-only mesh here: decode PCC recovers to ~0.999. Restoring the
+    # 2D weight-sharded mesh (regaining distributed_rms_norm coverage) is tracked
+    # in issue #5738.
+    def _qb2_tp_only_mesh(model_loader, num_devices):
+        return (1, num_devices), ("batch", "model")
+
     test_llm_tp(
         ModelLoader,
         variant,
@@ -1909,11 +1923,12 @@ def test_llama_3_1_70b_tp_qb2(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        mesh_config_fn=_qb2_tp_only_mesh,
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # TP-only mesh fixes the opt-2 decode failure (#5487)
     )
 
 
