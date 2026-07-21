@@ -103,8 +103,16 @@ class TTWorker:
             self.cache_dtype = STR_DTYPE_TO_TORCH_DTYPE[self.cache_config.cache_dtype]
 
         if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
-            from vllm.utils.import_utils import init_cached_hf_modules
+            # note: lazy import to avoid importing torch before initializing.
+            # vLLM moved/removed init_cached_hf_modules across versions; fall
+            # back to the transformers primitive it wraps (unchanged behavior:
+            # ensure the dynamic-modules cache dir exists on sys.path).
+            try:
+                from vllm.utils.import_utils import init_cached_hf_modules
+            except ImportError:
+                from transformers.dynamic_module_utils import (
+                    init_hf_modules as init_cached_hf_modules,
+                )
 
             init_cached_hf_modules()
 

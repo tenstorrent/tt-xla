@@ -320,6 +320,13 @@ def partition_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
     # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
+    #
+    # NOTE: batch-axis (FSDP) sharding of the input dim was tried to cut per-chip
+    # weight DRAM ~4x (DSV4 attn.wq_b), but it forces the activation to be
+    # resharded onto the "batch" axis, which lowers to a `CollectivePermute`
+    # that tt-mlir cannot compile yet (tenstorrent/tt-mlir#337, same family as
+    # the embedding-vocab #3370 block). So keep the input replicated until #337
+    # lands. See DSV4_TT_Sharding_Memory_Notes.md.
     safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer

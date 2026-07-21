@@ -832,6 +832,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             f"Weight filtering complete: kept {kept_count} weights, skipped {skipped_count} weights"
         )
 
+    def _append_dead_indexer_knorm_weights(self, weights_iterator, model):
+        """Emit default weights for DeepSeek-V4's unused indexer ``k_norm``.
+
+        vLLM's ``DeepseekV4Indexer`` declares ``k_norm = LayerNorm(head_dim)``
+        but its ``forward`` never calls it (the key comes straight from the
+        compressor). The DeepSeek-V4-Flash checkpoint accordingly ships no
+        ``*.attn.indexer.k_norm.{weight,bias}`` tensors, which trips vLLM's
+        strict "weights were not initialized from checkpoint" check at load.
+
+        Since the parameter is dead, synthesize LayerNorm-identity defaults
+        (weight=1, bias=0) so the strict check passes; the values are never
+        read at runtime. Names are emitted in checkpoint convention (leading
+        ``model.`` stripped) so the model's hf_to_vllm_mapper routes them back.
+        """
+        yield from weights_iterator
+        for name, param in model.named_parameters():
+            if not (
+                name.endswith(".attn.indexer.k_norm.weight")
+                or name.endswith(".attn.indexer.k_norm.bias")
+            ):
+                continue
+            ckpt_name = name[len("model.") :] if name.startswith("model.") else name
+            fill = torch.ones if name.endswith(".weight") else torch.zeros
+            logger.debug("Synthesizing default for dead indexer weight: %s", name)
+            yield ckpt_name, fill(param.shape, dtype=param.dtype)
+
     def reset_mm_cache(self) -> None:
         if self.mm_budget:
             self.mm_budget.reset_cache()
@@ -1077,6 +1103,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             or []
         )
         dsv4_has_c4a = any((r or 0) == 4 for r in _dsv4_ratios)
+        dsv4_has_c128a = any((r or 0) == 128 for r in _dsv4_ratios)
+        # Mixed model (both C4A and C128A layers): C4A stays a bare
+        # MLAAttentionSpec (block=256), but C128A's compressed values are emitted
+        # as a SlidingWindowMLASpec below so vLLM's group_and_unify_kv_cache_specs
+        # buckets it separately (by block_size) instead of dumping it into the
+        # single uniform `mla_specs` bucket alongside the block=256 C4A specs.
+        dsv4_mixed_compressed = dsv4_has_c4a and dsv4_has_c128a
         _dsv4_index_head_dim = getattr(
             self.vllm_config.model_config.hf_config, "index_head_dim", None
         )
@@ -1214,6 +1247,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # of block_size < cr). compress_ratio=cr makes this a distinct
                 # KV-cache group.
                 _DSV4_SWA_BLOCK = 64  # matches get_page_size / sparse_swa.py
+                if dsv4_mixed_compressed and cr == 128:
+                    # Mixed C4A+C128A: emit C128A values as a windowed MLA latent
+                    # so group_and_unify buckets it by (block_size, sliding_window),
+                    # keeping the `mla_specs` bucket (C4A, block=256) uniform. Same
+                    # 64-row storage page as MLAAttentionSpec (storage_block_size =
+                    # block_size // cr = 64); the sliding_window matches the layer's
+                    # window. All groups then become UniformTypeKVCacheSpecs -> the
+                    # DeepseekV4 (Path A) allocator handles both compressed types.
+                    from vllm.v1.kv_cache_interface import SlidingWindowMLASpec
+
+                    kv_cache_spec[layer_name] = SlidingWindowMLASpec(
+                        block_size=_DSV4_SWA_BLOCK * cr,
+                        num_kv_heads=1,
+                        head_size=attn_module.head_dim,
+                        dtype=self.kv_cache_spec_dtype,
+                        sliding_window=attn_module.window_size,
+                        cache_dtype_str=cache_dtype_str,
+                        compress_ratio=cr,
+                    )
+                    continue
                 kv_cache_spec[layer_name] = MLAAttentionSpec(
                     block_size=_DSV4_SWA_BLOCK * cr,
                     num_kv_heads=1,
@@ -1298,15 +1351,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
-    def _build_compressed_metadata(self, swa_md, actual_num_reqs, target_num_reqs):
-        """Build the DSV4 C128A compressed group's ``TTMetadata`` (gated;
-        multi-group only). The compressed cache stores one latent per
-        ``compress_ratio`` tokens, so its ``page_table`` is the compressed
-        group's scheduler-assigned blocks (``input_batch.block_table[gi]``) and
-        its ``cache_position`` is the last valid compressed slot
-        ``(token_pos + 1) // ratio - 1``. Reuses the SWA metadata's ``batch_idx``.
+    def _build_compressed_metadata(
+        self, comp_group, swa_md, actual_num_reqs, target_num_reqs
+    ):
+        """Build one DSV4 compressed group's ``TTMetadata`` (gated; multi-group
+        only). ``comp_group`` is a ``(group_idx, compress_ratio, block_size)``
+        tuple — a mixed C4A+C128A model has one per compressed type. The
+        compressed cache stores one latent per ``compress_ratio`` tokens, so its
+        ``page_table`` is that group's scheduler-assigned blocks
+        (``input_batch.block_table[gi]``) and its ``cache_position`` is the last
+        valid compressed slot ``(token_pos + 1) // ratio - 1``. Reuses the SWA
+        metadata's ``batch_idx``.
         """
-        gi, ratio, _ = self._dsv4_comp_group
+        gi, ratio, _ = comp_group
         bt = self.input_batch.block_table[gi].get_cpu_tensor()
         comp_max_blocks = bt.shape[1]
         page_table = torch.zeros(
@@ -1683,17 +1740,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        if getattr(self, "_is_multi_group", False) and self._dsv4_comp_group:
-            # DSV4 C128A: the compressed-group layer(s) get their own metadata
-            # (distinct page_table + compressed cache_position); all other layers
-            # share the SWA metadata.
-            comp_md = self._build_compressed_metadata(
-                attn_metadata, actual_num_reqs, target_num_reqs
-            )
-            per_layer_attn_metadata = {
-                name: (
-                    comp_md if name in self._dsv4_comp_layer_names else attn_metadata
+        if getattr(self, "_is_multi_group", False) and self._dsv4_comp_groups:
+            # DSV4 compressed layers get their own metadata (distinct page_table +
+            # compressed cache_position, at that group's compress_ratio); all
+            # other layers share the SWA metadata. A mixed C4A+C128A model has
+            # more than one compressed group, so build one comp metadata per
+            # group and map it onto that group's layer names.
+            comp_md_by_layer: dict = {}
+            for comp_group in self._dsv4_comp_groups:
+                comp_md = self._build_compressed_metadata(
+                    comp_group[:3], attn_metadata, actual_num_reqs, target_num_reqs
                 )
+                for name in comp_group[3]:  # this group's layer names
+                    comp_md_by_layer[name] = comp_md
+            per_layer_attn_metadata = {
+                name: comp_md_by_layer.get(name, attn_metadata)
                 for name in self._attention_layer_names
             }
         else:
@@ -2323,22 +2384,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             try:
                 model_loader = get_model_loader(self.load_config)
 
-                # If layer override is active, patch the weight loading process
-                if (
-                    self._original_num_layers is not None
-                    and self._target_num_layers is not None
-                ):
-                    # Store reference to original get_all_weights method
-                    original_get_all_weights = model_loader.get_all_weights
+                # Patch weight loading to (1) drop layers beyond a
+                # num_hidden_layers override and (2) synthesize defaults for
+                # DeepSeek-V4's unused indexer k_norm (absent from the
+                # checkpoint; see _append_dead_indexer_knorm_weights).
+                original_get_all_weights = model_loader.get_all_weights
 
-                    def filtered_get_all_weights(model_config, model):
-                        # Get all weights using the original method
-                        all_weights = original_get_all_weights(model_config, model)
-                        # Filter out weights for non-existent layers
-                        return self._filter_weights_for_layer_override(all_weights)
+                def patched_get_all_weights(model_config, model):
+                    all_weights = original_get_all_weights(model_config, model)
+                    all_weights = self._filter_weights_for_layer_override(all_weights)
+                    return self._append_dead_indexer_knorm_weights(all_weights, model)
 
-                    # Temporarily replace the method
-                    model_loader.get_all_weights = filtered_get_all_weights
+                model_loader.get_all_weights = patched_get_all_weights
 
                 with set_current_vllm_config(self.vllm_config):
                     model = model_loader.load_model(
@@ -3543,22 +3600,39 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             isinstance(g.kv_cache_spec, UniformTypeKVCacheSpecs)
             for g in kv_cache_config.kv_cache_groups
         )
-        self._dsv4_comp_group = None  # (group_idx, compress_ratio, block_size)
-        self._dsv4_comp_layer_names: set[str] = set()
+        # Compressed groups. A single DSV4-Flash model can have MORE THAN ONE
+        # compressed KV-cache group when it interleaves C4A (compress_ratio=4)
+        # and C128A (compress_ratio=128) layers: C4A is a bare MLAAttentionSpec
+        # (block=256) while C128A is a SlidingWindowMLASpec (block=8192) so
+        # group_and_unify can bucket them apart (see get_kv_cache_spec). Track
+        # ALL of them; a group is compressed iff its representative spec has
+        # compress_ratio > 1 (true for either spec type).
+        # _dsv4_comp_groups[i] = (group_idx, compress_ratio, block_size, layer_names)
+        self._dsv4_comp_groups: list = []
         self._dsv4_swa_group_idx = 0  # group whose block_table feeds the window path
         if self._is_multi_group:
             for gi, g in enumerate(kv_cache_config.kv_cache_groups):
                 # unwrap a UniformTypeKVCacheSpecs group to a representative layer
                 rep = _get_layer_kv_cache_spec(g.kv_cache_spec, g.layer_names[0])
-                is_comp = isinstance(rep, MLAAttentionSpec) and rep.compress_ratio > 1
-                if is_comp and self._dsv4_comp_group is None:
-                    self._dsv4_comp_group = (gi, rep.compress_ratio, rep.block_size)
+                # compress_ratio lives on MLAAttentionSpec AND SlidingWindowMLASpec.
+                if getattr(rep, "compress_ratio", 1) > 1:
                     # ALL layers in a compressed group are compressed (Path A: the
                     # full-MLA group holds both values and keys).
-                    self._dsv4_comp_layer_names = set(g.layer_names)
-                elif not is_comp:
-                    # the window/SWA group (per-token). On Path A it is not group 0.
+                    self._dsv4_comp_groups.append(
+                        (gi, rep.compress_ratio, rep.block_size, set(g.layer_names))
+                    )
+                else:
+                    # a pure per-token window/SWA group. On Path A it is not group 0.
                     self._dsv4_swa_group_idx = gi
+        # Back-compat singletons for the single-compressed-group callers.
+        self._dsv4_comp_group = (
+            self._dsv4_comp_groups[0][:3] if self._dsv4_comp_groups else None
+        )
+        self._dsv4_comp_layer_names: set[str] = (
+            set().union(*(names for *_, names in self._dsv4_comp_groups))
+            if self._dsv4_comp_groups
+            else set()
+        )
 
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
@@ -3580,14 +3654,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # max_num_blocks_per_req in the main _prepare_inputs path. ONLY the
         # compressed group takes its own (much larger) block size, so its
         # block_table[comp_gi] advances at 1/ratio the token rate.
-        comp_gi = self._dsv4_comp_group[0] if self._dsv4_comp_group else -1
-        # Compressed group keeps its own (token-unit) block size (unwrapped from a
+        # EACH compressed group (there may be >1 for a mixed C4A+C128A model)
+        # keeps its own (token-unit) block size (unwrapped from a
         # UniformTypeKVCacheSpecs on Path A); every other group (incl. the window
         # group on Path A) keeps self.block_size so block_table[gi] width matches
         # max_num_blocks_per_req in the main _prepare_inputs path.
+        comp_gis = {c[0] for c in self._dsv4_comp_groups}
         group_block_sizes = []
         for gi, g in enumerate(kv_cache_config.kv_cache_groups):
-            if gi == comp_gi:
+            if gi in comp_gis:
                 rep = _get_layer_kv_cache_spec(g.kv_cache_spec, g.layer_names[0])
                 group_block_sizes.append(rep.block_size)
             else:
@@ -3624,6 +3699,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # layer gets an equal slice (tensor.size // #layers) — allocating the
             # full pool per layer would be N× too big and OOM. For the single-
             # layer (non-DSV4 / non-shared) case this is size // 1 == size.
+            # A mixed C4A+C128A layout can yield a tensor with no layers
+            # (empty shared_by) — nothing to size for it, skip.
+            if not kv_cache_tensor.shared_by:
+                continue
             per_layer_size = kv_cache_tensor.size // len(kv_cache_tensor.shared_by)
             for _ln in kv_cache_tensor.shared_by:
                 kv_cache_sizes[_ln] = per_layer_size
