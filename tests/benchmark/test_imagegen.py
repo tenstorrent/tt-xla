@@ -353,6 +353,56 @@ def test_flux(output_file, request):
     )
 
 
+def test_zimage(output_file, request):
+    from benchmarks.zimage_pipeline import ZImageConfig, ZImagePipeline_TT
+
+    from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
+        GUIDANCE_SCALE,
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    # Z-Image: ~6.2B ZImageTransformer2DModel + Qwen3 text encoder + VAE, all on
+    # one Blackhole chip (OOMs on single Wormhole). CFG runs as two batch=1
+    # passes. Blackhole-only — wired to p150-perf in perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = ZImagePipeline_TT(
+            config=ZImageConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="zimage",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE decode
+        # at 1280x720 does not OOM (issue #4755).
+        optimization_level=1,
+        output_image_path="test_zimage_output.png",
+    )
+
+
 def _run_janus_pro_benchmark(
     model_id, model_info_name, output_image_path, output_file, request
 ):
@@ -456,4 +506,52 @@ def test_janus_pro_7b(output_file, request):
         output_image_path="test_janus_pro_7b_output.png",
         output_file=output_file,
         request=request,
+    )
+
+
+def test_glm_image(output_file, request):
+    """GLM-Image diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    Unlike the single-chip SD models above, GLM-Image's DiT transformer runs
+    tensor-parallel across a multi-chip mesh (the AR vision-language encoder, T5
+    glyph encoder, FlowMatchEuler scheduler and VAE decode stay on CPU). The
+    matrix pins this entry to an llmbox (n300-llmbox) runner so the mesh is available.
+    """
+    from benchmarks.glm_image_pipeline import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+        GlmImageConfig,
+        GlmImagePipeline,
+    )
+
+    prompt = PROMPT
+    num_inference_steps = 50
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); AR / T5 / scheduler
+        # / VAE on CPU. compile_options are already applied globally by the harness.
+        pipeline = GlmImagePipeline(config=GlmImageConfig())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                seed=DEFAULT_SEED,
+                num_inference_steps=steps,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="glm-image",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        output_image_path="test_glm_image_output.png",
     )

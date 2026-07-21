@@ -100,6 +100,16 @@
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b"
       },
       {
+        "name": "zimage",
+        "pytest": "tests/benchmark/test_imagegen.py::test_zimage",
+        "runs-on": "p150-perf"
+      },
+      {
+        "name": "glm_image",
+        "pytest": "tests/benchmark/test_imagegen.py::test_glm_image",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
