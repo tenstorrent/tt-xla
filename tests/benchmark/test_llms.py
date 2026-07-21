@@ -1879,12 +1879,16 @@ def test_llama_3_1_70b_tp_qb2(
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
 
-    # The loader's default 70B mesh on QB2 is (2, N//2) = a 2-way data-parallel
-    # "batch" axis x tensor-parallel "model" axis. That DP batch axis corrupts the
-    # first-decode KV-cache read (garbage/NaN logits, decode PCC ~0 -> issue #5487),
-    # even though the SDPA-decode op itself is correct (Falcon-10B, which uses a
-    # TP-only mesh + the same op, decodes fine). Use a TP-only mesh here: decode PCC
-    # recovers to ~0.999, and TP=N uses less memory/chip than DP=2 x TP=(N/2).
+    # The loader's default 70B mesh on QB2 is (2, N//2): despite the "batch" axis
+    # name it is NOT data-parallel -- inputs are replicated and the weights are
+    # sharded across BOTH axes (2D tensor parallelism; the only qb2 model doing so,
+    # and the only one exercising distributed_rms_norm). That multi-axis weight
+    # sharding corrupts the first-decode KV-cache read (garbage/NaN logits, decode
+    # PCC ~0 -> issue #5487), even though the SDPA-decode op itself is correct
+    # (Falcon-10B uses a single-axis TP mesh + the same op and decodes fine). Use a
+    # single-axis TP-only mesh here: decode PCC recovers to ~0.999. Restoring the
+    # 2D weight-sharded mesh (regaining distributed_rms_norm coverage) is tracked
+    # in issue #5738.
     def _qb2_tp_only_mesh(model_loader, num_devices):
         return (1, num_devices), ("batch", "model")
 
