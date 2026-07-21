@@ -309,6 +309,19 @@ class TTWorker:
         usable_memory_size = int(
             total_memory_size * self.cache_config.gpu_memory_utilization
         )
+        # vLLM's KV-cache budget math (max_memory_usage_bytes) uses the full,
+        # un-sharded num_kv_heads with no TP awareness, even though the cache
+        # tensor is already correctly sharded tp_size-ways via mark_sharding
+        # (confirmed in the compiled IR). Counterbalance by inflating the
+        # available budget here instead of touching the cache tensor's shape
+        # or sharding.
+        if self.model_runner.enable_tensor_parallel:
+            mesh = self.model_runner.mesh
+            if hasattr(mesh, "shape"):
+                tp_size = mesh.shape()["model"]
+            else:
+                tp_size = dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
+            usable_memory_size *= tp_size
         tpu_kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()
         if head_size > 0:
