@@ -531,6 +531,20 @@ def benchmark_llm_torch_xla(
     if enable_activation_dtype_lowering:
         options["enable_activation_dtype_lowering"] = "true"
 
+    # #5738 compiler-pass bisection knobs (env-driven).
+    if os.environ.get("QB2_CONST_EVAL") is not None:
+        _ce = os.environ["QB2_CONST_EVAL"] not in ("0", "false", "False")
+        options["enable_const_eval"] = _ce
+        options["enable_const_eval_on_cpu"] = _ce
+        print(f"[#5738] enable_const_eval={_ce}")
+    if os.environ.get("QB2_PERMUTE_FUSION") is not None:
+        options["experimental_enable_permute_matmul_fusion"] = (
+            os.environ["QB2_PERMUTE_FUSION"] not in ("0", "false", "False")
+        )
+        print(f"[#5738] permute_matmul_fusion={options['experimental_enable_permute_matmul_fusion']}")
+    if os.environ.get("QB2_OPTIONS_DUMP"):
+        print(f"[#5738] compile options = {options}")
+
     torch_xla.set_custom_compile_options(options)
 
     # Apply per-tensor weight dtype overrides from explicit dict (takes priority).
@@ -758,6 +772,110 @@ def benchmark_llm_torch_xla(
                     input_args["input_ids"], mesh, input_output_sharding_spec
                 )
 
+    if os.environ.get("QB2_EAGER_DUMP"):
+        import pytest as _pytest
+        import torch as _t
+        base = model.model
+        mods = {
+            "00.embed": base.embed_tokens,
+            "01.L0.input_ln": base.layers[0].input_layernorm,
+            "02.L0.self_attn": base.layers[0].self_attn,
+            "03.L0.post_ln": base.layers[0].post_attention_layernorm,
+            "04.L0.mlp": base.layers[0].mlp,
+            "05.final_norm": base.norm,
+            "06.lm_head": model.lm_head,
+        }
+        rec = {}
+        def _mk(nm):
+            def h(mod, inp, out):
+                o = out[0] if isinstance(out, (tuple, list)) else out
+                try:
+                    oc = o.detach().to("cpu").float()
+                    per = None
+                    if oc.dim() >= 1 and oc.shape[0] == batch_size:
+                        # per-user max|abs| over first (batch) dim
+                        flat = oc.reshape(batch_size, -1)
+                        per = [round(flat[u].abs().max().item(), 2) for u in range(batch_size)]
+                    rec[nm] = (round(oc.abs().max().item(), 3), round(float(oc.std()), 4), list(oc.shape), per)
+                except Exception as e:
+                    rec[nm] = ("ERR", repr(e), None, None)
+            return h
+        lm_out = {}
+        def _lm_hook(mod, inp, out):
+            o = out[0] if isinstance(out, (tuple, list)) else out
+            lm_out["t"] = o.detach().to("cpu").float()
+        hlm = model.lm_head.register_forward_hook(_lm_hook)
+        # Verify eager is genuinely mesh-sharded (not silently replicated).
+        try:
+            import torch_xla as _txla
+            for wn, wt in [("q_proj.weight", model.model.layers[0].self_attn.q_proj.weight),
+                           ("input_ln.weight", model.model.layers[0].input_layernorm.weight),
+                           ("kv_cache[0].keys", input_args["past_key_values"].layers[0].keys)]:
+                spec = _txla._XLAC._get_xla_sharding_spec(wt)
+                print(f"[EAGER_DUMP] sharding {wn}: {spec}")
+        except Exception as _e:
+            print(f"[EAGER_DUMP] sharding-spec check failed: {_e!r}")
+        hs = [m.register_forward_hook(_mk(nm)) for nm, m in mods.items()]
+        with _t.no_grad():
+            _ = logits_wrapper(**input_args)
+        for h in hs:
+            h.remove()
+        hlm.remove()
+        # Compare eager lm_head logits to CPU golden decode logits, per user.
+        try:
+            dev = lm_out["t"].reshape(batch_size, -1)
+            cpu = cpu_output_logits[1].reshape(batch_size, -1).float()
+            pcs = []
+            for u in range(batch_size):
+                a = _t.nan_to_num(dev[u]).double(); b = _t.nan_to_num(cpu[u]).double()
+                va = a - a.mean(); vb = b - b.mean()
+                den = (va.norm() * vb.norm()).item()
+                pcs.append((_t.dot(va, vb).item() / den) if den else float("nan"))
+            import numpy as _np
+            print(f"[EAGER_DUMP] eager decode PCC vs CPU golden: min={_np.nanmin(pcs):.4f} mean={_np.nanmean(pcs):.4f} max={_np.nanmax(pcs):.4f}")
+        except Exception as _e:
+            print(f"[EAGER_DUMP] PCC compare failed: {_e!r}")
+        print("[EAGER_DUMP] module: (max|abs|, std, shape)  — first row that explodes (~1e6+) is the culprit")
+        for nm in sorted(mods):
+            v = rec.get(nm)
+            print(f"[EAGER_DUMP] {nm}: max={v[0]} std={v[1]} shape={v[2]}")
+            if v[3] is not None:
+                print(f"[EAGER_DUMP]     per-user max|abs|: {v[3]}")
+        _pytest.skip("QB2_EAGER_DUMP done")
+
+    if os.environ.get("QB2_COMPILED_DUMP"):
+        import pytest as _pytest
+        import torch as _t
+
+        class _DbgWrap(_t.nn.Module):
+            def __init__(self, m):
+                super().__init__(); self.m = m
+            def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
+                out = self.m(input_ids=input_ids, past_key_values=past_key_values,
+                             position_ids=cache_position.unsqueeze(0),
+                             cache_position=cache_position, use_cache=use_cache,
+                             output_hidden_states=True)
+                # hidden_states: tuple (post-embed, post-layer0, ...); return them all
+                return tuple(h for h in out.hidden_states) + (out.logits,)
+
+        dbg = torch.compile(_DbgWrap(model), backend="tt")
+        with _t.no_grad():
+            outs = dbg(input_ids=input_args["input_ids"],
+                       past_key_values=input_args["past_key_values"],
+                       cache_position=input_args["cache_position"])
+        names = [f"hidden[{i}]" for i in range(len(outs) - 1)] + ["logits"]
+        print("[COMPILED_DUMP] compiled decode intermediates (max|abs|, std, per-user max):")
+        for nm, o in zip(names, outs):
+            oc = o.detach().to("cpu").float()
+            per = None
+            if oc.dim() >= 1 and oc.shape[0] == batch_size:
+                fl = oc.reshape(batch_size, -1)
+                per = [round(fl[u].abs().max().item(), 2) for u in range(batch_size)]
+            print(f"[COMPILED_DUMP] {nm}: max={round(oc.abs().max().item(),3)} std={round(float(oc.std()),4)} shape={list(oc.shape)}")
+            if per is not None:
+                print(f"[COMPILED_DUMP]     per-user max|abs|: {per}")
+        _pytest.skip("QB2_COMPILED_DUMP done")
+
     # The prefill call above already consumed gt[0] as teacher-forced input for
     # the first decode step, so the decode call must start its ground-truth
     # window at gt[1] to stay aligned. It also consumed one of the logits_steps
@@ -913,14 +1031,33 @@ def benchmark_llm_torch_xla(
         pcc_value = _report_pcc(
             "Prefill", output_logits[0][0], cpu_output_logits[0][0], required_pcc
         )
+        if os.environ.get("QB2_PERUSER") and len(output_logits) > 1 and len(cpu_output_logits) > 1:
+            import torch as _t
+            dfull = output_logits[1]
+            cfull = cpu_output_logits[1]
+            print(f"[PERUSER] decode logits shapes: dev={list(dfull.shape)} cpu={list(cfull.shape)}")
+            bdim = next((i for i, s in enumerate(dfull.shape) if s == batch_size), 0)
+            dd = _t.movedim(dfull, bdim, 0).reshape(dfull.shape[bdim], -1).float()
+            cc = _t.movedim(cfull, bdim, 0).reshape(cfull.shape[bdim], -1).float()
+            for u in range(dd.shape[0]):
+                a = _t.nan_to_num(dd[u]).double(); b = _t.nan_to_num(cc[u]).double()
+                va = a - a.mean(); vb = b - b.mean()
+                den = (va.norm() * vb.norm()).item()
+                p = (_t.dot(va, vb).item() / den) if den else float("nan")
+                bad = bool(_t.isnan(dd[u]).any() or _t.isinf(dd[u]).any())
+                print(f"[PERUSER] user {u:2d}: decode PCC={p:.4f} naninf={bad} dev_std={dd[u].std().item():.4f} dev_mean={dd[u].mean().item():.4f}")
         decode_pcc_value = None
         if len(output_logits) > 1 and len(cpu_output_logits) > 1:
-            decode_pcc_value = _report_pcc(
-                "First decode",
-                output_logits[1][0],
-                cpu_output_logits[1][0],
-                required_pcc,
-            )
+            try:
+                decode_pcc_value = _report_pcc(
+                    "First decode",
+                    output_logits[1][0],
+                    cpu_output_logits[1][0],
+                    required_pcc,
+                )
+            except Exception as _e:
+                print(f"First decode PCC raised: {_e}")
+                decode_pcc_value = 0.0
         if assert_prefill:
             assert (
                 pcc_value >= required_pcc

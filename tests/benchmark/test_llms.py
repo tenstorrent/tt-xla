@@ -1900,35 +1900,87 @@ def test_llama_3_1_70b_tp_qb2(
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
 
-    # The loader's default 70B mesh on QB2 is (2, N//2): despite the "batch" axis
-    # name it is NOT data-parallel -- inputs are replicated and the weights are
-    # sharded across BOTH axes (2D tensor parallelism; the only qb2 model doing so,
-    # and the only one exercising distributed_rms_norm). That multi-axis weight
-    # sharding corrupts the first-decode KV-cache read (garbage/NaN logits, decode
-    # PCC ~0 -> issue #5487), even though the SDPA-decode op itself is correct
-    # (Falcon-10B uses a single-axis TP mesh + the same op and decodes fine). Use a
-    # single-axis TP-only mesh here: decode PCC recovers to ~0.999. Restoring the
-    # 2D weight-sharded mesh (regaining distributed_rms_norm coverage) is tracked
-    # in issue #5738.
+    # === issue #5738 investigation knobs (env-driven, no rebuild needed) ========
+    # QB2_MESH   : "tp" (default) -> (1, N) TP-only workaround (#5717);
+    #              "2d"           -> loader default (2, N//2) 2D weight-sharded mesh
+    #                                (reproduces the decode-PCC~0 bug, #5487/#5738).
+    # QB2_OPT    : optimization level override (default 2). e.g. 0 / 1 / 2.
+    # QB2_KV     : KV-cache sharding spec. "default" -> loader default
+    #              ((None,"model",None,None)); "batch" -> ("batch","model",None,None);
+    #              "batchonly" -> ("batch",None,None,None); "replicate" -> all None.
+    # QB2_NORM   : "shard" (default) keeps RMS-norm weights sharded on ("batch",);
+    #              "replicate" leaves them replicated -> disables distributed_rms_norm
+    #              even on the 2D mesh (localizes whether RMS norm is the culprit).
+    import os
+
+    _mesh_mode = os.environ.get("QB2_MESH", "tp").lower()
+    _opt = int(os.environ.get("QB2_OPT", "2"))
+    _kv = os.environ.get("QB2_KV", "default").lower()
+    _norm = os.environ.get("QB2_NORM", "shard").lower()
+    print(
+        f"[#5738] QB2_MESH={_mesh_mode} QB2_OPT={_opt} QB2_KV={_kv} QB2_NORM={_norm}"
+    )
+
     def _qb2_tp_only_mesh(model_loader, num_devices):
         return (1, num_devices), ("batch", "model")
 
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
+    # QB2_MESH can also be an explicit "RxC" (e.g. "4x1", "2x2") to sweep meshes.
+    def _explicit_mesh(rows, cols):
+        def fn(model_loader, num_devices):
+            return (rows, cols), ("batch", "model")
+        return fn
+
+    _kv_specs = {
+        "default": None,
+        "batch": ("batch", "model", None, None),
+        "batchonly": ("batch", None, None, None),
+        "replicate": (None, None, None, None),
+    }
+
+    def _shard_spec_no_norm(model_loader, model):
+        # Loader default shard spec, but drop the RMS-norm weights so they stay
+        # replicated (no distributed_rms_norm) even under the 2D mesh.
+        specs = ModelLoader.load_shard_spec(model_loader, model)
+        if specs is None:
+            return None
+        norm_weights = {model.model.norm.weight}
+        for layer in model.model.layers:
+            norm_weights.add(layer.input_layernorm.weight)
+            norm_weights.add(layer.post_attention_layernorm.weight)
+        return {t: s for t, s in specs.items() if t not in norm_weights}
+
+    kwargs = dict(
         num_layers=num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        mesh_config_fn=_qb2_tp_only_mesh,
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=2,  # TP-only mesh fixes the opt-2 decode failure (#5487)
+        optimization_level=_opt,
+    )
+    if _mesh_mode == "tp":
+        kwargs["mesh_config_fn"] = _qb2_tp_only_mesh
+    elif "x" in _mesh_mode:
+        r, c = _mesh_mode.split("x")
+        kwargs["mesh_config_fn"] = _explicit_mesh(int(r), int(c))
+    # else "2d": omit mesh_config_fn -> loader default (2, N//2)
+    if _kv != "default":
+        kwargs["kv_cache_sharding_spec"] = _kv_specs[_kv]
+    if _norm == "replicate":
+        kwargs["shard_spec_fn"] = _shard_spec_no_norm
+    # QB2_TRACE=0 disables the capture_or_execute_trace wrapper (isolate trace vs sharding)
+    if os.environ.get("QB2_TRACE") is not None:
+        kwargs["trace_enabled"] = os.environ["QB2_TRACE"] not in ("0", "false", "False")
+
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        **kwargs,
     )
 
 
