@@ -55,6 +55,33 @@ DEFAULT_INPUT_PROMPT = (
 MODULE_EXPORT_PATH = "modules"
 
 
+def _neutralize_packed_sequence_detection() -> None:
+    """Work around a blackhole device-compile gap in transformers mask creation.
+
+    When a model builds its own attention mask (attention_mask=None, no cache --
+    e.g. a use_cache=False prefill wrapper), transformers'
+    ``create_causal_mask`` / ``create_sliding_window_causal_mask`` call
+    ``find_packed_sequence_indices(position_ids)``, which computes
+    ``(position_diff != 1).cumsum(-1)`` on a BOOLEAN tensor. The function's own
+    comment notes it cannot early-exit under tracing, so under ``torch.compile``
+    that boolean cumsum stays in the graph and lowers to a ttnn accumulation
+    kernel that blackhole only supports for Int32/UInt32/UInt16 -- a bool lowers
+    to UInt8, so the trisc kernel build fails ("Unsupported data format for
+    fill_tile_int / add_int").
+
+    The LLM benchmark never packs sequences (it feeds a batch of equal-length
+    prompts), so the correct result is always ``None`` (no packing) -- the exact
+    value this function returns in eager for a single sequence. Returning ``None``
+    drops only a no-op AND-mask (the packed-sequence factory is identically True
+    when every token shares one sequence), so the mask is numerically unchanged
+    while the unsupported op disappears. Idempotent; safe for every model (models
+    that pass an explicit attention_mask never reach this code path).
+    """
+    import transformers.masking_utils as _masking_utils
+
+    _masking_utils.find_packed_sequence_indices = lambda position_ids: None
+
+
 def setup_model_and_tokenizer(
     model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
@@ -76,7 +103,23 @@ def setup_model_and_tokenizer(
         model_kwargs["experts_implementation"] = experts_implementation
     model = model_loader.load_model(dtype_override=torch.bfloat16, **model_kwargs)
     if hasattr(model.config, "layer_types"):
-        model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Collapsing sliding-window layers to "full_attention" is only safe when
+        # every layer type shares the same head geometry. Some models (e.g.
+        # Gemma-4) give their full-attention layers a distinct, larger
+        # `global_head_dim`; the per-layer attention head_dim and RoPE table are
+        # baked at construction from the ORIGINAL layer type, but the rotary
+        # embedding is selected by `config.layer_types[i]` at forward time. Forcing
+        # every layer to "full_attention" then feeds the global (512-dim) rotary to
+        # the local (256-dim head) layers and crashes apply_rotary_pos_emb. Skip the
+        # rewrite for such heterogeneous-head models; their sliding windows are
+        # large enough that short benchmark prompts see a full-causal mask anyway.
+        global_head_dim = getattr(model.config, "global_head_dim", None)
+        head_dim = getattr(model.config, "head_dim", None)
+        heterogeneous_head_dims = bool(global_head_dim) and global_head_dim != head_dim
+        if not heterogeneous_head_dims:
+            model.config.layer_types = ["full_attention"] * len(
+                model.config.layer_types
+            )
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
@@ -376,6 +419,10 @@ def benchmark_llm_torch_xla(
         )
 
     xr.set_device_type("TT")
+
+    # Drop the boolean-cumsum packed-sequence probe that blackhole can't compile
+    # (no-op for the benchmark's non-packed inputs). See the helper's docstring.
+    _neutralize_packed_sequence_detection()
 
     # Set up for multi-chip if applicable
     if mesh_config_fn is not None and shard_spec_fn is not None:

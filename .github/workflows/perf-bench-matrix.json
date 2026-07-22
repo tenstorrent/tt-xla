@@ -205,6 +205,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "gemma_4_26b_a4b_moe_tp_qb2",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_4_26b_a4b_moe_tp_qb2",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "gpt_oss_120b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_qb2",
         "runs-on": "qb2-blackhole",

@@ -2155,3 +2155,105 @@ def test_glm_4_7_tp_galaxy_4_layers(
         required_pcc=0.99,
         experts_implementation="eager",
     )
+
+
+# ---------------------------------------------------------------------------
+# google/gemma-4-26B-A4B-it -- sparse-MoE image-text-to-text VLM, TEXT DECODER
+# only (prefill graph). Megatron tp=2 x expert-parallel-2 on the 4-chip qb2
+# (2x2 mesh): the dense shared MLP (runs every layer) is Megatron column->row
+# tensor-parallel on the "model" axis; the 128-expert MoE (88% of the params)
+# is expert-parallel on the "batch" axis (this is the requested tp=2/sp=2 second
+# axis, realized as EP since replicating ~22B of experts for pure activation-SP
+# is infeasible). Attention is REPLICATED: this Gemma-4 MoE shares V with K on
+# the full-attention layers and shares KV in later layers, and head-sharding Q
+# crashes the GQA repeat_kv reshard under Shardy (the same limitation the sibling
+# diffusiongemma loader documents); attention is a small fraction of the params.
+#
+# Experts use the tt_dense (masked dense-bmm) backend, NOT tt_moe. tt_moe's
+# expert-parallel path dispatches along a SINGLE cluster axis and fails at
+# runtime (ttnn::reshape new_volume==old_volume) when TP and EP ride different
+# mesh axes -- it cannot serve a 2x2 TP-perp-EP mesh (documented in the
+# gemma4_moe loader + the model-bringup report). tt_dense has no single-axis
+# constraint (the same backend gpt-oss uses for MoE on 2-D galaxy meshes) and,
+# computing every expert masked by the router weights, is numerically identical
+# to the reference sparse expert forward.
+#
+# The loader wraps the decoder with use_cache=False, so this is a pure prefill
+# graph (each generate step recomputes cachelessly; there is no KV-cache decode
+# graph -- the StaticCache the harness builds is 0-layer/inert here). The
+# decoder returns a bare logits tensor, so read_logits_fn is the identity.
+# opt_level 0 / trace off are the qb2 bringup-safe defaults (opt>=1 aborts on
+# the harvested 11-wide grid); model-perf-tuning will ramp the knobs.
+# ---------------------------------------------------------------------------
+def _gemma4_moe_a4b_qb2_mesh_config_fn(model_loader, num_devices):
+    if num_devices != 4:
+        raise ValueError(
+            f"gemma-4-26B-A4B qb2 perf expects 4 devices (2x2 mesh), got {num_devices}."
+        )
+    # tp=2 on "model", ep(sp)=2 on "batch" -> 2x2.
+    return (2, 2), ("batch", "model")
+
+
+def _gemma4_moe_a4b_qb2_shard_spec_fn(model_loader, model):
+    """Megatron column->row dense-MLP TP on "model" + expert-parallel MoE on "batch".
+
+    Built explicitly here (rather than via the loader's stateful get_mesh_config /
+    load_shard_spec pair) because the benchmark harness calls shard_spec_fn before
+    get_mesh_config, so the loader's expert-axis side effect would not be set yet.
+    """
+    shard_specs = {}
+    base = model.model  # _Gemma4TextDecoder.model == Gemma4TextModel (.layers)
+    for layer in base.layers:
+        # Dense shared MLP (every layer) -> Megatron column->row on the TP axis.
+        mlp = getattr(layer, "mlp", None)
+        if mlp is not None and getattr(mlp, "gate_proj", None) is not None:
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+        # Sparse MoE experts -> expert-parallel on the "batch" axis.
+        experts = getattr(layer, "experts", None)
+        if experts is not None and getattr(experts, "gate_up_proj", None) is not None:
+            # 3D batched experts [E, 2I, H] / [E, H, I]; shard the expert dim (0).
+            shard_specs[experts.gate_up_proj] = ("batch", None, None)
+            shard_specs[experts.down_proj] = ("batch", None, None)
+    return shard_specs
+
+
+def test_gemma_4_26b_a4b_moe_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
+    from third_party.tt_forge_models.gemma4_moe.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_26B_A4B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size if batch_size is not None else 1,  # single user
+        # 128-expert dense-bmm at opt=0 is heavy; cap the cacheless decode steps
+        # to bound device time (prefill graph is what this run targets).
+        max_output_tokens=max_output_tokens if max_output_tokens is not None else 8,
+        decode_only=decode_only,
+        mesh_config_fn=_gemma4_moe_a4b_qb2_mesh_config_fn,
+        shard_spec_fn=_gemma4_moe_a4b_qb2_shard_spec_fn,
+        optimization_level=0,  # safe default for bringup; qb2 opt>=1 aborts on harvested grid
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        # The decoder wrapper returns a bare logits tensor (not an object w/ .logits).
+        read_logits_fn=lambda output: output,
+    )
