@@ -1,0 +1,192 @@
+2026-07-22 18:18:31.407 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /home/mvasiljevic/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-6.17.0-35-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'anyio': '4.14.2', 'jaxtyping': '0.3.11', 'metadata': '3.1.1', 'split': '0.11.0', 'json-report': '1.5.0'}}
+rootdir: /home/mvasiljevic/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, anyio-4.14.2, jaxtyping-0.3.11, metadata-3.1.1, split-0.11.0, json-report-1.5.0
+collecting ... collected 1 item
+
+tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2 2026-07-22 18:18:35.758713: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+[#5738] QB2_MESH=2d QB2_OPT=1 QB2_KV=default QB2_NORM=shard
+Running LLM benchmark for variant: 3.1_70B_Instruct
+Configuration:
+    optimization_level=1
+    trace_enabled=True
+    batch_size=32
+    loop_count=1
+    input_sequence_length=128
+    data_format=bfloat16
+    task=text-generation
+    experimental_weight_dtype=bfp_bf8
+    experimental_enable_permute_matmul_fusion=False
+    experimental_kv_cache_dtype=bfp_bf8
+    required_pcc=0.94
+    num_layers=1
+    ttnn_perf_metrics_output_file=tt_xla_llama_3_1_70b_tp_qb2_perf_metrics
+    
+Loading model pytorch_Llama_3.1_70B_Instruct_nlp_causal_lm_huggingface...
+Loading weights:   0%|          | 0/12 [00:00<?, ?it/s]Loading weights: 100%|██████████| 12/12 [00:00<00:00, 36578.23it/s]
+[1mLlamaForCausalLM LOAD REPORT[0m from: meta-llama/Meta-Llama-3.1-70B-Instruct
+Key                                                       | Status     |  | 
+----------------------------------------------------------+------------+--+-
+model.layers.{1, 77, 78, 79}.mlp.gate_proj.weight         | UNEXPECTED |  | 
+model.layers.{1, 78, 79}.self_attn.v_proj.weight          | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.post_attention_layernorm.weight | UNEXPECTED |  | 
+model.layers.{1, 78, 79}.self_attn.q_proj.weight          | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.mlp.down_proj.weight            | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.mlp.up_proj.weight              | UNEXPECTED |  | 
+model.layers.{1, 78, 79}.self_attn.k_proj.weight          | UNEXPECTED |  | 
+model.layers.{1, 77, 78, 79}.self_attn.o_proj.weight      | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.input_layernorm.weight          | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-07-22 18:18:39.008395: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+TTNNCollectPerfMetrics: skipping ttnn.scaled_dot_product_attention — dynamic attention mask present
+2026-07-22 18:19:18.529221: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+2026-07-22 18:19:20.136387: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+TTNNCollectPerfMetrics: skipping ttnn.scaled_dot_product_attention — dynamic attention mask present
+2026-07-22 18:19:21.903942: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+2026-07-22 18:19:24.837 | WARNING  | test_llms:test_llm:241 - Expected 2 perf metrics files (prefill + decode) for LLM, but found 8: ['tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_0.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_1.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_2.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_3.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_4.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_5.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_6.json', 'tt_xla_llama_3_1_70b_tp_qb2_perf_metrics_7.json']. Skipping perf metrics.
+Warming up...
+Warmup complete
+
+Starting performance benchmark...
+Model training mode: False (should be False)
+Dropout modules found: 0, any active: False
+Iteration	0/8	took 48.35 ms
+Iteration	1/8	took 11.17 ms
+Iteration	2/8	took 9.328 ms
+Iteration	3/8	took 9.415 ms
+Iteration	4/8	took 9.317 ms
+Iteration	5/8	took 9.271 ms
+Iteration	6/8	took 9.341 ms
+Iteration	7/8	took 9.262 ms
+User 0:  OswaldadderpeaterSPAindsighteprakavl
+User 1:  OswaldadderpeaterSPAindsighteprakavl
+User 2:  OswaldadderpeaterSPAindsighteprakavl
+User 3:  OswaldadderpeaterSPAindsighteprakavl
+User 4:  OswaldadderpeaterSPAindsighteprakavl
+User 5:  OswaldadderpeaterSPAindsighteprakavl
+User 6:  OswaldadderpeaterSPAindsighteprakavl
+User 7:  OswaldadderpeaterSPAindsighteprakavl
+User 8:  OswaldadderpeaterSPAindsighteprakavl
+User 9:  OswaldadderpeaterSPAindsighteprakavl
+User 10:  OswaldadderpeaterSPAindsighteprakavl
+User 11:  OswaldadderpeaterSPAindsighteprakavl
+User 12:  OswaldadderpeaterSPAindsighteprakavl
+User 13:  OswaldadderpeaterSPAindsighteprakavl
+User 14:  OswaldadderpeaterSPAindsighteprakavl
+User 15:  OswaldadderpeaterSPAindsighteprakavl
+User 16:  OswaldadderpeaterSPAindsighteprakavl
+User 17:  OswaldadderpeaterSPAindsighteprakavl
+User 18:  OswaldadderpeaterSPAindsighteprakavl
+User 19:  OswaldadderpeaterSPAindsighteprakavl
+User 20:  OswaldadderpeaterSPAindsighteprakavl
+User 21:  OswaldadderpeaterSPAindsighteprakavl
+User 22:  OswaldadderpeaterSPAindsighteprakavl
+User 23:  OswaldadderpeaterSPAindsighteprakavl
+User 24:  OswaldadderpeaterSPAindsighteprakavl
+User 25:  OswaldadderpeaterSPAindsighteprakavl
+User 26:  OswaldadderpeaterSPAindsighteprakavl
+User 27:  OswaldadderpeaterSPAindsighteprakavl
+User 28:  OswaldadderpeaterSPAindsighteprakavl
+User 29:  OswaldadderpeaterSPAindsighteprakavl
+User 30:  OswaldadderpeaterSPAindsighteprakavl
+User 31:  OswaldadderpeaterSPAindsighteprakavl
+
+Performance benchmark complete
+
+Starting PCC/TOPK benchmark...
+
+PCC/TOPK benchmark complete
+====================================================================
+| pytorch_Llama_3.1_70B_Instruct_nlp_causal_lm_huggingface Benchmark Results:|
+--------------------------------------------------------------------
+| Model: pytorch_Llama_3.1_70B_Instruct_nlp_causal_lm_huggingface
+| Model type: text-generation
+| Dataset name: Random Data
+| Date: 22-07-2026
+| Machine name: 853faf68e2b0
+| Total samples: 7
+| Total time (s): 0.067109433
+| Avg. time per sample (s): 0.009587061857142856
+| Avg. samples per second: 104.30724396077076
+| TTFT (ms): 48.346088
+| Batch size: 32
+| Data format: bfloat16
+| Input sequence length: 128
+====================================================================
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.999806, rel_l2=2.082268e-02, Required=0.94
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:365: 14 warnings
+  /home/mvasiljevic/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2
+  /home/mvasiljevic/tt-xla/tests/conftest.py:530: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2
+  /home/mvasiljevic/tt-xla/tests/conftest.py:534: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 1 passed, 16 warnings in 52.10s ========================
+nanobind: leaked 473 instances!
+ - leaked instance 0x33010e80 of type "ttnn._ttnn.operations.unary.isfinite_t"
+ - leaked instance 0x32a9f600 of type "ttnn._ttnn.operations.binary.fmod_t"
+ - leaked instance 0x330bb890 of type "ttnn._ttnn.operations.unary.bitwise_not_t"
+ - leaked instance 0x332cdb30 of type "ttnn._ttnn.operations.normalization.scale_causal_mask_hw_dims_softmax_in_place_t"
+ - leaked instance 0x33279be0 of type "ttnn._ttnn.operations.unary.sqrt_t"
+ - leaked instance 0x32b8ce90 of type "ttnn._ttnn.operations.binary.le__t"
+ - leaked instance 0x32ed9340 of type "ttnn._ttnn.operations.complex_unary.real_t"
+ - leaked instance 0x334c07f0 of type "ttnn._ttnn.operations.binary.logical_left_shift_t"
+ - leaked instance 0x32d6c1c0 of type "ttnn._ttnn.operations.data_movement.tosa_scatter_t"
+ - leaked instance 0x331a5970 of type "ttnn._ttnn.operations.data_movement.permute_t"
+ - leaked instance 0x32c975e0 of type "ttnn._ttnn.operations.conv.conv2d_t"
+ - leaked instance 0x328c9b60 of type "ttnn._ttnn.operations.data_movement.tosa_gather_t"
+ - leaked instance 0x3294c350 of type "ttnn._ttnn.operations.binary_backward.logaddexp_bw_t"
+ - leaked instance 0x333959c0 of type "ttnn._ttnn.operations.binary.multiply__t"
+ - leaked instance 0x33661270 of type "ttnn._ttnn.operations.unary_backward.threshold_bw_t"
+ - leaked instance 0x32d37a40 of type "ttnn._ttnn.operations.normalization.batch_norm_t"
+ - leaked instance 0x329211f0 of type "ttnn._ttnn.operations.binary.bias_gelu__t"
+ - leaked instance 0x71a932518048 of type "ttnn._ttnn.tensor.MemoryConfig"
+ - leaked instance 0x32d84f90 of type "ttnn._ttnn.operations.binary.bitwise_right_shift_t"
+ - leaked instance 0x3342b510 of type "ttnn._ttnn.operations.data_movement.sharded_to_interleaved_t"
+ - ... skipped remainder
+nanobind: leaked 535 types!
+ - leaked type "ttnn._ttnn.operations.binary.lt__t"
+ - leaked type "ttnn._ttnn.operations.binary_backward.xlogy_bw_t"
+ - leaked type "ttnn._ttnn.operations.reduction.var_t"
+ - leaked type "DispatchCoreAxis"
+ - leaked type "ttnn._ttnn.operations.unary.fill_t"
+ - leaked type "ttnn._ttnn.operations.data_movement.gather_t"
+ - leaked type "ttnn._ttnn.operations.point_to_point.point_to_point_t"
+ - leaked type "ttnn._ttnn.operations.ternary.where_t"
+ - leaked type "ttnn._ttnn.device.SubDeviceManagerId"
+ - leaked type "ttnn._ttnn.operations.binary.pow_t"
+ - ... skipped remainder
+nanobind: leaked 2350 functions!
+ - leaked function ""
+ - leaked function ""
+ - leaked function ""
+ - leaked function ""
+ - leaked function ""
+ - leaked function "__call__"
+ - leaked function ""
+ - leaked function "enable_asynchronous_slow_dispatch"
+ - leaked function ""
+ - leaked function ""
+ - ... skipped remainder
+nanobind: this is likely caused by a reference counting issue in the binding code.
+See https://nanobind.readthedocs.io/en/latest/refleaks.html

@@ -281,3 +281,40 @@ Before the fix: decode PCC ~0 / NaN, nondeterministic across runs. After: stable
 On Blackhole the decode norm now uses an 8x4 = 32-core rectangular width-shard
 grid (was 64-core non-rectangular). Wormhole is unchanged (8x8 = 64).
 Log: debug_logs/validation_after_fix.log
+
+================================================================================
+## CI PERF + CLEAN BRANCHES (restore 2D-mesh qb2 coverage)
+================================================================================
+Clean, mergeable branches (fix isolated from debug/instrumentation commits):
+- tt-mlir: mvasiljevic/5738-fix-distributed-rmsnorm-blackhole  (off 9f06802f = SHA
+  pinned by latest tt-xla main; ONLY the rectangular-grid fix). commit 77cd34576bd3.
+- tt-xla:  mvasiljevic/5738-restore-2d-mesh-tests  (off origin/main). Keeps
+  test_llama_3_1_70b_tp_qb2 (tp1x4, (1,N) mesh, opt2) UNCHANGED and ADDS
+  test_llama_3_1_70b_tp_qb2_2d (tp2x2, loader-default (2,N//2) mesh, opt1) to restore
+  2D weight-sharded + distributed_rms_norm coverage. Adds 4 perf-bench-matrix.json
+  entries (perf+accuracy for the 2d variant); no shared-runners field => dedicated
+  qb2-blackhole device ("shared device = false").
+
+How to run in CI: Performance Benchmark workflow (manual-benchmark.yml, dispatch) with
+mlir_override=77cd34576bd3e183c182a2367148caf36ce722e5, test_filter=llama_3_1_70b_tp_qb2,
+runs-on-filter=qb2-blackhole, sh-runner=false, skip-device-perf=false. Expands the
+matrix into `pytest <entry.pytest> --output-file ...` (no --pcc/--num-layers => full
+model perf). The dispatch auto-sets accuracy-testing:false, so it runs exactly the two
+perf entries (tp1x4 + tp2x2).
+
+CI run 29944004903 (branch mvasiljevic/5738-restore-2d-mesh-tests, built at the fix SHA):
+- build (tt-mlir @ fix + tt-xla): success.
+- tp1x4 (baseline, FULL 80-layer): PASS in 57m. Prefill PCC 0.996180, decode PCC 0.994723.
+- tp2x2 (2D, FULL 80-layer): first attempt FAILED at 2x2 mesh-open with a FABRIC/TOPOLOGY
+  abort (NOT the norm bug):
+    TT_FATAL topology_mapper.cpp:546 mapping_result.success — "Graph specified in MGD could
+    not fit in the discovered physical topology. Inter-mesh mapping failed ... STRICT."
+  Same transient bad-fabric/device-contention issue seen locally (cured by tt-smi -r).
+  Both perf jobs had launched concurrently on the qb2 pool -> contention. Reran the failed
+  job alone (gh run rerun --failed) after tp1x4 released the machine.
+- Local control: 2D perf-mode (warmup+timed decode loop, 1-layer, opt1) on a freshly-reset
+  device PASSES with the fix -> confirms the 2D perf path/code is correct; the CI 2d failure
+  was infra. (debug_logs/perf2d_local_1layer_PASS.log)
+- 2d rerun result: <pending — see CI run 29944004903>.
+Note: benchmark harness emitted "found 4 perf metrics files, expected 2 -> Skipping perf
+metrics" for tp1x4 (pre-existing harness quirk, unrelated to this fix); PCC still asserted.
