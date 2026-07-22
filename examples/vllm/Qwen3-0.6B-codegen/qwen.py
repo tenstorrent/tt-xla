@@ -71,7 +71,7 @@ def build_llm():
         max_model_len=4096,
         max_num_batched_tokens=4096,
         max_num_seqs=1,
-        gpu_memory_utilization=0.02,
+        gpu_memory_utilization=0.04,
         additional_config={"enable_const_eval": False, "min_context_len": 256},
     )
 

@@ -53,3 +53,7 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+# vLLM codegen emit/load output (large generated TTNN Python + tensor dumps)
+/qwen_codegen/
+qwen_codegen/

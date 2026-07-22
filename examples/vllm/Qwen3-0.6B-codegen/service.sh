@@ -32,5 +32,5 @@ vllm serve Qwen/Qwen3-0.6B \
     --max-model-len 4096 \
     --max-num-batched-tokens 4096 \
     --max-num-seqs 1 \
-    --gpu-memory-utilization 0.02 \
+    --gpu-memory-utilization 0.04 \
     --additional-config "{\"enable_const_eval\": \"False\", \"min_context_len\": 256}"

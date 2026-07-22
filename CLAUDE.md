@@ -93,7 +93,7 @@ clang-format -i src/**/*.cpp
 python -c "import jax; print(jax.devices('tt'))"
 
 # Verify PyTorch/XLA with TT plugin
-python -c "import torch_xla.core.xla_model as xm; print(xm.get_xla_supported_devices('tt'))"
+python -c "import torch_xla.core.xla_model as xm; print(xm.get_xla_supported_devices())"
 
 ## Test Structure and Markers
 
