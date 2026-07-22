@@ -37,7 +37,8 @@ try:
     tt_g=ttnn.as_tensor(g.reshape([1,1,HIDDEN//32,32]), dtype=ttnn.bfloat16, device=mesh, layout=ttnn.ROW_MAJOR_LAYOUT,
         memory_config=dram, mesh_mapper=shard2d(2))
 
-    stats=ttnn.rms_norm_pre_all_gather(tt_in, dtype=ttnn.bfloat16, memory_config=dram)
+    pre_mem = in_mem if MEM=="l1" else dram
+    stats=ttnn.rms_norm_pre_all_gather(tt_in, dtype=ttnn.bfloat16, memory_config=pre_mem)
     print(f"pre_all_gather stats shape/dev0 max={ttnn.to_torch(stats, mesh_composer=ttnn.ConcatMesh2dToTensor(mesh,dims=(3,0),mesh_shape=(2,2))).abs().max().item():.4g}")
     gathered=ttnn.all_gather(stats, dim=3, cluster_axis=0, memory_config=dram, topology=ttnn.Topology.Ring)
     out=ttnn.rms_norm_post_all_gather(tt_in, stats=gathered, epsilon=EPS, weight=tt_g, memory_config=in_mem)
