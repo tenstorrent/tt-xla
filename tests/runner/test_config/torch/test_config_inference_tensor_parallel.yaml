@@ -74,6 +74,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
+    markers: [push, multi_host_cluster]
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -434,4 +435,52 @@ test_config:
 
   fibo/pytorch-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
+    status: EXPECTED_PASSING
+
+  glm/causal_lm/moe/pytorch-GLM-4.7-Flash-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  mixtral/causal_lm/moe/pytorch-Mixtral-8x7B-Instruct-v0.1-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  deepseek/deepseek_moe/pytorch-DEEPSEEK_V2_LITE_CHAT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  deepseek/deepseek_moe/pytorch-DEEPSEEK_CODER_V2_LITE_INSTRUCT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  nous_research/moe/pytorch-Nous-Hermes-2-Mixtral-8x7B-DPO-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  phi3/phi_3_5_moe/causal_lm/pytorch-Phi-3.5-MoE-instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-38B-single_device-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-78B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  phi4/causal_lm/pytorch-Phi_4_Reasoning_Plus-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING

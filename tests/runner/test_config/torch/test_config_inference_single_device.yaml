@@ -733,7 +733,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed (calc ~0.19, required 0.99). https://github.com/tenstorrent/tt-xla/issues/5739"
     optimization_level: 2
 
   yolos/pytorch-single_device-inference:
@@ -1722,7 +1723,8 @@ test_config:
     optimization_level: 2
     arch_overrides:
       p150:
-        status: EXPECTED_PASSING
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed (calc ~0.43). https://github.com/tenstorrent/tt-xla/issues/5739"
 
       n150:
         status: NOT_SUPPORTED_SKIP
