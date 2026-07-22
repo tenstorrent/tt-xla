@@ -76,20 +76,43 @@ class DynamicTorchModelTester(TorchModelTester):
             self._inject_custom_moe(self._model)
 
     def _compile_for_tt_device(self, workload, options=None):
-        """Apply per-variant weight dtype overrides before compiling for TT device."""
-        self._apply_weight_dtype_overrides()
-        super()._compile_for_tt_device(workload, options)
-        self._remove_weight_dtype_overrides()
+        """Wire up per-variant weight dtype overrides for the TT device compile.
 
-    def _apply_weight_dtype_overrides(self):
-        """Auto-apply per-variant weight dtype overrides if available."""
+        Inference: defer the override until *after* device placement by stashing
+        the config path on the workload; the device runner applies it once the
+        model is on device. Applying it here (before the lazy torch.compile
+        trace) and removing it afterwards meant the parametrization was gone
+        before the on-device trace ran, so the bfp8 custom_call never reached
+        the graph. Deferring keeps the parametrization alive and on-device at
+        trace time, matching the benchmark's behavior.
+
+        Training: keep the legacy apply/remove-around-compile behavior. The
+        override must not survive into device placement because tie_weights()
+        (required for correct, shared gradients on tied embeddings) is
+        incompatible with parametrized weights.
+        """
+        if self._run_mode == RunMode.INFERENCE:
+            workload.weight_dtype_config = self._get_weight_dtype_config_path()
+            super()._compile_for_tt_device(workload, options)
+        else:
+            self._apply_weight_dtype_overrides()
+            super()._compile_for_tt_device(workload, options)
+            self._remove_weight_dtype_overrides()
+
+    def _get_weight_dtype_config_path(self):
+        """Resolve the per-variant weight dtype config path, or None if absent."""
         loader = self.dynamic_loader.loader
         if not hasattr(loader, "get_weight_dtype_config_path"):
-            return
+            return None
         try:
             config_path = loader.get_weight_dtype_config_path()
         except TypeError:
-            return
+            return None
+        return config_path or None
+
+    def _apply_weight_dtype_overrides(self):
+        """Auto-apply per-variant weight dtype overrides if available."""
+        config_path = self._get_weight_dtype_config_path()
         if config_path:
             from tt_torch.weight_dtype import apply_weight_dtype_overrides
 
