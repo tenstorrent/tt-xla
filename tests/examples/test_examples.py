@@ -40,6 +40,16 @@ XFAIL_FILES: dict[str, str] = {
     "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
 }
 
+# Examples that need specific hardware. Tagged with markers (must be registered
+# in pytest.ini) so a matching CI job runs them on the right runner and the
+# default Wormhole examples job skips them.
+HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/hunyuan_video_1_5.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+}
+
 
 def _get_xfail_reason(filepath: Path) -> str | None:
     """Return xfail reason if filepath is in an xfail directory or file list, None otherwise."""
@@ -151,8 +161,8 @@ def test_pytest_examples(script: Path):
 
 
 def _script_example_params() -> list:
-    """Parametrize script examples, tagging hardware-specific ones
-    (HARDWARE_MARKS) with markers so CI routes them to the matching runner."""
+    """Parametrize script examples, tagging hardware-specific ones (HARDWARE_MARKS)
+    with markers so CI routes them to the matching runner."""
     params = []
     for p in _discover_script_examples():
         rel = str(p.relative_to(EXAMPLES_DIR))
