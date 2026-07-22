@@ -201,9 +201,30 @@ class TorchDeviceRunner(DeviceRunner):
         if workload.model is not None and hasattr(workload.model, "to"):
             workload.model = workload.model.to(device)
 
+            weight_dtype_config = getattr(workload, "weight_dtype_config", None)
+            if weight_dtype_config is not None and device.type != "cpu":
+                # Inference weight-dtype overrides parametrize the model's
+                # weights so a bfp8 custom_call is emitted into the on-device
+                # trace. This must run AFTER device placement so the
+                # parametrization is alive and on-device when torch.compile
+                # traces (that is what emits the annotation). It is mutually
+                # exclusive with tie_weights() -- a parametrized weight cannot
+                # be reassigned -- so we skip the re-tie: for forward-only
+                # inference the untied weights hold identical values, leaving
+                # numerics unchanged. Placement runs on every invocation, so
+                # guard against re-registering the parametrization.
+                import torch.nn.utils.parametrize as parametrize
+
+                from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+                already_applied = any(
+                    parametrize.is_parametrized(m) for m in workload.model.modules()
+                )
+                if not already_applied:
+                    apply_weight_dtype_overrides(workload.model, weight_dtype_config)
             # We need to tie weights for the model after moving it to the device.
             # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
-            if hasattr(workload.model, "tie_weights"):
+            elif hasattr(workload.model, "tie_weights"):
                 workload.model.tie_weights()
 
         is_multichip = (
