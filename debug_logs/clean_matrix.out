@@ -1,0 +1,33 @@
+===== cm_baseline (QB2_MESH=2d QB2_OPT=1) =====
+2026-07-22 14:34:45.267085: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.000000, rel_l2=5.947955e+19, Required=0.94
+FAILED
+E   AssertionError: First decode PCC failed. PCC=0.0, Required=0.94
+FAILED tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2 - AssertionError: First decode PCC failed. PCC=0.0, Required=0.94
+
+===== cm_traceoff (QB2_MESH=2d QB2_OPT=1 QB2_TRACE=0) =====
+2026-07-22 14:36:49.289338: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:37:36.302447: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.000000, rel_l2=5.940942e+19, Required=0.94
+FAILED
+E   AssertionError: First decode PCC failed. PCC=0.0, Required=0.94
+
+===== cm_eager (QB2_MESH=2d QB2_OPT=1 QB2_EAGER_DUMP=1) =====
+2026-07-22 14:38:50.191898: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:39:35.482381: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:39:35.697738: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:39:35.829816: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:39:36.313705: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:39:36.414304: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+
+===== cm_keepalive (QB2_MESH=2d QB2_OPT=1 QB2_COMPILED_DUMP=1) =====
+2026-07-22 14:40:49.714160: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:41:32.411114: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:41:33.308634: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:41:33.396485: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 14:41:34.170700: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+[COMPILED_DUMP] logits: max=9.562 std=0.8436 shape=[32, 1, 128256]
+
+===== CLEAN MATRIX DONE =====

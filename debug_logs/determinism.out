@@ -1,0 +1,10 @@
+----- RUN 1 (reset only before run 1) -----
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+----- RUN 2 (reset only before run 1) -----
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.000000, rel_l2=4.155214e+19, Required=0.94
+----- RUN 3 (reset only before run 1) -----
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.000000, rel_l2=5.609661e+19, Required=0.94
+===== DETERMINISM DONE =====

@@ -165,3 +165,11 @@ NOT the fused rms_allgather I tested standalone (which passed 0.9999). This reso
 - DECODE norm: input [1,1,32,4096], WIDTH-SHARDED L1 (ttnn_layout59, irregular 64-core), stats all_gather cluster_axis=0 -> FAILS.
 Fresh-device decode per-op dump: gather.44 (embed)=0.045 normal; custom-call.78 (decode norm) early sub-stages 0.045, later sub-stages -> 2.9e36 (dump-perturbed; clean run -> constant/uninitialized). So corruption enters INSIDE the decode's decomposed norm (pre_all_gather / all_gather-of-stats / post), on the sharded-L1 small-shape config.
 NEXT: standalone repro of the DECOMPOSED decode norm (pre+all_gather+post) with decode config (sharded-L1 [1,1,32,4096], cluster_axis=0) on fresh device; bisect pre vs all_gather vs post; test interleaved-DRAM vs sharded-L1 input (prefill uses interleaved and works).
+
+## ★★★★★★★ LOCALIZED: decode's WIDTH-SHARDED-L1 decomposed-norm path is the bug
+Standalone decomposed norm (rms_norm_pre_all_gather + all_gather(cluster_axis=0,Ring) + rms_norm_post_all_gather), hidden 8192, 2 devs, 32 rows, eps 1e-5, on clean (2,2) device:
+- MEM=interleaved DRAM (prefill's layout): **PCC 0.99998** ✓
+- MEM=width-sharded L1 (decode's layout): tt-metal FATAL "Sharded inputs require sharded outputs" (path is finicky/unvalidated on BH).
+Combined with: prefill (decomposed, interleaved-DRAM, 576 rows) works; decode (decomposed, width-sharded-L1, 32 rows) reads uninitialized memory (fresh->constant, reused->nondeterministic garbage). The decode norm test in tt-metal is @skip_for_blackhole.
+⇒ ROOT CAUSE: the DECODE distributed rms norm runs DECOMPOSED on a WIDTH-SHARDED L1 input+stats path that is not correct/validated on Blackhole — it reads uninitialized buffer(s) (likely the sharded stats all_gather / sharded layernorm scratch). Prefill's interleaved-DRAM decomposition is fine.
+TRUE FIX candidates: (a) tt-metal: fix the sharded-L1 distributed-rmsnorm (pre/all_gather/post) path on Blackhole (proper buffer init) + add BH test coverage; (b) tt-mlir: route the decode norm through the interleaved-DRAM decomposition (proven correct here) instead of width-sharded L1 for this shape on Blackhole — a layout fix, not a disable. Repro: ~/tt-xla/dist_rmsnorm_decomposed.py (RMS_MEM=dram|l1); tt-smi -r + ~20s before each run.
