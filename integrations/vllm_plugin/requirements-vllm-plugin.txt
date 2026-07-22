@@ -1,7 +1,2 @@
---extra-index-url https://download.pytorch.org/whl/cpu
 vllm==0.25.1
 transformers==5.14.1
-# torchaudio/torchvision are transitive deps of vllm; pin the +cpu wheels so pip
-# does not pull the CUDA builds (which fail to load against the +cpu torch).
-torchaudio@https://download.pytorch.org/whl/cpu/torchaudio-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
-torchvision@https://download.pytorch.org/whl/cpu/torchvision-0.26.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
