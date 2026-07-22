@@ -2557,8 +2557,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         apply_grammar_options = [True, False]
         # logprobs gates whether the fused graph returns full-vocab logits or a
         # placeholder; the two are distinct executables, so warm both to avoid a
-        # blocking recompile on the first logprobs request.
-        logprobs_options = [False, True]
+        # blocking recompile on the first logprobs request. This split only
+        # matters when logits are vocab-sharded (the placeholder avoids a
+        # full-vocab all_gather). On DP-only / single-device the placeholder is
+        # never used, and compiling the extra logprobs variant breaks the
+        # DP chunked-prefill postprocess graph on device (#5004) -- so warm a
+        # single variant that always returns the real logits, matching main.
+        logprobs_options = [False, True] if self.is_sharded_compute_logits else [False]
         num_tokens_paddings = self.num_tokens_paddings
         if self.tt_config.decode_only:
             num_tokens_paddings = [1]  # Only compile the decode path
@@ -2870,9 +2875,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # reslice around the sharded topk). They are dead downstream unless
         # logprobs are requested (execute_model sets logprobs=None otherwise),
         # so hand back a tiny placeholder and let DCE drop the gather.
+        #
+        # Placeholder only on the vocab-sharded path. On DP-only / single-device
+        # there is no all_gather to drop, and the extra logprobs graph variant
+        # faults the DP chunked-prefill postprocess on device (#5004); return the
+        # real logits there, matching the pre-sharded-sampling behavior.
         logits_out = (
             logits
-            if sampling_metadata.logprobs
+            if (sampling_metadata.logprobs or not self.is_sharded_compute_logits)
             else logits.new_zeros((logits.shape[0], 1))
         )
         return hidden_states, logits_out, selected_token_ids
@@ -2979,10 +2989,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
         # See _model_decode_compiled: drop the dead full-vocab logits output
-        # (and its all_gather) unless logprobs are requested.
+        # (and its all_gather) unless logprobs are requested. Placeholder only on
+        # the vocab-sharded path; on DP-only / single-device return the real
+        # logits (no all_gather to drop, and the extra logprobs variant faults
+        # the DP postprocess on device -- #5004).
         logits_out = (
             logits
-            if sampling_metadata.logprobs
+            if (sampling_metadata.logprobs or not self.is_sharded_compute_logits)
             else logits.new_zeros((logits.shape[0], 1))
         )
         return logits_out, selected_token_ids
