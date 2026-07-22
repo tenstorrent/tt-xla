@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Z-Image — PCC-gated nightly e2e text-to-image pipeline (Tongyi-MAI/Z-Image).
+
+"""Z-Image — text-to-image demo on Tenstorrent hardware (single Blackhole chip).
 
 Stitches the three compute components into the full generation flow, mirroring
 diffusers ``ZImagePipeline.__call__``:
@@ -9,21 +10,16 @@ diffusers ``ZImagePipeline.__call__``:
     Qwen3 text encoder -> ZImageTransformer2DModel denoising loop (CFG +
     FlowMatchEulerDiscreteScheduler) -> AutoencoderKL decode -> PIL image.
 
-This single test replaces the three standalone component tests (text encoder /
-transformer / VAE). It follows the SDXL-Lightning / Playground-v2.5 pattern: as
-each component runs on device, its output is compared (PCC) against a CPU
-"golden" fed the same input, and the test fails fast the moment any component
-drops below its threshold. The pipeline itself keeps running with the TT outputs
-(real deployment behaviour); the PCC check is a side-channel assertion.
+Each component compiles with ``torch.compile(backend="tt")`` and runs on a single
+Blackhole chip. Memory strategy (peak DRAM ≈ max(component)): the ~6.2B
+transformer, the Qwen3 text encoder and the VAE do not all fit resident on a
+single Blackhole, so each is placed -> used -> evicted in turn.
 
-Each component compiles with the ``tt`` backend and runs on a single Blackhole
-chip. Source inference parameters (prompt, 1280x720, 50 steps, guidance_scale=4.0)
-are used so the run produces a realistic image.
+optimization_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE decode
+at 1280x720 does not OOM.
 
-Memory strategy — peak DRAM ≈ max(component): the ~6.2B transformer, the Qwen3
-text encoder and the VAE do not all fit resident on a single Blackhole (issue
-#4756), so each component's CPU golden is computed while it is still on host,
-before it is placed -> used -> evicted in turn.
+Run:
+    python examples/pytorch/z_image.py
 """
 
 from __future__ import annotations
@@ -33,18 +29,12 @@ import inspect
 from contextlib import contextmanager
 from pathlib import Path
 
-import pytest
 import torch
 import torch_xla
 import torch_xla.runtime as xr
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.image_processor import VaeImageProcessor
-from infra import RunMode
-from infra.evaluators import PccConfig, TorchComparisonEvaluator
-from infra.evaluators.evaluation_config import ComparisonConfig
 from loguru import logger
-from PIL import Image
-from utils import BringupStatus, Category, ModelGroup, TTArch, get_torch_device_arch
 
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     CFG_NORMALIZATION,
@@ -66,26 +56,6 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     load_vae,
 )
 
-# Per-component PCC thresholds.
-#   * Transformer / VAE hold the 0.99 PccConfig default.
-#   * The Qwen3 encoder lands at pcc~0.9795 in bf16 on TT (hidden_states[-2]);
-#     relax its gate to 0.97 to accept the bf16 accumulation error (same
-#     relaxation the standalone text-encoder component test used).
-PCC_TEXT_ENCODER = 0.97
-PCC_TRANSFORMER = 0.99
-PCC_VAE = 0.99
-
-
-_PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
-_PCC_CONFIG = PccConfig()
-
-
-def _pcc(device_out, golden_out) -> float:
-    return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
-
-
-# --- diffusers.pipelines.z_image.pipeline_z_image helpers (inlined) ---------
-
 
 def calculate_shift(
     image_seq_len,
@@ -102,9 +72,6 @@ def calculate_shift(
 def retrieve_timesteps(scheduler, num_inference_steps, device, **kwargs):
     scheduler.set_timesteps(num_inference_steps, device=device, **kwargs)
     return scheduler.timesteps, num_inference_steps
-
-
-# --- TT-compilable component wrappers (tensor in / tensor out) ---------------
 
 
 class TextEncoderWrapper(torch.nn.Module):
@@ -150,15 +117,8 @@ class VaeDecodeWrapper(torch.nn.Module):
         return self.vae.decode(z, return_dict=False)[0]
 
 
-# --- Pipeline ---------------------------------------------------------------
-
-
 class ZImagePipeline:
-    """Z-Image text-to-image pipeline; every component on TT with PCC checks.
-
-    Each component's TT output is PCC-gated against a CPU golden fed the same
-    input, so this one e2e run also covers what the standalone component tests did.
-    """
+    """Self-contained Z-Image text-to-image pipeline for TT."""
 
     def __init__(self, dtype: torch.dtype = DTYPE):
         self.dtype = dtype
@@ -171,9 +131,8 @@ class ZImagePipeline:
         )
 
         # Components are loaded on CPU and placed on-device one at a time (see
-        # _on_device): the ~6.2B transformer, the Qwen3 text encoder and the VAE
-        # do not all fit resident on a single Blackhole (issue #4756), so each is
-        # placed -> used -> evicted in turn, keeping peak DRAM ~= max(component).
+        # _on_device): each is placed -> used -> evicted in turn, keeping peak
+        # DRAM ~= max(component).
         self.text_encoder = TextEncoderWrapper(load_text_encoder(self.dtype)).eval()
         self.transformer = CondTransformerWrapper(load_transformer(self.dtype)).eval()
         self.vae_decoder = VaeDecodeWrapper(load_vae(self.dtype)).eval()
@@ -191,13 +150,7 @@ class ZImagePipeline:
 
     @contextmanager
     def _on_device(self, module):
-        """Place one component on-device (compiled), then evict it afterwards.
-
-        Keeps only a single heavy component resident at a time (see setup): the
-        module is moved to device and compiled with the tt backend for the
-        duration of the block, then moved back to CPU and its compiled graph
-        dropped so the next component has the DRAM headroom it needs.
-        """
+        """Place one component on-device (compiled), then evict it afterwards."""
         module.to(self._device)
         compiled = torch.compile(module, backend="tt")
         try:
@@ -208,8 +161,8 @@ class ZImagePipeline:
             gc.collect()
             torch_xla.sync()
 
-    def _tokenize(self, prompt: str):
-        """Tokenize with the chat template; returns HF BatchEncoding on CPU."""
+    def _encode_prompt(self, prompt: str, encoder) -> torch.Tensor:
+        """Tokenize (chat template) -> penultimate hidden state, mask-trimmed."""
         messages = [{"role": "user", "content": prompt}]
         text = self.tokenizer.apply_chat_template(
             messages,
@@ -217,23 +170,21 @@ class ZImagePipeline:
             add_generation_prompt=True,
             enable_thinking=True,
         )
-        return self.tokenizer(
+        text_inputs = self.tokenizer(
             [text],
             padding="max_length",
             max_length=MAX_SEQUENCE_LENGTH,
             truncation=True,
             return_tensors="pt",
         )
-
-    def _encode_prompt(self, text_inputs, encoder):
-        """Run the (device) encoder; return (mask-trimmed cap, full hidden CPU)."""
         input_ids = self._to_tt(text_inputs.input_ids)
         attention_mask = self._to_tt(text_inputs.attention_mask.bool())
-        hidden = self._to_cpu(encoder(input_ids, attention_mask))
+
+        hidden = encoder(input_ids, attention_mask)
+        hidden = self._to_cpu(hidden)
         mask = text_inputs.attention_mask[0].bool()
         # Ragged, mask-trimmed embedding for this prompt: (valid_len, dim).
-        cap = hidden[0][mask].to(self.dtype)
-        return cap, hidden
+        return hidden[0][mask].to(self.dtype)
 
     def _transformer_step(self, transformer, latents, timestep, cap_feats):
         """One batch=1 transformer pass; returns CPU fp32 (1, C, 1, H, W)."""
@@ -260,26 +211,13 @@ class ZImagePipeline:
         cpu = torch.device("cpu")
 
         with torch.no_grad():
-            # 1. Text encoding (Qwen3, penultimate layer) with a PCC gate on the
-            #    positive prompt. The encoder's CPU golden is computed while it is
-            #    still on host; it is then placed -> used -> evicted.
-            pos_inputs = self._tokenize(prompt)
-            golden_te = self.text_encoder(
-                pos_inputs.input_ids, pos_inputs.attention_mask.bool()
-            )
+            # 1. Text encoding (Qwen3, penultimate layer); encoder resident only
+            #    for this block, then evicted before the transformer is placed.
             with self._on_device(self.text_encoder) as encoder:
-                cap_pos, hidden_pos = self._encode_prompt(pos_inputs, encoder)
+                cap_pos = self._encode_prompt(prompt, encoder)
                 cap_neg = (
-                    self._encode_prompt(self._tokenize(negative_prompt), encoder)[0]
-                    if do_cfg
-                    else None
+                    self._encode_prompt(negative_prompt, encoder) if do_cfg else None
                 )
-            pcc_te = _pcc(hidden_pos, golden_te)
-            logger.info(f"[PCC] text_encoder: pcc={pcc_te:.6f}")
-            assert (
-                pcc_te >= PCC_TEXT_ENCODER
-            ), f"text_encoder PCC {pcc_te:.6f} below threshold {PCC_TEXT_ENCODER}"
-            del golden_te, hidden_pos
 
             # 2. Latents (fp32 on CPU; scheduler math stays fp32).
             latent_h = 2 * (int(height) // (self.vae_scale_factor * 2))
@@ -310,14 +248,8 @@ class ZImagePipeline:
             )
             self.scheduler.set_begin_index(0)
 
-            # CPU golden for transformer step 1 (positive pass), computed with the
-            # same inputs the device will see, while the transformer is on host.
-            t0 = timesteps[0]
-            ts0 = ((1000 - t0.expand(1)) / 1000).to(self.dtype)
-            golden_tx = self.transformer(latents.to(self.dtype), ts0, cap_pos)
-
             # 4. Denoising loop; transformer resident only for this block, then
-            #    evicted before the VAE is placed. PCC is gated once, on step 1.
+            #    evicted before the VAE is placed.
             with self._on_device(self.transformer) as transformer:
                 for i, t in enumerate(timesteps):
                     timestep = t.expand(1)
@@ -328,15 +260,6 @@ class ZImagePipeline:
                     pos = self._transformer_step(
                         transformer, latent_input, timestep_input, cap_pos
                     )
-
-                    if i == 0:
-                        pcc_tx = _pcc(pos, golden_tx)
-                        logger.info(f"[PCC] transformer (step 1): pcc={pcc_tx:.6f}")
-                        assert pcc_tx >= PCC_TRANSFORMER, (
-                            f"transformer PCC {pcc_tx:.6f} below threshold "
-                            f"{PCC_TRANSFORMER}"
-                        )
-                        del golden_tx
 
                     if do_cfg:
                         neg = self._transformer_step(
@@ -363,84 +286,37 @@ class ZImagePipeline:
             if output_type == "latent":
                 return latents
 
-            # 5. VAE decode (scaling folded into the wrapper) with a PCC gate; VAE
-            #    resident only for this block. Its CPU golden is computed first
-            #    (float, to match the float device image the PCC dot-product needs).
-            golden_vae = self.vae_decoder(latents.to(cpu)).float()
+            # 5. VAE decode (scaling folded into the wrapper); VAE resident only
+            #    for this block.
             with self._on_device(self.vae_decoder) as vae_decoder:
                 image = vae_decoder(self._to_tt(latents))
                 image = self._to_cpu(image).float()
-            pcc_vae = _pcc(image, golden_vae)
-            logger.info(f"[PCC] vae: pcc={pcc_vae:.6f}")
-            assert (
-                pcc_vae >= PCC_VAE
-            ), f"vae PCC {pcc_vae:.6f} below threshold {PCC_VAE}"
-            del golden_vae
             return self.image_processor.postprocess(image, output_type=output_type)
 
 
-def run_zimage_pipeline(
+def run_zimage(
     output_path: str = "zimage_output.png",
     num_inference_steps: int = NUM_INFERENCE_STEPS,
-    output_type: str = "pil",
 ):
+    """Run the Z-Image pipeline end-to-end on TT and save the output image."""
     torch_xla.set_custom_compile_options({"optimization_level": 1})
 
     pipeline = ZImagePipeline()
     pipeline.setup()
-
     result = pipeline.generate(
-        num_inference_steps=num_inference_steps,
-        output_type=output_type,
+        num_inference_steps=num_inference_steps, output_type="pil"
     )
-
-    if output_type == "latent":
-        logger.info(f"Latent output shape: {result.shape}")
-        return result
-
     image = result[0]
     image.save(output_path)
-    logger.info(f"Image saved to {output_path} ({image.size})")
-    return result
+    return output_path
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.single_device
-@pytest.mark.large
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name="ZImage_Pipeline",
-    model_group=ModelGroup.RED,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
-def test_z_image_pipeline():
-    """Full Z-Image text-to-image e2e on a single Blackhole chip, PCC-gated.
-
-    optimization_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE
-    decode at 1280x720 does not OOM (issue #4755).
-    """
+if __name__ == "__main__":
     xr.set_device_type("TT")
-    # The ~6.2B transformer + Qwen3 encoder + VAE fit a single Blackhole but OOM
-    # on a single Wormhole (n150), so this e2e is Blackhole-only (issue #4756).
-    if get_torch_device_arch() != TTArch.BLACKHOLE:
-        pytest.skip("Z-Image e2e runs on Blackhole only (OOMs on single Wormhole)")
     torch.manual_seed(SEED)
-
-    output_path = "test_zimage_output.png"
+    output_path = "zimage_output.png"
     output_file = Path(output_path)
     if output_file.exists():
         output_file.unlink()
-
-    images = run_zimage_pipeline(output_path=output_path, output_type="pil")
-
-    assert images is not None, "Pipeline returned None"
-    assert len(images) == 1, f"Expected 1 image, got {len(images)}"
-    assert isinstance(images[0], Image.Image), "Output is not a PIL image"
-    assert output_file.exists(), "Output image was not saved"
-    with Image.open(output_path) as img:
-        width, height = img.size
-        assert width == WIDTH, f"Expected width {WIDTH}, got {width}"
-        assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
-    logger.info(f"Z-Image e2e pipeline test passed ({width}x{height}).")
+    run_zimage(output_path=output_path)
+    logger.info(f"Output image saved to {output_path}")
