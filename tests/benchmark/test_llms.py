@@ -1932,6 +1932,59 @@ def test_llama_3_1_70b_tp_qb2(
     )
 
 
+def test_llama_3_1_70b_tp_qb2_2d(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+
+    # Restores the loader's default 2D weight-sharded mesh (2, N//2) that
+    # test_llama_3_1_70b_tp_qb2 used before the #5717 TP-only workaround. This is
+    # the ONLY qb2 model exercising 2D (multi-axis) weight sharding and the fused
+    # distributed_rms_norm on the batch/cluster axis, so it is important CI
+    # coverage. The 2D-mesh first-decode used to explode to PCC ~0 (#5487/#5738);
+    # that was root-caused to the fused distributed_rms_norm reading uninitialized
+    # L1 from "phantom" cores in the bounding box of a non-rectangular width-shard
+    # grid on Blackhole, and fixed in tt-mlir (rectangular shard grid). With the
+    # fix the 2D-mesh decode PCC recovers to ~0.9998.
+    #
+    # We deliberately keep this as a SEPARATE test from the TP-only (1, N) variant
+    # rather than switching that one, so CI keeps both: the TP-only throughput
+    # baseline AND the restored 2D weight-sharded coverage.
+    #
+    # optimization_level is left at 1 to match the pre-#5717 configuration (opt-2
+    # had a separate CI hang on the 2D mesh, tracked independently of #5738); bump
+    # to 2 once that is confirmed resolved.
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # No mesh_config_fn -> loader default (2, N//2) 2D weight-sharded mesh.
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
+        optimization_level=1,
+    )
+
+
 # Excluded from the onPR perf filter (still runs in nightly): slice op requires
 # tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
 def test_gpt_oss_20b_tp_batch_size_1_qb2(

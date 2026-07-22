@@ -170,6 +170,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "llama_3_1_70b_tp_qb2_2d",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2_2d",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "gpt_oss_20b_tp_batch_size_1_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1_qb2",
         "runs-on": "qb2-blackhole"
@@ -213,6 +218,13 @@
       {
         "name": "llama_3_1_70b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2",
+        "runs-on": "qb2-blackhole",
+        "accuracy-testing": true,
+        "batch-size": 16
+      },
+      {
+        "name": "llama_3_1_70b_tp_qb2_2d_accuracy",
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2_2d",
         "runs-on": "qb2-blackhole",
         "accuracy-testing": true,
         "batch-size": 16
