@@ -49,6 +49,7 @@ from .passes import (
     bypass_redundant_getitem,
     clamp_neg_getitem_bounds,
     clamp_neg_slice_bounds,
+    erase_repeat_kv,
     fold_view_bmm_view_to_einsum,
     handle_composite_ops,
     insert_argument_type_markers,
@@ -472,6 +473,14 @@ def torch_pass_pipeline(
             "tt_enable_composite_ops", True
         )
         if enable_composite_ops:
+            # WARNING: erase_repeat_kv rewrites SDPA operands past their repeat_kv
+            # head-expansion. It (and any dynamo-stage pass here) must NOT call
+            # gm.graph.eliminate_dead_code(): torch.fx treats in-place mutations
+            # (Tensor.copy_ KV-cache fills, x[...] = y) as pure and would silently drop
+            # them pre-export, corrupting buffer/cache writes (observed as PCC ~0.3).
+            # There is no automated guard for this -- always verify end-to-end (real
+            # model, PCC) when adding or changing a pass here.
+            erase_repeat_kv(gm)
             handle_composite_ops(gm)
 
         # Non-AOTAutograd path: use torch.export for decompositions.

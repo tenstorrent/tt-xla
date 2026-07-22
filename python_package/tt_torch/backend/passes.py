@@ -351,6 +351,247 @@ def _replace_multi_output_op(gm, node, output_variants):
             gm.graph.erase_node(gi)
 
 
+# SDPA input tensors are laid out [..., num_heads, seq_len, head_dim], so the head
+# axis is the third-from-last dimension.
+_SDPA_HEAD_AXIS_FROM_END = 3
+
+
+def _fx_node_shape(node) -> tuple | None:
+    """Return the static shape of an fx node from its fake-tensor meta, or None."""
+    if not isinstance(node, torch.fx.Node):
+        return None
+    val = node.meta.get("example_value", node.meta.get("val", None))
+    if val is None or not hasattr(val, "shape"):
+        return None
+    try:
+        return tuple(int(d) for d in val.shape)
+    except (TypeError, ValueError):
+        # Symbolic (dynamic) dims are not integers; we can't verify the pattern.
+        return None
+
+
+def _normalize_dim(dim: int, rank: int) -> int:
+    return dim + rank if dim < 0 else dim
+
+
+def _match_unsqueeze_after(node: torch.fx.Node, head_axis: int):
+    """Return src if `node` inserts a single unit dim immediately after head_axis."""
+    # Form 1: advanced-index unsqueeze, e.g. x[:, :, None, :, :]
+    if node.op == "call_function" and node.target is operator.getitem:
+        index = node.args[1]
+        if not isinstance(index, tuple):
+            return None
+        none_positions = [i for i, e in enumerate(index) if e is None]
+        # Exactly one inserted axis, and every other entry must be a full slice
+        # (reject integer/advanced indexing that would drop or reorder dims).
+        if len(none_positions) != 1:
+            return None
+        if any(e is not None and e != slice(None) for e in index):
+            return None
+        if none_positions[0] != head_axis + 1:
+            return None
+        return node.args[0]
+    # Form 2: explicit unsqueeze
+    if node.op == "call_method" and node.target == "unsqueeze":
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim")
+        src_shape = _fx_node_shape(node.args[0])
+        if dim is None or src_shape is None:
+            return None
+        if _normalize_dim(dim, len(src_shape) + 1) == head_axis + 1:
+            return node.args[0]
+    return None
+
+
+def _match_repeat_interleave(node: torch.fx.Node, head_axis: int):
+    """Return src if `node` is a repeat_interleave along the head axis."""
+    is_ri = (node.op == "call_function" and node.target is torch.repeat_interleave) or (
+        node.op == "call_method" and node.target == "repeat_interleave"
+    )
+    if not is_ri:
+        return None
+    dim = node.kwargs.get("dim", node.args[2] if len(node.args) > 2 else None)
+    out_shape = _fx_node_shape(node)
+    # A missing dim means the tensor is flattened first -> not a head repeat.
+    if dim is None or out_shape is None:
+        return None
+    if _normalize_dim(dim, len(out_shape)) != head_axis:
+        return None
+    # `repeats` must be a uniform scalar to match enable_gqa's interleave ordering.
+    # A per-head tensor of repeats can satisfy the output-shape gate while producing
+    # a different head ordering, which would make the enable_gqa substitution wrong.
+    repeats = node.args[1] if len(node.args) > 1 else node.kwargs.get("repeats")
+    if not isinstance(repeats, int):
+        return None
+    return node.args[0]
+
+
+def _match_expand_reshape(node: torch.fx.Node, head_axis: int):
+    """Return src if `node` is an HF-style reshape(expand(unsqueeze(src)))."""
+    if not (node.op == "call_method" and node.target in ("reshape", "view")):
+        return None
+    expand = node.args[0]
+    if not (
+        isinstance(expand, torch.fx.Node)
+        and expand.op == "call_method"
+        and expand.target == "expand"
+    ):
+        return None
+    src = _match_unsqueeze_after(expand.args[0], head_axis)
+    if src is None:
+        return None
+    src_shape = _fx_node_shape(src)
+    exp_shape = _fx_node_shape(expand)
+    unsq_shape = _fx_node_shape(expand.args[0])
+    out_shape = _fx_node_shape(node)
+    if None in (src_shape, exp_shape, unsq_shape, out_shape):
+        return None
+    rank = len(out_shape)
+    # unsqueeze/expand insert exactly one axis right after the head axis.
+    if len(unsq_shape) != rank + 1 or len(exp_shape) != rank + 1:
+        return None
+    if unsq_shape[head_axis + 1] != 1:
+        return None
+    if exp_shape[head_axis] != src_shape[head_axis]:
+        return None
+    n_rep = exp_shape[head_axis + 1]
+    if n_rep <= 1:
+        return None
+    # reshape merges (head, rep) back into head*rep, leaving other dims intact.
+    if out_shape[head_axis] != src_shape[head_axis] * n_rep:
+        return None
+    return src
+
+
+def _uninflated_kv_source(kv_node, query_heads):
+    """
+    If `kv_node` is the output of a grouped-query `repeat_kv` head-expansion, return
+    the pre-expansion source node; otherwise None.
+
+    Only the two expansion forms that reproduce torch's `enable_gqa=True` ordering
+    (interleaved repetition along the head axis) are matched, so that replacing the
+    expansion with `enable_gqa=True` is numerically identical. Tile/`repeat`-style
+    expansion produces a different head ordering and is intentionally not matched.
+
+    The match is gated on head-axis-only integer expansion whose result equals the
+    query head count and whose source head count divides it -- a valid GQA grouping
+    with no other dimension disturbed.
+    """
+    out_shape = _fx_node_shape(kv_node)
+    if out_shape is None or len(out_shape) < _SDPA_HEAD_AXIS_FROM_END:
+        return None
+    rank = len(out_shape)
+    head_axis = rank - _SDPA_HEAD_AXIS_FROM_END
+
+    src = _match_repeat_interleave(kv_node, head_axis) or _match_expand_reshape(
+        kv_node, head_axis
+    )
+    if src is None:
+        return None
+
+    src_shape = _fx_node_shape(src)
+    if src_shape is None or len(src_shape) != rank:
+        return None
+
+    src_heads = src_shape[head_axis]
+    out_heads = out_shape[head_axis]
+    # Head axis must grow by an integer factor; every other dim must be unchanged.
+    if src_heads == 0 or out_heads == src_heads or out_heads % src_heads != 0:
+        return None
+    for i in range(rank):
+        if i != head_axis and src_shape[i] != out_shape[i]:
+            return None
+    # Result must be a valid GQA grouping for this query's head count.
+    if query_heads is None or query_heads % src_heads != 0 or out_heads != query_heads:
+        return None
+    return src
+
+
+def _sdpa_operand(node: torch.fx.Node, pos: int, name: str):
+    """Fetch an SDPA operand that may be passed positionally or by keyword."""
+    if pos < len(node.args):
+        return node.args[pos]
+    return node.kwargs.get(name)
+
+
+def erase_repeat_kv(gm: torch.fx.GraphModule) -> None:
+    """
+    Erase grouped-query `repeat_kv` head-expansion off the key/value operands of
+    scaled_dot_product_attention and set `enable_gqa=True` instead.
+
+    This lets the downstream (composite / ttnn) SDPA consume the non-inflated K/V
+    and broadcast the heads on device, avoiding materialization of the expanded
+    K/V. Only expansions whose head ordering matches torch's `enable_gqa` semantics
+    are removed, so the result is numerically identical. Non-GQA attention with
+    n_rep == 1 never matches (no expansion node), so this is safe to run
+    unconditionally.
+    """
+    sdpa = torch.nn.functional.scaled_dot_product_attention
+    changed = False
+    for node in gm.graph.nodes:
+        if node.op != "call_function" or node.target is not sdpa:
+            continue
+
+        query = _sdpa_operand(node, 0, "query")
+        q_shape = _fx_node_shape(query)
+        q_heads = (
+            q_shape[-_SDPA_HEAD_AXIS_FROM_END]
+            if q_shape is not None and len(q_shape) >= _SDPA_HEAD_AXIS_FROM_END
+            else None
+        )
+
+        # Match key and value independently, but only rewrite if BOTH deflate.
+        # enable_gqa requires key and value to share the same head count, so a
+        # one-sided rewrite (e.g. deflated key + still-expanded value) would
+        # leave SDPA with mismatched K/V heads and produce a wrong/failed result.
+        matched = {}
+        for pos, kw in ((1, "key"), (2, "value")):
+            src = _uninflated_kv_source(_sdpa_operand(node, pos, kw), q_heads)
+            if src is not None:
+                matched[(pos, kw)] = src
+
+        if len(matched) != 2:
+            continue
+
+        src_heads = {
+            _fx_node_shape(src)[-_SDPA_HEAD_AXIS_FROM_END] for src in matched.values()
+        }
+        if len(src_heads) != 1:
+            # Deflated key and value disagree on head count -> not a valid GQA
+            # grouping for enable_gqa; leave the node untouched.
+            continue
+
+        new_args = list(node.args)
+        new_kwargs = dict(node.kwargs)
+        for (pos, kw), src in matched.items():
+            if pos < len(new_args):
+                new_args[pos] = src
+            else:
+                new_kwargs[kw] = src
+
+        new_kwargs["enable_gqa"] = True
+        node.args = tuple(new_args)
+        node.kwargs = new_kwargs
+        changed = True
+        logger.debug(
+            "erase_repeat_kv: erased repeat_kv for SDPA node %s",
+            node.name,
+        )
+
+    if changed:
+        # Do NOT call gm.graph.eliminate_dead_code() here (pre-export). KV-cache
+        # fills are in-place ops (kcache.copy_(k), kcache[:, :, pos] = k) whose
+        # return is unused -- SDPA depends on them through the buffer, not a data
+        # edge. Pre-export fx cannot see this:
+        #   fill = call_method (copy_ / __setitem__)  ->  is_impure() = False
+        #   users = 0  ->  DCE deletes the fill  ->  SDPA reads an empty cache (PCC ~0.3)
+        # No fix in this pass makes DCE safe here; the rule is "nobody sweeps
+        # pre-export". After torch.export / run_decompositions these become real
+        # mutation edges (is_impure() = True), so DCE there cleans up the orphaned
+        # repeat_kv nodes safely.
+        gm.graph.lint()
+        gm.recompile()
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
