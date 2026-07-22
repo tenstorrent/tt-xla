@@ -1,0 +1,22 @@
+----- RUN 1 (reset only before run 1) -----
+2026-07-22 16:13:01.029693: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 16:13:55.865293: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.999835, rel_l2=1.862163e-02, Required=0.94
+PASSED
+================== 1 passed, 16 warnings in 62.93s (0:01:02) ===================
+----- RUN 2 (reset only before run 1) -----
+2026-07-22 16:14:10.815865: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 16:14:55.600259: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.999810, rel_l2=1.962993e-02, Required=0.94
+PASSED
+======================= 1 passed, 16 warnings in 51.81s ========================
+----- RUN 3 (reset only before run 1) -----
+2026-07-22 16:15:09.366260: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 16:15:52.252453: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Prefill PCC=0.999320, rel_l2=3.861543e-02, Required=0.94
+First decode PCC=0.999829, rel_l2=1.872942e-02, Required=0.94
+PASSED
+======================= 1 passed, 16 warnings in 49.90s ========================
+===== VALIDATION DONE =====

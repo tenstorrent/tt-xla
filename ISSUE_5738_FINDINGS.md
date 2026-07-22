@@ -265,3 +265,19 @@ from (or zero-initialized before) the stats reduction, not just credited in the
 ack counter. That would let tt-mlir keep 64 cores on BH. Filed as follow-up; the
 tt-mlir rectangular-grid fix above is the correct, self-contained compiler-side
 fix and is what is validated here.
+
+================================================================================
+## ★★★★★★★★★★ FIX VALIDATED ★★★★★★★★★★
+================================================================================
+Rebuilt tt-mlir + tt-xla with the rectangular-grid fix. Ran the 2D-mesh decode
+(QB2_MESH=2d QB2_OPT=1, --num-layers 1 --pcc-decode) 3x: run 1 on a freshly
+reset device, runs 2-3 on the reused device (the bug was nondeterministic and
+fresh-vs-reused dependent). All three PASS:
+  run 1 (fresh):  Prefill PCC 0.999320 | First decode PCC 0.999835  PASSED
+  run 2 (reused): Prefill PCC 0.999320 | First decode PCC 0.999810  PASSED
+  run 3 (reused): Prefill PCC 0.999320 | First decode PCC 0.999829  PASSED
+Before the fix: decode PCC ~0 / NaN, nondeterministic across runs. After: stable
+~0.9998 on both fresh and reused devices. The uninitialized read is gone.
+On Blackhole the decode norm now uses an 8x4 = 32-core rectangular width-shard
+grid (was 64-core non-rectangular). Wormhole is unchanged (8x8 = 64).
+Log: debug_logs/validation_after_fix.log
