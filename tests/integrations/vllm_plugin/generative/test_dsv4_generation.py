@@ -87,6 +87,15 @@ def test_dsv4_flash_generation():
     if mesh_shape is not None:
         additional_config["mesh_shape"] = mesh_shape
 
+    # Debug: dump per-graph MLIR to DSV4_EXPORT_PATH (keyed by DSV4_EXPORT_NAME)
+    # so the compiled graphs can be inspected op-by-op.
+    export_path = os.environ.get("DSV4_EXPORT_PATH")
+    if export_path:
+        additional_config["export_path"] = export_path
+        additional_config["export_model_name"] = os.environ.get(
+            "DSV4_EXPORT_NAME", "dsv4probe"
+        )
+
     # Optionally run only the first N decoder layers (DSV4_NUM_LAYERS). The
     # plugin overrides num_hidden_layers and filters the checkpoint weights to
     # layers 0..N-1. Unset => full model. The full 43-layer model is very heavy
@@ -109,12 +118,18 @@ def test_dsv4_flash_generation():
     if os.environ.get("DSV4_CPU_SAMPLING") == "1":
         additional_config["cpu_sampling"] = True
 
+    # KV-cache pool is sized to fill (gpu_memory_utilization - model weights).
+    # At low layer counts the model is tiny, so a large fraction becomes KV
+    # blocks, fragmenting DRAM and starving big compressed-decode activations
+    # (a ~685MB/bank C4A reshape OOMs against a 684.5MB largest-free-block).
+    # DSV4_GPU_MEM_UTIL lowers the pool to leave contiguous room for probes.
+    gpu_mem_util = float(os.environ.get("DSV4_GPU_MEM_UTIL", "0.2"))
     llm_args = {
         "model": _CKPT,
         "max_num_batched_tokens": max_model_len,
         "max_num_seqs": 1,
         "max_model_len": max_model_len,
-        "gpu_memory_utilization": 0.2,
+        "gpu_memory_utilization": gpu_mem_util,
         "trust_remote_code": True,
         "additional_config": additional_config,
     }

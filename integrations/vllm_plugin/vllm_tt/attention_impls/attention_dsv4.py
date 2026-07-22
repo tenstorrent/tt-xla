@@ -1446,6 +1446,24 @@ if _DSV4_WRAPPER_AVAILABLE:
                     o_w.permute(0, 2, 1, 3), lse_w.unsqueeze(-1), None, None, sink
                 )
                 return o.permute(0, 2, 1, 3)
+            # No-completed-slot guard (tensor-level, graph-safe). When seq_len <
+            # ratio (e.g. ratio=128, the first ~127 decode steps), the reader's
+            # compressed cache_position = (pos+1)//ratio - 1 is -1: there is no
+            # completed compressed slot to attend to. The paged decode graph is
+            # compiled once with a fixed structure, so we can't host-branch this
+            # away per step; instead we neutralize the branch with tensors:
+            #   * clamp the *kernel* read position to >= 0 so it reads a valid
+            #     slot (0) instead of an out-of-range one -> o_c is finite, not
+            #     the NaN a negative/OOB slot read would yield (NaN*0 = NaN in
+            #     the softmax merge would poison the output -> empty context/BOS);
+            #   * feed the *true* (unclamped) position to _paged_lse so its causal
+            #     mask (j <= cur_pos) drops every slot -> lse_c ~ -inf -> the
+            #     merge gives the compressed branch zero weight (window-only);
+            #   * where() any residual non-finite o_c to 0 as belt-and-suspenders
+            #     (0 weight * 0 value stays 0 regardless of cache init).
+            # For valid positions (>= 0) all three are exact no-ops, so the
+            # steady-state C128A path and the C4A path are unchanged.
+            comp_valid = (comp_md.cache_position >= 0).view(users, 1, 1, 1)
             o_c = torch.ops.tt.paged_flash_mla_decode(
                 query=q4.transpose(0, 1),
                 key=comp_cache,
@@ -1453,10 +1471,11 @@ if _DSV4_WRAPPER_AVAILABLE:
                 page_table=comp_md.page_table,
                 value=None,
                 is_causal=True,
-                cur_pos_tensor=comp_md.cache_position,
+                cur_pos_tensor=comp_md.cache_position.clamp(min=0),
                 attention_sink=None,
                 scale=self.scale,
             ).reshape(users, 1, N, Hd)
+            o_c = torch.where(comp_valid, o_c, torch.zeros_like(o_c))
             lse_c = self._paged_lse(
                 q4, comp_cache, comp_md.page_table, comp_md.cache_position, None
             )
