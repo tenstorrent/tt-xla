@@ -1,0 +1,191 @@
+===== EXPERIMENT decdump  Wed Jul 22 15:26:45 UTC 2026 =====
+QB2_MESH=2d QB2_OPT=1 QB2_KV=default QB2_NORM=shard
+2026-07-22 15:26:47.150 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /home/mvasiljevic/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-6.17.0-35-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'anyio': '4.14.2', 'jaxtyping': '0.3.11', 'metadata': '3.1.1', 'split': '0.11.0', 'json-report': '1.5.0'}}
+rootdir: /home/mvasiljevic/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, anyio-4.14.2, jaxtyping-0.3.11, metadata-3.1.1, split-0.11.0, json-report-1.5.0
+collecting ... collected 1 item
+
+tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2 2026-07-22 15:26:51.505342: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+[#5738] QB2_MESH=2d QB2_OPT=1 QB2_KV=default QB2_NORM=shard
+Running LLM benchmark for variant: 3.1_70B_Instruct
+Configuration:
+    optimization_level=1
+    trace_enabled=True
+    batch_size=32
+    loop_count=1
+    input_sequence_length=128
+    data_format=bfloat16
+    task=text-generation
+    experimental_weight_dtype=bfp_bf8
+    experimental_enable_permute_matmul_fusion=False
+    experimental_kv_cache_dtype=bfp_bf8
+    required_pcc=0.94
+    num_layers=1
+    ttnn_perf_metrics_output_file=tt_xla_llama_3_1_70b_tp_qb2_perf_metrics
+    
+Loading model pytorch_Llama_3.1_70B_Instruct_nlp_causal_lm_huggingface...
+Loading weights:   0%|          | 0/12 [00:00<?, ?it/s]Loading weights: 100%|██████████| 12/12 [00:00<00:00, 29659.19it/s]
+[1mLlamaForCausalLM LOAD REPORT[0m from: meta-llama/Meta-Llama-3.1-70B-Instruct
+Key                                                       | Status     |  | 
+----------------------------------------------------------+------------+--+-
+model.layers.{1, 78, 79}.self_attn.q_proj.weight          | UNEXPECTED |  | 
+model.layers.{1, 78, 79}.self_attn.v_proj.weight          | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.input_layernorm.weight          | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.post_attention_layernorm.weight | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.mlp.down_proj.weight            | UNEXPECTED |  | 
+model.layers.{1, 77, 78, 79}.mlp.gate_proj.weight         | UNEXPECTED |  | 
+model.layers.{1, 77, 78, 79}.self_attn.o_proj.weight      | UNEXPECTED |  | 
+model.layers.{77, 78, 79}.mlp.up_proj.weight              | UNEXPECTED |  | 
+model.layers.{1, 78, 79}.self_attn.k_proj.weight          | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-07-22 15:26:54.778947: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+TTNNCollectPerfMetrics: skipping ttnn.scaled_dot_product_attention — dynamic attention mask present
+2026-07-22 15:27:37.739526: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+TTNNCollectPerfMetrics: perf target estimate requires a single-chip system desc; got 4 chips. Skipping.
+[OPDUMP] prog=trace_1_main loc("add.9")                             | maxabs=0 naninf=0 ndev=4 vol=4
+[OPDUMP] prog=trace_1_main loc("add.19")                            | maxabs=0 naninf=0 ndev=4 vol=4
+[OPDUMP] prog=trace_1_main loc("convert.43")                        | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("convert.43")                        | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("gather.44")                         | maxabs=0.04492 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.78")                    | maxabs=0.04492 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.78")                    | maxabs=0.04492 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.78")                    | maxabs=2.908e+36 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.78")                    | maxabs=2.908e+36 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.78")                    | maxabs=2.908e+36 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.80")                            | maxabs=7.311e+36 naninf=0 ndev=4 vol=655360
+[OPDUMP] prog=trace_1_main loc("dot.284")                           | maxabs=7.311e+36 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.136")                           | maxabs=5.608e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.80")                            | maxabs=1.35e+35 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.80_reshape_to_4d"("dot.80"))    | maxabs=1.35e+35 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.80_all_reduce_4d"("dot.80"))    | maxabs=2.401e+35 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("scatter.105")                       | maxabs=2.401e+35 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("scatter.105")                       | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("scatter.105")                       | maxabs=2.401e+35 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.136_reshape_to_4d"("dot.136"))  | maxabs=5.608e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.136_all_reduce_4d"("dot.136"))  | maxabs=7.602e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("convert.111")                       | maxabs=18 naninf=0 ndev=4 vol=4
+[OPDUMP] prog=trace_1_main loc("convert.111")                       | maxabs=18 naninf=0 ndev=4 vol=4
+[OPDUMP] prog=trace_1_main loc("dot.122")                           | maxabs=18 naninf=0 ndev=4 vol=256
+[OPDUMP] prog=trace_1_main loc("concatenate.124")                   | maxabs=18 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("cosine.148")                        | maxabs=1 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("convert.151")                       | maxabs=1 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("sine.125")                          | maxabs=0.9995 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("convert.128")                       | maxabs=1 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("add.158")                           | maxabs=7.602e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("add.158")                           | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("add.158")                           | maxabs=7.602e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("add.158")                           | maxabs=7.602e+36 naninf=0 ndev=4 vol=65536
+[OPDUMP] prog=trace_1_main loc("dot.284_reshape_to_4d"("dot.284"))  | maxabs=7.311e+36 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.284_all_reduce_4d"("dot.284"))  | maxabs=1.001e+37 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("broadcast.258")                     | maxabs=0 naninf=0 ndev=4 vol=4
+[OPDUMP] prog=trace_1_main loc("compare.259")                       | maxabs=1 naninf=0 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("select.264")                        | maxabs=inf naninf=1 ndev=4 vol=512
+[OPDUMP] prog=trace_1_main loc("select.264")                        | maxabs=inf naninf=1 ndev=4 vol=16384
+[OPDUMP] prog=trace_1_main loc("convert.307")                       | maxabs=inf naninf=1 ndev=4 vol=16384
+[OPDUMP] prog=trace_1_main loc("add.300")                           | maxabs=1.001e+37 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("add.300")                           | maxabs=1.001e+37 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("dot.366")                           | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("convert.368")                       | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("convert.368")                       | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("convert.368")                       | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("convert.368_mem_reconfig"("convert.368")) | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("convert.368")                       | maxabs=1.136e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.372")                           | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.372_reshape_to_4d"("dot.372"))  | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.372_all_reduce_4d"("dot.372"))  | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.372_reshape_back"("dot.372"))   | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("add.376")                           | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.409")                   | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.409")                   | maxabs=2.791e+34 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.409")                   | maxabs=7.944e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.409")                   | maxabs=7.944e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.409")                   | maxabs=7.944e+35 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.422")                           | maxabs=5.322e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.422_reshape_to_4d"("dot.422"))  | maxabs=5.322e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.422_all_reduce_4d"("dot.422"))  | maxabs=1.018e+36 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.422_reshape_back"("dot.422"))   | maxabs=1.018e+36 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("multiply.426")                      | maxabs=8.723e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.411")                           | maxabs=4.517e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.411_reshape_to_4d"("dot.411"))  | maxabs=4.517e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.411_all_reduce_4d"("dot.411"))  | maxabs=8.515e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.411_reshape_back"("dot.411"))   | maxabs=8.515e+35 naninf=0 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("multiply.428")                      | maxabs=inf naninf=1 ndev=4 vol=1835008
+[OPDUMP] prog=trace_1_main loc("dot.430")                           | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.430_reshape_to_4d"("dot.430"))  | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.430_all_reduce_4d"("dot.430"))  | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.430_reshape_back"("dot.430"))   | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("add.434")                           | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.467")                   | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.467")                   | maxabs=inf naninf=1 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.467")                   | maxabs=2.248e+20 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.467")                   | maxabs=2.248e+20 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("custom-call.467")                   | maxabs=2.248e+20 naninf=0 ndev=4 vol=524288
+[OPDUMP] prog=trace_1_main loc("dot.469")                           | maxabs=4.22e+20 naninf=0 ndev=4 vol=8208384
+[OPDUMP] prog=trace_1_main loc("dot.469_reshape_to_4d"("dot.469"))  | maxabs=4.22e+20 naninf=0 ndev=4 vol=8208384
+[OPDUMP] prog=trace_1_main loc("dot.469_all_reduce_4d"("dot.469"))  | maxabs=6.041e+20 naninf=0 ndev=4 vol=8208384
+[OPDUMP] prog=trace_1_main loc("reshape.470")                       | maxabs=6.041e+20 naninf=0 ndev=4 vol=8208384
+[OPDUMP] prog=trace_1_main loc("reshape.470")                       | maxabs=6.041e+20 naninf=0 ndev=4 vol=16416768
+[OPDUMP] prog=trace_1_main loc("reshape.470")                       | maxabs=6.041e+20 naninf=0 ndev=4 vol=16416768
+[OPDUMP] prog=trace_1_main loc("reduce.501")                        | maxabs=0 naninf=0 ndev=4 vol=128
+[OPDUMP] prog=trace_1_main loc("reshape.473")                       | maxabs=0 naninf=0 ndev=4 vol=128
+2026-07-22 15:27:39.218 | critical |          Always | TT_FATAL: Event Synchronization is not supported during trace capture. (assert.hpp:104)
+2026-07-22 15:27:39.232 (  52.081s) [        BAFFD6C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /home/mvasiljevic/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/distributed/fd_mesh_command_queue.cpp:909: !trace_id_.has_value()
+info:
+Event Synchronization is not supported during trace capture.
+backtrace:
+ --- /home/mvasiljevic/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x1a7428) [0x71fa8e5a7428]
+ --- tt::tt_metal::distributed::FDMeshCommandQueue::enqueue_record_event_helper(std::span<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> const, 18446744073709551615ul>, bool, std::optional<tt::tt_metal::distributed::MeshCoordinateRange> const&)
+ --- tt::tt_metal::distributed::FDMeshCommandQueue::enqueue_record_event_to_host_nolock(std::span<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> const, 18446744073709551615ul>, std::optional<tt::tt_metal::distributed::MeshCoordinateRange> const&)
+ --- tt::tt_metal::distributed::FDMeshCommandQueue::finish_nolock(std::span<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> const, 18446744073709551615ul>)
+ --- tt::tt_metal::distributed::FDMeshCommandQueue::finish(std::span<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> const, 18446744073709551615ul>)
+ --- tt::tt_metal::distributed::Synchronize(tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned char>, std::span<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> const, 18446744073709551615ul>)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::operations::mlir_native::run(tt::target::ttnn::FuncCallOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- /home/mvasiljevic/tt-xla/third_party/tt-mlir/install/lib/libTTMLIRRuntime.so(+0x2ab4a9) [0x71fa8e6ab4a9]
+ --- tt::runtime::ttnn::operations::trace::run(tt::target::ttnn::CaptureOrExecuteTraceOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+ --- /home/mvasiljevic/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6dfedcc) [0x71faa7bfedcc]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /home/mvasiljevic/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x116a3e92) [0x71fab24a3e92]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x71fafa249aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(__clone+0x44) [0x71fafa2d6a64]
+}
+
+./run_qb2_experiment.sh: line 15: 182371 Killed                  python -m pytest -svv "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2" --num-layers 1 --pcc-decode "$@" 2>&1
+     182372 Done                    | tee -a "$LOG"
+===== DONE decdump rc=137 Wed Jul 22 15:35:42 UTC 2026 =====
+--- PCC lines ---
+    required_pcc=0.94
+2026-07-22 15:26:54.778947: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 15:27:37.739526: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-07-22 15:27:39.218 | critical |          Always | TT_FATAL: Event Synchronization is not supported during trace capture. (assert.hpp:104)
+--- PCC lines ---

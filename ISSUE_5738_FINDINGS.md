@@ -173,3 +173,95 @@ Standalone decomposed norm (rms_norm_pre_all_gather + all_gather(cluster_axis=0,
 Combined with: prefill (decomposed, interleaved-DRAM, 576 rows) works; decode (decomposed, width-sharded-L1, 32 rows) reads uninitialized memory (fresh->constant, reused->nondeterministic garbage). The decode norm test in tt-metal is @skip_for_blackhole.
 ⇒ ROOT CAUSE: the DECODE distributed rms norm runs DECOMPOSED on a WIDTH-SHARDED L1 input+stats path that is not correct/validated on Blackhole — it reads uninitialized buffer(s) (likely the sharded stats all_gather / sharded layernorm scratch). Prefill's interleaved-DRAM decomposition is fine.
 TRUE FIX candidates: (a) tt-metal: fix the sharded-L1 distributed-rmsnorm (pre/all_gather/post) path on Blackhole (proper buffer init) + add BH test coverage; (b) tt-mlir: route the decode norm through the interleaved-DRAM decomposition (proven correct here) instead of width-sharded L1 for this shape on Blackhole — a layout fix, not a disable. Repro: ~/tt-xla/dist_rmsnorm_decomposed.py (RMS_MEM=dram|l1); tt-smi -r + ~20s before each run.
+
+================================================================================
+## ★★★★★★★★★★ DEFINITIVE ROOT CAUSE (issue #5738) ★★★★★★★★★★
+================================================================================
+
+### Which op reads the uninitialized buffer
+Per-op magnitude dump of the DECODE program (`trace_1_main`) on a fresh device
+(TTXLA_OP_DUMP=1 TTXLA_OP_DUMP_PROG=trace_1_main). Execution order:
+  1  add.9          maxabs 0
+  ...
+  5  gather.44      maxabs 0.04492   (token embedding lookup — GOOD)
+  6  custom-call.78 maxabs 0.04492   (norm, first partial reads — GOOD)
+  8  custom-call.78 maxabs 2.908e+36 (norm, later reads — GARBAGE)
+  11 dot.80         maxabs 7.3e+36   (everything downstream is now garbage)
+==> **The FIRST op to emit garbage is `custom-call.78` — the first RMSNorm**,
+    executed immediately after the token-embedding gather. Its output is
+    PARTIALLY correct (0.04492, matching the input magnitude) and PARTIALLY
+    garbage (2.9e36) — the exact signature of a partially-uninitialized read.
+    All subsequent explosions (dot/add/select NaN) are downstream fallout.
+
+### Correction to earlier notes
+The DECODE norm is **NOT decomposed**. The decode ttnn IR
+(codegen_2d/graph_1/ttnn.mlir:325) is the **FUSED** op:
+  `ttnn.distributed_rms_norm(... cluster_axis=0,
+     program_config = layernorm_sharded_multicore<grid=<11,6>, block_w=2, ...>)`
+  input/output = #ttnn_layout59 (width-sharded L1).
+(Only the PREFILL norm — graph_0 — is decomposed on interleaved DRAM; that path
+is correct. Earlier "model runs decomposed" applied to prefill.)
+
+### The exact defect — phantom cores in a non-rectangular shard grid
+`#ttnn_layout59` (decode norm in/out):
+  width_sharded, grid <1x64>, shard <1x2 tiles> in L1,
+  core_ranges = [ (0,0)-(10,4) , (0,5)-(8,5) ]  = 55 + 9 = **64 cores**.
+But the fused kernel's compute grid + all-gather semaphore =
+  core_range (0,0)-(10,5) = 11x6 = **66 cores** (the BOUNDING BOX of the shards).
+
+The 64 shard cores form a NON-RECTANGULAR region (5 full rows of 11 + a partial
+6th row of 9). Its bounding box is the 66-core rectangle. The 2 leftover cells
+**(9,5) and (10,5)** are "phantom cores": inside the compute/mcast rectangle but
+holding NO shard data -> their L1 is uninitialized.
+
+tt-metal confirms it multicasts/reduces over the whole rectangle
+(`rms_allgather_program_factory.cpp:288-296`):
+  "num_mcast_dests = num_cores_x * num_cores_y ... the full rectangle, which may
+   be larger than num_blocks (the shard worker count) when the shard grid is
+   non-rectangular." (They credited the NoC ack counter for the rectangle to
+   avoid a hang, but the phantom cores still participate in the STATS reduction
+   with uninitialized L1.)
+
+RMS-norm reduces sum(x^2) across ALL cores in the grid; the 2 phantom cores
+inject uninitialized partial-stats into that reduction -> the 1/rms denominator
+is corrupted -> the whole normalized output is garbage. Fresh device -> phantom
+L1 is a constant (=> constant/denominator-zero output); reused device -> varying
+prior contents (=> nondeterministic ~1e19..1e36). Matches every symptom
+(nondeterminism, keep-alive "fix", fresh-vs-reused difference).
+
+### Why Blackhole-only (and why the model "worked before")
+The shard count is chosen in tt-mlir
+(DistributedRMSNormWidthShardInputRewritePattern.cpp) as the largest divisor of
+numWidthTiles (=4096/32 = 128) that is <= the physical core count, then placed
+canonically (row-major, wrapping at the grid WIDTH):
+  * Wormhole grid 8x8=64 -> numCores=64 -> fills an 8x8 rectangle EXACTLY.
+    Bounding box == shard set. No phantom cores. CORRECT.
+  * Blackhole grid 11x6=66 -> largest divisor of 128 that is <=66 is 64 ->
+    64 cores wrap to 55+9 -> non-rectangular -> 66-core bbox -> 2 phantom cores.
+    BROKEN.
+64 cannot form ANY rectangle inside an 11x6 grid (64's divisors <=11 are
+1,2,4,8, whose partners 64,32,16,8 all exceed 6 rows). So the geometry itself is
+the trap. This is also why the tt-metal decode distributed-rms-norm test is
+`@skip_for_blackhole` — the fused sharded path was never validated on BH.
+
+### THE FIX (tt-mlir, true fix — keeps the fused op, no disabling)
+File: lib/Dialect/TTNN/Transforms/Workarounds/Decomposition/
+      DistributedRMSNormWidthShardInputRewritePattern.cpp
+Instead of "largest divisor, canonical wrap", choose a **rectangular** core grid
+(gridW x gridH) that (a) fits the physical worker grid, (b) divides numWidthTiles
+evenly, (c) maximizes core count; and set that rectangle as an EXPLICIT
+CoreRangeSet (not canonical placement). The shard cores then fill their bounding
+box exactly on every arch, so num_mcast_dests == worker count -> no phantom
+cores -> no uninitialized read.
+  * Blackhole 128 tiles, 11x6 grid -> 8x4 = 32 cores (block_w=4). Rectangular.
+  * Wormhole  128 tiles, 8x8  grid -> 8x8 = 64 cores (unchanged). No regression.
+The fix only changes cases where the old canonical placement was already
+non-rectangular (i.e. exactly the buggy configs).
+
+### Alternative / deeper fix (tt-metal)
+The most fundamental fix belongs in `rms_allgather_program_factory.cpp`: when the
+shard grid is non-rectangular, the phantom cores in the bbox must be excluded
+from (or zero-initialized before) the stats reduction, not just credited in the
+ack counter. That would let tt-mlir keep 64 cores on BH. Filed as follow-up; the
+tt-mlir rectangular-grid fix above is the correct, self-contained compiler-side
+fix and is what is validated here.
