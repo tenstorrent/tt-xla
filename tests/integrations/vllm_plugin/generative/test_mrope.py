@@ -12,7 +12,7 @@ def test_mrope():
     prompts = [
         "Continue in English: I like taking walks in the",
     ]
-    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=48)
     model_name = "Qwen/Qwen2-VL-2B-Instruct"
     model_name = "Qwen/Qwen3.6-27B"
 
@@ -20,13 +20,17 @@ def test_mrope():
         "model": model_name,
         "max_num_batched_tokens": 512,
         "max_num_seqs": 1,
-        "max_model_len": 32,
+        "max_model_len": 128,
         "gpu_memory_utilization": 0.2,
         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
         "additional_config": {
-            "min_context_len": 32,
+            "min_context_len": 128,
             "enable_tensor_parallel": True,
             "use_2d_mesh": True,
+            "mesh_shape": [8, 4],
+            # opt_level=1 exceeds the Blackhole SDPA tree-reduction limit
+            # (tt-mlir#9007).
+            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
