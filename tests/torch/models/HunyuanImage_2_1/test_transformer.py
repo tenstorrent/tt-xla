@@ -11,6 +11,7 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.utilities.torch_multichip_utils import get_mesh
 
+from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
     ModelLoader,
     ModelVariant,
@@ -25,12 +26,14 @@ def test_transformer():
 
 
 @pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4780"
+    reason="Out of Memory: Not enough space to allocate 117440512 B DRAM buffer across 12 banks, where each bank needs to store 9787392 B, but bank size is 1070773184 B - https://github.com/tenstorrent/tt-xla/issues/5608"
 )
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
-def test_transformer_sharded():
+def test_transformer_sharded(monkeypatch):
+    # Opt in to catching the SDPA composite for bool masks (auto-restored after test).
+    monkeypatch.setenv("TT_XLA_CATCH_BOOL_MASK_SDPA", "1")
     _run(sharded=True)
 
 
@@ -39,8 +42,8 @@ def _run(sharded: bool):
     torch.manual_seed(42)
 
     loader = ModelLoader(ModelVariant.TRANSFORMER)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     mesh = None
     shard_spec_fn = None
@@ -57,4 +60,5 @@ def _run(sharded: bool):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
+        compiler_config=CompilerConfig(optimization_level=1),
     )

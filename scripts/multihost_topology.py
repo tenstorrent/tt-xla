@@ -100,9 +100,9 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
     ),
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="dual_bh_quietbox",
-        controller_host_name="forge-qbae-01",
-        hosts_list="forge-qbae-01,forge-qbae-02",
-        tt_distributed_tcp_iface="enp10s0f1np1",
+        controller_host_name="qb-gh03",
+        hosts_list="qb-gh03,qb-gh04",
+        tt_distributed_tcp_iface="enp201s0",
     ),
     "dual_t3k": MultihostConfiguration(
         rank_binding="dual_t3k",
@@ -115,6 +115,15 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         controller_host_name="bh-lb-12",
         hosts_list="bh-lb-12,bh-lb-13",
         tt_distributed_tcp_iface="",
+    ),
+    # Single-host, multi-process topology (e.g. n300-llmbox running 2x4).
+    # All ranks live on one host, so there is no controller hostname, no hosts
+    # list, and no remote SSH agent: the distributed runtime spawns the local
+    # worker processes itself via TT_DISTRIBUTED_WORKER_PATH.
+    "n300_llmbox": MultihostConfiguration(
+        rank_binding="2x4_multiprocess",
+        controller_host_name="",
+        remote_script_name="",
     ),
 }
 
@@ -204,8 +213,13 @@ def get_env_vars(topology: str, script_dir: Path) -> Dict[str, str]:
         "TT_RUNTIME_ENABLE_DISTRIBUTED": "1",
         "TT_DISTRIBUTED_WORKER_PATH": get_distributed_worker_path(),
         "TT_DISTRIBUTED_RANK_BINDING": topo.rank_binding,
-        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
     }
+
+    # Single-host topologies have no controller hostname; only export it when set
+    # so the runtime falls back to its local default (matches the behavior of the
+    # standalone launcher that never set this var for single-host runs).
+    if topo.controller_host_name:
+        env_vars["TT_DISTRIBUTED_CONTROLLER_HOST_NAME"] = topo.controller_host_name
 
     if topo.tt_distributed_tcp_iface:
         env_vars["TT_DISTRIBUTED_TCP_IFACE"] = topo.tt_distributed_tcp_iface

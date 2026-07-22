@@ -59,7 +59,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            # Use the live transformers.Cache, not the module-level import.
+            # Per-model requirements swaps reload transformers, so a static
+            # isinstance check would miss the model's reloaded cache class.
+            import transformers
+
+            if isinstance(tensor, transformers.Cache):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.

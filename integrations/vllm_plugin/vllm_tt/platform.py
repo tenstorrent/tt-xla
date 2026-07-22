@@ -58,6 +58,16 @@ class TTConfig:
     # If unset, it resolves to scheduler_config.max_num_seqs.
     min_num_seqs: Optional[int] = None
 
+    # Maximum request-batch size for *prefill* compilation and tracing.
+    # When set to a value smaller than max_num_seqs, prefill graphs compile
+    # and trace at this batch shape instead of max_num_seqs. With
+    # enable_trace=True, each traced bucket keeps its peak activations
+    # resident in DRAM; capping prefill here is the primary knob for
+    # reducing prefill DRAM footprint. Decode is unaffected (always
+    # compiles at max_num_seqs). Must satisfy min_num_seqs <=
+    # max_prefill_num_seqs <= max_num_seqs. Defaults to max_num_seqs.
+    max_prefill_num_seqs: Optional[int] = None
+
     # b1-prefill batch threshold. When <= this many prefills are
     # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
     # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
@@ -118,6 +128,17 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience in a model config or test. It is a GRAPH-WIDE override applied
+    # to every matmul, including tiny index-arithmetic matmuls (e.g. the per-user
+    # last-token gather that lowers to `flat_index = indices @ strides` ->
+    # embedding). Forcing bf16 destination accumulation there rounds flat
+    # indices >= 512 to the wrong value -> wrong gathered row -> wrong logits ->
+    # per-user divergence in batched greedy decoding (tt-xla #5116). Unset is
+    # better for accuracy: ttnn picks fp32 accumulation for fp32-output ops
+    # (exact index math) and bf16 for bf16 compute matmuls (no memory
+    # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Override the on-device KV cache element dtype.
@@ -155,9 +176,17 @@ class TTConfig:
     use_2d_mesh: bool = True
 
     # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
-    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # execution. When None, use_2d_mesh / parallel_mode determine the shape.
     # When set, it overrides use_2d_mesh.
     mesh_shape: Optional[list[int]] = None
+
+    # When True, weight partition specs include the "batch" (DP) axis —
+    # FSDP-style sharding that saves memory at the cost of extra communication.
+    # When False (default), weights are sharded only on the "model" (TP) axis
+    # and replicated across DP replicas (classic DP+TP), which incurs fewer
+    # CCLs. Enable batch-axis sharding only for models that otherwise don't fit
+    # on a machine.
+    shard_weights_on_batch_axis: bool = False
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
@@ -254,6 +283,21 @@ class TTPlatform(Platform):
         raise NotImplementedError
 
     @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
+
+    @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
 
@@ -316,18 +360,40 @@ class TTPlatform(Platform):
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
-        if tt_config.min_num_seqs is None:
-            additional_config["min_num_seqs"] = (
-                vllm_config.scheduler_config.max_num_seqs
+
+        max_num_seqs = vllm_config.scheduler_config.max_num_seqs
+
+        # Resolve/validate max_prefill_num_seqs first so min_num_seqs can default to it.
+        if tt_config.max_prefill_num_seqs is None:
+            additional_config["max_prefill_num_seqs"] = max_num_seqs
+            tt_config.max_prefill_num_seqs = additional_config["max_prefill_num_seqs"]
+        elif tt_config.max_prefill_num_seqs < 1:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= 1 for the TT backend."
             )
+        elif tt_config.max_prefill_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # Resolve/validate min_num_seqs after max_prefill_num_seqs.
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = tt_config.max_prefill_num_seqs
             tt_config.min_num_seqs = additional_config["min_num_seqs"]
         elif tt_config.min_num_seqs < 1:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
             )
-        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+        elif tt_config.min_num_seqs > max_num_seqs:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        if tt_config.max_prefill_num_seqs < tt_config.min_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= min_num_seqs "
                 "for the TT backend."
             )
 
@@ -550,3 +616,10 @@ class TTPlatform(Platform):
             max_model_len,
         )
         return max_model_len
+
+    @classmethod
+    def manual_seed_all(cls, seed: int) -> None:
+        """Set RNG seed across all devices for the current platform. Set in
+        worker after initializing the device.
+        """
+        return
