@@ -128,6 +128,17 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience in a model config or test. It is a GRAPH-WIDE override applied
+    # to every matmul, including tiny index-arithmetic matmuls (e.g. the per-user
+    # last-token gather that lowers to `flat_index = indices @ strides` ->
+    # embedding). Forcing bf16 destination accumulation there rounds flat
+    # indices >= 512 to the wrong value -> wrong gathered row -> wrong logits ->
+    # per-user divergence in batched greedy decoding (tt-xla #5116). Unset is
+    # better for accuracy: ttnn picks fp32 accumulation for fp32-output ops
+    # (exact index math) and bf16 for bf16 compute matmuls (no memory
+    # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Override the on-device KV cache element dtype.
@@ -270,6 +281,21 @@ class TTPlatform(Platform):
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
         raise NotImplementedError
+
+    @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:

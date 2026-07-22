@@ -86,6 +86,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "flux1",
+        "pytest": "tests/benchmark/test_imagegen.py::test_flux",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
       },
@@ -93,6 +98,16 @@
         "name": "janus_pro_7b",
         "runs-on": ["p150-perf"],
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b"
+      },
+      {
+        "name": "zimage",
+        "pytest": "tests/benchmark/test_imagegen.py::test_zimage",
+        "runs-on": "p150-perf"
+      },
+      {
+        "name": "glm_image",
+        "pytest": "tests/benchmark/test_imagegen.py::test_glm_image",
+        "runs-on": "qb2-blackhole"
       },
       {
         "name": "bge_m3_encode",

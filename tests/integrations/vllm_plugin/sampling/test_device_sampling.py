@@ -133,7 +133,6 @@ def vllm_n300_llmbox():
         additional_config={
             **_DEVICE_OPTS,
             "enable_tensor_parallel": True,
-            "optimization_level": 0,
         },
     )
 

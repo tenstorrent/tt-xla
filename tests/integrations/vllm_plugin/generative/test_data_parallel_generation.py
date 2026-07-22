@@ -7,8 +7,10 @@ enable_data_parallel=True / enable_tensor_parallel=False builds an SPMD mesh
 (dp_size, 1): weights replicated, the input batch sharded on the "batch" axis
 so each replica sees a disjoint subset of sentences.
 """
+
 import pytest
 import vllm
+from chunked_prefill_data import CHUNKED_PREFILL_PROMPT
 from conftest import assert_output_coherent, check_host_memory
 
 
@@ -32,8 +34,6 @@ def test_data_parallel_generation_n300_tight(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -74,8 +74,6 @@ def test_data_parallel_generation_n300_wider_batch(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -88,6 +86,43 @@ def test_data_parallel_generation_n300_wider_batch(model_name: str):
         assert_output_coherent(text)
 
     check_host_memory(model_name)
+
+
+@pytest.mark.push
+@pytest.mark.data_parallel
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
+def test_data_parallel_chunked_prefill_n300(model_name: str):
+    """Chunked prefill under DP on n300 (tt-xla #4986/#5691).
+
+    Each DP replica prefills its own sentence; prefill_chunk_size << prompt
+    length splits each into several block-aligned chunks so both replicas run
+    the cached-prefix chunked-SDPA path in parallel. Greedy for determinism;
+    coherence per replica catches a corrupted cached-prefix or a DP hang.
+    """
+    prompts = [CHUNKED_PREFILL_PROMPT, CHUNKED_PREFILL_PROMPT]
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": 2,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "min_context_len": 128,
+            "enable_data_parallel": True,
+            # Opt in to chunked prefill; platform.py derives
+            # max_num_batched_tokens from this.
+            "prefill_chunk_size": 128,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    for i, out in enumerate(outputs):
+        text = out.outputs[0].text
+        print(f"replica {i}: {text}")
+        assert_output_coherent(text)
 
 
 @pytest.mark.push
@@ -111,8 +146,6 @@ def test_data_parallel_generation_llmbox_padding(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -153,8 +186,6 @@ def test_data_parallel_generation_llmbox_tight(model_name: str):
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
-            # Qwen3-0.6B fails to compile some DP configs at opt_level=1.
-            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)

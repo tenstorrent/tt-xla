@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 from torch.overrides import TorchFunctionMode
+from tt_torch.slice_bounds import clamp_neg_slice_key
 
 
 def _unflatten_to_shape(
@@ -94,6 +95,19 @@ def _unfold_via_gather(
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
         kwargs = kwargs or {}
+
+        # Clamp OOB negative slices on the eager XLA path (tt-xla #4465); the
+        # traced path is handled by clamp_neg_slice_bounds / clamp_neg_getitem_bounds.
+        if (
+            func.__name__ == "__getitem__"
+            and not torch.compiler.is_compiling()
+            and len(args) >= 2
+            and isinstance(args[0], torch.Tensor)
+            and args[0].device.type == "xla"
+        ):
+            new_key, changed = clamp_neg_slice_key(args[0].shape, args[1])
+            if changed:
+                args = (args[0], new_key, *args[2:])
 
         if func.__name__ == "unflatten":
             tensor = args[0]

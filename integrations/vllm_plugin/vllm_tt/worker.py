@@ -102,12 +102,6 @@ class TTWorker:
         else:
             self.cache_dtype = STR_DTYPE_TO_TORCH_DTYPE[self.cache_config.cache_dtype]
 
-        if self.model_config.trust_remote_code:
-            # note: lazy import to avoid importing torch before initializing
-            from vllm.utils.import_utils import init_cached_hf_modules
-
-            init_cached_hf_modules()
-
         # Delay profiler initialization to the start of the profiling.
         # This is because in vLLM V1, MP runtime is initialized before the
         # TT Worker is initialized. The profiler server needs to start after
@@ -208,6 +202,37 @@ class TTWorker:
         if bytes_val <= 0:
             return self._DEFAULT_DEVICE_DRAM_BYTES
         return bytes_val
+
+    def get_device_info(self) -> dict:
+        """Report the TT device info this worker sees, for benchmark metadata.
+
+        Reads the same PJRT runtime attributes as ``_get_device_dram_bytes``.
+        ``device_count`` is the real chip count from the runtime, not
+        ``world_size`` (which is forced to 1 under SPMD, where a single worker
+        drives all chips). ``mesh_shape`` is read from the model runner after
+        it resolves the configured parallel mode and optional explicit mesh.
+        """
+        arch = ""
+        device_count = 1
+        try:
+            attrs = xr.global_runtime_device_attributes()
+            if attrs:
+                arch = str(attrs[0].get("device_arch", ""))
+                device_count = len(attrs)
+            else:
+                device_count = xr.global_runtime_device_count()
+        except Exception as e:
+            logger.warning("get_device_info: could not read device attributes (%s)", e)
+
+        mesh = getattr(self.model_runner, "mesh", None)
+        mesh_shape = (
+            tuple(int(dim) for dim in mesh.mesh_shape) if mesh is not None else None
+        )
+        return {
+            "arch": arch,
+            "device_count": max(int(device_count), 1),
+            "mesh_shape": mesh_shape,
+        }
 
     def determine_available_memory(self) -> int:
         if self.model_config.runner_type == "pooling":

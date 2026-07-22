@@ -242,13 +242,15 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+
+    - name: Generate topology environment exports
+      if: ${{ matrix.build.topology }}
+      shell: bash
+      run: |
         source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
-        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
