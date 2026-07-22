@@ -28,7 +28,6 @@ import types
 
 import torch
 import torch.nn.functional as F
-
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.oracle.unquantized import (
     UnquantizedMoeBackend,
