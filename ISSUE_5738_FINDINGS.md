@@ -315,6 +315,9 @@ CI run 29944004903 (branch mvasiljevic/5738-restore-2d-mesh-tests, built at the 
 - Local control: 2D perf-mode (warmup+timed decode loop, 1-layer, opt1) on a freshly-reset
   device PASSES with the fix -> confirms the 2D perf path/code is correct; the CI 2d failure
   was infra. (debug_logs/perf2d_local_1layer_PASS.log)
-- 2d rerun result: <pending — see CI run 29944004903>.
+- 2d rerun result (alone, uncontended device): PASS in 42m. FULL 80-layer 2D (2,2) model:
+  Prefill PCC 0.996464, First decode PCC 0.991664 (required 0.94). ==> FIX CONFIRMED end-to-end
+  on full model in CI: the previously-broken 2x2 config (decode ~0/NaN) now passes.
+  (job 89024468782). The earlier 2d failure was purely fabric-topology contention.
 Note: benchmark harness emitted "found 4 perf metrics files, expected 2 -> Skipping perf
 metrics" for tp1x4 (pre-existing harness quirk, unrelated to this fix); PCC still asserted.
