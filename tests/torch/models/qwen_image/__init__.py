@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Qwen-Image component bring-up tests."""
+"""Qwen-Image bring-up tests."""
 
 import pytest
 import torch_xla.runtime as xr
@@ -11,12 +11,7 @@ from tests.runner.test_utils import get_xla_device_arch
 
 
 def skip_on_wormhole(component: str) -> None:
-    """Skip single-device Qwen-Image components on n150 runners.
-
-    The nightly single_device job runs ``./tests/torch`` on both n150 (wormhole)
-    and p150 (blackhole). Qwen-Image is brought up / validated on Blackhole
-    (single p150 and lb-blackhole), so skip the wormhole runner to avoid noise.
-    """
+    """Skip on n150 (wormhole); Qwen-Image is validated on Blackhole only."""
     xr.set_device_type("TT")
     if get_xla_device_arch() == "wormhole":
         pytest.skip(
