@@ -36,7 +36,7 @@ tabulate
 timm
 torchvision==0.26+cpu
 torchxrayvision
-transformers==5.5.1
+transformers==5.14.1
 
 wheel
 matplotlib
