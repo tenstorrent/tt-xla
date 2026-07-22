@@ -2742,4 +2742,4 @@ test_config:
 
   xtts_v2/pytorch-hifigan_decoder-single_device-inference:
     status: EXPECTED_PASSING
-    required_pcc: 0.98  # pcc=0.9876 < default 0.99
+    required_pcc: 0.98
