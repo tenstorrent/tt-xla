@@ -1,0 +1,41 @@
+{
+  "operation_type_breakdown": {
+    "func.func": 1,
+    "func.return": 1,
+    "ttnn.deallocate": 1,
+    "ttnn.reshape": 1,
+    "ttnn.to_layout": 1
+  },
+  "shardable_operations": [
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1xsi32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reshape.2",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reshape.2",
+      "operation": "ttnn.to_layout"
+    }
+  ],
+  "summary": {
+    "dram_spilled_ops": 2,
+    "effectively_sharded_ops": 0,
+    "effectively_sharded_percentage": 0,
+    "sharded_and_spilled_ops": 0,
+    "sharded_ops": 0,
+    "sharded_percentage": 0,
+    "spilled_percentage": 100,
+    "system_memory_ops": 0,
+    "system_memory_percentage": 0,
+    "total_ops": 5,
+    "total_ops_with_output_tensor": 2,
+    "total_shardable_ops": 2
+  }
+}

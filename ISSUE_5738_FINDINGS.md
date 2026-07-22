@@ -156,3 +156,12 @@ Determinism test (reset once, then 3 runs, same 2D-opt1 config):
 - RUN 2: decode rel_l2 = **4.15e19**.  RUN 3: rel_l2 = **5.6e19** (garbage, **different each run**).
 Prefill is deterministic (0.999320 every run); only decode varies.
 ⇒ **The compiled decode reads a buffer that was never written** — content = whatever's in device memory (zeroed right after reset → constant; stale from prior runs → varying garbage). This is a use-of-uninitialized/unbound-buffer bug, NOT a numeric op error and NOT a deterministic dealloc-timing bug. Fits: eager writes+reads the right buffer (0.9999); keep-alive keeps the intended buffer bound (recovers); trace/opt/const-eval independent; all ops correct standalone (given correctly-written inputs). KV-cache read (SDPA-decode over `%arg3/%arg4 [32,4,128,128]`) is the prime candidate: a zeroed cache → attention over zeros → constant logits = RUN 1 exactly. Localizing the exact uninitialized buffer via per-op dump on a FRESH device (uninit=0, unambiguous). Determinism repro: `~/determinism.sh`.
+
+## ★★★★★★ KEY: model runs DECOMPOSED norm, not fused — I tested the wrong path
+Codegen (graph_0/main.py) + runtime per-op dump show the distributed rms norm is executed as the DECOMPOSED sequence:
+  ttnn.rms_norm_pre_all_gather -> ttnn.all_gather(stats, dim=3, cluster_axis=0, Ring) -> reshape/slice -> ttnn.rms_norm_post_all_gather
+NOT the fused rms_allgather I tested standalone (which passed 0.9999). This resolves the contradiction: the fused op is fine, but the model doesn't use it.
+- PREFILL norm: input [1,1,576,4096], INTERLEAVED DRAM -> works (0.999).
+- DECODE norm: input [1,1,32,4096], WIDTH-SHARDED L1 (ttnn_layout59, irregular 64-core), stats all_gather cluster_axis=0 -> FAILS.
+Fresh-device decode per-op dump: gather.44 (embed)=0.045 normal; custom-call.78 (decode norm) early sub-stages 0.045, later sub-stages -> 2.9e36 (dump-perturbed; clean run -> constant/uninitialized). So corruption enters INSIDE the decode's decomposed norm (pre_all_gather / all_gather-of-stats / post), on the sharded-L1 small-shape config.
+NEXT: standalone repro of the DECOMPOSED decode norm (pre+all_gather+post) with decode config (sharded-L1 [1,1,32,4096], cluster_axis=0) on fresh device; bisect pre vs all_gather vs post; test interleaved-DRAM vs sharded-L1 input (prefill uses interleaved and works).
