@@ -107,7 +107,7 @@ class TTConfig:
     enable_tensor_parallel: bool = False
 
     # Optimization level (0, 1, or 2) that controls multiple optimization passes.
-    # Level 0 (default): All optimizations disabled
+    # Level 0: All optimizations disabled
     # Level 1: Basic optimizations (optimizer + Conv2d fusion)
     # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
     optimization_level: int = 1
