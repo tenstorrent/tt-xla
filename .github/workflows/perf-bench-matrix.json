@@ -74,6 +74,11 @@
         "group": "experimental"
       },
       {
+        "name": "qwen_image",
+        "pytest": "tests/benchmark/test_imagegen.py::test_qwen_image",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro",
         "group": "experimental"

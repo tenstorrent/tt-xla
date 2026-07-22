@@ -263,6 +263,53 @@ def test_sdxl_lightning(output_file, request):
     )
 
 
+def test_qwen_image(output_file, request):
+    from benchmarks.qwen_image_pipeline import QwenImageConfig, QwenImagePipeline_TT
+
+    from third_party.tt_forge_models.qwen_image.pytorch.src.model_utils import (
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    # Qwen-Image: ~7B Qwen2.5-VL text encoder (replicated) + ~20B QwenImage MMDiT
+    # transformer (tensor-parallel sharded across the mesh's model axis) +
+    # replicated VAE. Multichip — wired to the 4-chip blackhole (qb2).
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = QwenImagePipeline_TT(
+            config=QwenImageConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="qwen-image",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_qwen_image_output.png",
+    )
+
+
 def test_flux2(output_file, request):
     from third_party.tt_forge_models.flux2.pytorch.pipeline import (
         NUM_INFERENCE_STEPS,
