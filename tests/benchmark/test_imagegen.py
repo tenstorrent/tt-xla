@@ -555,3 +555,55 @@ def test_glm_image(output_file, request):
         width=width,
         output_image_path="test_glm_image_output.png",
     )
+
+
+def test_srpo(output_file, request):
+    """SRPO (tencent/SRPO) diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    SRPO is a ~12B FLUX.1-dev fine-tune. Like FLUX.1 / GLM-Image, the heavy net
+    (FLUX DiT) runs tensor-parallel across a multi-chip mesh (Megatron-1D on the
+    model axis) while the CLIP + T5 text encoders, scheduler and taef1 VAE stay
+    on CPU. Drives the shared SrpoPipeline from tt_forge_models (companion
+    pipeline PR tenstorrent/tt-forge-models#795). 1024x1024, 28 steps,
+    guidance 3.5 (matches the SRPO nightly e2e test). Multichip — the matrix
+    pins this entry to the 4-chip blackhole (qb2-blackhole).
+    """
+    from third_party.tt_forge_models.srpo.pytorch.pipeline import (
+        HEIGHT,
+        WIDTH,
+        SrpoConfig,
+        SrpoPipeline,
+    )
+
+    prompt = "An astronaut riding a horse in a futuristic city, highly detailed"
+    num_inference_steps = 28
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); text encoders,
+        # scheduler and VAE on CPU. compile_options are already applied globally
+        # by the harness.
+        pipeline = SrpoPipeline(config=SrpoConfig(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="srpo",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_srpo_output.png",
+    )
