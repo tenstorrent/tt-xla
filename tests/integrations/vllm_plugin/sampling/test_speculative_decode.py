@@ -8,12 +8,8 @@ import numpy as np
 import pytest
 import torch
 from vllm_tt.metadata import XLASupportedSamplingMetadata
-
-from integrations.vllm_plugin.vllm_tt.model_runner import TTModelRunner
-from integrations.vllm_plugin.vllm_tt.rejection_sampler import (
-    _PLACEHOLDER_TOKEN_ID,
-    RejectionSampler,
-)
+from vllm_tt.model_runner import TTModelRunner
+from vllm_tt.rejection_sampler import _PLACEHOLDER_TOKEN_ID, RejectionSampler
 
 
 def _make_target_logits(argmax_token_ids: list[int], vocab_size: int) -> torch.Tensor:
