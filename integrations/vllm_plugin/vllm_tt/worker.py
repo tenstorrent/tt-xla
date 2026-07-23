@@ -33,7 +33,12 @@ from vllm.tasks import SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE, set_random_seed
 from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
+from vllm.v1.kv_cache_interface import (
+    AttentionSpec,
+    KVCacheConfig,
+    KVCacheSpec,
+    SlidingWindowSpec,
+)
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
@@ -320,6 +325,39 @@ class TTWorker:
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
             tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+        # Reserve physical bytes for sliding-window layers' small ring buffers.
+        # Every layer gets its own tensor (no byte-overlay on TT), so carving the
+        # rings out here keeps the full-attention pool + rings within the budget.
+        max_num_reqs = self.model_runner.max_num_reqs
+        sliding_reserve = 0
+        num_sliding = 0
+        for layer_spec in kv_cache_spec.values():
+            if isinstance(layer_spec, SlidingWindowSpec):
+                # Match model_runner: +1 slack block, rounded up to 32 for
+                # page-table stick alignment.
+                window_blocks = cdiv(layer_spec.sliding_window, layer_spec.block_size) + 1
+                window_blocks = ((window_blocks + 31) // 32) * 32
+                sliding_reserve += window_blocks * layer_spec.page_size_bytes
+                num_sliding += 1
+        if sliding_reserve > 0:
+            logger.info(
+                "Reserving %.3f GiB for %d sliding-window ring buffers "
+                "(max_num_reqs=%d)",
+                sliding_reserve / 1024**3,
+                num_sliding,
+                max_num_reqs,
+            )
+            if sliding_reserve >= tpu_kv_cache_bytes:
+                logger.warning(
+                    "Sliding ring reservation (%.2f GiB) >= KV budget "
+                    "(%.2f GiB); no room for full-attention pool. Raise "
+                    "gpu_memory_utilization or lower max_num_seqs.",
+                    sliding_reserve / 1024**3,
+                    tpu_kv_cache_bytes / 1024**3,
+                )
+            # Leave the full-attention pool whatever remains (vLLM's own check
+            # will error clearly if that is too small for max_model_len).
+            tpu_kv_cache_bytes = max(tpu_kv_cache_bytes - sliding_reserve, 0)
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
             "KV cache budget = %.2f GiB",

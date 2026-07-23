@@ -543,6 +543,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
         )
+        # Hybrid (multi-group) KV cache state. Defaults describe a single
+        # full-attention group (identical to the pre-hybrid path); (re)set in
+        # initialize_kv_cache once the real kv_cache_groups are known.
+        # _layer_to_group maps each attention layer to its group index so
+        # _prepare_inputs can hand each layer its own group's page table.
+        self._num_kv_cache_groups = 1
+        self._layer_to_group: dict[str, int] = {}
+        # Per-group block sizes. vLLM's page-size unification can assign a
+        # different block_size per group when head dims differ across attention
+        # types, so page tables are padded to the widest group's width and each
+        # group uses its own block_size for the prefix-roll offset.
+        self._group_block_sizes: list[int] = [self.block_size]
+        # Per-group sliding-window classification. Sliding groups get a small
+        # physical ring buffer (window_blocks) instead of the full pool, and
+        # _prepare_inputs feeds them a positional ring page_table rather than
+        # absolute block ids. Set in initialize_kv_cache.
+        self._group_is_sliding: list[bool] = [False]
+        self._group_window_blocks: list[int] = [0]
         self.query_start_loc_cpu = torch.zeros(
             self.max_num_tokens + 1,
             dtype=torch.int32,
@@ -611,29 +629,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.max_num_reqs,
             }
         }
-        self._page_table_dev_max = {
-            num_reqs: _alloc_dev(
-                (num_reqs, self.max_num_blocks_per_req),
-                self.block_table_cpu.dtype,
-            )
-            for num_reqs in {
-                self.min_num_reqs,
-                self.max_prefill_num_reqs,
-                self.num_reqs_max_model_len,
-            }
-        }
-        self._fill_page_table_dev_max = {
-            num_reqs: _alloc_dev(
-                (num_reqs, self.max_num_blocks_per_req),
-                self.block_table_cpu.dtype,
-            )
-            for num_reqs in {
-                self.min_num_reqs,
-                self.max_prefill_num_reqs,
-                self.num_reqs_max_model_len,
-            }
-        }
         self._cache_position_dev_max = {
+            num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
+        }
+        # Sliding groups use a window-relative (rotated) cache_position, distinct
+        # from the full groups' absolute one. Separate buffer so both reach the
+        # compiled graph as distinct inputs; all sliding groups share window
+        # geometry so one buffer family suffices.
+        self._cache_position_sliding_dev_max = {
             num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
             for num_reqs in {
                 self.min_num_reqs,
@@ -647,24 +655,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.most_model_len is not None:
             assert self.num_reqs_most_model_len is not None
             assert self.num_blocks_per_most_len_req is not None
-            self._page_table_dev_most = {
-                num_reqs: _alloc_dev(
-                    (num_reqs, self.num_blocks_per_most_len_req),
-                    self.block_table_cpu.dtype,
-                )
-                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
-            }
-            self._fill_page_table_dev_most = {
-                num_reqs: _alloc_dev(
-                    (num_reqs, self.num_blocks_per_most_len_req),
-                    self.block_table_cpu.dtype,
-                )
-                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
-            }
             self._cache_position_dev_most = {
                 num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
                 for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
             }
+            self._cache_position_sliding_dev_most = {
+                num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
+                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
+            }
+        # Per-group page_table / fill_page_table device buffers (nested by group
+        # index); rebuilt for the real group count in initialize_kv_cache.
+        # cache_position and chunk_start_idx are group-independent, so stay single.
+        self._alloc_page_table_device_buffers(self._num_kv_cache_groups)
 
         # Fail fast at startup if any per-step buffer can't be looked up by a
         # row count _prepare_inputs will request (before SMEM clamping).
@@ -677,7 +679,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             "input_ids": {k[0] for k in self._input_ids_dev},
             "position_ids": {k[0] for k in self._position_ids_dev},
             "logits_indices": set(self._logits_indices_dev),
-            "page_table_dev_max": set(self._page_table_dev_max),
+            # Per-group buffers share num_reqs keys across groups; check group 0.
+            "page_table_dev_max": set(self._page_table_dev_max[0]),
             "cache_position_dev_max": set(self._cache_position_dev_max),
         }.items():
             assert _reachable_num_reqs <= _keys, (
@@ -1018,6 +1021,70 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return tuple(tasks)
 
+    def _alloc_page_table_device_buffers(self, num_groups: int) -> None:
+        """(Re)allocate per-group page_table / fill_page_table device buffers.
+
+        Each kv_cache_group has its own block table, so every group needs its own
+        page_table / fill_page_table buffer. Buffers are nested dicts keyed
+        [group_idx][num_reqs]; num_groups == 1 reproduces the pre-hybrid buffers.
+        """
+
+        def _alloc_dev(shape, dtype):
+            return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
+
+        dt = self.block_table_cpu.dtype
+        max_reqs = {
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            self.num_reqs_max_model_len,
+        }
+
+        # Per-group page-table width: sliding groups only address their small
+        # window ring, so their page_table is that narrow (the paged ops require
+        # page_table_width <= cache_num_blocks). Full groups use the base width.
+        def _pt_width(g, base_width):
+            if g < len(self._group_is_sliding) and self._group_is_sliding[g]:
+                return min(self._group_window_blocks[g], base_width)
+            return base_width
+
+        self._page_table_dev_max = {
+            g: {
+                nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
+                for nr in max_reqs
+            }
+            for g in range(num_groups)
+        }
+        self._fill_page_table_dev_max = {
+            g: {
+                nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
+                for nr in max_reqs
+            }
+            for g in range(num_groups)
+        }
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            assert self.num_blocks_per_most_len_req is not None
+            most_reqs = {self.min_num_reqs, self.num_reqs_most_model_len}
+            self._page_table_dev_most = {
+                g: {
+                    nr: _alloc_dev(
+                        (nr, _pt_width(g, self.num_blocks_per_most_len_req)), dt
+                    )
+                    for nr in most_reqs
+                }
+                for g in range(num_groups)
+            }
+            self._fill_page_table_dev_most = {
+                g: {
+                    nr: _alloc_dev(
+                        (nr, _pt_width(g, self.num_blocks_per_most_len_req)), dt
+                    )
+                    for nr in most_reqs
+                }
+                for g in range(num_groups)
+            }
+        self._num_kv_cache_groups = num_groups
+
     def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
         """
         Generates the KVCacheSpec by parsing the kv cache format from each
@@ -1343,57 +1410,103 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             + num_scheduled_tokens_per_req
         )
 
+        # seq_lens / cache_position are identical across kv_cache groups (the
+        # decode position is physical, not per-group), so compute them once. Only
+        # the block tables differ per group (built inside the loop below).
         if use_max_model_len:
             assert self.num_reqs_max_model_len is not None
-            page_table = self.block_table_cpu[
-                :target_num_reqs, : self.max_num_blocks_per_req
-            ]
-            page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.max_num_blocks_per_req
-                ]
-            )
+            width = self.max_num_blocks_per_req
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
+            cache_position_dev = self._cache_position_dev_max[target_num_reqs]
         else:
             assert self.num_reqs_most_model_len is not None
-            page_table = self.block_table_cpu[
-                :target_num_reqs, : self.num_blocks_per_most_len_req
-            ]
-            page_table[:actual_num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.num_blocks_per_most_len_req
-                ]
-            )
+            width = self.num_blocks_per_most_len_req
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
+            cache_position_dev = self._cache_position_dev_most[target_num_reqs]
 
         cache_position = seq_lens - 1
         cache_position = cache_position[:target_num_reqs]
-
         if actual_num_reqs == 1:
             cache_position[1:] = -1
-            page_table[1:, :] = 0
+        # Clear unused rows so persistent device buffers don't keep stale values.
+        cache_position[actual_num_reqs:] = -1
+        cache_position_dev.copy_(cache_position)
+        cache_position = cache_position_dev
 
-        # With prefix caching, some blocks are already filled. Roll each
-        # user's page_table row so paged_fill_cache writes to suffix blocks
-        # instead of overwriting shared prefix blocks. Each user may have a
-        # different prefix length, so we roll per-row. Done outside the
-        # compiled graph to avoid shape-change recompilation.
-        offsets = (
+        # Sliding groups use a window-sized ring: page_table width is
+        # window_blocks and cache_position is window-relative via a per-user
+        # rotation (computed once; all sliding groups share window geometry).
+        # Rotating so the gathered window is in logical order makes the write land
+        # in the correct ring slot and keeps the read's causal + sliding_window
+        # mask correct. At context <= window this degenerates to an identity
+        # page_table + absolute cache_position.
+        sliding_page_table = None
+        sliding_cache_position = None
+        if any(self._group_is_sliding):
+            si = self._group_is_sliding.index(True)
+            bs_s = self._group_block_sizes[si]
+            wb = self._group_window_blocks[si]
+            sliding_width = min(wb, width)
+            cur_pos_abs = (seq_lens.numpy() - 1)[:actual_num_reqs].astype(np.int64)
+            cur_block = cur_pos_abs // bs_s
+            num_win = np.minimum(cur_block + 1, wb)
+            start_block = cur_block - num_win + 1
+            # Guard the not-yet-supported sliding-window prefill cases: only rows
+            # being filled (num_scheduled>1) are affected, because paged_fill_cache
+            # matches fill block k positionally to page_table[k] and would corrupt
+            # KV when the fill spans past the window (start_block>0) or continues a
+            # cached prefix (num_computed>0). Decode rows are correct at any context.
+            if actual_num_reqs > 0:
+                nsched = np.asarray(
+                    num_scheduled_tokens_per_req[:actual_num_reqs]
+                )
+                num_computed = np.asarray(
+                    self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+                )
+                filling = nsched > 1
+                bad = filling & ((start_block > 0) | (num_computed > 0))
+                if np.any(bad):
+                    raise NotImplementedError(
+                        "sliding-window prefill for context > window or with "
+                        "prefix caching is not yet supported on TT"
+                    )
+            jr = np.arange(sliding_width)
+            # Shared ring: slots within the window are rotated so the decode
+            # gather is in logical order. Known limitation: different concurrent
+            # prompts collide on shared slots (correct for identical prompts or
+            # batch==1); per-user rings would add an np.arange(target)*wb offset.
+            pt = np.zeros((target_num_reqs, sliding_width), dtype=np.int64)
+            if actual_num_reqs > 0:
+                rot = (start_block[:, None] + jr[None, :]) % wb
+                pt[:actual_num_reqs] = rot
+            sliding_page_table = torch.from_numpy(pt.astype(np.int32)).to(
+                self.block_table_cpu.dtype
+            )
+            cp_rel = np.full((target_num_reqs,), -1, dtype=np.int64)
+            if actual_num_reqs > 0:
+                cp_rel[:actual_num_reqs] = cur_pos_abs - start_block * bs_s
+            if use_max_model_len:
+                scp_dev = self._cache_position_sliding_dev_max[target_num_reqs]
+            else:
+                scp_dev = self._cache_position_sliding_dev_most[target_num_reqs]
+            scp_dev.copy_(torch.from_numpy(cp_rel).to(scp_dev.dtype))
+            sliding_cache_position = scp_dev
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(sliding_cache_position, self.mesh, ("batch",))
+
+        # With prefix caching, some blocks are already filled. Roll each user's
+        # page_table row so paged_fill_cache writes to suffix blocks instead of
+        # overwriting shared prefix blocks. The roll is in block units, so the
+        # offset depends on the group's block_size -> computed per group in the
+        # loop below from this raw token count.
+        num_computed_tokens_slice = (
             self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
-            // self.block_size
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
-        if np.any(offsets > 0):
-            fill_page_table = page_table.clone()
-            for i in range(actual_num_reqs):
-                if offsets[i] > 0:
-                    fill_page_table[i] = torch.roll(
-                        page_table[i], shifts=-int(offsets[i])
-                    )
-        else:
-            fill_page_table = page_table
-
         # A running (already-prefilled) request re-batched into a later prefill
         # step contributes 0 new tokens. paged_fill_cache still writes its row,
         # and since fill_page_table[row] points at that request's real blocks, it
@@ -1402,38 +1515,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # tail, so the tail-clearing below misses it. Redirect these rows' fill to
         # the null block (0); the read-path page_table keeps the real blocks.
         zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
-        if len(zero_sched_rows) > 0:
-            if fill_page_table is page_table:
-                fill_page_table = page_table.clone()
-            fill_page_table[zero_sched_rows, :] = 0
-
-        if use_max_model_len:
-            cache_position_dev = self._cache_position_dev_max[target_num_reqs]
-            page_table_dev = self._page_table_dev_max[target_num_reqs]
-            fill_page_table_dev_buf = self._fill_page_table_dev_max[target_num_reqs]
-        else:
-            cache_position_dev = self._cache_position_dev_most[target_num_reqs]
-            page_table_dev = self._page_table_dev_most[target_num_reqs]
-            fill_page_table_dev_buf = self._fill_page_table_dev_most[target_num_reqs]
-
-        # Clear unused rows so persistent device buffers don't keep stale
-        # block indices from a previous call (would surface as KV bleed).
-        cache_position[actual_num_reqs:] = -1
-        page_table[actual_num_reqs:, :] = 0
-        if fill_page_table is not page_table:
-            fill_page_table[actual_num_reqs:, :] = 0
-
-        cache_position_dev.copy_(cache_position)
-        page_table_dev.copy_(page_table)
-        if fill_page_table is page_table:
-            fill_page_table_dev = page_table_dev
-        else:
-            fill_page_table_dev_buf.copy_(fill_page_table)
-            fill_page_table_dev = fill_page_table_dev_buf
-
-        cache_position = cache_position_dev
-        page_table = page_table_dev
-        fill_page_table = fill_page_table_dev
 
         batch_idx = (
             self.batch_idx_min_reqs
@@ -1448,19 +1529,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # page_table / cache_position / batch_idx must share the K/V input's
-            # per-device leading dim, so shard them on "batch" to match the
-            # DP-sharded inputs. batch_idx feeds paged_fill_cache, whose verifier
-            # requires its dim0 to equal the per-device batch.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            # cache_position / batch_idx are shared across groups; shard once.
+            # (per-group page_table / fill_page_table are sharded in the loop.)
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
-            if fill_page_table is not page_table:
-                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         # Cached-prefix prefill chunk (L > 1 and num_computed > 0): attends over
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
-        # prefill take the standard path (chunk_start_idx stays None).
+        # prefill take the standard path (chunk_start_idx stays None). Shared
+        # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
@@ -1474,6 +1551,128 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
+        # Build one TTMetadata per kv_cache group, each carrying that group's own
+        # page_table / fill_page_table. The per-layer fan-out below hands each
+        # attention layer its group's metadata, so a sliding-window layer never
+        # receives a full-attention layer's block ids. Single group => list of 1
+        # => pre-hybrid behavior.
+        attn_metadata_per_group: list[TTMetadata] = []
+        for g in range(self._num_kv_cache_groups):
+            if use_max_model_len:
+                page_table_dev = self._page_table_dev_max[g][target_num_reqs]
+                fill_page_table_dev_buf = self._fill_page_table_dev_max[g][
+                    target_num_reqs
+                ]
+            else:
+                page_table_dev = self._page_table_dev_most[g][target_num_reqs]
+                fill_page_table_dev_buf = self._fill_page_table_dev_most[g][
+                    target_num_reqs
+                ]
+
+            if self._group_is_sliding[g]:
+                # Sliding: window-width rotated ring page_table + window-relative
+                # cache_position (computed above; shared across sliding groups).
+                # fill == read table (sliding-window prefix caching is unsupported,
+                # not exercised at offsets==0).
+                page_table_dev.copy_(sliding_page_table)
+                fill_page_table_dev = page_table_dev
+                if self.parallel_mode in (
+                    ParallelismMode.DATA_PARALLEL_ONLY,
+                    ParallelismMode.DATA_TENSOR_PARALLEL,
+                ):
+                    safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
+                attn_metadata_per_group.append(
+                    TTMetadata(
+                        page_table=page_table_dev,
+                        cache_position=sliding_cache_position,
+                        is_causal=True,
+                        attn_mask=None,
+                        fill_page_table=fill_page_table_dev,
+                        dp_size=self.dp_size,
+                        chunk_start_idx=chunk_start_idx,
+                        batch_idx=batch_idx,
+                        num_users=target_num_reqs,
+                    )
+                )
+                continue
+
+            # Full attention: vLLM's absolute block ids + absolute cache_position.
+            block_size_g = self._group_block_sizes[g]
+            group_block_table = self.input_batch.block_table[g].get_cpu_tensor()
+            # This group's block table may be narrower than the uniform buffer
+            # width (a larger block_size -> fewer blocks/req). Copy its own width
+            # into the padded page table; padding columns stay 0 (null block).
+            copy_width = min(group_block_table.shape[1], width)
+
+            # Fresh per-group host staging (not the shared block_table_cpu
+            # scratch) so each group's device buffer is copied from an independent
+            # host tensor and all snapshots stay valid.
+            page_table = torch.zeros(
+                (target_num_reqs, width), dtype=self.block_table_cpu.dtype
+            )
+            page_table[:actual_num_reqs, :copy_width] = group_block_table[
+                :actual_num_reqs, :copy_width
+            ]
+            if actual_num_reqs == 1:
+                page_table[1:, :] = 0
+
+            offsets = (
+                num_computed_tokens_slice // block_size_g
+                if actual_num_reqs > 0
+                else num_computed_tokens_slice
+            )
+            if np.any(offsets > 0):
+                fill_page_table = page_table.clone()
+                for i in range(actual_num_reqs):
+                    if offsets[i] > 0:
+                        fill_page_table[i] = torch.roll(
+                            page_table[i], shifts=-int(offsets[i])
+                        )
+            else:
+                fill_page_table = page_table
+            if len(zero_sched_rows) > 0:
+                if fill_page_table is page_table:
+                    fill_page_table = page_table.clone()
+                fill_page_table[zero_sched_rows, :] = 0
+
+            # Clear unused rows so persistent device buffers don't keep stale
+            # block indices from a previous call (would surface as KV bleed).
+            page_table[actual_num_reqs:, :] = 0
+            if fill_page_table is not page_table:
+                fill_page_table[actual_num_reqs:, :] = 0
+
+            page_table_dev.copy_(page_table)
+            if fill_page_table is page_table:
+                fill_page_table_dev = page_table_dev
+            else:
+                fill_page_table_dev_buf.copy_(fill_page_table)
+                fill_page_table_dev = fill_page_table_dev_buf
+
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                # page_table shares the K/V input's per-device leading dim.
+                safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
+                if fill_page_table_dev is not page_table_dev:
+                    safe_mark_sharding(
+                        fill_page_table_dev, self.mesh, ("batch", None)
+                    )
+
+            attn_metadata_per_group.append(
+                TTMetadata(
+                    page_table=page_table_dev,
+                    cache_position=cache_position,
+                    is_causal=True,
+                    attn_mask=None,
+                    fill_page_table=fill_page_table_dev,
+                    dp_size=self.dp_size,
+                    chunk_start_idx=chunk_start_idx,
+                    batch_idx=batch_idx,
+                    num_users=target_num_reqs,
+                )
+            )
+
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -1485,17 +1684,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            fill_page_table=fill_page_table,
-            dp_size=self.dp_size,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=target_num_reqs,
-        )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
@@ -1520,9 +1708,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
-        )
+        # Route each attention layer to its kv_cache group's metadata. Layers
+        # with no KV group (e.g. encoder-only) fall back to group 0.
+        per_layer_attn_metadata = {
+            ln: attn_metadata_per_group[self._layer_to_group.get(ln, 0)]
+            for ln in self._attention_layer_names
+        }
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -2270,9 +2461,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 safe_mark_sharding(input_ids, self.mesh, ("batch", None))
             safe_mark_sharding(position_ids, self.mesh, ("batch", None))
 
-        page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-            self.device
-        )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         batch_idx = (
@@ -2288,42 +2476,74 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # page_table / cache_position / batch_idx must share the K/V input's
-            # per-device leading dim, so shard them on "batch" to match the
-            # DP-sharded inputs (batch_idx feeds paged_fill_cache).
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            # cache_position / batch_idx are shared across groups; shard once.
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
 
         # prefix_chunk=True precompiles the cached-prefix prefill graph: chunk_start_idx
         # routes attention through the chunked SDPA op. Only reached when the op is
         # usable (see _precompile_backbone gating on _chunked_sdpa_active).
-        fill_page_table = None
         chunk_start_idx = None
         if prefix_chunk:
-            # A continuation chunk uses a distinct fill_page_table at runtime;
-            # pass a separate tensor so the traced graph has matching input arity
-            # (else an extra graph recompiles at runtime).
-            fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
-                self.device
-            )
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            dp_size=self.dp_size,
-            fill_page_table=fill_page_table,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=num_reqs,
-        )
+        # One dummy page_table (and fill_page_table) per kv_cache group so the
+        # traced graph has the same number of distinct page_table inputs as the
+        # runtime fan-out (else an extra graph recompiles). Sliding groups get a
+        # window-width page_table and a distinct (relative) cache_position.
+        sliding_cache_position = None
+        if any(self._group_is_sliding):
+            sliding_cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(
+                self.device
+            )
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(sliding_cache_position, self.mesh, ("batch",))
+        attn_metadata_per_group = []
+        for _g in range(self._num_kv_cache_groups):
+            if self._group_is_sliding[_g]:
+                pt_w = min(self._group_window_blocks[_g], num_blocks)
+                grp_cache_position = sliding_cache_position
+            else:
+                pt_w = num_blocks
+                grp_cache_position = cache_position
+            page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
+                self.device
+            )
+            fill_page_table = None
+            if prefix_chunk:
+                # A continuation chunk uses a distinct fill_page_table at runtime;
+                # pass a separate tensor so the traced graph has matching arity.
+                fill_page_table = torch.zeros(
+                    (num_reqs, pt_w), dtype=torch.int32
+                ).to(self.device)
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(page_table, self.mesh, ("batch", None))
+                if fill_page_table is not None:
+                    safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+            attn_metadata_per_group.append(
+                TTMetadata(
+                    page_table=page_table,
+                    cache_position=grp_cache_position,
+                    is_causal=True,
+                    attn_mask=None,
+                    dp_size=self.dp_size,
+                    fill_page_table=fill_page_table,
+                    chunk_start_idx=chunk_start_idx,
+                    batch_idx=batch_idx,
+                    num_users=num_reqs,
+                )
+            )
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
-        )
+        per_layer_attn_metadata = {
+            ln: attn_metadata_per_group[self._layer_to_group.get(ln, 0)]
+            for ln in self._attention_layer_names
+        }
         if self.uses_mrope:
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
@@ -2672,10 +2892,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_inputs_embeds = torch.zeros(
             (num_reqs, num_tokens, hsize), dtype=self._hidden_states_dtype
         ).to(self.device)
-        page_table = torch.zeros(
-            (num_reqs, self.max_num_blocks_per_req),
-            dtype=torch.int32,
-        ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         batch_idx = (
@@ -2691,10 +2907,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
-            # batch_idx feeds paged_fill_cache; shard it on "batch" like
-            # page_table / cache_position so its per-device dim0 matches the
-            # DP-sharded K/V input.
-            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            # cache_position / batch_idx are shared across groups; shard once.
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
 
@@ -2702,28 +2915,65 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
         # attention through the chunked op, and a distinct fill_page_table tensor
         # keeps the traced input arity matching runtime.
-        fill_page_table = page_table
         chunk_start_idx = None
         if prefix_chunk:
-            fill_page_table = torch.zeros(
-                (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
-            ).to(self.device)
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            fill_page_table=fill_page_table,
-            dp_size=self.dp_size,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=num_reqs,
-        )
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
-        )
+        # One dummy page_table (and fill_page_table) per kv_cache group so the
+        # traced graph's distinct page_table input count matches the runtime
+        # fan-out. Sliding groups get a window-width page_table and a distinct
+        # (relative) cache_position.
+        sliding_cache_position = None
+        if any(self._group_is_sliding):
+            sliding_cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(
+                self.device
+            )
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(sliding_cache_position, self.mesh, ("batch",))
+        attn_metadata_per_group = []
+        for _g in range(self._num_kv_cache_groups):
+            if self._group_is_sliding[_g]:
+                pt_w = min(self._group_window_blocks[_g], self.max_num_blocks_per_req)
+                grp_cache_position = sliding_cache_position
+            else:
+                pt_w = self.max_num_blocks_per_req
+                grp_cache_position = cache_position
+            page_table = torch.zeros(
+                (num_reqs, pt_w),
+                dtype=torch.int32,
+            ).to(self.device)
+            fill_page_table = page_table
+            if prefix_chunk:
+                fill_page_table = torch.zeros(
+                    (num_reqs, pt_w), dtype=torch.int32
+                ).to(self.device)
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(page_table, self.mesh, ("batch", None))
+                if fill_page_table is not page_table:
+                    safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+            attn_metadata_per_group.append(
+                TTMetadata(
+                    page_table=page_table,
+                    cache_position=grp_cache_position,
+                    is_causal=True,
+                    attn_mask=None,
+                    fill_page_table=fill_page_table,
+                    dp_size=self.dp_size,
+                    chunk_start_idx=chunk_start_idx,
+                    batch_idx=batch_idx,
+                    num_users=num_reqs,
+                )
+            )
+        per_layer_attn_metadata = {
+            ln: attn_metadata_per_group[self._layer_to_group.get(ln, 0)]
+            for ln in self._attention_layer_names
+        }
 
         dummy_inputs, dummy_inputs_embeds = self._get_model_inputs(
             dummy_inputs, mm_embed_inputs=None
@@ -3327,12 +3577,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_config: Configuration for the KV cache, including the KV
             cache size of each layer
         """
-        if len(kv_cache_config.kv_cache_groups) > 1:
-            raise NotImplementedError(
-                "Hybrid models with more than one KV cache type are not "
-                "supported yet."
-            )
-
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
         # layers. In that case, we should not raise an error but just skip the
@@ -3343,10 +3587,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             return
 
-        if (
-            kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-            != self.block_size
-        ):
+        # Hybrid models (sliding-window + full-attention layers) produce >1
+        # kv_cache_group. vLLM may assign a different block_size per group
+        # (page-size unification across heterogeneous head dims), so keep the
+        # per-group block sizes and pad page tables to the widest group.
+        groups = kv_cache_config.kv_cache_groups
+        block_sizes = [g.kv_cache_spec.block_size for g in groups]
+        self._group_block_sizes = block_sizes
+        # Classify groups sliding vs full before allocating device buffers so the
+        # per-group page-table widths (window_blocks for sliding) are correct.
+        self._group_is_sliding = [
+            isinstance(g.kv_cache_spec, SlidingWindowSpec) for g in groups
+        ]
+        # window_blocks = cdiv(window, block_size) + 1 slack block (for a request
+        # straddling a block boundary), rounded up to a multiple of 32 (the paged
+        # ops require the page_table stick to be 32-aligned). The ring is
+        # over-provisioned to that width; the sliding_window mask still limits
+        # attention to the real window.
+        def _round_up(n, m):
+            return ((n + m - 1) // m) * m
+
+        self._group_window_blocks = [
+            _round_up(
+                cdiv(g.kv_cache_spec.sliding_window, g.kv_cache_spec.block_size) + 1,
+                32,
+            )
+            if isinstance(g.kv_cache_spec, SlidingWindowSpec)
+            else 0
+            for g in groups
+        ]
+        # All sliding groups must share window geometry (block_size, window) so a
+        # single relative-cache_position buffer serves them (see __init__).
+        _sw = {
+            (g.kv_cache_spec.block_size, self._group_window_blocks[i])
+            for i, g in enumerate(groups)
+            if self._group_is_sliding[i]
+        }
+        assert len(_sw) <= 1, f"non-uniform sliding groups not supported yet: {_sw}"
+        # Rebuild the InputBatch with one block table per group (the initial one
+        # built in __init__ has a single block table). Also (re)allocate the
+        # per-group page-table device buffers to match the real group count.
+        if len(groups) != self._num_kv_cache_groups:
             self.input_batch = InputBatch(
                 max_num_reqs=self.max_num_reqs,
                 max_model_len=self.max_model_len,
@@ -3354,80 +3635,105 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 device="cpu",
                 pin_memory=self.pin_memory,
                 vocab_size=self.model_config.get_vocab_size(),
-                block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
-                kernel_block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
+                block_sizes=block_sizes,
+                kernel_block_sizes=block_sizes,
                 is_pooling_model=False,
             )
-        # Verify dtype compatibility between block_table_cpu and input_batch
-        assert (
-            self.block_table_cpu.dtype
-            == self.input_batch.block_table[0].get_cpu_tensor().dtype
-        )
-
-        kv_cache_sizes = {}
-        for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
-            assert len(kv_cache_tensor.shared_by) == 1, (
-                "KV cache tensor shared by multiple layers is not supported in " "TPU."
+        # Always (re)allocate the per-group page-table device buffers: even at an
+        # unchanged group count, sliding groups need window-width buffers (the
+        # __init__ default built them at full width). The realloc is idempotent.
+        self._alloc_page_table_device_buffers(len(groups))
+        # Verify block_table dtype compatibility and that every group's
+        # block-table width fits the uniform (padded) page-table buffer width.
+        # max_num_blocks_per_req is sized from the base (smallest) block_size and
+        # so is the widest group; fail loudly if a future config is smaller.
+        for g in range(len(groups)):
+            bt = self.input_batch.block_table[g].get_cpu_tensor()
+            assert self.block_table_cpu.dtype == bt.dtype
+            assert bt.shape[1] <= self.max_num_blocks_per_req, (
+                f"group {g} block-table width {bt.shape[1]} exceeds the padded "
+                f"page-table buffer width {self.max_num_blocks_per_req} "
+                f"(block_sizes={block_sizes})"
             )
-            kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
 
-        kv_caches: dict[str, torch.Tensor] = {}
-        for kv_cache_group in kv_cache_config.kv_cache_groups:
+        # Resolve each layer's per-layer spec. vLLM's byte-overlay (one buffer,
+        # per-layer reshaped views) is impossible on TT (TILE layout + torch
+        # can't alias), so every layer gets its own real tensor:
+        #   - full groups: physical = the shared pool's num_blocks (page_table
+        #     carries absolute block ids).
+        #   - sliding groups: physical = a small window-sized ring buffer;
+        #     _prepare_inputs feeds them a positional ring page_table so they
+        #     never index the full pool.
+        # The worker reserves the sliding rings' bytes before vLLM sizes
+        # num_blocks, so full + sliding fit `available` without the overlay.
+        layer_to_spec: dict[str, KVCacheSpec] = {}
+        for kv_cache_group in groups:
+            gspec = kv_cache_group.kv_cache_spec
             for layer_name in kv_cache_group.layer_names:
-                kv_cache_spec = _get_layer_kv_cache_spec(
-                    kv_cache_group.kv_cache_spec, layer_name
-                )
-                tensor_size = kv_cache_sizes[layer_name]
-                assert tensor_size % kv_cache_spec.page_size_bytes == 0
-                num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
-                if isinstance(kv_cache_spec, MLAAttentionSpec):
-                    # MLA stores a SINGLE concatenated latent KV tensor per
-                    # slot (num_kv_heads == 1, head_size == kv_lora_rank +
-                    # qk_rope_head_dim).
-                    kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
-                        num_blocks,
-                        kv_cache_spec.block_size,
-                        kv_cache_spec.num_kv_heads,
-                        kv_cache_spec.head_size,
+                layer_to_spec[layer_name] = _get_layer_kv_cache_spec(gspec, layer_name)
+
+        def _kv_shape(spec, num_blocks):
+            backend = (
+                TTMLAAttentionBackend
+                if isinstance(spec, MLAAttentionSpec)
+                else TTAttentionBackend
+            )
+            return backend.get_kv_cache_shape(
+                num_blocks, spec.block_size, spec.num_kv_heads, spec.head_size
+            )
+
+        pool_num_blocks = kv_cache_config.num_blocks
+        kv_caches: dict[str, torch.Tensor] = {}
+        for g, kv_cache_group in enumerate(groups):
+            if self._group_is_sliding[g]:
+                # Shared ring: one window_blocks ring shared across requests.
+                # Per-user rings (phys *= max_num_reqs) are correct but cost
+                # ~max_num_reqs x more DRAM. Known limitation: the shared ring is
+                # correct only for identical concurrent prompts or batch==1;
+                # different prompts collide on shared slots.
+                phys_blocks = min(self._group_window_blocks[g], pool_num_blocks)
+            else:
+                phys_blocks = pool_num_blocks
+            for layer_name in kv_cache_group.layer_names:
+                spec = layer_to_spec[layer_name]
+                if self.enable_tensor_parallel and isinstance(spec, AttentionSpec):
+                    assert self.original_parallel_config is not None
+                    tp_size = self.original_parallel_config.tensor_parallel_size
+                    assert spec.num_kv_heads % tp_size == 0, (
+                        f"num_kv_heads {spec.num_kv_heads} must be divisible by "
+                        f"tp_size {tp_size} under SPMD mode"
                     )
-                    dtype = kv_cache_spec.dtype
-                    mla_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
-                    kv_caches[layer_name] = mla_cache
-                elif isinstance(kv_cache_spec, AttentionSpec):
-                    if self.enable_tensor_parallel:
-                        num_kv_heads = kv_cache_spec.num_kv_heads
-                        assert self.original_parallel_config is not None
-                        tp_size = self.original_parallel_config.tensor_parallel_size
-                        # TODO: Handle kv cache duplication under SPMD mode.
-                        assert num_kv_heads % tp_size == 0, (
-                            f"num_kv_heads {num_kv_heads} must be divisible by "
-                            f"tp_size {tp_size} under SPMD mode"
-                        )
-                    kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
-                        num_blocks,
-                        kv_cache_spec.block_size,
-                        kv_cache_spec.num_kv_heads,
-                        kv_cache_spec.head_size,
-                    )
+                shape = _kv_shape(spec, phys_blocks)
+                if isinstance(spec, MLAAttentionSpec):
+                    kv_caches[layer_name] = torch.zeros(
+                        shape, dtype=spec.dtype
+                    ).to(self.device)
+                elif isinstance(spec, AttentionSpec):
                     # spec.dtype may be a 1-byte accounting dtype; the staged
                     # buffer uses the real transfer dtype (converted on device).
-                    dtype = self.kv_cache_dtype
-
-                    # Allocate separate K and V cache tensors to avoid
-                    # slice/concat copies in the compiled decode graph.
-                    k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
-                    v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
-
+                    # Separate K and V avoid slice/concat copies in the decode graph.
+                    k_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
+                        self.device
+                    )
+                    v_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
+                        self.device
+                    )
                     kv_caches[layer_name] = [k_cache, v_cache]
                 else:
                     raise NotImplementedError
 
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
+
+        # Map each attention layer to its kv_cache group index, driving the
+        # per-layer attention-metadata fan-out in _prepare_inputs / dummy runs.
+        # Built after cross-layer sharing so shared layers resolve to the correct
+        # group.
+        self._layer_to_group = {
+            ln: g
+            for g, grp in enumerate(kv_cache_config.kv_cache_groups)
+            for ln in grp.layer_names
+        }
 
         bind_kv_cache(
             kv_caches,
@@ -3442,11 +3748,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # ttir.paged_update_cache. Tracked as a follow-up.
             pass
         elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache].
+            # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
+            # buffer can appear under multiple layers (cross-layer sharing), so
+            # dedup by tensor identity to mark each buffer's sharding exactly once.
+            _sharded_ids: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
                 caches = entry if is_pair else [entry]
                 for cache in caches:
+                    if id(cache) in _sharded_ids:
+                        continue
+                    _sharded_ids.add(id(cache))
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
                     if is_pair:
                         safe_mark_sharding(

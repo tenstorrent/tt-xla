@@ -298,6 +298,22 @@ class TTPlatform(Platform):
         return vm.available, vm.total
 
     @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        """Enable vLLM's hybrid KV cache manager for hybrid-attention models.
+
+        Without this override the base class returns False, which makes vLLM
+        downgrade every SlidingWindowSpec to FullAttentionSpec, forcing
+        sliding-window layers to pay the full max_model_len KV cost. Returning
+        True lets vLLM emit per-attention-type kv_cache_groups; the model runner
+        routes a per-group block table to each layer. Full-attention-only models
+        collapse to a single group, so their behavior is unchanged. Set
+        TTXLA_DISABLE_HYBRID_KV_CACHE=1 as a kill-switch.
+        """
+        return os.environ.get(
+            "TTXLA_DISABLE_HYBRID_KV_CACHE", ""
+        ).lower() not in ("1", "true", "yes")
+
+    @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
 
