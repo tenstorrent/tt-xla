@@ -267,7 +267,10 @@ def test_prefill_and_decode_pcc_e2e(
     hook = sharding_constraint_hook(model.head, mesh, (None, None))
     model.head.register_forward_hook(hook)
 
-    compiled = torch.compile(model, backend="tt")
+    # Inference-only e2e: opt out of AOTAutograd (default-on since #3795), which
+    # fails this model in collect_metadata_analysis with an UntypedStorage weakref
+    # error. The non-AOT forward path is what passed pre-#3795. See issue #3795.
+    compiled = torch.compile(model, backend="tt", options={"tt_use_aot_autograd": False})
 
     # ---- Device prefill + decodes --------------------------------------
     prompt_ids_tt = prompt_ids.to(device)
