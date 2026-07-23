@@ -139,3 +139,179 @@ def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
         assert_output_coherent(text)
 
     check_host_memory(model_name)
+
+
+# @pytest.mark.nightly
+# @pytest.mark.tensor_parallel
+# @pytest.mark.parametrize(
+#     ["enable_const_eval", "experimental_weight_dtype"],
+#     [
+#         pytest.param(True, ""),
+#     ],
+# )
+# @pytest.mark.parametrize(
+#     "mesh_shape",
+#     [
+#         pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+#     ],
+# )
+# def test_data_tensor_parallel_generation_gemma4_31b(
+#     mesh_shape: list[int],
+#     enable_const_eval: bool,
+#     experimental_weight_dtype: str,
+# ):
+
+#     model_name = "google/gemma-4-31B-it"
+
+#     prompts = [
+#         "Describe Tenstorrent in one sentence.",
+#         "Explain what a neural network is in one sentence.",
+#         # "What is the capital of France?",
+#         # "Write one sentence about the ocean.",
+#         # "Summarize the theory of relativity in one sentence.",
+#         # "Give me a one-sentence description of photosynthesis.",
+#         # "What is machine learning, in one sentence?",
+#         # "Describe the sun in one sentence.",
+#         # "Explain gravity in one sentence.",
+#         # "Write a single sentence about mountains.",
+#         # "What does a CPU do, in one sentence?",
+#         # "Describe the internet in one sentence.",
+#         # "Summarize the water cycle in one sentence.",
+#         # "What is a black hole, in one sentence?",
+#         # "Give a one-sentence description of a rainforest.",
+#         # "Explain how a battery works in one sentence.",
+#         # "Describe music in one sentence.",
+#         # "What is democracy, in one sentence?",
+#         # "Write one sentence about the moon.",
+#         # "Explain what DNA is in one sentence.",
+#         # "Describe a thunderstorm in one sentence.",
+#         # "What is a programming language, in one sentence?",
+#         # "Summarize evolution in one sentence.",
+#         # "Describe a desert in one sentence.",
+#         # "What is electricity, in one sentence?",
+#         # "Write a single sentence about the human heart.",
+#         # "Explain what a vaccine is in one sentence.",
+#         # "Describe winter in one sentence.",
+#         # "What is the speed of light, in one sentence?",
+#         # "Give a one-sentence description of a volcano.",
+#         # "Describe the stars in one sentence.",
+#         # "What is a robot, in one sentence?",
+#     ]
+
+#     # repeat prompts 64 times
+#     prompts = prompts * 128
+#     messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
+#     sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+
+#     llm_args = {
+#         "model": model_name,
+#         # Text-only path on a multimodal model: zero every modality so the
+#         # mm-encoder graph doesn't compile the vision tower at all.
+#         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+#         "max_num_batched_tokens": 8192,
+#         "max_num_seqs": 64,
+#         "max_model_len": 128,
+#         "gpu_memory_utilization": 0.3,
+#         "additional_config": {
+#             "enable_const_eval": enable_const_eval,
+#             "min_context_len": 32,
+#             "enable_data_parallel": True,
+#             "enable_tensor_parallel": True,
+#             "shard_weights_on_batch_axis": True,
+#             "experimental_weight_dtype": experimental_weight_dtype,
+#             "mesh_shape": mesh_shape,
+#             "cpu_sampling": False,
+#             "flat_model_io": True,
+#         },
+#     }
+
+#     # print llm_args in a pretty format
+#     print("llm_args:\n")
+#     for key, value in llm_args.items():
+#         print(f"  {key}: {value}\n")
+
+#     llm = vllm.LLM(**llm_args)
+
+#     outputs = llm.chat(messages, sampling_params)
+#     assert len(outputs) == len(messages)
+#     for prompt, out in zip(prompts, outputs):
+#         output_text = out.outputs[0].text
+#         print(f"prompt: {prompt}, output: {output_text}")
+#         assert_output_coherent(output_text)
+
+#     check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.parametrize(
+    ["enable_const_eval", "experimental_weight_dtype"],
+    [
+        pytest.param(True, ""),
+    ],
+)
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+    ],
+)
+def test_data_tensor_parallel_generation_gemma4_31b(
+    mesh_shape: list[int],
+    enable_const_eval: bool,
+    experimental_weight_dtype: str,
+):
+
+    model_name = "google/gemma-4-31B-it"
+
+    prompts = [
+        "Describe Tenstorrent in one sentence.",
+        "Explain what a neural network is in one sentence.",
+        "What is the capital of France?",
+        "Write one sentence about the ocean.",
+        "Summarize the theory of relativity in one sentence.",
+        "Give me a one-sentence description of photosynthesis.",
+        "What is machine learning, in one sentence?",
+        "Describe the sun in one sentence.",
+    ]
+
+    messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+
+    llm_args = {
+        "model": model_name,
+        # Text-only path on a multimodal model: zero every modality so the
+        # mm-encoder graph doesn't compile the vision tower at all.
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+        "max_num_batched_tokens": 8192,
+        "max_num_seqs": 8,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.3,
+        "additional_config": {
+            "enable_const_eval": enable_const_eval,
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+            "flat_model_io": True,
+        },
+    }
+
+    # print llm_args in a pretty format
+    print("llm_args:\n")
+    for key, value in llm_args.items():
+        print(f"  {key}: {value}\n")
+
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.chat(messages, sampling_params)
+    assert len(outputs) == len(messages)
+    for prompt, out in zip(prompts, outputs):
+        output_text = out.outputs[0].text
+        print(f"prompt: {prompt}, output: {output_text}")
+        assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
