@@ -59,7 +59,7 @@ jobs:
       matrix:
         build: ${{ fromJson(inputs.matrix) }}
 
-    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "testing"]', matrix.build.runs-on)) || matrix.build.runs-on }}
 
     name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
