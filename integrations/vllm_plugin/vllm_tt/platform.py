@@ -144,6 +144,14 @@ class TTConfig:
     # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
 
+    # Lower activations to bfp8 around CCL ops (matmul -> reduce_scatter /
+    # all_gather -> consumer), pattern-matching Llama-style O-proj+residual and
+    # MLP sub-graphs. Cuts the bytes collectives move on multi-device TP; little
+    # to no benefit single-chip. Default off; flip on per-model after validating
+    # accuracy doesn't degrade. Mirrors the PJRT enable_activation_dtype_lowering
+    # compile option.
+    enable_activation_dtype_lowering: bool = False
+
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
@@ -206,6 +214,7 @@ class TTConfig:
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "enable_trace": "true" if self.enable_trace else "false",
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
+            "enable_activation_dtype_lowering": self.enable_activation_dtype_lowering,
         }
         if self.fp32_dest_acc_en is not None:
             cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
