@@ -169,7 +169,9 @@ class QwenImagePipeline_TT:
         self._raw_transformer = self.pipe.transformer
         self._raw_vae = self.pipe.vae
 
-    def generate(self, prompt: str, num_inference_steps: int, seed: Optional[int] = SEED):
+    def generate(
+        self, prompt: str, num_inference_steps: int, seed: Optional[int] = SEED
+    ):
         self._perf["components"].clear()
         self._perf["steps"].clear()
         self._perf["total"] = None
@@ -216,9 +218,12 @@ class QwenImagePipeline_TT:
             self._placed = True
 
         self._perf["components"]["text_encoder"] = self._te_time
-        prompt_embeds, prompt_embeds_mask, negative_prompt_embeds, negative_prompt_embeds_mask = (
-            self._embeds
-        )
+        (
+            prompt_embeds,
+            prompt_embeds_mask,
+            negative_prompt_embeds,
+            negative_prompt_embeds_mask,
+        ) = self._embeds
         logger.info("[STAGE] Transformer + VAE: start")
         generator = torch.Generator().manual_seed(seed) if seed is not None else None
         self.pipe(
