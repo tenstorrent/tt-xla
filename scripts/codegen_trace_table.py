@@ -296,9 +296,9 @@ def main():
                  "for(var r of document.querySelectorAll('tbody tr'))"
                  "r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'\">")
     parts.append("<table><thead><tr>"
-                 "<th>#</th><th>output</th><th>op</th><th>dims</th><th>type</th>"
-                 "<th>inputs</th>"
-                 "<th>dtype</th><th>layout</th><th>mem</th><th>frees</th>"
+                 "<th>#</th><th>inputs</th><th>op</th><th>layout</th><th>output</th>"
+                 "<th>dims</th><th>type</th>"
+                 "<th>dtype</th><th>mem</th><th>frees</th>"
                  "</tr></thead><tbody>")
 
     def render_input(i):
@@ -325,10 +325,12 @@ def main():
             dims_html = stype_html = '<span class=noshape>?</span>'
         parts.append(
             f"<tr><td class=num>{step}</td>"
-            f"<td{out_cls}>{esc(out)}</td>"
+            f"<td>{ins}</td>"
             f'<td class="op t-{esc(opshort)}">{esc(opshort)}</td>'
+            f"<td>{esc(layout)}</td>"
+            f"<td{out_cls}>{esc(out)}</td>"
             f"<td>{dims_html}</td><td>{stype_html}</td>"
-            f"<td>{ins}</td><td>{esc(dtype)}</td><td>{esc(layout)}</td>"
+            f"<td>{esc(dtype)}</td>"
             f"<td>{esc(mem)}</td><td>{frees}</td></tr>")
     parts.append("</tbody></table>")
 
