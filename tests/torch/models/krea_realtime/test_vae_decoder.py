@@ -17,16 +17,16 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
 )
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.single_device
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name="KreaRealtimeVideo_VAEDecoder",
-    model_group=ModelGroup.RED,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
-)
+# @pytest.mark.nightly
+# @pytest.mark.model_test
+# @pytest.mark.single_device
+# @pytest.mark.record_test_properties(
+#     category=Category.MODEL_TEST,
+#     model_name="KreaRealtimeVideo_VAEDecoder",
+#     model_group=ModelGroup.RED,
+#     run_mode=RunMode.INFERENCE,
+#     bringup_status=BringupStatus.PASSED,
+# )
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)

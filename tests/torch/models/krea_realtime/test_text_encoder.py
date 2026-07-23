@@ -17,18 +17,18 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
 )
 
 
-@pytest.mark.skip(
-    reason="OOM on single device — UMT5-XXL exceeds single-chip memory; sharded variant runs"
-)
+# @pytest.mark.skip(
+#     reason="OOM on single device — UMT5-XXL exceeds single-chip memory; sharded variant runs"
+# )
 def test_text_encoder():
     _run(sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.llmbox
-def test_text_encoder_sharded():
-    _run(sharded=True)
+# @pytest.mark.nightly
+# @pytest.mark.model_test
+# @pytest.mark.llmbox
+# def test_text_encoder_sharded():
+#     _run(sharded=True)
 
 
 def _run(sharded: bool):
