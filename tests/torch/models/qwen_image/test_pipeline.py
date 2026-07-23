@@ -179,9 +179,7 @@ class QwenImageTTPipeline:
 
     def setup(self):
         enable_spmd()
-        self.mesh = get_mesh(
-            MESH_SHAPES[xr.global_runtime_device_count()], MESH_NAMES
-        )
+        self.mesh = get_mesh(MESH_SHAPES[xr.global_runtime_device_count()], MESH_NAMES)
         self.pipe = QwenImagePipeline.from_pretrained(REPO_ID, torch_dtype=DTYPE)
 
     def generate(self, prompt, num_inference_steps=NUM_INFERENCE_STEPS, seed=SEED):
