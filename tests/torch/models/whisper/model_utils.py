@@ -14,9 +14,10 @@ class WhisperWrapper(torch.nn.Module):
         self.model = model
         self.variant = variant.value.split("/")[-1]
 
-    def forward(self, *inputs):
+    def forward(self, input_features, decoder_input_ids, attention_mask=None):
+        # Inputs arrive as keyword args because load_inputs() returns a dict and
+        # TorchModelTester unpacks a Mapping into forward(**inputs).
         if self.variant == "Large_v3_Turbo":
-            input_features, attention_mask, decoder_input_ids = inputs
             dec_out = self.model(
                 input_features=input_features,
                 attention_mask=attention_mask,
@@ -25,7 +26,6 @@ class WhisperWrapper(torch.nn.Module):
             return dec_out.logits
 
         elif self.variant == "Large_v3":
-            input_features, decoder_input_ids = inputs
             output = self.model(
                 input_features=input_features, decoder_input_ids=decoder_input_ids
             )
@@ -33,7 +33,6 @@ class WhisperWrapper(torch.nn.Module):
 
         else:
             # default wrapper (e.g. WHISPER_TINY, BASE, etc.)
-            input_features, decoder_input_ids = inputs
             output = self.model(
                 input_features=input_features, decoder_input_ids=decoder_input_ids
             )

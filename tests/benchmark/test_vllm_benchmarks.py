@@ -156,8 +156,11 @@ def _gemma4_tp_config(model: str, batch_size: int):
     # ::test_tensor_parallel_generation_gemma4_31b:
     #   - limit_mm_per_prompt zeroed so the vision/audio tower never compiles
     #   - max_num_batched_tokens floored at 2560 (MultiModalBudget video floor)
-    #   - flat_model_io for Gemma-4's PLE forward; default mesh_shape=None ->
-    #     1D mesh (gemma4 TP runs on qb2-blackhole)
+    #   - flat_model_io for Gemma-4's PLE forward; use_2d_mesh=False -> 1D mesh
+    #     (gemma4 TP runs on qb2-blackhole). mesh_shape=None alone is NOT
+    #     enough for a 1D mesh -- TTConfig.use_2d_mesh defaults to True, so
+    #     without this explicit False, determine_mesh_shape() picks a 2D
+    #     (2, 2) mesh for 4 devices instead of the intended 1D (1, 4).
     cfg = _config(
         model,
         batch_size,
@@ -165,6 +168,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
         optimization_level=1,
         enable_tensor_parallel=True,
+        use_2d_mesh=False,
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",

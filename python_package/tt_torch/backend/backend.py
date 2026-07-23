@@ -47,6 +47,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    cast_bool_cumsum_to_int32,
     clamp_neg_getitem_bounds,
     clamp_neg_slice_bounds,
     fold_view_bmm_view_to_einsum,
@@ -518,6 +519,11 @@ def torch_pass_pipeline(
         flat_name_to_original_fqn = compiled_graph.meta.get(
             "dynamo_flat_name_to_original_fqn", {}
         )
+
+    # tt-metal's cumsum (accumulation) kernel rejects the bool/UInt8 format; cast
+    # bool cumsum inputs to int32. Runs for both the AOTAutograd and torch.export
+    # paths (common point after the branch). Refs: whisper find_packed_sequence_indices.
+    cast_bool_cumsum_to_int32(compiled_graph)
 
     compiled_graph = insert_argument_type_markers(
         compiled_graph, graph_signature, flat_name_to_original_fqn
