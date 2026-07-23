@@ -321,3 +321,25 @@ CI run 29944004903 (branch mvasiljevic/5738-restore-2d-mesh-tests, built at the 
   (job 89024468782). The earlier 2d failure was purely fabric-topology contention.
 Note: benchmark harness emitted "found 4 perf metrics files, expected 2 -> Skipping perf
 metrics" for tp1x4 (pre-existing harness quirk, unrelated to this fix); PCC still asserted.
+
+================================================================================
+## ★ CORRECTION (grid dims) — BH worker grid is 11x10, fix uses 8x8=64 (not 8x4=32)
+================================================================================
+Earlier notes said the BH worker grid is 11x6 and that the fix drops the decode
+norm to 8x4=32 cores. Both WRONG. Verified on silicon:
+- ttnn device.compute_with_storage_grid_size() = x=11, y=10 -> 11x10 = 110 cores.
+  The "11x6" I cited was only the BOUNDING BOX of the 64 canonically-placed cores.
+- The bug is the canonical row-major placement WRAPPING at grid width 11 (64 = 5
+  rows*11 + 9 = non-rectangular), NOT that 64 can't be a rectangle. 64 fits fine
+  as 8x8 in 11x10.
+- The fix's rectangle search over 11x10 picks 8x8 = 64 cores (largest divisor of
+  128 forming a rectangle that fits). Confirmed in recompiled decode IR:
+  distributed_rms_norm program_config compute_with_storage_grid_size = <8,8>,
+  block_w=2, layout59 core_ranges = <[(0,0),(7,7)]> (clean 8x8, no phantom cores).
+- => The fix keeps ALL 64 cores (same count as the buggy config, just rectangular)
+  -> effectively NO norm throughput cost. The tp2x2-vs-tp1x4 perf gap
+  (7.95 vs 12.10 samples/s; TTFT 2387 vs 1804 ms) is entirely 2D weight-sharding
+  communication overhead, not the norm using fewer cores.
+- Clean tt-mlir fix branch commit amended (comment/message corrected only; code
+  identical): new SHA 4a2ff97ef6abece0bc1bb7b4ac11e1c85e9cc773. For future CI runs
+  use this as mlir_override (the completed run used 77cd345 = identical code).
