@@ -150,6 +150,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "gpt_oss_20b_tp_moe_fused",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_moe_fused",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "runs-on": "galaxy-wh-6u"
@@ -158,6 +163,12 @@
         "name": "test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
         "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "gpt_oss_120b_tp_moe_fused_galaxy",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_moe_fused_galaxy",
+        "runs-on": "galaxy-bh",
+        "skip": true
       },
       {
         "name": "gpt_oss_120b_tp_qb2",

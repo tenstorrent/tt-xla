@@ -98,6 +98,7 @@ def construct_inputs(
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
+    diverse_prefill: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -164,6 +165,31 @@ def construct_inputs(
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
+    if diverse_prefill and input_ids.shape[0] > 1:
+        # Give each batch row a DISTINCT real prompt so decode expert routing
+        # spans all EP devices (a tiled-identical batch routes every token to the
+        # same experts, starving other EP devices and deadlocking the moe_compute
+        # combine on the Ring). Truncate to the common min token length (no
+        # padding). Prompt list is shared with the PCC diagnostic (deferred import
+        # avoids a circular module dependency).
+        from benchmarks.llm_pcc import _DIVERSE_PREFILL_PROMPTS
+
+        _bs = input_ids.shape[0]
+        _sel = [
+            _DIVERSE_PREFILL_PROMPTS[i % len(_DIVERSE_PREFILL_PROMPTS)]
+            for i in range(_bs)
+        ]
+        _tok = [tokenizer(p, return_tensors="pt")["input_ids"][0] for p in _sel]
+        _min_len = min(int(t.shape[0]) for t in _tok)
+        _min_len = min(_min_len, int(max_cache_len) - 1)
+        # Truncate to the common length, then re-append each prompt's OWN final
+        # token (its "." / "?" terminator) so the batch is uniform (min+1) and every
+        # row ends on its sentence terminator. Without this the common-min truncation
+        # drops the trailing period, so the model's first generated token just
+        # completes the sentence ("." / "?") before answering.
+        input_ids = torch.stack(
+            [torch.cat([t[:_min_len], t[-1:]]) for t in _tok], dim=0
+        ).to(input_ids.dtype)
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
     input_args = {
@@ -268,6 +294,7 @@ def benchmark_llm_torch_xla(
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
     enable_activation_dtype_lowering: bool = False,
+    diverse_prefill: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -384,6 +411,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
+        diverse_prefill=diverse_prefill,
     )
 
     # Initialize indexer cache if enabled (needs to be done before model.to(device))
@@ -445,13 +473,25 @@ def benchmark_llm_torch_xla(
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
         mesh = get_mesh(model_loader, mesh_config_fn)
+        # Register the mesh globally so mesh-aware experts backends (tt_moe,
+        # tt_moe_fused) can read it via torch_xla get_global_mesh(); plain
+        # mark_sharding does not set the global mesh. Non-mesh backends
+        # (tt_dense) never call get_global_mesh(), so this is inert for them.
+        xs.set_global_mesh(mesh)
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Apply sharding constraint on lm_head output to all_gather logits
+        # Constrain the lm_head output to stay VOCAB-SHARDED on the same axis as the
+        # vocab-parallel lm_head weight (("batch", None) -> vocab on the "batch"
+        # axis), i.e. spec (None, None, "batch") for [batch, seq, vocab]. Replicating
+        # to the full vocab ((None, None, None)) all-gathers a [batch, seq, 201088]
+        # logits tensor (~1.65GB at bs128) that OOMs DRAM. Kept sharded, each device
+        # holds only [batch, seq, 50272] (1/4); the next-token argmax over the
+        # sharded vocab lowers to a partitioned argmax, and the host assembles the
+        # shards on .to("cpu").
         if hasattr(model, "lm_head") and model.lm_head is not None:
-            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, "batch"))
             model.lm_head.register_forward_hook(hook)
 
     # Set XLA compilation options
@@ -526,6 +566,7 @@ def benchmark_llm_torch_xla(
                 token_accuracy.input_prompt if accuracy_testing else None
             ),
             use_mla_cache=use_mla_cache,
+            diverse_prefill=diverse_prefill,
         )
         input_args = transfer_to_device(input_args, device)
         if is_multichip:
@@ -571,6 +612,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
+        diverse_prefill=diverse_prefill,
     )
 
     if decode_only:
@@ -629,6 +671,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
+        diverse_prefill=diverse_prefill,
     )
 
     if decode_only:
