@@ -12,6 +12,7 @@ a live filter box.
 
 Usage:
     codegen_trace_table.py <path/to/main.py> [-o out.html] [--mlir ttnn.mlir]
+                           [--no-plumbing]
 
 Shapes are pulled from ttnn.mlir (auto-detected as a sibling of main.py). main.py
 and ttnn.mlir are both linear traces of the same IR, so the k-th occurrence of an
@@ -34,6 +35,9 @@ NAME_MAP = {
 }
 # ops whose result shape == shape of their first tensor operand (no MLIR result)
 PASSTHROUGH = {"to_device", "to_layout", "to_memory_config", "paged_update_cache"}
+# pure shape/layout/movement ops hidden by --no-plumbing (matches the graph tool)
+PLUMBING = {"to_device", "to_layout", "from_device", "to_memory_config",
+            "typecast", "reshape"}
 
 
 def pretty_arg_name(raw):
@@ -241,6 +245,10 @@ def main():
     ap.add_argument("-o", "--out")
     ap.add_argument("--mlir", help="ttnn.mlir to source tensor shapes from "
                                    "(default: sibling ttnn.mlir)")
+    ap.add_argument("--no-plumbing", action="store_true",
+                    help="hide plumbing ops (to_device/to_layout/from_device/"
+                         "to_memory_config/typecast/reshape); rewire kept ops' "
+                         "inputs through the folded ops")
     args = ap.parse_args()
 
     tr = build_trace(args.path, args.mlir)
@@ -253,9 +261,47 @@ def main():
     shape_hits, shape_misses = tr["shape_hits"], tr["shape_misses"]
     out_set = set(outputs)
 
+    # optional: hide plumbing ops, rewiring kept ops' inputs through the folded
+    # plumbing to the nearest real (non-plumbing) producer var.
+    def bare(op):
+        return op.rsplit(".", 1)[-1] if op else op
+    producer = {r[1]: r for r in rows}          # out var -> row
+    plumb_vars = {r[1] for r in rows if bare(r[2]) in PLUMBING}
+    display = rows
+    if args.no_plumbing:
+        memo = {}
+        def kept_srcs(var, seen=None):
+            if var in memo:
+                return memo[var]
+            seen = seen or set()
+            if var in seen:
+                return []
+            seen.add(var)
+            r = producer.get(var)
+            if r is None or bare(r[2]) not in PLUMBING:
+                res = [var]                     # leaf (input[i]) or real producer
+            else:
+                res = []
+                for inp in r[3]:
+                    for s in kept_srcs(inp, seen):
+                        if s not in res:
+                            res.append(s)
+            memo[var] = res
+            return res
+        display = []
+        for step, out, op, inputs, dtype, layout, mem, shape in rows:
+            if bare(op) in PLUMBING:
+                continue
+            new_inputs = []
+            for inp in inputs:
+                for s in kept_srcs(inp):
+                    if s not in new_inputs:
+                        new_inputs.append(s)
+            display.append([step, out, op, new_inputs, dtype, layout, mem, shape])
+
     # ---- emit HTML ----
     op_counts = {}
-    for r in rows:
+    for r in display:
         op_counts[r[2]] = op_counts.get(r[2], 0) + 1
 
     def esc(x):
@@ -286,8 +332,10 @@ def main():
                   + (f' ({shape_misses} unknown)' if shape_misses else '')
                   + f' from {esc(os.path.basename(mlir_path))}'
                   if op_shapes else ' &middot; no MLIR shapes')
+    op_count_note = (f'{len(display)} ops (of {len(rows)}, plumbing hidden)'
+                     if args.no_plumbing else f'{len(rows)} ops')
     parts.append(f'<div class=meta>{esc(os.path.abspath(args.path))} &middot; '
-                 f'{len(rows)} ops &middot; {len(outputs)} outputs{shape_note}<br>'
+                 f'{op_count_note} &middot; {len(outputs)} outputs{shape_note}<br>'
                  + " &middot; ".join(f"{esc(k.replace('ttnn.',''))}:{v}"
                                      for k, v in sorted(op_counts.items(), key=lambda x: -x[1]))
                  + "</div>")
@@ -312,10 +360,12 @@ def main():
             return f'<span class=in title="{title}">{esc(i)}</span>{name_html}'
         return f'<span class=in>{esc(i)}</span>'
 
-    for step, out, op, inputs, dtype, layout, mem, shape in rows:
+    for step, out, op, inputs, dtype, layout, mem, shape in display:
         opshort = op.replace("ttnn.", "")
         ins = ", ".join(render_input(i) for i in inputs)
-        frees = ", ".join(f'<span class=free>{esc(v)}</span>' for v in freed_at.get(step, []))
+        frees = ", ".join(f'<span class=free>{esc(v)}</span>'
+                          for v in freed_at.get(step, [])
+                          if not (args.no_plumbing and v in plumb_vars))
         out_cls = " class=out" if out in out_set else ""
         if shape:
             dims, _, stype = shape.partition("·")

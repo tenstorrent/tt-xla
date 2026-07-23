@@ -22,12 +22,19 @@ python3 scripts/codegen_trace_graph.py <path>/main.py
 
 # shapes are auto-sourced from the sibling ttnn.mlir; override with:
 python3 scripts/codegen_trace_table.py <path>/main.py --mlir other/ttnn.mlir
+
+# hide plumbing ops (both tools default differently — see below):
+python3 scripts/codegen_trace_table.py <path>/main.py --no-plumbing   # table: opt-in
+python3 scripts/codegen_trace_graph.py <path>/main.py --no-collapse   # graph: opt-out
 ```
 
 - **`codegen_trace_table.py`** — one row per `ttnn` op in execution order: output
   var, op, result dims + element type, inputs, dtype/layout/memory, and the tensors
   it deallocates. `input[i]` references are annotated with the arg's `ttir.name`
-  (weight / kv_cache / constant / activation). Has a live filter box.
+  (weight / kv_cache / constant / activation). Has a live filter box. Pass
+  `--no-plumbing` to hide the six plumbing ops and rewire kept ops' inputs through
+  the folded ops (mnist 41 -> 13 rows, qwen 2096 -> 1098); off by default so the
+  table stays a faithful execution trace.
 - **`codegen_trace_graph.py`** — top-down layered dataflow DAG (SVG). Pan (drag),
   zoom (wheel), hover to highlight a node's edges, click to pin its full
   ancestor+descendant lineage, filter by op/var. Reuses `build_trace` from the
@@ -112,7 +119,10 @@ dead-ends we already ruled out).
   = `to_device`, `to_layout`, `from_device`, `to_memory_config`, `typecast`,
   `reshape` — pure shape/layout/movement ops that bury the compute backbone. When
   collapsed, edges are rewired through folded nodes by resolving each node's
-  nearest *kept* predecessors in topological order.
+  nearest *kept* predecessors in topological order. The table's `--no-plumbing`
+  uses the *same* `PLUMBING` set and the same nearest-kept-producer rewiring, but
+  is **opt-in** rather than default: the table's job is a faithful execution trace
+  (plumbing included), whereas the graph's job is readability (plumbing hidden).
 - **Left-to-right, longest-path depth layering.** x = depth * COL_W. Weight/input
   leaves are stacked vertically above their consumer (not given their own depth
   column) so the backbone stays compact instead of one tall column.
