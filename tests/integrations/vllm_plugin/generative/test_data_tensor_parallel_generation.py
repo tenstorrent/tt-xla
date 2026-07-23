@@ -276,7 +276,13 @@ def test_data_tensor_parallel_generation_gemma4_31b(
     ]
 
     messages = [[{"role": "user", "content": prompt}] for prompt in prompts]
-    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0,
+        top_p=1.0,
+        max_tokens=32,
+        min_tokens=32,
+        ignore_eos=True,
+    )
 
     llm_args = {
         "model": model_name,
