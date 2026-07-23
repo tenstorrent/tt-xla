@@ -588,19 +588,41 @@ class XLAExecutor:
         # call. Empty in the AOT path, where AOTAutograd already lifts them into
         # the incoming *args. Used by both the legacy and experimental flows.
         self.params_and_consts = params_and_consts
-        # Experimental flow only: cached torch-xla compiled graph.
-        self.compiled_graph = None
+        # Experimental flow only: cached torch-xla compiled graphs, keyed by the
+        # input shape/dtype signature. A single XLAExecutor can be invoked with
+        # more than one input shape (e.g. an LLM's prefill seq_len vs decode
+        # seq_len=1 reusing the same dynamo graph); a graph extracted for the
+        # first shape must not be reused for a different shape, or it returns a
+        # stale, wrongly-shaped result.
+        self.compiled_graphs = {}
         self.lazy_execution = lazy_execution
 
+    @staticmethod
+    def _args_shape_key(full_args):
+        # Signature of the input tensors' shapes and dtypes. Non-tensor args are
+        # included by value so differing scalars also key distinct graphs.
+        return tuple(
+            (tuple(a.shape), a.dtype) if isinstance(a, torch.Tensor) else a
+            for a in full_args
+        )
+
     def _call_experimental_compile(self, full_args):
-        if self.compiled_graph is None:
+        # Cache per input shape/dtype signature. `extract_compiled_graph`
+        # specializes the graph to the shapes of `full_args`, so reusing it for a
+        # different shape returns a stale, wrongly-shaped result. Keying by shape
+        # extracts a fresh graph for each distinct shape (e.g. prefill vs decode)
+        # while still avoiding re-tracing on repeated calls with the same shape.
+        key = self._args_shape_key(full_args)
+        compiled_graph = self.compiled_graphs.get(key)
+        if compiled_graph is None:
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
             # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
+            compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
+            self.compiled_graphs[key] = compiled_graph
 
-        return self.compiled_graph(*full_args)
+        return compiled_graph(*full_args)
 
     def __call__(self, *args):
         # Move any CPU tensors in args to XLA. Some model attributes (e.g.
