@@ -343,3 +343,12 @@ norm to 8x4=32 cores. Both WRONG. Verified on silicon:
 - Clean tt-mlir fix branch commit amended (comment/message corrected only; code
   identical): new SHA 4a2ff97ef6abece0bc1bb7b4ac11e1c85e9cc773. For future CI runs
   use this as mlir_override (the completed run used 77cd345 = identical code).
+
+## GALAXY (Wormhole) CI perf — fix is arch-general, no WH regression
+CI run 29992741002 (main + mlir_override=4a2ff97, galaxy-wh-6u, sh-runner=false):
+test_llama_3_1_70b_tp_galaxy (2D (4,8) mesh, exercises distributed_rms_norm on the
+cluster axis), FULL 80-layer: PASS in 42m43s. Prefill PCC 0.997056, first-decode PCC
+0.990632. samples/s 6.13, TTFT 11504ms (batch 32, seq 128). On WH the per-chip grid is
+8-wide and the norm shard count is a multiple of 8, so the fix picks the SAME rectangle
+the original canonical placement did -> identical grid, no regression. Confirms the
+rectangular-grid fix works on both Blackhole (qb2) and Wormhole (galaxy).
