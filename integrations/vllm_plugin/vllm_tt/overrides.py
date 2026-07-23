@@ -61,7 +61,7 @@ def _promote_pre_allocated_attrs_to_buffers(model: torch.nn.Module) -> None:
         model.register_buffer(attr, t, persistent=False)
 
 
-def replace_modules(model: torch.nn.Module, *, use_flat_model_io) -> None:
+def replace_modules(model: torch.nn.Module, *, use_flat_model_io: bool = False) -> None:
     logger.info(
         "Replacing vLLM modules with TT-compatible overrides where necessary..."
     )
