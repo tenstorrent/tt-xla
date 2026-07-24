@@ -204,6 +204,26 @@ class TTRoutedExperts(RoutedExperts):
                 h_flat, logits_flat, self.top_k, self.renormalize
             )
         else:
+            # The plain softmax top-k below does not implement the extra router
+            # features vLLM 0.25.1 exposes on RoutedExperts (grouped top-k,
+            # non-softmax scoring, e_score correction bias, router-weight-on-input).
+            # Models needing these (e.g. DeepSeek, Kimi, GLM) must run via the HF
+            # moe_backend; fail loudly rather than silently mis-routing. See #5610.
+            if (
+                self.use_grouped_topk
+                or self.scoring_func != "softmax"
+                or self.e_score_correction_bias is not None
+                or self.apply_router_weight_on_input
+            ):
+                raise NotImplementedError(
+                    "TT vLLM FusedMoE forward_native only supports plain softmax "
+                    "top-k. (use_grouped_topk="
+                    f"{self.use_grouped_topk}, scoring_func={self.scoring_func!r}, "
+                    f"e_score_correction_bias={self.e_score_correction_bias is not None}, "
+                    f"apply_router_weight_on_input={self.apply_router_weight_on_input}). "
+                    "For models using these router features, please run with the HF "
+                    "moe_backend (experts_implementation)."
+                )
             scores = F.softmax(logits_flat.float(), dim=-1)
             topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)
             if self.renormalize:
