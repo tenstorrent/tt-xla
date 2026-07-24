@@ -64,7 +64,6 @@ class Sampler(nn.Module):
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
-        self.logprobs_mode = "processed_logprobs"
 
     def forward(
         self,

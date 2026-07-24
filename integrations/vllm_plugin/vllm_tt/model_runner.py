@@ -872,7 +872,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # runtime graph may appear during inference.
         if (
             self.speculative_config is not None
-            and new_compiled_graphs == 1
+            and new_compiled_graphs > 0
             and case_str == "execute_model"
         ):
             logger.warning(
@@ -2017,6 +2017,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Convert sampled_token_ids to list of lists for ngram proposer
         sampled_token_ids_list = sampled_token_ids.cpu().tolist()
+        if not sampled_token_ids_list:
+            return
         if not isinstance(sampled_token_ids_list[0], list):
             # If it's a 2D tensor with single column, wrap each id in a list
             sampled_token_ids_list = [[int(tid)] for tid in sampled_token_ids_list]
@@ -2031,6 +2033,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for req_idx in discard_req_indices:
             if 0 <= req_idx < len(sampled_token_ids_list):
                 sampled_token_ids_list[req_idx] = []
+
+        # No accepted tokens remain after filtering/discard; skip drafting.
+        if not any(sampled_token_ids_list):
+            return
 
         # Get token counts for each request (number of tokens already in context)
         num_tokens_no_spec = np.array(
@@ -2316,10 +2322,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # gather_logprobs graph fails trace at opt_level=1, so
                 # fall back to CPU — post-processing is cheap and only
                 # the sampled-token id + logits need to move to host.
-                logits_for_logprobs = self._extract_sampling_logits(
-                    logits, sampling_metadata
-                )
-                logits_cpu = logits_for_logprobs.cpu()
+                logits_cpu = logits.cpu()
                 tokens_cpu = selected_token_ids.cpu()
                 logprobs = self.sampler.gather_logprobs(
                     self.sampler.compute_logprobs(logits_cpu),
@@ -2327,10 +2330,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     token_ids=tokens_cpu.squeeze(-1),
                 )
             else:
-                logits_for_logprobs = self._extract_sampling_logits(
-                    logits, sampling_metadata
-                )
-                logprobs = self.gather_logprobs(logits_for_logprobs, selected_token_ids)
+                logprobs = self.gather_logprobs(logits, selected_token_ids)
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
@@ -2456,41 +2456,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._verify_num_xla_graphs("execute_model")
 
         return model_runner_output
-
-    def _extract_sampling_logits(
-        self,
-        logits: torch.Tensor,
-        sampling_metadata: XLASupportedSamplingMetadata,
-    ) -> torch.Tensor:
-        """Return one sampling-logit row per request.
-
-        In spec decode, postprocess computes logits for packed draft+bonus
-        positions with shape [batch * (num_spec_tokens + 1), vocab]. Sampling
-        always runs on the bonus row (last packed column) per request.
-        """
-        return logits
-        # output_token_ids can be empty on first-step prefill when penalties and
-        # logits processors are disabled, so infer batch size from more stable
-        # metadata fields first.
-        if sampling_metadata.spec_token_ids is not None:
-            batch_size = len(sampling_metadata.spec_token_ids)
-        elif sampling_metadata.temperature is not None:
-            batch_size = int(sampling_metadata.temperature.shape[0])
-        else:
-            batch_size = len(sampling_metadata.output_token_ids)
-
-        if batch_size == 0:
-            return logits
-
-        if logits.shape[0] == batch_size:
-            return logits
-
-        spec_width = self.num_spec_tokens + 1
-        if logits.shape[0] == batch_size * spec_width:
-            return logits.reshape(batch_size, spec_width, -1)[:, spec_width - 1, :]
-
-        # Keep compiled sampling resilient if upstream metadata contracts evolve.
-        return logits
 
     def update_config(self, overrides: dict[str, Any]) -> None:
         # TODO: TPU config may need extra validation
@@ -3661,7 +3626,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
-        # return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             if not self.tt_config.cpu_sampling:
@@ -4005,7 +3969,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        logits_for_sampling = self._extract_sampling_logits(logits, sampling_metadata)
         if (
             sampling_metadata.all_greedy
             and sampling_metadata.no_penalties
@@ -4015,11 +3978,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            out_tokens = torch.argmax(logits_for_sampling, dim=-1, keepdim=True)
+            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
-            out_tokens = self.sampler(
-                logits_for_sampling, sampling_metadata
-            ).sampled_token_ids
+            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
 
         return out_tokens
 
@@ -4052,7 +4013,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
         All operations run on CPU to avoid compiling a device sampling graph.
         """
-        logits = self._extract_sampling_logits(logits, sampling_metadata)
         logits = logits.cpu()
 
         if not sampling_metadata.no_penalties:

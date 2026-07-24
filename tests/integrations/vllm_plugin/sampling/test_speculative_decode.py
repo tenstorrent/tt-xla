@@ -99,6 +99,58 @@ def test_speculative_nongreedy_fallback_recovers_on_rejection():
 
 @pytest.mark.push
 @pytest.mark.cpu
+def test_speculative_greedy_fallback_batch_mixed_draft_lengths_uses_cu_offsets():
+    """Exercise multi-request flat packing via cu offsets.
+
+    req0 has draft_len=2 and req1 has draft_len=1. This validates that req1
+    reads from its own flat slice (start = cu[0]) instead of req0's tokens.
+    """
+    draft_token_ids = torch.tensor([7, 9, 21], dtype=torch.int32)
+    target_logits = _make_target_logits([7, 9, 21], vocab_size=32)
+    bonus_token_ids = torch.tensor([[13], [29]], dtype=torch.int32)
+
+    output_token_ids = _make_rejection_sampler()._rejection_sample_fallback(
+        draft_token_ids=draft_token_ids,
+        num_draft_tokens=[2, 1],
+        max_spec_len=2,
+        cu_num_draft_tokens=torch.tensor([2, 3], dtype=torch.int32),
+        target_logits=target_logits,
+        bonus_token_ids=bonus_token_ids,
+        sampling_metadata=None,
+    )
+
+    assert output_token_ids.tolist() == [
+        [7, 9, 13],
+        [21, 29, _PLACEHOLDER_TOKEN_ID],
+    ]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_speculative_greedy_fallback_handles_zero_draft_len_with_bonus_only():
+    """Cover draft_len == 0 branch that emits only the bonus token."""
+    draft_token_ids = torch.tensor([5, 6], dtype=torch.int32)
+    target_logits = _make_target_logits([5, 6], vocab_size=16)
+    bonus_token_ids = torch.tensor([[42], [11]], dtype=torch.int32)
+
+    output_token_ids = _make_rejection_sampler()._rejection_sample_fallback(
+        draft_token_ids=draft_token_ids,
+        num_draft_tokens=[0, 2],
+        max_spec_len=2,
+        cu_num_draft_tokens=torch.tensor([0, 2], dtype=torch.int32),
+        target_logits=target_logits,
+        bonus_token_ids=bonus_token_ids,
+        sampling_metadata=None,
+    )
+
+    assert output_token_ids.tolist() == [
+        [42, _PLACEHOLDER_TOKEN_ID, _PLACEHOLDER_TOKEN_ID],
+        [5, 6, 11],
+    ]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
 def test_propose_draft_token_ids_ignores_discarded_rows():
     class _FakeDrafter:
         def __init__(self):
