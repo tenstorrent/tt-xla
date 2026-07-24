@@ -553,6 +553,19 @@ class InputBatch:
             ]
             # Only manage block tables for models that need KV cache
             if len(self.block_table.block_tables) > 0:
+                # TEMP DEBUG (TTXLA_DEBUG_CONDENSE=1): log every condense move.
+                # Under DP the src/dst slots often live on different replicas;
+                # move_row copies only the block-ID mapping, not the physical KV,
+                # so a cross-replica move makes the survivor read stale KV. Match
+                # the logged req_id against the garbled prompt in the report.
+                import os as _os
+
+                if _os.environ.get("TTXLA_DEBUG_CONDENSE"):
+                    print(
+                        f"[CONDENSE_MOVE] req={req_id} from_slot={last_req_index} "
+                        f"to_slot={empty_index}",
+                        flush=True,
+                    )
                 self.block_table.move_row(last_req_index, empty_index)
 
             self.request_lora_mapping[empty_index] = self.request_lora_mapping[
