@@ -91,6 +91,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "srpo",
+        "pytest": "tests/benchmark/test_imagegen.py::test_srpo",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
       },
