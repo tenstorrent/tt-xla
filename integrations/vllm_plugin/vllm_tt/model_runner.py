@@ -86,6 +86,12 @@ from vllm.v1.outputs import (
 )
 from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
 from vllm.v1.spec_decode.ngram_proposer import NgramProposer
+
+try:
+    from vllm.v1.spec_decode.gemma4_proposer import Gemma4Proposer
+except ImportError:
+    Gemma4Proposer = None  # type: ignore[assignment]
+
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
@@ -169,6 +175,124 @@ if TYPE_CHECKING:
 logger = tt_init_logger(__name__)
 
 INVALID_TOKEN_ID = -1
+
+
+def _is_gemma4_mtp_enabled(speculative_config: object | None) -> bool:
+    if speculative_config is None:
+        return False
+    use_gemma4_mtp = getattr(speculative_config, "use_gemma4_mtp", None)
+    return callable(use_gemma4_mtp) and bool(use_gemma4_mtp())
+
+
+def _extract_hidden_states_from_model_output(model_output: object) -> torch.Tensor:
+    if isinstance(model_output, torch.Tensor):
+        return model_output
+    if (
+        isinstance(model_output, (tuple, list))
+        and len(model_output) > 0
+        and isinstance(model_output[0], torch.Tensor)
+    ):
+        return model_output[0]
+
+    raise NotImplementedError(
+        "TT model_runner expects model forward to return a Tensor or a tuple/list "
+        "whose first element is a Tensor."
+    )
+
+
+def _normalize_draft_token_ids(
+    raw_draft_token_ids: object,
+    expected_num_reqs: int,
+) -> list[list[int]]:
+    if isinstance(raw_draft_token_ids, torch.Tensor):
+        seqs = raw_draft_token_ids.detach().cpu().tolist()
+    elif isinstance(raw_draft_token_ids, np.ndarray):
+        seqs = raw_draft_token_ids.tolist()
+    elif isinstance(raw_draft_token_ids, list):
+        seqs = raw_draft_token_ids
+    elif raw_draft_token_ids is None:
+        seqs = [[] for _ in range(expected_num_reqs)]
+    else:
+        raise TypeError(
+            "Unsupported draft token ids type from proposer: "
+            f"{type(raw_draft_token_ids).__name__}"
+        )
+
+    if not seqs:
+        return [[] for _ in range(expected_num_reqs)]
+
+    if not isinstance(seqs[0], list):
+        seqs = [[int(token)] for token in seqs]
+
+    normalized = [
+        [int(token) for token in seq if int(token) != INVALID_TOKEN_ID] for seq in seqs
+    ]
+
+    if len(normalized) < expected_num_reqs:
+        normalized.extend([[] for _ in range(expected_num_reqs - len(normalized))])
+    elif len(normalized) > expected_num_reqs:
+        normalized = normalized[:expected_num_reqs]
+
+    return normalized
+
+
+class TTGemma4ProposerAdapter:
+    """Compatibility wrapper around Gemma4Proposer API variants."""
+
+    def __init__(self, proposer: object):
+        self._proposer = proposer
+
+    def reset_finished_reqs(self, finished_req_ids: Sequence[str]) -> None:
+        for method_name in ("on_requests_finished", "reset_finished_reqs"):
+            method = getattr(self._proposer, method_name, None)
+            if callable(method):
+                method(finished_req_ids)
+                return
+
+    def update_hidden_state_feedback(
+        self,
+        hidden_state_feedback: dict[str, torch.Tensor],
+        sampled_token_ids_list: list[list[int]],
+    ) -> None:
+        for method_name in (
+            "set_hidden_state_feedback",
+            "update_hidden_state_feedback",
+            "set_hidden_states",
+        ):
+            method = getattr(self._proposer, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                method(hidden_state_feedback, sampled_token_ids_list)
+                return
+            except TypeError:
+                method(hidden_state_feedback)
+                return
+
+    def propose(
+        self,
+        sampled_token_ids_list: list[list[int]],
+        num_tokens_no_spec: np.ndarray,
+        token_ids_cpu: np.ndarray,
+    ) -> list[list[int]]:
+        raw: object | None = None
+        try:
+            raw = self._proposer.propose(
+                sampled_token_ids_list,
+                num_tokens_no_spec,
+                token_ids_cpu,
+            )
+        except TypeError:
+            try:
+                raw = self._proposer.propose(
+                    sampled_token_ids=sampled_token_ids_list,
+                    num_tokens_no_spec=num_tokens_no_spec,
+                    token_ids_cpu=token_ids_cpu,
+                )
+            except TypeError:
+                raw = self._proposer.propose()
+
+        return _normalize_draft_token_ids(raw, len(sampled_token_ids_list))
 
 
 def generate_attn_mask(
@@ -519,13 +643,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Set up speculative decoding using ngram CPU proposer.
         self.num_spec_tokens = 0
         self.drafter: NgramProposer | None = None
+        self._gemma4_drafter_adapter: TTGemma4ProposerAdapter | None = None
+        self._spec_hidden_state_feedback: dict[str, torch.Tensor] = {}
         self._draft_token_ids: list[list[int]] | None = None
         self._draft_token_req_ids: list[str] | None = None
 
         if self.speculative_config:
             self.num_spec_tokens = self.speculative_config.num_speculative_tokens
+            if _is_gemma4_mtp_enabled(self.speculative_config):
+                if Gemma4Proposer is None:
+                    raise NotImplementedError(
+                        "Gemma4 MTP is enabled in speculative_config but "
+                        "Gemma4Proposer could not be imported from vLLM. "
+                        "Please install a vLLM build with Gemma4Proposer support."
+                    )
+                try:
+                    proposer = Gemma4Proposer(vllm_config)
+                except TypeError:
+                    proposer = Gemma4Proposer()
+                self._gemma4_drafter_adapter = TTGemma4ProposerAdapter(proposer)
             # Initialize ngram CPU proposer for speculative decoding
-            if self.speculative_config.method == "ngram":
+            elif self.speculative_config.method == "ngram":
                 self.drafter = NgramProposer(vllm_config)
 
         # Initialize input batch early to avoid AttributeError in _update_states
@@ -906,6 +1044,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for req_id in scheduler_output.finished_req_ids:
             self.requests.pop(req_id, None)
             self.num_prompt_logprobs.pop(req_id, None)
+            self._spec_hidden_state_feedback.pop(req_id, None)
+
+        if self._gemma4_drafter_adapter is not None:
+            self._gemma4_drafter_adapter.reset_finished_reqs(
+                scheduler_output.finished_req_ids
+            )
 
         # Remove the finished requests from the persistent batch.
         # NOTE(woosuk): There could be an edge case where finished_req_ids and
@@ -2017,7 +2161,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._draft_token_req_ids = []
         self._draft_token_ids = []
 
-        if not self.drafter or not self.num_spec_tokens:
+        if not self.num_spec_tokens or (
+            self.drafter is None and self._gemma4_drafter_adapter is None
+        ):
             return
 
         # Convert sampled_token_ids to list of lists for ngram proposer
@@ -2064,14 +2210,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         i, : self.input_batch.num_tokens_no_spec[i]
                     ]
                 )
-        # Propose draft tokens using ngram proposer
-        draft_token_ids = self.drafter.propose(
-            sampled_token_ids_list,
-            num_tokens_no_spec,
-            token_ids_cpu,
-        )
-
         req_ids = cast(list[str], self.input_batch.req_ids[: self.input_batch.num_reqs])
+        if self._gemma4_drafter_adapter is not None:
+            for req_idx in discard_req_indices:
+                if 0 <= req_idx < len(req_ids):
+                    self._spec_hidden_state_feedback.pop(req_ids[req_idx], None)
+
+            hidden_feedback = {
+                req_id: self._spec_hidden_state_feedback[req_id]
+                for req_id in req_ids
+                if req_id in self._spec_hidden_state_feedback
+            }
+            self._gemma4_drafter_adapter.update_hidden_state_feedback(
+                hidden_feedback,
+                sampled_token_ids_list,
+            )
+            draft_token_ids = self._gemma4_drafter_adapter.propose(
+                sampled_token_ids_list,
+                num_tokens_no_spec,
+                token_ids_cpu,
+            )
+        else:
+            assert self.drafter is not None
+            # Propose draft tokens using ngram proposer
+            draft_token_ids = self.drafter.propose(
+                sampled_token_ids_list,
+                num_tokens_no_spec,
+                token_ids_cpu,
+            )
+
         for req_id, draft_tokens in zip(req_ids, draft_token_ids):
             if draft_tokens:
                 self._draft_token_req_ids.append(req_id)
@@ -2314,6 +2481,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     if req_id in self.num_prompt_logprobs:
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
+
+            if (
+                spec_decode_metadata is not None
+                and self._gemma4_drafter_adapter is not None
+                and hidden_states.ndim == 3
+            ):
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    if req_id is None:
+                        continue
+                    local_idx = i - start_index
+                    num_scheduled = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+                    if num_scheduled <= 0:
+                        continue
+                    last_token_idx = min(num_scheduled - 1, hidden_states.shape[1] - 1)
+                    self._spec_hidden_state_feedback[req_id] = (
+                        hidden_states[local_idx, last_token_idx].detach().cpu()
+                    )
 
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
@@ -2693,11 +2878,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_state_shape,
             ) = self._prepare_model_call_tensors(input_ids, position_ids, inputs_embeds)
             torch_xla.sync(wait=False)
-            out = self.model(
+            model_output = self.model(
                 input_ids=model_input_ids,
                 positions=model_positions,
                 inputs_embeds=model_inputs_embeds,
             )
+            out = _extract_hidden_states_from_model_output(model_output)
             out = self._restore_model_hidden_states(out, hidden_state_shape)
 
         self._hidden_states_dtype = out.dtype
@@ -2852,11 +3038,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_state_shape,
             ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
 
-            hidden_states = self.model(
+            model_output = self.model(
                 input_ids=model_input_ids,
                 positions=model_positions,
                 inputs_embeds=model_inputs_embeds,
             )
+            hidden_states = _extract_hidden_states_from_model_output(model_output)
             hidden_states = self._restore_model_hidden_states(
                 hidden_states, hidden_state_shape
             )
@@ -3242,11 +3429,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_state_shape,
         ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
 
-        hidden_states = self.model(
+        model_output = self.model(
             input_ids=model_input_ids,
             positions=model_positions,
             inputs_embeds=model_inputs_embeds,
         )
+        hidden_states = _extract_hidden_states_from_model_output(model_output)
         hidden_states = self._restore_model_hidden_states(
             hidden_states, hidden_state_shape
         )
@@ -3378,11 +3566,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden_state_shape,
         ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
 
-        hidden_states = self.model(
+        model_output = self.model(
             input_ids=model_input_ids,
             positions=model_positions,
             inputs_embeds=model_inputs_embeds,
         )
+        hidden_states = _extract_hidden_states_from_model_output(model_output)
         return self._restore_model_hidden_states(hidden_states, hidden_state_shape)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)

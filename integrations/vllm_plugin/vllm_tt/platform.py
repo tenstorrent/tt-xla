@@ -248,18 +248,25 @@ class TTPlatform(Platform):
     def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
         """Validate the first TT speculative-decode support slice.
 
-        For now, TT only supports method='ngram' in synchronous scheduling.
-        All other methods and async scheduling are rejected explicitly.
+        TT supports method='ngram' and a gated Gemma4 MTP path in
+        synchronous scheduling. All other methods and async scheduling are
+        rejected explicitly.
         """
         speculative_config = vllm_config.speculative_config
         if speculative_config is None:
             return
 
         method = getattr(speculative_config, "method", None)
-        if method != "ngram":
+        use_gemma4_mtp = bool(
+            hasattr(speculative_config, "use_gemma4_mtp")
+            and callable(speculative_config.use_gemma4_mtp)
+            and speculative_config.use_gemma4_mtp()
+        )
+        if method != "ngram" and not use_gemma4_mtp:
             raise NotImplementedError(
                 "TT speculative decoding currently supports only "
-                "speculative_config.method='ngram'."
+                "speculative_config.method='ngram' or Gemma4 MTP "
+                "(speculative_config.use_gemma4_mtp()==True)."
             )
 
         if getattr(vllm_config.scheduler_config, "async_scheduling", False):
@@ -268,8 +275,10 @@ class TTPlatform(Platform):
                 "synchronous scheduling (async_scheduling=False)."
             )
 
-        if hasattr(speculative_config, "use_ngram_gpu") and callable(
-            speculative_config.use_ngram_gpu
+        if (
+            method == "ngram"
+            and hasattr(speculative_config, "use_ngram_gpu")
+            and callable(speculative_config.use_ngram_gpu)
         ):
             if speculative_config.use_ngram_gpu():
                 raise NotImplementedError(
@@ -277,10 +286,16 @@ class TTPlatform(Platform):
                     "Use method='ngram' (CPU proposer path)."
                 )
 
-        logger.info(
-            "[TT] Enabling speculative decoding with method='ngram' "
-            "(synchronous scheduling only)."
-        )
+        if use_gemma4_mtp:
+            logger.info(
+                "[TT] Enabling speculative decoding with Gemma4 MTP "
+                "(gated, synchronous scheduling only)."
+            )
+        else:
+            logger.info(
+                "[TT] Enabling speculative decoding with method='ngram' "
+                "(synchronous scheduling only)."
+            )
 
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)

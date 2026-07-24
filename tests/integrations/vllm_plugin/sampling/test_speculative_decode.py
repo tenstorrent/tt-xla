@@ -8,7 +8,13 @@ import numpy as np
 import pytest
 import torch
 from vllm_tt.metadata import XLASupportedSamplingMetadata
-from vllm_tt.model_runner import TTModelRunner
+from vllm_tt.model_runner import (
+    TTGemma4ProposerAdapter,
+    TTModelRunner,
+    _extract_hidden_states_from_model_output,
+    _is_gemma4_mtp_enabled,
+    _normalize_draft_token_ids,
+)
 from vllm_tt.rejection_sampler import _PLACEHOLDER_TOKEN_ID, RejectionSampler
 
 
@@ -173,6 +179,8 @@ def test_propose_draft_token_ids_ignores_discarded_rows():
     fake_runner = SimpleNamespace(
         _draft_token_req_ids=None,
         _draft_token_ids=None,
+        _gemma4_drafter_adapter=None,
+        _spec_hidden_state_feedback={},
         drafter=fake_drafter,
         num_spec_tokens=3,
         input_batch=fake_input_batch,
@@ -188,3 +196,77 @@ def test_propose_draft_token_ids_ignores_discarded_rows():
     )
 
     assert fake_drafter.last_sampled == [[100], []]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_is_gemma4_mtp_enabled_detects_enabled_config():
+    cfg = SimpleNamespace(use_gemma4_mtp=lambda: True)
+    assert _is_gemma4_mtp_enabled(cfg)
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_is_gemma4_mtp_enabled_rejects_missing_or_false_config():
+    assert not _is_gemma4_mtp_enabled(None)
+    assert not _is_gemma4_mtp_enabled(SimpleNamespace())
+    assert not _is_gemma4_mtp_enabled(SimpleNamespace(use_gemma4_mtp=lambda: False))
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_extract_hidden_states_from_model_output_accepts_tensor_and_tuple():
+    hs = torch.randn(2, 3, 4)
+    aux = torch.randn(2, 3)
+
+    assert _extract_hidden_states_from_model_output(hs) is hs
+    assert _extract_hidden_states_from_model_output((hs, aux)) is hs
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_extract_hidden_states_from_model_output_rejects_invalid_outputs():
+    with pytest.raises(NotImplementedError, match="model forward"):
+        _extract_hidden_states_from_model_output(())
+    with pytest.raises(NotImplementedError, match="model forward"):
+        _extract_hidden_states_from_model_output(("not-a-tensor",))
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_normalize_draft_token_ids_accepts_tensor_ndarray_and_list():
+    assert _normalize_draft_token_ids(torch.tensor([[1, 2], [3, 4]]), 2) == [
+        [1, 2],
+        [3, 4],
+    ]
+    assert _normalize_draft_token_ids(np.array([7, 8]), 2) == [[7], [8]]
+    assert _normalize_draft_token_ids([[9], [10, 11]], 2) == [[9], [10, 11]]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_ttgemma4_adapter_normalizes_and_updates_feedback():
+    class _FakeGemma4Proposer:
+        def __init__(self):
+            self.hidden_feedback = None
+
+        def set_hidden_state_feedback(self, hidden_feedback, sampled_token_ids):
+            self.hidden_feedback = (hidden_feedback, sampled_token_ids)
+
+        def propose(self, sampled_token_ids_list, num_tokens_no_spec, token_ids_cpu):
+            assert isinstance(num_tokens_no_spec, np.ndarray)
+            assert isinstance(token_ids_cpu, np.ndarray)
+            return torch.tensor([[1, 2], [3, 4]], dtype=torch.int32)
+
+    adapter = TTGemma4ProposerAdapter(_FakeGemma4Proposer())
+    sampled = [[101], [202]]
+    feedback = {"req-0": torch.randn(16)}
+
+    adapter.update_hidden_state_feedback(feedback, sampled)
+    out = adapter.propose(
+        sampled_token_ids_list=sampled,
+        num_tokens_no_spec=np.array([3, 5], dtype=np.int32),
+        token_ids_cpu=np.zeros((2, 8), dtype=np.int32),
+    )
+
+    assert out == [[1, 2], [3, 4]]
