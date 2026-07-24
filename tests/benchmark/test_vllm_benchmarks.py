@@ -27,6 +27,8 @@ from utils import resolve_display_name, sanitize_model_name
 #   TT_BENCHMARK_GMU=<float>              overrides per-test gpu_memory_utilization
 #   TT_BENCHMARK_BATCH_SIZE=<int>         overrides per-test batch_size
 #   TT_BENCHMARK_TRACE=0|1                overrides per-test enable_trace
+#   TT_BENCHMARK_FLAT_MODEL_IO=0|1        force additional_config.flat_model_io
+#                                         (embedding A/B for issue #5756; unset = leave default)
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
@@ -41,6 +43,7 @@ _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
 # compile time + peak prefill DRAM are bounded by the chunk size, not
 # max_model_len. 0 / unset = disabled (unchanged behavior).
 _BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
+_BENCH_FLAT_MODEL_IO = os.environ.get("TT_BENCHMARK_FLAT_MODEL_IO")
 
 
 def _config(
@@ -311,6 +314,11 @@ def _embedding_config(
 ):
     additional = {"enable_trace": True}
     additional.update(additional_config_extra)
+    # A/B knob for the flatten-inputs regression (issue #5756): force flat_model_io
+    # on/off so the same build can be profiled batched vs flattened. Unset = leave the
+    # build default (PR #5700 defaults it True).
+    if _BENCH_FLAT_MODEL_IO is not None:
+        additional["flat_model_io"] = _BENCH_FLAT_MODEL_IO == "1"
     return VLLMEmbeddingBenchmarkConfig(
         model=model,
         batch_size=batch_size,
@@ -395,6 +403,15 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
         if resolved_display_name.startswith("vllm_")
         else f"vllm_{resolved_display_name}"
     )
+
+    # Dump compiler IR / flatbuffers so the CI "Run Device Perf" step (ttrt perf over
+    # ./modules/*.ttnn) can collect per-op device timings for the embedding models too.
+    # (The generative _run_vllm_benchmark already does this; the embedding path did not.)
+    config.additional_config.setdefault("export_path", "modules")
+    config.additional_config.setdefault(
+        "export_model_name", sanitize_model_name(display_name)
+    )
+
     results = benchmark_vllm_embedding(config, display_name)
     if output_file:
         results["project"] = "tt-forge/tt-xla"
