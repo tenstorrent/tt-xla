@@ -581,19 +581,25 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // here (the TORUS_XY rejection only came from computeMeshFabricConfig
   // auto-deducing RING+RING).
   if (m_devices.size() == 32) {
-    // Reference path (Wormhole): FABRIC_1D_RING (Topology::Ring), matching
-    // tt-metal's own fused-MoE E2E on a 4x8 galaxy (test_moe_gpt_e2e.py:
-    // FABRIC_1D_RING, cluster_axis=0). The fused decode collectives dispatch
-    // via the tt_fabric::linear:: (1D-fabric) multicast along the size-4 ring
-    // axis; the moe_compute combine topology is pinned to Ring to match
-    // (TTNNResolveComposites.cpp). (The BH-galaxy FABRIC_1D
-    // "drop-the-wraparound" experiment was Blackhole-specific and is reverted
-    // here.)
-    LOG_F(WARNING,
-          "Using FABRIC_1D_RING (Ring) for the 32-device galaxy (reference "
-          "fused-MoE decode path; combine topology Ring).");
+    // Per-axis topology for the BH galaxy (single_bh_galaxy_torus_x MGD): the
+    // size-4 axis RINGS, the size-8 axis is a LINE (verified via cluster-desc
+    // eth connectivity). globalConfig=FABRIC_1D_RING sets up the device fabric
+    // (+ TT_MESH_GRAPH_DESC_PATH=torus_x); perAxisConfig drives the compiler's
+    // per-op meshTopology (fabricConfigToMeshTopology -> TTNNConfigureCCLOps).
+    // Order maps to meshTopology[i]; setCCLTopology reads meshTopology[N-1-axis]:
+    //   perAxisConfig[0]=FABRIC_1D  -> meshTopology[0]=Linear -> cluster_axis=1
+    //                                  (size-8 TP all_gather) routes on the line
+    //   perAxisConfig[1]=FABRIC_1D_RING -> meshTopology[1]=Ring -> cluster_axis=0
+    //                                  (size-4 fused-MoE a2a/moe_compute) ring
+    // Without this (empty perAxisConfig) meshTopology is empty, CCL ops fall back
+    // to a uniform Ring, and the size-8 all_gather fails ("no forwarding
+    // direction ... D28") because the size-8 axis has no wraparound.
+    LOG_F(WARNING, "Using FABRIC_1D_RING (device) + per-axis [size-8 Linear, "
+                   "size-4 Ring] for the 32-device Blackhole galaxy (torus_x).");
     return tt::runtime::MeshFabricConfig{
-        tt::runtime::FabricConfig::FABRIC_1D_RING, {}};
+        tt::runtime::FabricConfig::FABRIC_1D_RING,
+        {tt::runtime::FabricConfig::FABRIC_1D,
+         tt::runtime::FabricConfig::FABRIC_1D_RING}};
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }
