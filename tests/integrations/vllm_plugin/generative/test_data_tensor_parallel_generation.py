@@ -143,23 +143,15 @@ def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
-@pytest.mark.parametrize(
-    ["enable_const_eval", "experimental_weight_dtype"],
-    [
-        pytest.param(True, ""),
-    ],
-)
+@pytest.mark.data_parallel
+@pytest.mark.bh_galaxy
 @pytest.mark.parametrize(
     "mesh_shape",
     [
         pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
     ],
 )
-def test_data_tensor_parallel_generation_gemma4_31b(
-    mesh_shape: list[int],
-    enable_const_eval: bool,
-    experimental_weight_dtype: str,
-):
+def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
 
     model_name = "google/gemma-4-31B-it"
 
@@ -218,14 +210,11 @@ def test_data_tensor_parallel_generation_gemma4_31b(
         "max_model_len": 128,
         "gpu_memory_utilization": 0.3,
         "additional_config": {
-            "enable_const_eval": enable_const_eval,
             "min_context_len": 32,
             "enable_data_parallel": True,
             "enable_tensor_parallel": True,
             "shard_weights_on_batch_axis": True,
-            "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
-            "cpu_sampling": False,
             "flat_model_io": True,
         },
     }
