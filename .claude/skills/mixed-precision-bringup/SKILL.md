@@ -110,6 +110,22 @@ not `--num-layers`.
 **REQUIRED BACKGROUND:** if you hit an accuracy drop or a pattern that won't
 trigger, use `superpowers:systematic-debugging` — don't guess-and-check.
 
+**Step 0 — environment sanity-check (do this FIRST, before the slow baseline run).**
+A stale venv silently breaks the very first run and looks nothing like an MP
+issue. The branch inherits main's PyTorch/vLLM uplifts, so the installed vLLM
+must match the branch. Cheap pre-flight:
+```bash
+python -c "import vllm; print('vllm', vllm.__version__)"
+python -c "import vllm; from vllm.v1.worker.worker_base import CompilationTimes"  # smoke: plugin API present?
+```
+If the second line raises `ImportError` (e.g. `cannot import name 'CompilationTimes'`),
+the venv **predates the branch's uplift** — STOP. **Do NOT `pip install vllm==<pin>`
+from public PyPI to fix it:** that resolves to CUDA torch + toolkit and destroys
+the CPU/TT env. The env is re-provisioned from **TT release wheels** (`vllm-tt`,
+`xla-torch`, pjrt) via `pypi.eng.aws.tenstorrent.com` (see CI `call-perf-test.yml`:
+`source venv/activate && pip install wheels/*.whl`) — that's a coordinated
+multi-wheel uplift, **out of scope for a bringup: escalate to the user.**
+
 1. **Baseline.** Run accuracy on the current config → record `baseline_acc`
    (TOP1 p5). Set `threshold` (user value, else 0.90 × baseline_acc).
 2. **All features on, weights → bfp8.** Turn on KV-cache and activation lowering
