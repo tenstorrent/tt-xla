@@ -7,6 +7,16 @@
 mkdir -p debug_logs
 ZF=tests/integrations/vllm_plugin/generative/test_dp_tp_zero_row_probes.py
 
+# Log every condense move with src/dst replica + cross_replica flag (all probes
+# here exercise early-departure/condense; harmless where none fire).
+export TTXLA_DEBUG_CONDENSE=1
+
+# =========================================================================
+# MINIMAL single cross-replica move (cheap Qwen; cleanest correlation)
+# =========================================================================
+tt-smi -r
+pytest -svv $ZF -k probe_minimal_pair 2>&1 | tee debug_logs/zr_minimal_pair.log
+
 # =========================================================================
 # N0/N2 — small model first (cheap; enables DP-only comparison)
 # =========================================================================

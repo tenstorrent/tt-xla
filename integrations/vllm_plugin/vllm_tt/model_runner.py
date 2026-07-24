@@ -1003,6 +1003,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Condense the batched states if there are empty indices.
         if removed_req_indices:
+            # Stamp dp_size so condense's TTXLA_DEBUG_CONDENSE log can compute
+            # the src/dst DP replica of each move.
+            self.input_batch._debug_dp_size = self.dp_size
             self.input_batch.condense(removed_req_indices)
 
         return len(unscheduled_req_ids) > 0 or len(req_ids_to_add) > 0

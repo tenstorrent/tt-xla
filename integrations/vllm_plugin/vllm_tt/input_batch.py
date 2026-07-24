@@ -561,9 +561,17 @@ class InputBatch:
                 import os as _os
 
                 if _os.environ.get("TTXLA_DEBUG_CONDENSE"):
+                    # per_device = batch rows per DP replica; replica = slot //
+                    # per_device. A move whose src/dst replicas differ relocates
+                    # the survivor across replicas (stale KV). _debug_dp_size is
+                    # stamped by the model runner each step.
+                    _dp = getattr(self, "_debug_dp_size", 1)
+                    _pd = max(1, self.max_num_reqs // _dp)
+                    _rf, _rt = last_req_index // _pd, empty_index // _pd
                     print(
                         f"[CONDENSE_MOVE] req={req_id} from_slot={last_req_index} "
-                        f"to_slot={empty_index}",
+                        f"to_slot={empty_index} replica={_rf}->{_rt} "
+                        f"cross_replica={_rf != _rt} per_dev={_pd} dp={_dp}",
                         flush=True,
                     )
                 self.block_table.move_row(last_req_index, empty_index)

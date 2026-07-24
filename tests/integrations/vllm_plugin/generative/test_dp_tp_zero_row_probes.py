@@ -108,8 +108,24 @@ def garbage_reason(text):
     if _NONASCII_RUN.search(s):
         return "nonascii-run"
     words = s.split()
-    if len(words) >= 6 and len(set(w.lower() for w in words[-6:])) <= 2:
-        return "word-repeat-tail"
+    # >=3 identical consecutive tokens: "North North North", "** ** **",
+    # "a a a a", "la la la". Rare in coherent text; catches the milder tails
+    # the whole-string ratio missed.
+    for i in range(len(words) - 2):
+        if words[i] == words[i + 1] == words[i + 2]:
+            return "token-repeat"
+    return None
+
+
+def _first_garbage_word(text):
+    """Word index where corruption first appears (proxy for the decode step),
+    or None. Lets us correlate onset with the departer's length."""
+    words = text.split()
+    for i, w in enumerate(words):
+        if _CHAR_RUN.search(w) or _NONASCII_RUN.search(w):
+            return i
+        if i + 2 < len(words) and w == words[i + 1] == words[i + 2]:
+            return i
     return None
 
 
@@ -119,11 +135,13 @@ def _report(label, results):
     for i, (prompt, text) in enumerate(results):
         reason = garbage_reason(text)
         tag = "BAD" if reason else "OK "
+        nwords = len(text.split())
         if reason:
             bad.append(i)
-        print(
-            f"[{tag}] #{i} {('('+reason+')') if reason else ''} | {prompt!r}\n      -> {text!r}"
-        )
+            meta = f"(reason={reason} onset_word={_first_garbage_word(text)} nwords={nwords})"
+        else:
+            meta = f"(nwords={nwords})"
+        print(f"[{tag}] #{i} {meta} | {prompt!r}\n      -> {text!r}")
     print(
         f"----- {label}: {len(results)-len(bad)}/{len(results)} clean; bad slots={bad} -----"
     )
@@ -196,6 +214,20 @@ PROBES = {
         sampling=_greedy,
         expect="reproduce",
         note="baseline reproduction",
+    ),
+    # --- MINIMAL single-move repro: short prompt at slot 0 finishes early ->
+    # exactly one condense move (survivor slot 1 -> slot 0, cross-replica at
+    # per_device=1). Cleanest correlation + onset: survivor #1 should garble at
+    # ~SHORT_ONE's length. Cheap (Qwen). ---
+    "minimal_pair": dict(
+        model=QWEN,
+        mesh=[8, 4],
+        nseq=8,
+        prompts=[SHORT_ONE, ALL_LONG[0]],
+        sampling=_greedy,
+        gpu_mem=0.5,
+        expect="reproduce?",
+        note="1 short (slot 0) + 1 long survivor (slot 1); one cross-replica move",
     ),
     # --- T1: no early EOS without ignore_eos (all prompts naturally > 32 tok) ---
     "all_long": dict(
