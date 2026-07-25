@@ -132,14 +132,14 @@ def _sharded_sampling_tp_config(
     model: str, batch_size: int, *, mesh_shape, temperature: float = 0.8
 ):
     # Non-greedy device sampling on a 2D mesh: temperature>0 + cpu_sampling=False
-    # hits the vocab-sharded composite_topk path (#4494). opt-level 0 is required
-    # because device sampling under trace needs opt<1, and opt>0 would force
-    # cpu_sampling=True and bypass the composite.
+    # hits the vocab-sharded composite_topk path (#4494). Runs on-device at
+    # opt>=1; the workaround forcing cpu_sampling=True at opt>0 was removed in
+    # #5671, so device sampling no longer bypasses the composite under trace.
     cfg = _tp_config(
         model,
         batch_size,
         gpu_memory_utilization=0.15,
-        optimization_level=0,
+        optimization_level=1,
         use_2d_mesh=True,
         mesh_shape=mesh_shape,
         enable_const_eval=True,
