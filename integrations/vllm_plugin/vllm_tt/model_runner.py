@@ -602,6 +602,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.speculative_config.method == "ngram":
                 self.drafter = NgramProposer(vllm_config)
 
+        self._dp_inert_slots: list[int] = []
+
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
@@ -954,6 +956,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             True if there is a new/resumed/paused/finished request.
             If False, we can skip copying SamplingMetadata to the GPU.
         """
+        dp_active = self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        )
+
         # Remove finished requests from the cached states.
         for req_id in scheduler_output.finished_req_ids:
             if self._telemetry.enabled:
@@ -966,6 +973,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         int(done.num_prompt_tokens),
                         len(done.output_token_ids),
                     )
+            if dp_active:
+                continue
             self.requests.pop(req_id, None)
             self.num_prompt_logprobs.pop(req_id, None)
 
@@ -977,6 +986,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # and handling the second as a new request.
         removed_req_indices: list[int] = []
         for req_id in scheduler_output.finished_req_ids:
+            if dp_active:
+                idx = self.input_batch.req_id_to_index.get(req_id)
+                if idx is not None and idx not in self._dp_inert_slots:
+                    self._dp_inert_slots.append(idx)
+                continue
             req_index = self.input_batch.remove_request(req_id)
             if req_index is not None:
                 removed_req_indices.append(req_index)
@@ -1098,9 +1112,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         for req_id in req_ids_to_add:
             req_state = self.requests[req_id]
-            # Fill the empty index or append to the end
-            req_index = removed_req_indices.pop() if removed_req_indices else None
-            self.input_batch.add_request(req_state, req_index)
+            if dp_active and self._dp_inert_slots:
+                req_index = self._dp_inert_slots.pop(0)
+                old_id = self.input_batch.req_ids[req_index]
+                if old_id is not None:
+                    self.requests.pop(old_id, None)
+                    self.num_prompt_logprobs.pop(old_id, None)
+                    self.input_batch.remove_request(old_id)
+                self.input_batch.add_request(req_state, req_index)
+            else:
+                # Fill the empty index or append to the end
+                req_index = removed_req_indices.pop() if removed_req_indices else None
+                self.input_batch.add_request(req_state, req_index)
             if self._telemetry.enabled:
                 # req_index is None for an appended row, so read back the
                 # assigned index. A prefix-cache hit shows as nonzero cached tokens.
@@ -1114,7 +1137,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
         # Condense the batched states if there are empty indices.
-        if removed_req_indices:
+        if removed_req_indices and not dp_active:
             self.input_batch.condense(removed_req_indices)
 
         # Write scheduled speculative tokens into the input batch token buffer.
