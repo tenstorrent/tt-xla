@@ -107,7 +107,12 @@ from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
-from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
+from .vllm_distributed_utils import (
+    ParallelismMode,
+    kv_cache_shard_factor,
+    safe_mark_sharding,
+    shard_model,
+)
 from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
@@ -3409,14 +3414,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     mla_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
                     kv_caches[layer_name] = mla_cache
                 elif isinstance(kv_cache_spec, AttentionSpec):
-                    if self.enable_tensor_parallel:
+                    tp_size = kv_cache_shard_factor(self)
+                    if tp_size > 1:
                         num_kv_heads = kv_cache_spec.num_kv_heads
-                        if hasattr(self.mesh, "shape"):
-                            tp_size = self.mesh.shape()["model"]
-                        else:
-                            tp_size = dict(
-                                zip(self.mesh.axis_names, self.mesh.mesh_shape)
-                            )["model"]
                         # mark_sharding() below does the real sharding; this
                         # just fails loudly instead of it silently falling
                         # back to replication (see safe_mark_sharding).
@@ -3457,6 +3457,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # each device writes its own K/V slice via paged_update_cache. The
             # TP-only spec puts block_size on the DP axis and fails
             # ttir.paged_update_cache. Tracked as a follow-up.
+            #
+            # kv_cache_shard_factor() mirrors this branch by returning 1 for
+            # DP+TP; when this is changed to really shard, update it too or
+            # each chip will be budgeted tp_size times too little.
             pass
         elif self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].

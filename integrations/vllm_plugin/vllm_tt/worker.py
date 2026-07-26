@@ -44,6 +44,7 @@ from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
+from .vllm_distributed_utils import kv_cache_shard_factor
 
 logger = tt_init_logger(__name__)
 
@@ -314,14 +315,10 @@ class TTWorker:
         # tensor is already correctly sharded tp_size-ways via mark_sharding
         # (confirmed in the compiled IR). Counterbalance by inflating the
         # available budget here instead of touching the cache tensor's shape
-        # or sharding.
-        if self.model_runner.enable_tensor_parallel:
-            mesh = self.model_runner.mesh
-            if hasattr(mesh, "shape"):
-                tp_size = mesh.shape()["model"]
-            else:
-                tp_size = dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
-            usable_memory_size *= tp_size
+        # or sharding. Returns 1 where the cache is not actually sharded
+        # (no TP, or DP+TP), leaving the budget untouched.
+        kv_shard_factor = kv_cache_shard_factor(self.model_runner)
+        usable_memory_size *= kv_shard_factor
         tpu_kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()
         if head_size > 0:
@@ -335,10 +332,12 @@ class TTWorker:
             tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
-            "KV cache budget = %.2f GiB",
+            "kv_shard_factor = %d, KV cache budget = %.2f GiB (%.2f GiB per chip)",
             total_memory_size / 1024**3,
             self.cache_config.gpu_memory_utilization,
+            kv_shard_factor,
             tpu_kv_cache_bytes / 1024**3,
+            tpu_kv_cache_bytes / kv_shard_factor / 1024**3,
         )
         return int(tpu_kv_cache_bytes)
 
