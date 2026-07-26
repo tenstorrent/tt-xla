@@ -166,12 +166,12 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     # text-only (limit_mm_per_prompt zeroed so the vision tower never compiles),
     # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u in a 8x4 mesh.
     #
-    # Validated max_model_len of 8192 at GMU of 0.65, but the current default
+    # Validated max_model_len of 8192 at GMU of 0.16, but the current default
     # of max_model_len is 128, so it needs to be overriden through the env. var.
     cfg = _config(
         model,
         batch_size,
-        gpu_memory_utilization=0.65,
+        gpu_memory_utilization=0.16,
         optimization_level=1,
         experimental_weight_dtype="bfp_bf8",
         experimental_kv_cache_dtype="bfp_bf8",
