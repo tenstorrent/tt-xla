@@ -1591,7 +1591,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             np.any(num_computed_for_reqs > 0)
         )
         chunk_start_idx = None
-        if prefix_chunk_step and self._chunked_sdpa_active:
+        # DP keeps prefill on the cold/direct SDPA path; do not route DP
+        # continuation chunks through chunked SDPA.
+        if (
+            prefix_chunk_step
+            and self._chunked_sdpa_active
+            and not self.enable_data_parallel
+        ):
             # Same-stage batching => one shared [1] prefix offset; the op masks
             # causally and applies it internally (no host attn_mask).
             self._chunk_start_idx_dev.copy_(
