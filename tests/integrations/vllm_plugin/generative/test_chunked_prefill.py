@@ -239,8 +239,8 @@ def _generate_ids(llm, prompts: list[str], max_tokens: int) -> list[list[int]]:
 def test_dp_chunked_prefill_mixed_cached_and_cold():
     """DP mixed cached/cold chunked prefill must preserve cold-row output.
 
-    Repro shape from cold-test.py: warm one prompt into prefix cache, then run
-    a mixed 2-row batch [cached-hit, cold] under DP with chunked prefill.
+    Warm one prompt into prefix cache, then run a mixed 2-row batch
+    [cached-hit, cold] under DP with chunked prefill.
     The cold row's leading tokens must match its isolated baseline.
     """
 
