@@ -36,9 +36,10 @@ from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
+from .logger import tt_init_logger
 from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 
-logger = logging.getLogger(__name__)
+logger = tt_init_logger(__name__)
 
 if TYPE_CHECKING:
     from vllm.config import VllmConfig
