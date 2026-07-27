@@ -335,6 +335,8 @@ def test_tensor_parallel_generation_mistral_small(model_name: str):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
+            # Image input: MRv2 mm-encoder not wired yet; run on the v1 runner.
+            "use_v2_model_runner": False,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -379,6 +381,8 @@ def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
             "min_context_len": 1024,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
+            # Image input: MRv2 mm-encoder not wired yet; run on the v1 runner.
+            "use_v2_model_runner": False,
         },
     }
     llm = vllm.LLM(**llm_args)
