@@ -337,8 +337,14 @@ EMBEDDING_CONFIGS = [
         ),
         id="qwen3-embedding-4b-batch1",
     ),
-    pytest.param(_embedding_config("BAAI/bge-m3", 1), id="bge-m3-batch1"),
-    pytest.param(_embedding_config("BAAI/bge-m3", 32), id="bge-m3-batch32"),
+    # Trace disabled so ttrt perf can profile per-op device timings for #5756
+    # (a trace flatbuffer replays as one opaque execute_trace op).
+    pytest.param(
+        _embedding_config("BAAI/bge-m3", 1, enable_trace=False), id="bge-m3-batch1"
+    ),
+    pytest.param(
+        _embedding_config("BAAI/bge-m3", 32, enable_trace=False), id="bge-m3-batch32"
+    ),
 ]
 
 
