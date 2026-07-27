@@ -44,3 +44,9 @@ def register_oot_layers():
     from .layers.fused_moe import install_tt_fused_moe
 
     install_tt_fused_moe()
+
+    # Gemma4's multimodal encoder queries torch.accelerator.get_memory_info(),
+    # which asserts on the TT device; route it to a host-memory estimate.
+    from .platform import install_tt_accelerator_memory_info
+
+    install_tt_accelerator_memory_info()
