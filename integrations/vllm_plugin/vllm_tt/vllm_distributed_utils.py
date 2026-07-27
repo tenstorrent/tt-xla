@@ -80,6 +80,31 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
+def kv_cache_shard_factor(runner) -> int:
+    """How many ways the KV cache is actually sharded across the mesh.
+
+    Only the "model" axis shards KV heads, so this is that axis' size — 1 when
+    the cache ends up replicated on every chip instead. Callers use it to
+    reconcile vLLM's TP-unaware block budget (which always assumes the full,
+    un-sharded num_kv_heads) with what each chip really holds.
+
+    Must stay in sync with the mark_sharding call in
+    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
+    because that path deliberately leaves the cache un-annotated.
+    """
+    if not runner.enable_tensor_parallel:
+        return 1
+    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+        # DP+TP leaves the cache replicated, so per-chip usage already equals
+        # the full budget — no reconciliation to do. Sharding it properly
+        # (heads on "model", blocks on "batch") is tracked in #5796.
+        return 1
+    mesh = runner.mesh
+    if hasattr(mesh, "shape"):
+        return mesh.shape()["model"]
+    return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
+
+
 class XlaMergedColumnParallelLinear(nn.Module):
 
     def __init__(

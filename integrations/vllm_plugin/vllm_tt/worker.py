@@ -44,6 +44,7 @@ from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
+from .vllm_distributed_utils import kv_cache_shard_factor
 
 logger = tt_init_logger(__name__)
 
@@ -247,8 +248,8 @@ class TTWorker:
 
                 # Use an empty tensor instead of `None`` to force Dynamo to pass
                 # it by reference, rather by specializing on the value ``None``.
-                tpu_kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
-                kv_caches[layer_name] = tpu_kv_cache
+                kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
+                kv_caches[layer_name] = kv_cache
             else:
                 raise NotImplementedError(
                     f"Unsupported KV cache spec '{type(layer_spec)}'"
@@ -305,11 +306,20 @@ class TTWorker:
         # use the heuristic of 2% of weights.
         profiled = current_mem * 1.02
 
-        # Calculate the TPU KV cache size based on profiling.
+        # Calculate the KV cache size based on profiling.
         usable_memory_size = int(
             total_memory_size * self.cache_config.gpu_memory_utilization
         )
-        tpu_kv_cache_bytes = max(usable_memory_size - profiled, 0)
+        # vLLM's KV-cache budget math (max_memory_usage_bytes) uses the full,
+        # un-sharded num_kv_heads with no TP awareness, even though the cache
+        # tensor is already correctly sharded tp_size-ways via mark_sharding
+        # (confirmed in the compiled IR). Counterbalance by inflating the
+        # available budget here instead of touching the cache tensor's shape
+        # or sharding. Returns 1 where the cache is not actually sharded
+        # (no TP, or DP+TP), leaving the budget untouched.
+        kv_shard_factor = kv_cache_shard_factor(self.model_runner)
+        usable_memory_size *= kv_shard_factor
+        kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()
         if head_size > 0:
             padded_head_size = (
@@ -319,15 +329,17 @@ class TTWorker:
                 logger.warning_once("head size is padded to %d", padded_head_size)
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
-            tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+            kv_cache_bytes = kv_cache_bytes * head_size // padded_head_size
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
-            "KV cache budget = %.2f GiB",
+            "kv_shard_factor = %d, KV cache budget = %.2f GiB (%.2f GiB per chip)",
             total_memory_size / 1024**3,
             self.cache_config.gpu_memory_utilization,
-            tpu_kv_cache_bytes / 1024**3,
+            kv_shard_factor,
+            kv_cache_bytes / 1024**3,
+            kv_cache_bytes / kv_shard_factor / 1024**3,
         )
-        return int(tpu_kv_cache_bytes)
+        return int(kv_cache_bytes)
 
     def sample_tokens(self, grammar_output: "GrammarOutput") -> ModelRunnerOutput:
         return self.model_runner.sample_tokens(grammar_output)
