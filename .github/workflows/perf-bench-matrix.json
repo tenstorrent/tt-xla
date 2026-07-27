@@ -120,8 +120,8 @@
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true,
-        "skip-device-perf": true
+        "skip-ttnn-dump": false,
+        "skip-device-perf": false
       },
       {
         "name": "vllm_bge_m3_encode_batch32",
@@ -129,8 +129,8 @@
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,
-        "skip-ttnn-dump": true,
-        "skip-device-perf": true
+        "skip-ttnn-dump": false,
+        "skip-device-perf": false
       },
       {
         "name": "llama_3_2_1b_instruct",
