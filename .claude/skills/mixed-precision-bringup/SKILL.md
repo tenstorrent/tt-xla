@@ -42,6 +42,12 @@ All 3 can each be fine in isolation but **drop accuracy when combined**. If so:
 debug the cause, or drop one feature. Which to drop depends on the task — e.g.
 for long sequences KV-cache dtype dominates memory, so prefer keeping it.
 
+**Single-chip caveat:** activation-dtype lowering matches subgraphs *around CCL
+ops* (reduce_scatter/all_gather), which don't exist on one chip — so it is a
+**no-op on single-chip (n150) model tests**. Do NOT set
+`enable_activation_dtype_lowering` for single-chip configs (it just adds a
+misleading knob); it only matters on multi-device TP.
+
 ## Dictionary
 
 - **TOP1 accuracy** — % of decode positions where the device's argmax token
@@ -98,6 +104,12 @@ model's checked-in `_config(...)` entry** in `SINGLE_DEVICE_CONFIGS`
 `enable_activation_dtype_lowering=True` and/or `num_hidden_layers=1`. Revert the
 edit when done. For a true bf16 weight baseline, set `TT_BENCHMARK_WEIGHT_DTYPE=""`.
 
+**`_config(...)` accepts ANY `additional_config` key as a kwarg** (they flow
+through `**additional_config_extra`). So `_config(model, experimental_kv_cache_dtype="bfp_bf8")`
+works — this is the clean way to **bake a final tuned config** into the checked-in
+entry (kv dtype, weight_dtype_overrides, num_hidden_layers, …). The env vars above
+are just for fast A/B without editing code.
+
 **Limit layers for fast IR inspection:** vLLM uses `num_hidden_layers` in
 `additional_config` (0 = full model); a 1-layer model has all components but a
 tiny graph — ideal for verifying patterns trigger (below). **Trap:** the
@@ -152,10 +164,16 @@ class when it pushes below `threshold`.
 Marking weights bfp4 (or enabling KV/activation lowering) may not propagate —
 the tt-mlir pattern didn't match. Verify in the dumped IR:
 
-- IRs dump to `modules/` (the benchmark sets `export_path="modules"`), keyed by
-  the model's export name. `ls modules/` to find the files; the **TTNN-stage IR**
-  is the `ttnn.mlir` (per-graph). Diff it before vs after applying an override —
-  the typecast/dtype change must be present.
+- IRs dump under `modules/irs/` (the benchmark sets `export_path`), as
+  **timestamped per-graph files that ACCUMULATE** across runs — a naive
+  before/after diff is awkward. Instead, on the newest largest-prefill graph
+  (`ttnn_..._g6_*.mlir` — the one with the matmuls), COUNT dtype tokens:
+  `grep -c bfp_bf4 <file>` and `grep -c bfp_bf8 <file>`, before vs after applying
+  the override. It took effect if the bfp4 count jumps (e.g. 1 enum-legend-only →
+  hundreds) and bfp8 drops correspondingly.
+- Fast first-line positive signal: the **absence** of a "did not match any model
+  parameters" warning in the run output means the override glob matched ≥1 param.
+  (Still confirm in the IR — a glob matching a param ≠ the pass actually applying.)
 - Do this on a **1-layer** model (`num_hidden_layers=1`) — small graph, all
   components.
 - The three passes and where they live (all under `third_party/tt-mlir/src/tt-mlir/`):
