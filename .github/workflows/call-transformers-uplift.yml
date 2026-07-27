@@ -1,12 +1,6 @@
 name: Transformers Uplift + Claude Fix
 
 on:
-  # TEMP: push trigger active during pre-merge testing so we can iterate
-  # on the orchestrator without going through the schedule → bump →
-  # dispatch chain each time. Remove before merging to main.
-  push:
-    branches:
-      - jazpur/test-auto-transformers-uplift
   workflow_call:
     inputs:
       iteration:

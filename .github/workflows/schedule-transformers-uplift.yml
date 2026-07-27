@@ -37,10 +37,6 @@ jobs:
         # workflow so the feature branch's scripts are what runs. Restore
         # `ref: main` before merging.
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-
       - name: Detect new transformers release
         id: check
         env:
