@@ -9,6 +9,11 @@ permissions:
   pull-requests: none
 
 on:
+  # TEMP: push trigger active during pre-merge testing so pushes to the
+  # feature branch auto-fire the pipeline. Remove before merging to main.
+  push:
+    branches:
+      - jazpur/test-auto-transformers-uplift
   schedule:
     - cron: '0 4 * * *'   # 04:00 UTC daily
   workflow_dispatch: {}
@@ -28,8 +33,9 @@ jobs:
       branch:          ${{ steps.branch-check.outputs.branch }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: main
+        # TEMP: no `ref:` while testing — use whatever ref triggered the
+        # workflow so the feature branch's scripts are what runs. Restore
+        # `ref: main` before merging.
 
       - uses: actions/setup-python@v6
         with:
@@ -158,9 +164,25 @@ jobs:
           CUR:      ${{ needs.detect.outputs.current_version }}
           BASELINE: ${{ steps.baseline.outputs.run_id }}
         run: |
-          gh workflow run call-transformers-uplift.yml \
-            --ref "$BRANCH" \
-            -f iteration=1 \
-            -f target_version="$NEW" \
-            -f current_version="$CUR" \
-            -f baseline_run_id="$BASELINE"
+          # TEMP: workflow file isn't on main yet — `gh workflow run <name>`
+          # resolves IDs via the default branch and 404s. Dispatch via the
+          # REST API by numeric workflow ID instead. Swap back to
+          # `gh workflow run call-transformers-uplift.yml …` once this
+          # lands on main.
+          WORKFLOW_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path == ".github/workflows/call-transformers-uplift.yml") | .id')
+          if [[ -z "$WORKFLOW_ID" ]]; then
+            echo "::warning::workflow not found on first page — dumping all registered workflow paths for diagnosis:" >&2
+            gh api "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+              --jq '.total_count as $n | "(total=\($n))", (.workflows[].path)' >&2
+            echo "::error::call-transformers-uplift.yml is not registered — push it on any branch first to register it" >&2
+            exit 1
+          fi
+          gh api -X POST \
+            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
+            -f ref="$BRANCH" \
+            -f "inputs[iteration]=1" \
+            -f "inputs[target_version]=$NEW" \
+            -f "inputs[current_version]=$CUR" \
+            -f "inputs[baseline_run_id]=$BASELINE"
