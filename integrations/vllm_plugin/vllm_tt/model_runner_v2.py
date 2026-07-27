@@ -1253,8 +1253,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         else:
             forward_out, hidden_states = result, None
         if self.cpu_sampling:
-            # forward_out is logits [target_num_reqs, vocab]; sample on host.
-            selected = self.sample_from_logits_cpu(forward_out, sampling_metadata)
+            # forward_out is logits [target_num_reqs, vocab]; mask (grammar) and
+            # sample on host. Device sampling masks inside _sample_compiled.
+            selected = self.sample_from_logits_cpu(
+                forward_out,
+                sampling_metadata,
+                apply_grammar,
+                require_struct,
+                grammar_bitmask,
+                bitmasks,
+            )
         else:
             selected = forward_out
         # [target_num_reqs, 1] -> per active-req list; drop padding rows.
@@ -1279,52 +1287,61 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         grammar_bitmask=None,
         bitmasks=None,
     ):
-        """Publish the attn metadata into the forward context, then run the graph."""
+        """Run the forward->logits graph, then (device path) the sampling graph.
+
+        The forward and the post-processing are compiled as two separate graphs so
+        sampling variants don't re-specialize the expensive model forward:
+        ``_forward_to_logits_compiled`` keys only on shape and ``want_prompt_hs``,
+        while ``_sample_compiled`` keys on ``apply_grammar`` and the sampling mode.
+        Under cpu_sampling the sampling graph is skipped -- the caller masks and
+        samples on the host (see ``sample_from_logits_cpu``).
+        """
         from vllm.forward_context import set_forward_context
 
         # Multimodal passes inputs_embeds with input_ids=None; both are 2D
         # [reqs, tokens(, H)] so the token count is the leading two dims.
         ref = input_ids if input_ids is not None else inputs_embeds
         num_tokens = ref.shape[0] * ref.shape[1]
-        # Under cpu_sampling the graph returns logits and never touches the
-        # sampling metadata, so keep its host tensors out of the compiled graph.
-        sm_for_graph = None if self.cpu_sampling else sampling_metadata
         with set_forward_context(
             attn_metadata, self.vllm_config, num_tokens=num_tokens
         ):
-            return self._forward_and_sample_compiled(
-                input_ids,
-                positions,
-                logits_indices,
-                sm_for_graph,
-                want_prompt_hs,
-                inputs_embeds,
+            fwd = self._forward_to_logits_compiled(
+                input_ids, positions, logits_indices, inputs_embeds, want_prompt_hs
+            )
+        logits, hidden_states = fwd if want_prompt_hs else (fwd, None)
+
+        if self.cpu_sampling:
+            # Stop at logits; grammar + sampling run on the host.
+            out = logits
+        else:
+            out = self._sample_compiled(
+                logits,
+                sampling_metadata,
                 apply_grammar,
                 require_struct_decoding,
                 grammar_bitmask,
                 bitmasks,
             )
+        if want_prompt_hs:
+            return out, hidden_states
+        return out
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def _forward_and_sample_compiled(
+    def _forward_to_logits_compiled(
         self,
         input_ids,
         positions,
         logits_indices,
-        sampling_metadata,
-        want_prompt_hs,
         inputs_embeds=None,
-        apply_grammar=False,
-        require_struct_decoding=None,
-        grammar_bitmask=None,
-        bitmasks=None,
+        want_prompt_hs=False,
     ):
-        """Compiled model forward -> last-token select -> logits -> sample.
+        """Compiled model forward -> last-token select -> logits.
 
-        ``want_prompt_hs`` and ``apply_grammar`` are plain python bools so dynamo
-        specializes separate graphs (prompt-logprobs hidden-state return / grammar
-        masking); the common path stays unaffected. ``inputs_embeds`` is set (with
-        ``input_ids=None``) on the multimodal path.
+        Keys only on shape and ``want_prompt_hs`` (which additionally returns the
+        pre-selection hidden states for prompt logprobs); grammar and sampling
+        live in ``_sample_compiled``, so the heavy forward is never re-specialized
+        per post-processing combo. ``inputs_embeds`` is set (with ``input_ids=None``)
+        on the multimodal path.
         """
         model_input_ids, model_positions, model_embeds, restore_shape = (
             self._prepare_model_call_tensors(input_ids, positions, inputs_embeds)
@@ -1336,26 +1353,32 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         )
         hidden_states = self._restore_model_hidden_states(hidden_states, restore_shape)
         selected_states = self._select_hidden_states(hidden_states, logits_indices)
-        logits = self.model.compute_logits(selected_states)
-        # Replicate sharded logits: hooks can't reach ParallelLMHead
-        # (quant_method.apply bypasses __call__) and all_gather is a no-op at
-        # world_size 1, so the constraint must sit inside the compiled graph.
-        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
-        # Structured output: mask logits to grammar-allowed tokens before sampling.
+        logits = self.compute_logits(selected_states)
+        if want_prompt_hs:
+            return logits, hidden_states
+        return logits
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _sample_compiled(
+        self,
+        logits,
+        sampling_metadata,
+        apply_grammar=False,
+        require_struct_decoding=None,
+        grammar_bitmask=None,
+        bitmasks=None,
+    ):
+        """Compiled grammar-mask + device sample over precomputed logits.
+
+        ``apply_grammar`` is a plain python bool so dynamo specializes the
+        grammar / no-grammar paths separately; only this small post-logits graph
+        recompiles, not the forward.
+        """
         if apply_grammar:
             logits = self.structured_decode(
                 require_struct_decoding, grammar_bitmask, logits, bitmasks
             )
-        # cpu_sampling: stop the compiled graph at logits and sample on the host
-        # (mirrors the v1 _model_unfused path); otherwise sample on device.
-        if self.cpu_sampling:
-            out = logits
-        else:
-            out = self._sample_from_logits(logits, sampling_metadata)
-        if want_prompt_hs:
-            return out, hidden_states
-        return out
+        return self._sample_from_logits(logits, sampling_metadata)
 
     def _pin_input_shardings(self, input_ids, positions, inputs_embeds) -> None:
         """Pin model inputs on the batch/mesh axis so warmup and inference trace
@@ -1483,7 +1506,15 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         allowed = (bits != 0).reshape(logits.shape[0], -1)[:, : self.vocab_size]
         return torch.where(allowed, logits, torch.full_like(logits, float("-inf")))
 
-    def sample_from_logits_cpu(self, logits, sampling_metadata):
+    def sample_from_logits_cpu(
+        self,
+        logits,
+        sampling_metadata,
+        apply_grammar=False,
+        require_struct_decoding=None,
+        grammar_bitmask=None,
+        bitmasks=None,
+    ):
         """Sample on CPU instead of compiling a device sampling graph.
 
         Ported from the v1 runner: supports greedy, temperature, top-k/top-p and
@@ -1491,6 +1522,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         rather than torch.multinomial, which serializes over the batch.
         """
         logits = logits.cpu()
+
+        # Grammar masking for the host path (the device path masks inside
+        # _sample_compiled); move the grammar tensors to host to match logits.
+        if apply_grammar:
+            logits = self.structured_decode(
+                require_struct_decoding.cpu(),
+                grammar_bitmask.cpu(),
+                logits,
+                bitmasks.cpu(),
+            )
 
         if not sampling_metadata.no_penalties:
             output_counts = sampling_metadata.output_token_counts
@@ -1576,7 +1617,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
     def compute_logits(self, sample_hidden_states):
         """Vocab logits for the given hidden states (ported from the v1 runner)."""
         logits = self.model.compute_logits(sample_hidden_states)
-        # Replicate sharded logits for SPMD (see _forward_and_sample_compiled).
+        # Replicate sharded logits for SPMD: hooks can't reach ParallelLMHead
+        # (quant_method.apply bypasses __call__) and all_gather is a no-op at
+        # world_size 1, so the constraint must sit inside the compiled graph.
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
