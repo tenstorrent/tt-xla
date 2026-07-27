@@ -11,8 +11,8 @@
 # tt-inference-server-v2/llm_module/eval_command.py:build_eval_command() emits
 # for the Falcon3-7B-Instruct EvalConfig (evals/eval_config.py:4137):
 #
-#   ifeval                            num_fewshot=0, limit CI_NIGHTLY=0.25
-#   gpqa_diamond_generative_n_shot    num_fewshot=5, limit CI_NIGHTLY=0.25
+#   ifeval                            num_fewshot=0, limit CI_NIGHTLY=0.75
+#   gpqa_diamond_generative_n_shot    num_fewshot=5, limit CI_NIGHTLY=0.75
 #
 # with the shared EvalTask defaults (local-completions, tokenizer_backend=
 # huggingface, batch_size=1, max_concurrent=32 clamped to the P150 spec's
@@ -24,17 +24,17 @@
 # one-time compile look like a hang (the #4521 false alarm).
 #
 # Usage:
-#   ./run_falcon3_7b_evals.sh                            # both tasks, 0.25 each
+#   ./run_falcon3_7b_evals.sh                            # both tasks, 0.75 each (branch CI_NIGHTLY)
 #   ./run_falcon3_7b_evals.sh --limit 0.05               # both tasks, 5%
 #   ./run_falcon3_7b_evals.sh --limit 20                 # both tasks, 20 docs
 #   ./run_falcon3_7b_evals.sh --tasks ifeval --limit 1.0 # ifeval, full set
-#   ./run_falcon3_7b_evals.sh --ifeval-limit 0.25 --gpqa-limit 0.1
+#   ./run_falcon3_7b_evals.sh --ifeval-limit 0.75 --gpqa-limit 0.1
 #   ./run_falcon3_7b_evals.sh --concurrent 8             # narrow the burst
 #
 # Options (--flag value or --flag=value):
 #   --tasks LIST     comma list from {ifeval,gpqa} (default: both, in order)
 #   --limit N        set BOTH tasks' --limit. <1 = fraction of the task's docs,
-#                    >=1 = absolute doc count. (default per-task: 0.25)
+#                    >=1 = absolute doc count. (default per-task: 0.75)
 #   --ifeval-limit N --limit for ifeval only
 #   --gpqa-limit N   --limit for gpqa only
 #   --port P         server port (default 8019)
@@ -74,9 +74,14 @@ usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,"");print;next} {exit}' "$0"; exit "$
 
 TASKS="ifeval,gpqa"
 LIMIT_BOTH=""
-# EvalLimitMode.CI_NIGHTLY for both tasks in this model's EvalConfig.
-IFEVAL_LIMIT="0.25"; IFEVAL_LIMIT_SET=0
-GPQA_LIMIT="0.25";   GPQA_LIMIT_SET=0
+# EvalLimitMode.CI_NIGHTLY for both tasks, as currently set on the
+# tt-inference-server debug branch kmabee/falcon3_hang_accuracy_debug
+# (commit 3e2c2b4df "Downsample to 0.75", 2026-07-23). Note this is a
+# branch-local override -- the value was 0.25 earlier in the debug work, and
+# other models' EvalConfigs use other fractions. Verified against a live
+# run.py invocation, which passes --limit 0.75.
+IFEVAL_LIMIT="0.75"; IFEVAL_LIMIT_SET=0
+GPQA_LIMIT="0.75";   GPQA_LIMIT_SET=0
 PORT="8019"
 SERVER_URL=""
 CONCURRENT="32"
