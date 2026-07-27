@@ -1179,7 +1179,10 @@ def test_llama_3_1_70b_tp_galaxy(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        # EXPERIMENT (tt-xla#5738): opt level 2 enables memoryLayoutAnalysis (the
+        # aggressive L1 sharding). Galaxy normally runs level 1; bumped to 2 to check
+        # whether the level-2 sharded matmul path holds at TP=8 (per-device K small).
+        optimization_level=2,
         # Lower activations to bfp8 around the MLP/O-proj CCL ops to cut the bytes
         # the collectives move. Validated on the full 80-layer model: TOP1 mean
         # 95.95% vs 95.80% baseline, TOP5 100% in both, so accuracy is preserved.
