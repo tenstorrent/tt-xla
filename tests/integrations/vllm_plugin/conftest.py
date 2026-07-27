@@ -10,6 +10,7 @@ traceback, so finalize never fires and the EngineCore subprocess
 holding the TT device outlives the test — hanging the next one. Shut
 them down explicitly on failure.
 """
+
 import gc
 import os
 

@@ -112,6 +112,8 @@ def test_generation_single_device_gemma4_e4b_image():
             "use_2d_mesh": False,
             "cpu_sampling": True,
             "flat_model_io": True,
+            # Image input: MRv2 mm-encoder not wired yet; run on the v1 runner.
+            "use_v2_model_runner": False,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -166,6 +168,8 @@ def test_generation_bhqb_gemma4_image(model_name, use_2d_mesh):
             "use_2d_mesh": use_2d_mesh,
             "cpu_sampling": False,
             "flat_model_io": True,
+            # Image input: MRv2 mm-encoder not wired yet; run on the v1 runner.
+            "use_v2_model_runner": False,
         },
     }
     llm = vllm.LLM(**llm_args)
