@@ -220,7 +220,20 @@ SINGLE_DEVICE_CONFIGS = [
         id="llama-3.1-8b",
     ),
     # Qwen 2.5
-    pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
+    # MP bringup (dgolubovic/mp-agentic-bringup): final tuned config — weights bfp8 (default)
+    # + KV cache bfp8. Holds TOP1 p5 65.62% and TOP5 p5 89.06% vs baseline TOP1 p5 68.75% /
+    # TOP5 89.06% (threshold 61.875%). Activation-dtype lowering NOT set: it's a no-op on
+    # single-chip (its tt-mlir pass matches CCL subgraphs, absent on one chip). bfp4-on-MLP
+    # evaluated (TOP1 p5 held but TOP5 -4.68pp) and NOT baked in — enable via
+    # TT_BENCHMARK_WEIGHT_OVERRIDES only if memory-constrained.
+    # See mixed_precision/logs/qwen2.5-0.5b-instruct-bringup.log.
+    pytest.param(
+        _config(
+            "Qwen/Qwen2.5-0.5B-Instruct",
+            experimental_kv_cache_dtype="bfp_bf8",
+        ),
+        id="qwen2.5-0.5b-instruct",
+    ),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-3B-Instruct"), id="qwen2.5-3b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-7B-Instruct"), id="qwen2.5-7b-instruct"),

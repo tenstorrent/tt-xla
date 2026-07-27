@@ -1,0 +1,4 @@
+{
+  "default": "bfp_bf8",
+  "model.layers.*.mlp.*proj.weight": "bfp_bf4"
+}
