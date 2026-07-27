@@ -224,3 +224,78 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
             f"user {i} output differs from user 0 -- batch-dim attention bug.\n"
             f"  user 0: {token_ids[0]}\n  user {i}: {token_ids[i]}"
         )
+
+
+def _generate_ids(llm, prompts: list[str], max_tokens: int) -> list[list[int]]:
+    sp = vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens, ignore_eos=True)
+    outs = llm.generate(prompts, sp)
+    token_ids = [list(o.outputs[0].token_ids) for o in outs]
+    return token_ids
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.dual_chip
+def test_dp_chunked_prefill_mixed_cached_and_cold():
+    """DP mixed cached/cold chunked prefill must preserve cold-row output.
+
+    Repro shape from cold-test.py: warm one prompt into prefix cache, then run
+    a mixed 2-row batch [cached-hit, cold] under DP with chunked prefill.
+    The cold row's leading tokens must match its isolated baseline.
+    """
+
+    model = "Qwen/Qwen3-0.6B"
+    chunk = 32
+    max_tokens = 128
+
+    # Must be longer than chunk so continuation chunks are exercised.
+    prompt_hit = (
+        "Write a concise summary of distributed systems consistency models. "
+        "Discuss strong consistency, eventual consistency, and quorum reads/writes. "
+    ) * 4
+    prompt_cold = (
+        "Explain how compilers lower high-level tensor programs into device kernels. "
+        "Mention graph capture, shape bucketing, and memory planning. "
+    ) * 4
+
+    llm_args = {
+        "model": model,
+        "max_model_len": 256,
+        "max_num_seqs": 2,
+        "max_num_batched_tokens": chunk * 2,
+        "gpu_memory_utilization": 0.02,
+        "enable_prefix_caching": True,
+        "additional_config": {
+            "enable_data_parallel": True,
+            "prefill_chunk_size": chunk,
+            "min_context_len": 32,
+            "optimization_level": 0,
+        },
+    }
+
+    # Baseline for cold prompt in isolation.
+    llm_ref = vllm.LLM(**llm_args)
+    try:
+        ref_ids = _generate_ids(llm_ref, [prompt_cold], max_tokens=max_tokens)[0]
+    finally:
+        _shutdown(llm_ref)
+
+    # Main run: warm cache for prompt_hit, then mixed batch [cached-hit, cold].
+    llm = vllm.LLM(**llm_args)
+    try:
+        _ = _generate_ids(llm, [prompt_hit], max_tokens=max_tokens)
+        mixed_ids = _generate_ids(llm, [prompt_hit, prompt_cold], max_tokens=max_tokens)
+    finally:
+        _shutdown(llm)
+
+    # Cached and cold rows should both generate non-empty outputs.
+    assert len(mixed_ids[0]) > 0, "cached row produced empty output"
+    assert len(mixed_ids[1]) > 0, "cold row in mixed DP batch produced empty output"
+
+    # Cold row in mixed batch should match isolated cold baseline at the front.
+    n = 8
+    assert mixed_ids[1][:n] == ref_ids[:n], (
+        "DP chunked prefill mixed cached/cold batch changed cold-row prefix tokens.\n"
+        f"  mixed cold[:{n}]={mixed_ids[1][:n]}\n"
+        f"  ref   cold[:{n}]={ref_ids[:n]}"
+    )
