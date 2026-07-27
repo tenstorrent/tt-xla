@@ -3456,7 +3456,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
             # each device writes its own K/V slice via paged_update_cache. The
             # TP-only spec puts block_size on the DP axis and fails
-            # ttir.paged_update_cache. Tracked as a follow-up.
+            # ttir.paged_update_cache. Tracked in #5796.
             #
             # kv_cache_shard_factor() mirrors this branch by returning 1 for
             # DP+TP; when this is changed to really shard, update it too or

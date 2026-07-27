@@ -96,7 +96,8 @@ def kv_cache_shard_factor(runner) -> int:
         return 1
     if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
         # DP+TP leaves the cache replicated, so per-chip usage already equals
-        # the full budget — no reconciliation to do.
+        # the full budget — no reconciliation to do. Sharding it properly
+        # (heads on "model", blocks on "batch") is tracked in #5796.
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):
