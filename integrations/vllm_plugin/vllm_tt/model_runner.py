@@ -1625,12 +1625,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
         is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
-        # Data parallel is always cold (no masked cached-prefix graph; see
-        # _precompile_model_fused).
+        # Cached-prefix prefill takes the masked full-gather path, under DP too:
+        # DP suppresses only chunk_start_idx (the chunked SDPA op), and routes
+        # the cached prefix through the masked gather instead. Cold prefill
+        # leaves attn_mask None. Both shapes are precompiled in warmup.
         if (
             padded_total_num_scheduled_tokens > 1
             and not is_cold_prefill
-            and not self.enable_data_parallel
         ):
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
             # Mask batch must equal the query batch (target_num_reqs, the
@@ -1656,6 +1657,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             attn_mask_dev_buf.copy_(attn_mask_cpu)
             attn_mask = attn_mask_dev_buf
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                # Mask [batch, 1, q, kv] must shard on batch like the query /
+                # page_table, else the SDPA op rejects a mask whose batch differs
+                # from the per-device query batch under DP.
+                safe_mark_sharding(
+                    attn_mask, self.mesh, ("batch", None, None, None)
+                )
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -3041,14 +3052,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # continuation chunk would compile mid-serving (or hit the ttnn
         # page-table-stick assert on unsupported layouts).
         prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
+        # DP serves cached prefill via the masked full-gather path (not the
+        # chunked SDPA op), so it needs the separate-fill_page_table warmup
+        # whenever a continuation chunk / cache hit can occur (chunking enabled),
+        # independent of the op's 8-block alignment.
+        if self.enable_data_parallel and self.prefill_chunk_budget < self.max_model_len:
+            prefix_chunk_options = [False, True]
 
         # Warm both the cold and cached prefill graphs (distinct traced graphs;
         # see attention._compute_full_attention) so a warm cache hit never
         # recompiles mid-serving (the #5132 trigger). Cold applies only to
         # prefill buckets and never combines with prefix_chunk (chunked implies
-        # a cached prefix). Data parallel has no masked cached-prefix graph, so
-        # warm cold only.
-        cold_options = [True] if self.enable_data_parallel else [True, False]
+        # a cached prefix). DP warms the masked cached-prefix graph too: it
+        # lowers under the DP mesh, with chunk_start_idx suppressed (see
+        # _get_dummy_inputs / _prepare_inputs).
+        cold_options = [True, False]
 
         configs = [
             {
@@ -3235,6 +3253,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(page_table, self.mesh, ("batch", None))
             safe_mark_sharding(cache_position, self.mesh, ("batch",))
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+            if attn_mask is not None:
+                # Mask [batch, 1, q, kv] must shard on batch like the query,
+                # else the SDPA op rejects mask-batch != per-device query-batch.
+                safe_mark_sharding(
+                    attn_mask, self.mesh, ("batch", None, None, None)
+                )
 
         # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
         # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
@@ -3246,7 +3270,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros(
                 (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
             ).to(self.device)
-            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
+            # DP routes cached prefill through the masked full-gather path, not
+            # the chunked SDPA op, so chunk_start_idx stays None (matches
+            # _prepare_inputs). The separate fill_page_table is still needed so
+            # the traced input arity matches a real DP cache hit.
+            if not self.enable_data_parallel:
+                chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
