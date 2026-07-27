@@ -76,11 +76,11 @@ misleading knob); it only matters on multi-device TP.
   too large) — use `test_llms.py` TP accuracy jobs for those.
 - Create the log dir once: `mkdir -p mixed_precision/logs`.
 - **For the step-B diagnosis path you also need** (confirm before starting, else
-  ask the user): (a) the plugin built with **`TT_RUNTIME_DEBUG` +
-  `TTMLIR_ENABLE_BINDINGS_PYTHON`** — without it `import chisel` fails and
-  chisel/emit-ttnn are impossible; (b) `ttmlir-opt` on PATH and a tt-mlir source
-  checkout (`third_party/tt-mlir/src/tt-mlir/`) for lit repros. The happy path
-  (steps 1–3, accuracy only) does **not** need these.
+  ask the user): (a) a plugin rebuilt with **`--build-type explorer`** (turns on
+  `TT_RUNTIME_DEBUG` + python bindings + installs the chisel/golden/ttmlir
+  packages) — without it `import chisel` fails or records nothing; (b) `ttmlir-opt`
+  on PATH and a tt-mlir source checkout (`third_party/tt-mlir/src/tt-mlir/`) for
+  lit repros. The happy path (steps 1–3, accuracy only) does **not** need these.
 
 ## Running accuracy
 
@@ -157,6 +157,28 @@ multi-wheel uplift, **out of scope for a bringup: escalate to the user.**
 Record every run (config + TOP1/TOP5 p5) in your log. Stop lowering a tensor
 class when it pushes below `threshold`.
 
+## Full-precision investigation (when baseline TOP1 < 90%)
+
+A low baseline is often NOT a mixed-precision problem. Before any op-level MP
+debugging, find out whether full precision is even better:
+
+1. **Full-precision e2e.** Run the whole model in true bf16 — weights bf16 + kv
+   bf16 + activation off: `TT_BENCHMARK_WEIGHT_DTYPE=""` against a config with no
+   `experimental_kv_cache_dtype` and no `enable_activation_dtype_lowering`
+   (temp-edit the `_config(...)` to plain if it bakes those in; revert after).
+   Report TOP1/TOP5 p5.
+   - **bf16 ≈ baseline** → **MP is NOT the cause**; the ceiling is inherent
+     (small model, teacher-forced-vs-CPU reference, per-user outliers — use p5).
+     Stop chasing quantization; lowering further won't recover it. (Qwen2.5-0.5B:
+     68.75% TOP1 p5 in *both* bf16 and bfp8.)
+   - **bf16 ≫ baseline** → quantization is hurting; go op-level (chisel, below).
+   - **Whole model won't fit in bf16 on one chip** → still do the one-layer
+     chisel step; a single decoder layer fits even when the full model doesn't.
+2. **One decoder layer under chisel** to catch a broken/regressing *kernel* op —
+   see the chisel recipe in "What can go wrong → B". (This is diagnostic; chisel
+   measures kernel correctness, not quantization loss — the e2e A/B above is what
+   decides whether MP is the culprit.)
+
 ## What can go wrong
 
 ### A. A pattern / pass is not triggering
@@ -202,17 +224,33 @@ Could be information loss (expected), a kernel bug, or an un-maxed compute-kerne
 config (`math_fidelity`, `fp32_dest_acc_en`, packer L1 acc, math approx mode).
 Diagnose op-by-op — do not guess:
 
-1. **chisel** — op-by-op accuracy analysis to find the ops regressing accuracy
-   most. It's the autouse `chisel_context` fixture in `tests/conftest.py` (gated
-   on `--enable-chisel`), inherited by `tests/benchmark/`; results land in
-   `chisel_results/`. Requires the debug build (see Prerequisites) or
-   `import chisel` fails. Candidate invocation:
-   `pytest --enable-chisel "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[<id>]" --accuracy-testing`.
-   ⚠️ **UNVERIFIED for vLLM:** the fixture opens in the pytest process while
-   vLLM runs the model in **worker subprocesses**, so it may not capture the
-   model's ops. **First bringup that reaches step B must verify whether chisel
-   captures vLLM-worker ops, read the `chisel_results/` format, and document how
-   to rank ops** — then propose that as a skill edit.
+1. **chisel** — per-op kernel numerics (PCC vs a torch golden). Validated recipe:
+   - **Build:** rebuild the plugin with `python setup.py bdist_wheel --build-type explorer`
+     (auto-enables `TT_RUNTIME_DEBUG` + python bindings and installs the
+     chisel/golden/ttmlir packages; without it `import chisel` fails or records
+     nothing). ~20–45 min; install the resulting wheel (glob carefully — pick the
+     newest wheel, not a stale one).
+   - **Trace OFF, always with a timeout:** run with `trace_enabled=False`. Trace-on
+     raises `TT_FATAL: Reads are not supported during trace capture` and HANGS for
+     hours (chisel reads each op's output). Wrap every run in `timeout 900`.
+   - **Run ONE layer IN-PROCESS via `test_llms.py`** (chisel captures PJRT
+     in-process; vLLM runs the model in a worker subprocess and is NOT captured):
+     `timeout 900 pytest -svv --enable-chisel --num-layers 1 tests/benchmark/test_llms.py::test_<model>`.
+     Set the run's weight/kv dtype by temp-editing that test's `test_llm(...)` call
+     (`experimental_weight_dtype=""` for full precision, `"bfp_bf8"` for baseline);
+     `--num-layers` works here (it's ignored by the vLLM benchmark). Copy
+     `chisel_results/*.jsonl` aside after each run (the next run overwrites it).
+   - **Rank:** load the JSONL, keep `check == "numerics"`, sort ascending by
+     `payload.pcc`.
+   - **Interpretation (critical):** chisel's golden is *promoted from device
+     tensors*, so it measures **kernel correctness (device vs torch-of-its-inputs),
+     NOT quantization-vs-fp32** — and it may not score matmul/linear (goldens get
+     evicted). Use it to catch a *broken/regressing kernel op*, NOT to quantify
+     weight-quantization loss (the full-precision e2e A/B does that). **Ignore
+     degenerate ops:** `ttnn.max`/`ttnn.eq`/`ttnn.argmax` PCC≈0 is expected
+     (argmax/boolean outputs); `ttnn.fill_cache` low PCC is an in-place-cache
+     accounting artifact. Records are accumulated-mode via the fixture (isolated
+     mode may be empty).
 2. **emit ttnn (codegen)** — emit standalone ttnn Python during a vLLM run, edit
    it, then reload instead of compiling. Driven by env vars
    `TTXLA_CODEGEN_EXPORT_DIR` (emit) / `TTXLA_CODEGEN_LOAD_DIR` (load); see
@@ -242,6 +280,8 @@ skill edit you later propose.
 ## Red flags — STOP
 
 - About to edit this skill before the bringup is done, or without user approval → don't (see WIP header).
-- Concluding "accuracy is just quantization loss" without a chisel op-by-op run → run chisel first.
+- Baseline TOP1 < 90% and you start lowering dtypes without the full-precision e2e A/B → run bf16 first; MP may not be the cause at all.
+- Running chisel with trace enabled → it hangs for hours (reads unsupported during trace capture); set `trace_enabled=False` + `timeout`.
+- Treating chisel PCC as a quantization metric → it measures kernel correctness, not quant-vs-fp32; ignore degenerate `max`/`eq`/`argmax`.
 - Assuming an override applied without checking the `modules/` ttnn IR → verify in IR.
 - Guess-and-check on knobs without a log of what you tried → log every run.
