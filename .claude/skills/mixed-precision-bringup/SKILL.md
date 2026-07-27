@@ -172,8 +172,16 @@ debugging, find out whether full precision is even better:
      Stop chasing quantization; lowering further won't recover it. (Qwen2.5-0.5B:
      68.75% TOP1 p5 in *both* bf16 and bfp8.)
    - **bf16 ≫ baseline** → quantization is hurting; go op-level (chisel, below).
-   - **Whole model won't fit in bf16 on one chip** → still do the one-layer
-     chisel step; a single decoder layer fits even when the full model doesn't.
+   - **Whole model won't fit in bf16 on one chip (≈7B+ on n150):** SKIP the bf16
+     e2e entirely — you can't run it. Use the **baseline bfp8** run as
+     `baseline_acc`, and run **chisel on one layer in bfp8** (below) to catch a
+     broken kernel. You lose the bf16-vs-bfp8 attribution, but that A/B is not
+     informative via chisel anyway (chisel's golden bakes in the device dtype).
+
+   **Note on model size:** very small models (≲1B) are NOT robust to quantization
+   and are noisy references (Qwen2.5-0.5B: 68.75% TOP1 p5 in *both* bf16 and
+   bfp8, with a 14% outlier user) — MP work is more meaningful on 7–8B models.
+   Those don't fit full bf16 on n150, so follow the bfp8-only branch above.
 2. **One decoder layer under chisel** to catch a broken/regressing *kernel* op —
    see the chisel recipe in "What can go wrong → B". (This is diagnostic; chisel
    measures kernel correctness, not quantization loss — the e2e A/B above is what
