@@ -2646,6 +2646,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
@@ -3085,6 +3090,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros(
                 (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
             ).to(self.device)
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
