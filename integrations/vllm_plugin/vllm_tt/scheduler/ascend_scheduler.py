@@ -509,6 +509,8 @@ class AscendScheduler(Scheduler):
                         self.kv_cache_manager.free(preempted_req)
                         preempted_req.status = RequestStatus.PREEMPTED
                         preempted_req.num_computed_tokens = 0
+                        if preempted_req.spec_token_ids:
+                            preempted_req.spec_token_ids = []
                         if self.log_stats:
                             preempted_req.record_event(
                                 EngineCoreEventType.PREEMPTED, scheduled_timestamp
@@ -541,13 +543,19 @@ class AscendScheduler(Scheduler):
                         num_new_tokens
                         + request.num_computed_tokens
                         - request.num_tokens
+                        - request.num_output_placeholders
                     )
                     if num_scheduled_spec_tokens > 0:
-                        # Trim spec_token_ids list to num_scheduled_spec_tokens.
-                        del request.spec_token_ids[num_scheduled_spec_tokens:]
+                        spec_token_ids = request.spec_token_ids
+                        if len(spec_token_ids) > num_scheduled_spec_tokens:
+                            spec_token_ids = spec_token_ids[:num_scheduled_spec_tokens]
                         scheduled_spec_decode_tokens[request.request_id] = (
-                            request.spec_token_ids
+                            spec_token_ids
                         )
+
+                    # New spec tokens will be set in `update_draft_token_ids`
+                    # before the next step when applicable.
+                    request.spec_token_ids = []
 
                 # Record scheduled LoRA requests.
                 if self.lora_config and request.lora_request:
