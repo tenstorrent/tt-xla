@@ -91,6 +91,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "hunyuan_image_2_1",
+        "pytest": "tests/benchmark/test_imagegen.py::test_hunyuan_image_2_1",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
       },
