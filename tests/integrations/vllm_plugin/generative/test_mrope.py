@@ -25,6 +25,8 @@ def test_mrope():
         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
         "additional_config": {
             "min_context_len": 32,
+            # mrope not yet supported by MRv2; run on the v1 runner.
+            "use_v2_model_runner": False,
         },
     }
     llm = vllm.LLM(**llm_args)
