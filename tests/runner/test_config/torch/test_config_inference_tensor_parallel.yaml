@@ -34,6 +34,21 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
+  gemma4/pytorch-12B-image-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96 # measured pcc=0.9675; floor set below to absorb run-to-run noise. image+text multimodal path runs end-to-end but the vision tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
+  gemma4/pytorch-12B-audio-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.92 # measured pcc=0.9249; floor set below to absorb run-to-run noise. audio+text multimodal path runs end-to-end but the audio tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
+  gemma4/pytorch-12B-video-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.92 # measured pcc=0.9249 (num_frames=4); floor set below to absorb run-to-run noise. video+text multimodal path runs end-to-end but the vision tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u, lb-blackhole]
     status: EXPECTED_PASSING
@@ -49,7 +64,7 @@ test_config:
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
-    reason: "error: 'sdy.all_slice' op operates on axis '_axis_0' which is already bound by a parent sdy.manual_computation op - https://github.com/tenstorrent/tt-mlir/issues/8861"
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9603734111616014. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/5642"
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
@@ -59,11 +74,14 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
+    markers: [push, multi_host_cluster]
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     required_pcc: 0.98 # PCC dropped to 0.9894 on n300-llmbox - https://github.com/tenstorrent/tt-xla/issues/4154
+    bringup_status: FAILED_RUNTIME
+    reason: "Bad StatusOr access: INTERNAL: Error code: 13; TT_FATAL Can't get device from mesh buffer, already deallocated (mesh_buffer.cpp:311). Tracked by https://github.com/tenstorrent/tt-xla/issues/4488 (same test; surface error varies run-to-run)."
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -261,8 +279,10 @@ test_config:
 
   gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox,lb-blackhole]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+    bringup_status: FAILED_RUNTIME
+    reason: "Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM (352 MB across 12 banks, bank_manager.cpp:462). Tracked by https://github.com/tenstorrent/tt-xla/issues/4007."
 
   command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -415,4 +435,52 @@ test_config:
 
   fibo/pytorch-Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
+    status: EXPECTED_PASSING
+
+  glm/causal_lm/moe/pytorch-GLM-4.7-Flash-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  mixtral/causal_lm/moe/pytorch-Mixtral-8x7B-Instruct-v0.1-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  deepseek/deepseek_moe/pytorch-DEEPSEEK_V2_LITE_CHAT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  deepseek/deepseek_moe/pytorch-DEEPSEEK_CODER_V2_LITE_INSTRUCT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  nous_research/moe/pytorch-Nous-Hermes-2-Mixtral-8x7B-DPO-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  phi3/phi_3_5_moe/causal_lm/pytorch-Phi-3.5-MoE-instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-38B-single_device-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3-78B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  phi4/causal_lm/pytorch-Phi_4_Reasoning_Plus-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING

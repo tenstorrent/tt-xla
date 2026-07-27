@@ -298,6 +298,7 @@ class CMakeBuildPy(build_py):
         code_coverage = "OFF"
         enable_explorer = "OFF"
         enable_emitpy_execution = "ON"
+        enable_profiling = "ON"
 
         if config.build_type == "codecov":
             code_coverage = "ON"
@@ -308,6 +309,10 @@ class CMakeBuildPy(build_py):
             # avoid depending on the embedded-Python runner and its non-portable
             # transitive ABI surface.
             enable_emitpy_execution = "OFF"
+
+            # tt-xla 5504 - temporarily disabling release wheel tracy-enabled build
+            # due to host memory leak
+            enable_profiling = "OFF"
 
         cmake_args = [
             "-G",
@@ -322,7 +327,9 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EMITPY_EXECUTION=" + enable_emitpy_execution,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
             "-DTT_USE_SYSTEM_SFPI=ON",
+            "-DTTMLIR_ENABLE_PERF_TRACE=" + enable_profiling,
         ]
+
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
 

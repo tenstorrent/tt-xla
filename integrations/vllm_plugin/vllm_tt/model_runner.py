@@ -7,7 +7,7 @@ import contextlib
 import gc
 import time
 from itertools import product
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
 from unittest.mock import patch
 
 import numpy as np
@@ -31,6 +31,9 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -76,10 +79,13 @@ from vllm.v1.kv_cache_interface import (
 )
 from vllm.v1.outputs import (
     EMPTY_MODEL_RUNNER_OUTPUT,
+    DraftTokenIds,
     LogprobsLists,
     LogprobsTensors,
     ModelRunnerOutput,
 )
+from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
+from vllm.v1.spec_decode.ngram_proposer import NgramProposer
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
@@ -103,8 +109,9 @@ from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
+from .rejection_sampler import RejectionSampler
 from .sampler import Sampler
-from .vllm_distributed_utils import safe_mark_sharding, shard_model
+from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
@@ -248,40 +255,98 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_config = self.scheduler_config
         parallel_config = self.parallel_config
         self.device = device
-        self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
         self.use_flat_model_io = self.tt_config.flat_model_io
         self.enable_decode_fused_graphs = self.tt_config.enable_decode_fused_graphs
 
         # SPMD Related
+        self.num_devices = xr.global_runtime_device_count()
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
-
-        if self.enable_tensor_parallel:
-            num_devices = xr.global_runtime_device_count()
-            mesh_shape = determine_mesh_shape(
-                num_devices, self.tt_config.use_2d_mesh, self.tt_config.mesh_shape
+        self.max_num_reqs = scheduler_config.max_num_seqs
+        if self.enable_tensor_parallel and self.num_devices == 1:
+            logger.warning(
+                "Tensor parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
             )
-            device_ids = np.array(range(num_devices))
+            self.enable_tensor_parallel = False
+
+        # Data parallel
+        self.enable_data_parallel = self.tt_config.enable_data_parallel
+        if self.enable_data_parallel:
+            if self.max_num_reqs <= 1:
+                logger.warning(
+                    f"Data parallel execution requires max_num_reqs > 1 but got {self.max_num_reqs}. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+            if self.num_devices == 1:
+                logger.warning(
+                    "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            # An explicit 2D mesh_shape (no size-1 axis) forces TP-2D even when
+            # use_2d_mesh is unset, so the chosen mode matches the mesh that
+            # determine_mesh_shape will actually build.
+            explicit_2d_mesh = (
+                self.tt_config.mesh_shape is not None
+                and 1 not in self.tt_config.mesh_shape
+            )
+            if self.use_2d_mesh or explicit_2d_mesh:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+            else:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
+
+        # dp_size = size of the mesh's "batch" axis (# DP replicas processing
+        # different sentences). 1 in pure-TP or DISABLED. Used below for the
+        # max_num_reqs divisibility adjustment and in _prepare_inputs.
+        self.dp_size = 1
+        if self.parallel_mode != ParallelismMode.DISABLED:
+            # An explicit tt_config.mesh_shape (e.g. gemma4-31b) overrides the
+            # mode-derived shape; otherwise it is derived from parallel_mode.
+            mesh_shape = determine_mesh_shape(
+                self.num_devices, self.parallel_mode, self.tt_config.mesh_shape
+            )
+            device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
-            # A mesh with a size-1 axis is effectively 1D; downstream sharding
-            # treats only genuinely 2D meshes as 2D.
+            # mesh_shape[0] ("batch" axis) is a real DP replica count only in DP
+            # modes; in pure-TP the batch axis is a TP axis, so dp_size stays 1.
+            # Feeding dp_size>1 into the paged-KV ops there mis-maps slots.
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                self.dp_size = mesh_shape[0]
             self.use_2d_mesh = 1 not in mesh_shape
-            # Register as the global SPMD mesh so tt_torch.moe_backend's
-            # _mesh_info() can resolve the expert-parallel cluster axis (the
-            # tt_moe EP path reads get_global_mesh()).
             xs.set_global_mesh(self.mesh)
+
+        if self.enable_data_parallel and self.dp_size > 1:
+            remainder = self.max_num_reqs % self.dp_size
+            if remainder != 0:
+                adjusted_max_num_reqs = self.max_num_reqs + self.dp_size - remainder
+                logger.warning(
+                    "Data parallel requires max_num_reqs divisible by dp_size. "
+                    "Adjusting max_num_reqs from %d to %d.",
+                    self.max_num_reqs,
+                    adjusted_max_num_reqs,
+                )
+                self.max_num_reqs = adjusted_max_num_reqs
 
         self.enforce_eager = model_config.enforce_eager
 
         self.num_xla_graphs = 0
         self._update_num_xla_graphs("init")
-        # Flag for the first inference step: XLA SPMD may compile one extra graph on
-        # the first prefill because the backbone sees real input tensors (from
-        # _prepare_inputs) instead of the torch.zeros used during precompile warm-up.
-        # We accept those graphs on the first step and enforce strict no-recompilation
-        # from the second step onwards.
-        self._first_inference_done = False
+        # Warm-up spans several steps (one graph per chunk-size bucket): accept
+        # new graphs until the set stabilizes, then lock to no-recompilation.
+        self._recompile_stable_steps = 0
+        self._recompile_locked = False
 
         self.pin_memory = is_pin_memory_available()
         self.dtype = self.model_config.dtype
@@ -309,10 +374,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sliding_window = model_config.get_sliding_window()
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
-        assert (
-            self.max_model_len * scheduler_config.max_num_seqs
-            <= scheduler_config.max_num_batched_tokens
-        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
+        # Chunked prefill: the budget need only hold one chunk (+ a decode token
+        # per running seq); single-shot still must cover the whole prompt.
+        if getattr(scheduler_config, "tt_chunked_prefill_enabled", False):
+            assert scheduler_config.max_num_batched_tokens >= max(
+                self.block_size, scheduler_config.max_num_seqs
+            ), (
+                f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} "
+                f"must be >= max(block_size={self.block_size}, "
+                f"max_num_seqs={scheduler_config.max_num_seqs}) for chunked prefill"
+            )
+        else:
+            assert (
+                self.max_model_len * scheduler_config.max_num_seqs
+                <= scheduler_config.max_num_batched_tokens
+            ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
@@ -320,22 +396,66 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.most_model_len is not None
             else None
         )
-        self.max_num_reqs = scheduler_config.max_num_seqs
+        # InputBatch needs to work with sampling tensors greater than padding
+        # to avoid dynamic shapes. Also, avoid suboptimal alignment.
+        # self.max_num_reqs is already set above (and rounded to a multiple of
+        # dp_size for the data-parallel modes); resolve the prefill request-count
+        # bucketing lower bound (#5363) relative to it.
         resolved_min_num_reqs = self.tt_config.min_num_seqs
         if resolved_min_num_reqs is None:
             resolved_min_num_reqs = self.max_num_reqs
         self.min_num_reqs = resolved_min_num_reqs
+        # Prefill graphs compile at this batch shape; decode always uses
+        # max_num_reqs. Defaults to max_num_reqs when not configured so
+        # the feature is a transparent no-op unless explicitly enabled.
+        self.max_prefill_num_reqs = (
+            self.tt_config.max_prefill_num_seqs
+            if self.tt_config.max_prefill_num_seqs is not None
+            else self.max_num_reqs
+        )
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
             )
             self.tt_config.min_context_len = scheduler_config.max_num_batched_tokens
 
-        # Compute token padding sizes needed to align inputs to supported context
-        # lengths, from the minimum context length up to the model's maximum length.
+        # Per-sequence budget sizing the token buckets/prefill activation. Use the
+        # per-seq chunk, not max_num_batched_tokens (= chunk x max_num_seqs), which
+        # would blow up compile/DRAM. KV/page-table buffers stay at max_model_len.
+        self.prefill_chunk_budget = min(
+            getattr(
+                scheduler_config,
+                "tt_prefill_chunk_size",
+                scheduler_config.max_num_batched_tokens,
+            ),
+            self.max_model_len,
+        )
+
+        # Chunked SDPA op is usable only when chunking can occur and
+        # num_blocks_per_req % 8 == 0 (ttnn page-table stick must be 32B-aligned).
+        self._chunked_sdpa_active = self.prefill_chunk_budget < self.max_model_len and (
+            self.max_num_blocks_per_req % 8 == 0
+        )
+
+        # Opted into chunking but page-table layout unsupported: no correct
+        # cached-prefix path, so fail loudly rather than silently degrade.
+        # TODO(default-on): fall back to single-shot prefill once chunking is default.
+        if (
+            getattr(scheduler_config, "tt_chunked_prefill_enabled", False)
+            and self.prefill_chunk_budget < self.max_model_len
+            and self.max_num_blocks_per_req % 8 != 0
+        ):
+            raise NotImplementedError(
+                f"Chunked prefill requires max_model_len/block_size % 8 == 0 "
+                f"(got {self.max_num_blocks_per_req} blocks/req for "
+                f"max_model_len={self.max_model_len}, block_size={self.block_size}); "
+                f"use a max_model_len that is a multiple of {8 * self.block_size}."
+            )
+
+        # Token padding ladder from min_context_len up to the per-step chunk budget.
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
-            max_token_size=self.max_model_len,
+            max_token_size=self.prefill_chunk_budget,
         )
         if self.tt_config.decode_only:
             # Restrict all num_tokens bucketing to the decode shape so every
@@ -390,6 +510,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE(rob): num_prompt_logprobs only includes reqs
         # that are currently in the prefill phase.
         self.num_prompt_logprobs: dict[str, int] = {}
+
+        # Set up speculative decoding using ngram CPU proposer.
+        self.num_spec_tokens = 0
+        self.drafter: NgramProposer | None = None
+        self._draft_token_ids: list[list[int]] | None = None
+        self._draft_token_req_ids: list[str] | None = None
+
+        if self.speculative_config:
+            self.num_spec_tokens = self.speculative_config.num_speculative_tokens
+            # Initialize ngram CPU proposer for speculative decoding
+            if self.speculative_config.method == "ngram":
+                self.drafter = NgramProposer(vllm_config)
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -462,9 +594,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         def _alloc_dev(shape, dtype):
             return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
 
+        # Per-batch buffers are keyed by every reachable clamped row count (see
+        # `_reachable_num_reqs`); the per-path page tables below use only their
+        # own path's counts. #5416.
+        self._max_len_num_reqs = set(
+            _bucket_num_reqs(
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            )
+        )
+        self._most_len_num_reqs = (
+            set(
+                _bucket_num_reqs(
+                    self.min_num_reqs,
+                    self.max_prefill_num_reqs,
+                    self.num_reqs_most_model_len,
+                )
+            )
+            if self.num_reqs_most_model_len is not None
+            else set()
+        )
+        self._reachable_num_reqs = self._max_len_num_reqs | self._most_len_num_reqs
+
         self._input_ids_dev = {
             (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in self._reachable_num_reqs
             for num_tokens in self.num_tokens_paddings
         }
         self._position_ids_dev = {
@@ -476,31 +631,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ),
                 torch.int32,
             )
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in self._reachable_num_reqs
             for num_tokens in self.num_tokens_paddings
         }
         self._logits_indices_dev = {
             num_reqs: _alloc_dev((num_reqs,), torch.int32)
-            for num_reqs in {self.min_num_reqs, self.max_num_reqs}
+            for num_reqs in self._reachable_num_reqs
         }
         self._page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._fill_page_table_dev_max = {
             num_reqs: _alloc_dev(
                 (num_reqs, self.max_num_blocks_per_req),
                 self.block_table_cpu.dtype,
             )
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
         self._cache_position_dev_max = {
             num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
-            for num_reqs in {self.min_num_reqs, self.num_reqs_max_model_len}
+            for num_reqs in {
+                self.min_num_reqs,
+                self.max_prefill_num_reqs,
+                self.num_reqs_max_model_len,
+            }
         }
+        # Chunked-prefill prefix offset: persistent [1] int32 dev buffer so the
+        # value can change per step under a captured trace without recompiling.
+        self._chunk_start_idx_dev = _alloc_dev((1,), torch.int32)
         if self.most_model_len is not None:
             assert self.num_reqs_most_model_len is not None
             assert self.num_blocks_per_most_len_req is not None
@@ -523,19 +693,53 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
             }
 
+        # Persistent per-row-count batch indices for paged_fill_cache, keyed like
+        # the page tables so dim0 matches the DP-sharded K/V batch
+        # (paged_fill_cache asserts dim0 == per-device batch).
+        self._batch_idx_dev = {
+            num_reqs: torch.arange(num_reqs, dtype=torch.int32, device="cpu").to(
+                self.device
+            )
+            for num_reqs in self._reachable_num_reqs
+        }
+
         # Fail fast at startup if any per-step buffer can't be looked up by a
-        # row count _prepare_inputs will request (before SMEM clamping).
-        _reachable_num_reqs = {self.min_num_reqs, self.max_num_reqs}
-        for _name, _keys in {
-            "input_ids": {k[0] for k in self._input_ids_dev},
-            "position_ids": {k[0] for k in self._position_ids_dev},
-            "logits_indices": set(self._logits_indices_dev),
-            "page_table_dev_max": set(self._page_table_dev_max),
-            "cache_position_dev_max": set(self._cache_position_dev_max),
-        }.items():
-            assert _reachable_num_reqs <= _keys, (
+        # row count `_prepare_inputs` will request. Buffers shared across both
+        # attention paths must cover every reachable count; the per-path page
+        # tables only need their own path's clamped counts (see #5416).
+        _checks = {
+            "input_ids": (
+                {k[0] for k in self._input_ids_dev},
+                self._reachable_num_reqs,
+            ),
+            "position_ids": (
+                {k[0] for k in self._position_ids_dev},
+                self._reachable_num_reqs,
+            ),
+            "logits_indices": (set(self._logits_indices_dev), self._reachable_num_reqs),
+            "batch_idx": (set(self._batch_idx_dev), self._reachable_num_reqs),
+            "page_table_dev_max": (
+                set(self._page_table_dev_max),
+                self._max_len_num_reqs,
+            ),
+            "cache_position_dev_max": (
+                set(self._cache_position_dev_max),
+                self._max_len_num_reqs,
+            ),
+        }
+        if self.most_model_len is not None:
+            _checks["page_table_dev_most"] = (
+                set(self._page_table_dev_most),
+                self._most_len_num_reqs,
+            )
+            _checks["cache_position_dev_most"] = (
+                set(self._cache_position_dev_most),
+                self._most_len_num_reqs,
+            )
+        for _name, (_keys, _needed) in _checks.items():
+            assert _needed <= _keys, (
                 f"{_name} buffer keyed by {sorted(_keys)} is missing reachable "
-                f"row counts {sorted(_reachable_num_reqs - _keys)}"
+                f"row counts {sorted(_needed - _keys)}"
             )
 
         # Layer pairings for cross-layer KV sharing.
@@ -643,8 +847,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.mm_budget.reset_cache()
 
     def _update_num_xla_graphs(self, case_str):
-        check_comp = self.check_recompilation and not self.enforce_eager
-        if not check_comp:
+        if self.enforce_eager:
             return
 
         total_cached_graphs = xr.get_num_cached_compilation_graph()
@@ -658,27 +861,30 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_xla_graphs += new_compiled_graphs
 
     def _verify_num_xla_graphs(self, case_str):
-        check_comp = self.check_recompilation and not self.enforce_eager
-        if not check_comp:
-            return
-
-        if not self._first_inference_done:
-            # On the first inference step, XLA SPMD may compile extra graphs because
-            # the real input tensors (from _prepare_inputs) differ in XLA provenance
-            # from the torch.zeros dummies used during precompile warm-up. Accept any
-            # graphs compiled during this first step and lock the count for all
-            # subsequent steps where recompilation would indicate a real regression.
-            self._update_num_xla_graphs(f"{case_str} (first inference)")
-            self._first_inference_done = True
+        if self.enforce_eager:
             return
 
         curr_cached_graph = xr.get_num_cached_compilation_graph()
-        assert self.num_xla_graphs == curr_cached_graph, (
-            "Recompilation after warm up is detected during {}."
-            " num_xla_graphs = {} curr_cached_graph = {}".format(
-                case_str, self.num_xla_graphs, curr_cached_graph
+        new_compiled_graphs = curr_cached_graph - self.num_xla_graphs
+        self.num_xla_graphs += new_compiled_graphs
+
+        # Spec decode runs rejection sampling outside compiled TT graphs, so one
+        # runtime graph may appear during inference.
+        if (
+            self.speculative_config is not None
+            and new_compiled_graphs > 0
+            and case_str == "execute_model"
+        ):
+            logger.warning(
+                "Detected 1 new XLA graph compilation during inference; probably due to speculative decoding."
             )
-        )
+            return
+
+        if new_compiled_graphs > 0:
+            logger.error(
+                "Detected %d new XLA graph compilation(s) during sample_tokens().",
+                new_compiled_graphs,
+            )
 
     def _update_states(self, scheduler_output: "SchedulerOutput") -> bool:
         """Update the cached states and the persistent batch with the scheduler
@@ -726,6 +932,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # sets of requests), this optimization becomes very inefficient.
 
         for req_id in unscheduled_req_ids:
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                # Each device writes only its own slot's KV; re-adding a request
+                # at a different slot breaks request -> device affinity and
+                # corrupts decode. Keep it at its current slot (downstream must
+                # tolerate a missing num_scheduled_tokens entry).
+                continue
             req_index = self.input_batch.remove_request(req_id)
             assert req_index is not None
             removed_req_indices.append(req_index)
@@ -817,6 +1032,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Condense the batched states if there are empty indices.
         if removed_req_indices:
             self.input_batch.condense(removed_req_indices)
+
+        # Write scheduled speculative tokens into the input batch token buffer.
+        if scheduler_output.scheduled_spec_decode_tokens:
+            for req_id, req_state in self.requests.items():
+                if req_id in self.input_batch.req_id_to_index:
+                    self.input_batch.update_req_spec_token_ids(
+                        req_state,
+                        scheduler_output.scheduled_spec_decode_tokens,
+                    )
 
         return len(unscheduled_req_ids) > 0 or len(req_ids_to_add) > 0
 
@@ -1019,7 +1243,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i in range(start_index, num_reqs):
             req_id = self.input_batch.req_ids[i]
             assert req_id is not None
-            num_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            num_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
             if (
                 not use_max_model_len
                 and self.most_model_len is not None
@@ -1045,6 +1269,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 end_index = num_reqs
 
+        # Reconcile with the prefill row cap: if this is a prefill pass (any
+        # request has > 1 scheduled token) and the SMEM-trimmed batch still
+        # exceeds max_prefill_num_reqs, trim again. The multi-pass loop
+        # (start_index → end_index in sample_tokens) then picks up the
+        # remaining requests on the next iteration.
+        # Decode passes (all tokens == 1) always run at max_num_reqs and are
+        # not subject to this cap.
+        _prefill_cap = self.max_prefill_num_reqs
+        if (
+            len(num_scheduled_tokens_per_req) > _prefill_cap
+            and max(num_scheduled_tokens_per_req) > 1
+        ):
+            num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:_prefill_cap]
+            end_index = start_index + _prefill_cap
+
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -1055,17 +1294,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = len(num_scheduled_tokens_per_req)
         actual_num_reqs = num_reqs
 
-        # Decode always runs with max request shape. For prefill, keep runtime
-        # request shape aligned with warmup by selecting min or max bucket.
+        # Row-count bucket for this step, clamped to the active path's SMEM seq
+        # limit (see `_select_target_num_reqs`). #5416.
+        path_max_num_reqs = (
+            self.num_reqs_max_model_len
+            if use_max_model_len
+            else self.num_reqs_most_model_len
+        )
+        assert path_max_num_reqs is not None
         is_decode_step = max_num_scheduled_tokens_all_reqs == 1
-        if is_decode_step:
-            target_num_reqs = self.max_num_reqs
-        else:
-            target_num_reqs = (
-                self.min_num_reqs
-                if actual_num_reqs <= self.min_num_reqs
-                else self.max_num_reqs
-            )
+        target_num_reqs = _select_target_num_reqs(
+            self.min_num_reqs,
+            self.max_prefill_num_reqs,
+            path_max_num_reqs,
+            is_decode_step,
+            actual_num_reqs,
+        )
 
         # Compute the padded total number of scheduled tokens so that all requests
         # in the batch share a common, hardware-compatible sequence length.
@@ -1171,7 +1415,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 :target_num_reqs, : self.max_num_blocks_per_req
             ]
             page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:actual_num_reqs]
+                self.input_batch.block_table[0].get_cpu_tensor()[
+                    :actual_num_reqs, : self.max_num_blocks_per_req
+                ]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
@@ -1214,6 +1460,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
+        # A running (already-prefilled) request re-batched into a later prefill
+        # step contributes 0 new tokens. paged_fill_cache still writes its row,
+        # and since fill_page_table[row] points at that request's real blocks, it
+        # clobbers the KV written in the earlier step with padding. Under DP+TP
+        # such an inactive row lands inside the active range (row 0), not at the
+        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
+        # the null block (0); the read-path page_table keeps the real blocks.
+        zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
+        if len(zero_sched_rows) > 0:
+            if fill_page_table is page_table:
+                fill_page_table = page_table.clone()
+            fill_page_table[zero_sched_rows, :] = 0
+
         if use_max_model_len:
             cache_position_dev = self._cache_position_dev_max[target_num_reqs]
             page_table_dev = self._page_table_dev_max[target_num_reqs]
@@ -1242,6 +1501,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
+        batch_idx = self._batch_idx_dev[target_num_reqs]
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs. batch_idx feeds paged_fill_cache, whose verifier
+            # requires its dim0 to equal the per-device batch.
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+            if fill_page_table is not page_table:
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+
+        # Cached-prefix prefill chunk (L > 1 and num_computed > 0): attends over
+        # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
+        # prefill take the standard path (chunk_start_idx stays None).
+        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
+            np.any(num_computed_for_reqs > 0)
+        )
+        chunk_start_idx = None
+        if prefix_chunk_step and self._chunked_sdpa_active:
+            # Same-stage batching => one shared [1] prefix offset; the op masks
+            # causally and applies it internally (no host attn_mask).
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+            )
+            chunk_start_idx = self._chunk_start_idx_dev
+
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -1259,19 +1549,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            dp_size=self.dp_size,
+            chunk_start_idx=chunk_start_idx,
+            batch_idx=batch_idx,
+            num_users=target_num_reqs,
         )
+        spec_decode_metadata = self._create_spec_decode_metadata(
+            scheduler_output=scheduler_output,
+            start_index=start_index,
+            end_index=end_index,
+        )
+
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
-        # Per-user last-token index within each padded slot.
-        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32)
-        logits_indices[:actual_num_reqs] = (
-            torch.from_numpy(num_scheduled_tokens_per_req) - 1
-        )
-        logits_indices_dev = self._logits_indices_dev[target_num_reqs]
-        logits_indices_dev.copy_(logits_indices)
-        logits_indices = logits_indices_dev
+        # Per-user indices for selecting hidden states used in logits compute.
+        # In spec decode, use a packed [batch, num_spec_tokens + 1] layout so we
+        # compute draft + bonus logits in one pass and avoid recomputing target
+        # logits in RejectionSampler.
+        if spec_decode_metadata is None:
+            logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32)
+            logits_indices[:actual_num_reqs] = (
+                torch.from_numpy(num_scheduled_tokens_per_req) - 1
+            )
+            logits_indices_dev = self._logits_indices_dev[target_num_reqs]
+            logits_indices_dev.copy_(logits_indices)
+            logits_indices = logits_indices_dev
+        else:
+            spec_width = self.num_spec_tokens + 1
+            logits_indices = torch.zeros(
+                (target_num_reqs, spec_width), dtype=torch.int32
+            )
+            for req_idx in range(actual_num_reqs):
+                bonus_idx = int(num_scheduled_tokens_per_req[req_idx] - 1)
+                logits_indices[req_idx, :] = bonus_idx
+                draft_len = spec_decode_metadata.num_draft_tokens[req_idx]
+                if draft_len > 0:
+                    logits_indices[req_idx, :draft_len] = torch.arange(
+                        draft_len, dtype=torch.int32
+                    )
+            logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1292,7 +1610,91 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits_indices,
             actual_num_reqs,
             target_num_reqs,
+            spec_decode_metadata,
             end_index,
+        )
+
+    def _create_spec_decode_metadata(
+        self,
+        scheduler_output: "SchedulerOutput",
+        start_index: int,
+        end_index: int,
+    ) -> SpecDecodeMetadata | None:
+        scheduled_spec_tokens = scheduler_output.scheduled_spec_decode_tokens
+        if not self.num_spec_tokens or not scheduled_spec_tokens:
+            return None
+
+        per_req_draft_token_ids: list[list[int]] = []
+        for global_idx in range(start_index, end_index):
+            req_id = self.input_batch.req_ids[global_idx]
+            assert req_id is not None
+            per_req_draft_token_ids.append(
+                [int(token_id) for token_id in scheduled_spec_tokens.get(req_id, ())]
+            )
+
+        return self._build_spec_decode_metadata(per_req_draft_token_ids)
+
+    def _build_spec_decode_metadata(
+        self,
+        per_req_draft_token_ids: list[list[int]],
+    ) -> SpecDecodeMetadata | None:
+        if not self.num_spec_tokens or not per_req_draft_token_ids:
+            return None
+
+        num_draft_tokens = [len(draft_ids) for draft_ids in per_req_draft_token_ids]
+        draft_token_ids_flat = [
+            token_id for draft_ids in per_req_draft_token_ids for token_id in draft_ids
+        ]
+        if not draft_token_ids_flat:
+            return None
+
+        target_logits_indices: list[int] = []
+        bonus_logits_indices: list[int] = []
+        spec_width = self.num_spec_tokens + 1
+        for req_idx, draft_len in enumerate(num_draft_tokens):
+            base = req_idx * spec_width
+            if draft_len:
+                target_logits_indices.extend(range(base, base + draft_len))
+            bonus_logits_indices.append(base + spec_width - 1)
+
+        cu_num_draft_tokens = torch.from_numpy(
+            np.cumsum(np.array(num_draft_tokens, dtype=np.int32), dtype=np.int32)
+        ).to(self.device)
+        cu_num_sampled_tokens = torch.from_numpy(
+            np.cumsum(
+                np.array(
+                    [draft_len + 1 for draft_len in num_draft_tokens],
+                    dtype=np.int32,
+                ),
+                dtype=np.int32,
+            )
+        ).to(self.device)
+
+        draft_token_ids = torch.tensor(
+            draft_token_ids_flat,
+            dtype=torch.int32,
+        ).to(self.device)
+        target_logits_indices = torch.tensor(
+            target_logits_indices,
+            dtype=torch.int32,
+        ).to(self.device)
+        bonus_logits_indices = torch.tensor(
+            bonus_logits_indices,
+            dtype=torch.int32,
+        ).to(self.device)
+        logits_indices = torch.arange(
+            len(num_draft_tokens) * spec_width,
+            dtype=torch.int32,
+        ).to(self.device)
+
+        return SpecDecodeMetadata(
+            draft_token_ids=draft_token_ids,
+            num_draft_tokens=num_draft_tokens,
+            cu_num_draft_tokens=cu_num_draft_tokens,
+            cu_num_sampled_tokens=cu_num_sampled_tokens,
+            target_logits_indices=target_logits_indices,
+            bonus_logits_indices=bonus_logits_indices,
+            logits_indices=logits_indices,
         )
 
     def _execute_mm_encoder(self, scheduler_output: "SchedulerOutput"):
@@ -1374,9 +1776,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the masked_scatter in `_merge_multimodal_embeddings`. The padded
         # width is derived from the max per-request scheduled tokens, matching
         # how `_prepare_inputs` sizes `input_ids`.
+        # DP keeps descheduled requests in input_batch, so a req_id may be
+        # absent from num_scheduled_tokens; treat as 0 (default=0 guards max()).
         max_num_scheduled_tokens = max(
-            scheduler_output.num_scheduled_tokens[rid]
-            for rid in self.input_batch.req_ids
+            (
+                scheduler_output.num_scheduled_tokens.get(rid, 0)
+                for rid in self.input_batch.req_ids
+            ),
+            default=0,
         )
         padded_width = _get_padded_token_len(
             self.num_tokens_paddings, max_num_scheduled_tokens
@@ -1390,7 +1797,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_embeds = list[torch.Tensor]()
 
         for req_idx, req_id in enumerate(self.input_batch.req_ids):
-            num_scheduled_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            num_scheduled_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            # Descheduled this step (kept in input_batch by the DP _update_states
+            # skip): no tokens to gather embeddings for.
+            if num_scheduled_tokens == 0:
+                continue
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
 
@@ -1515,23 +1926,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids: torch.Tensor,
         inputs_embeds: torch.Tensor | None,
     ) -> None:
-        """Pin the model input shardings (batch dim across the mesh). Applied in
-        BOTH the warmup (_dummy_run) and execution (sample_tokens) paths so their
-        graphs match;
-        otherwise warmup shards these inputs while execution leaves them
-        replicated, and the backbone recompiles at the first real step for any
-        shardable batch. Also keeps large prefill traces from splitting into a
-        secondary sync that drops mhlo.spmd_output_sharding (which trips
-        shlo_clean_for_xla_ingestion)."""
-        if not self.enable_tensor_parallel:
+        """Pin model input shardings (batch dimension across the mesh) in
+        DATA_PARALLEL_ONLY and DATA_TENSOR_PARALLEL during both warmup and
+         inference so both paths produce identical graphs and avoid recompilation."""
+        if not self.enable_tensor_parallel and self.parallel_mode not in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
             return
-        # 2D mesh: model batch dim -> "batch" axis (data-parallel).
-        # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
+        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
         batch_axis = "batch" if self.use_2d_mesh else "model"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+        # position_ids: pin only for DP modes. Under pure-TP it perturbs GSPMD
+        # into a batch-axis reduce_scatter -> ttnn.rms_norm(k_norm) graph that
+        # hits a tt-mlir redundant-to_layout bug (TTNNDecomposeLayouts).
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
 
     def _prepare_model_call_tensors(
         self,
@@ -1559,9 +1975,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
 
         if positions.ndim > 1:
-            if restore_shape is None:
-                restore_shape = positions.shape
-            positions = positions.reshape(-1)
+            if self.uses_mrope:
+                assert positions.ndim == 3 and positions.shape[0] == 3
+                positions = positions.reshape(3, -1)
+            else:
+                positions = positions.reshape(-1)
+
+        assert (
+            restore_shape is not None
+        ), "restore_shape should be set if any input is flattened."
 
         return input_ids, positions, inputs_embeds, restore_shape
 
@@ -1574,6 +1996,135 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return hidden_states
 
         return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
+    def propose_draft_token_ids(
+        self,
+        scheduler_output: "SchedulerOutput",
+        sampled_token_ids: torch.Tensor,
+        discard_req_indices: Sequence[int] = (),
+    ) -> None:
+        """Propose and cache draft token IDs for speculative decoding.
+
+        Args:
+            scheduler_output: Scheduler output from execute_model
+            sampled_token_ids: Sampled token IDs from sampling
+        """
+        self._draft_token_req_ids = []
+        self._draft_token_ids = []
+
+        if not self.drafter or not self.num_spec_tokens:
+            return
+
+        # Convert sampled_token_ids to list of lists for ngram proposer
+        sampled_token_ids_list = sampled_token_ids.cpu().tolist()
+        if not sampled_token_ids_list:
+            return
+        if not isinstance(sampled_token_ids_list[0], list):
+            # If it's a 2D tensor with single column, wrap each id in a list
+            sampled_token_ids_list = [[int(tid)] for tid in sampled_token_ids_list]
+        else:
+            # Remove speculative padding markers from variable-length outputs.
+            sampled_token_ids_list = [
+                [int(tid) for tid in seq if tid != INVALID_TOKEN_ID]
+                for seq in sampled_token_ids_list
+            ]
+
+        # Requests marked for discard must not influence next-step drafting.
+        for req_idx in discard_req_indices:
+            if 0 <= req_idx < len(sampled_token_ids_list):
+                sampled_token_ids_list[req_idx] = []
+
+        # No accepted tokens remain after filtering/discard; skip drafting.
+        if not any(sampled_token_ids_list):
+            return
+
+        # Get token counts for each request (number of tokens already in context)
+        num_tokens_no_spec = np.array(
+            [
+                self.input_batch.num_tokens_no_spec[i]
+                for i in range(self.input_batch.num_reqs)
+            ],
+            dtype=np.int32,
+        )
+
+        # Get token IDs for each request
+        token_ids_cpu = np.zeros(
+            (self.input_batch.num_reqs, self.max_model_len), dtype=np.int32
+        )
+        for i in range(self.input_batch.num_reqs):
+            if self.input_batch.num_tokens_no_spec[i] > 0:
+                # Copy tokens from input_batch to numpy array
+                token_ids_cpu[i, : self.input_batch.num_tokens_no_spec[i]] = (
+                    self.input_batch.token_ids_cpu[
+                        i, : self.input_batch.num_tokens_no_spec[i]
+                    ]
+                )
+        # Propose draft tokens using ngram proposer
+        draft_token_ids = self.drafter.propose(
+            sampled_token_ids_list,
+            num_tokens_no_spec,
+            token_ids_cpu,
+        )
+
+        req_ids = cast(list[str], self.input_batch.req_ids[: self.input_batch.num_reqs])
+        for req_id, draft_tokens in zip(req_ids, draft_token_ids):
+            if draft_tokens:
+                self._draft_token_req_ids.append(req_id)
+                self._draft_token_ids.append(draft_tokens)
+
+    def take_draft_token_ids(self) -> DraftTokenIds | None:
+        """Take draft token IDs and request IDs from proposer.
+
+        Returns:
+            DraftTokenIds with request IDs and draft token IDs, or None if no drafts
+        """
+        if not self.num_spec_tokens or not self._draft_token_req_ids:
+            return None
+
+        draft_token_ids = self._draft_token_ids
+        req_ids = self._draft_token_req_ids
+
+        # Clear for next iteration
+        self._draft_token_ids = None
+        self._draft_token_req_ids = None
+
+        return DraftTokenIds(req_ids, draft_token_ids)
+
+    def _log_spec_decode_token_flow(
+        self,
+        req_ids: list[str],
+        scheduler_output: "SchedulerOutput",
+        valid_sampled_token_ids: list[list[int]],
+    ) -> None:
+        if self.speculative_config is None:
+            return
+
+        scheduled_spec = scheduler_output.scheduled_spec_decode_tokens
+        if not scheduled_spec:
+            return
+
+        for i, req_id in enumerate(req_ids):
+            proposed_tokens = [int(t) for t in scheduled_spec.get(req_id, ())]
+            if not proposed_tokens:
+                continue
+
+            generated_tokens = (
+                valid_sampled_token_ids[i] if i < len(valid_sampled_token_ids) else []
+            )
+            accepted_draft_count = min(
+                max(len(generated_tokens) - 1, 0), len(proposed_tokens)
+            )
+            accepted_tokens = proposed_tokens[:accepted_draft_count]
+            rejected_tokens = proposed_tokens[accepted_draft_count:]
+
+            logger.debug(
+                "Spec decode token flow req_id=%s proposed=%s accepted=%s rejected=%s generated=%s",
+                req_id,
+                proposed_tokens,
+                accepted_tokens,
+                rejected_tokens,
+                generated_tokens,
+            )
 
     @torch.no_grad()
     def execute_model(
@@ -1635,8 +2186,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits_indices,
                 num_reqs,
                 target_num_reqs,
+                spec_decode_metadata,
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
+
+            # Propagate per-request speculative sample counts into InputBatch
+            # before building sampling metadata. For non-spec requests this is 1.
+            if self.num_spec_tokens:
+                scheduled_spec = scheduler_output.scheduled_spec_decode_tokens
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    draft_len = len(scheduled_spec.get(req_id, ()))
+                    self.input_batch.num_accepted_tokens_cpu[i] = draft_len + 1
+
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
@@ -1657,6 +2219,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vocab_size=self.vocab_size,
             )
             apply_grammar = grammar_output is not None
+            # Applying grammar to speculative decoding is not supported yet.
+            # [TODO] https://github.com/tenstorrent/tt-xla/issues/5701
+            if apply_grammar and spec_decode_metadata is not None:
+                logger.warning_once(
+                    "Speculative decoding with grammar is not supported yet. "
+                    "Disabling grammar for this step."
+                )
+                apply_grammar = False
             require_struct_decoding = None
             grammar_bitmask_padded = None
             bitmask_arange = None
@@ -1713,6 +2283,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             inputs_embeds,
                             logits_indices,
                             sampling_metadata,
+                            spec_decode_metadata,
                             attn_metadata,
                             apply_grammar,
                             require_struct_decoding,
@@ -1722,6 +2293,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             scheduler_output,
                         )
                     )
+
+            if spec_decode_metadata is not None and sampling_metadata.logprobs:
+                raise NotImplementedError(
+                    "Speculative decoding with logprobs is not supported in the TT model runner yet."
+                )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1789,7 +2365,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             req_state = self.requests[req_id]
             seq_len = (
                 req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens[req_id]
+                + scheduler_output.num_scheduled_tokens.get(req_id, 0)
             )
             if seq_len >= req_state.num_tokens:
                 request_seq_lens.append((i, req_state, seq_len))
@@ -1830,15 +2406,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_batch.token_ids_cpu[i, seq_len] = token_id
                 req_state.output_token_ids.append(token_id)
                 self.input_batch.num_tokens[i] += 1
+                self.input_batch.num_tokens_no_spec[i] += 1
 
         else:
-            valid_mask = selected_token_ids != INVALID_TOKEN_ID
-            gen_lens = valid_mask.sum(dim=1).tolist()
-            valid_sampled_token_ids = [
-                seq.tolist() for seq in selected_token_ids[valid_mask].split(gen_lens)
-            ]
+            valid_sampled_token_ids, _ = RejectionSampler.parse_output(
+                selected_token_ids,
+                self.vocab_size,
+                discard_sampled_tokens_req_indices,
+                logprobs_tensors=None,
+            )
+            gen_lens = [len(seq) for seq in valid_sampled_token_ids]
             self.input_batch.num_tokens[:num_reqs] += gen_lens
+            self.input_batch.num_tokens_no_spec[:num_reqs] += gen_lens
             for i, req_state, seq_len in request_seq_lens:
+                if not valid_sampled_token_ids[i]:
+                    continue
                 target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
                 self.input_batch.token_ids_cpu[i, target_slice] = (
                     valid_sampled_token_ids[i]
@@ -1854,6 +2436,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pooler_output=[],
             kv_connector_output=kv_connector_output,
         )
+
+        self._log_spec_decode_token_flow(
+            req_ids,
+            scheduler_output,
+            valid_sampled_token_ids,
+        )
+
+        # Propose draft tokens for speculative decoding.
+        if self.speculative_config is not None:
+            self.propose_draft_token_ids(
+                scheduler_output,
+                selected_token_ids,
+                discard_req_indices=discard_sampled_tokens_req_indices,
+            )
 
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
@@ -1917,12 +2513,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config
                     ).eval()
-                replace_modules(model)
+                replace_modules(model, use_flat_model_io=self.use_flat_model_io)
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
+                    # shard_weights_on_batch_axis (FSDP-style) is a DP+TP-only
+                    # knob; in pure-TP the "batch" axis is itself a TP axis, so
+                    # weights must always be sharded on it there.
+                    shard_on_batch_axis = (
+                        self.tt_config.shard_weights_on_batch_axis
+                        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+                        else True
+                    )
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(model, self.mesh, shard_on_batch_axis)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1967,13 +2571,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
+        self.rejection_sampler = RejectionSampler(self.sampler)
         logger.info(f"Compiled model: \n{self.model}")
 
         # Cache attention layer names so we don't rebuild the per-layer
         # attn_metadata dict every step.
-        attn_layers = get_layers_from_vllm_config(self.vllm_config, Attention)
-        attn_layers |= get_layers_from_vllm_config(self.vllm_config, MLAAttention)
-        self._attention_layer_names = tuple(attn_layers.keys())
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
 
     def reload_weights(self) -> None:
         assert (
@@ -1984,26 +2590,74 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
-    def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+    def _dummy_run(
+        self,
+        num_tokens: int,
+        num_reqs: int,
+        num_blocks: int,
+        prefix_chunk: bool = False,
+    ) -> None:
         # Start with token ids so _get_model_inputs runs embed_input_ids and the
         # XLA graph structure matches the real execution path.
         input_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
             self.device
         )
 
+        # num_reqs (not self.max_num_reqs) so the position_ids shape matches the
+        # prefill request-count bucket being warmed up (#5363).
         position_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
             self.device
         )
+
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            if input_ids is not None:
+                safe_mark_sharding(input_ids, self.mesh, ("batch", None))
+            safe_mark_sharding(position_ids, self.mesh, ("batch", None))
+
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
+
+        batch_idx = self._batch_idx_dev[num_reqs]
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # page_table / cache_position / batch_idx must share the K/V input's
+            # per-device leading dim, so shard them on "batch" to match the
+            # DP-sharded inputs (batch_idx feeds paged_fill_cache).
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+
+        # prefix_chunk=True precompiles the cached-prefix prefill graph: chunk_start_idx
+        # routes attention through the chunked SDPA op. Only reached when the op is
+        # usable (see _precompile_backbone gating on _chunked_sdpa_active).
+        fill_page_table = None
+        chunk_start_idx = None
+        if prefix_chunk:
+            # A continuation chunk uses a distinct fill_page_table at runtime;
+            # pass a separate tensor so the traced graph has matching input arity
+            # (else an extra graph recompiles at runtime).
+            fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+                self.device
+            )
+            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            dp_size=self.dp_size,
+            fill_page_table=fill_page_table,
+            chunk_start_idx=chunk_start_idx,
+            batch_idx=batch_idx,
+            num_users=num_reqs,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2092,7 +2746,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             num_tokens, dtype=torch.int32, device="cpu"
                         )
                         # Align placeholders and actual num mm_embeddings.
-                        placeholders_ids[:items_size] = hf_config.image_token_index
+                        # `image_token_id` was renamed from `image_token_index`;
+                        # fall back to the old name for configs that use it.
+                        image_token_id = getattr(
+                            hf_config,
+                            "image_token_id",
+                            getattr(hf_config, "image_token_index", None),
+                        )
+                        assert image_token_id is not None, (
+                            "hf_config has neither image_token_id nor "
+                            "image_token_index"
+                        )
+                        placeholders_ids[:items_size] = image_token_id
 
                         placeholders_ids = placeholders_ids.to(self.device)
 
@@ -2197,6 +2862,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     bitmasks,
                 )
 
+            # cpu_sampling path: sample on host to avoid feeding CPU tensors to the tt.sampling kernel.
             selected_token_ids = self.sample_from_logits_cpu(logits, sampling_metadata)
 
         return hidden_states, logits, selected_token_ids, kv_connector_output
@@ -2221,7 +2887,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"decode_only is set, only compiling decode path with num_tokens=1"
             )
 
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
+        # The fused dummy inputs always use the max_model_len page table
+        # (max_num_blocks_per_req), so compile at that path's SMEM-clamped row
+        # counts to match the shapes `_prepare_inputs` produces at runtime (#5416).
+        num_reqs_options = sorted(self._max_len_num_reqs)
+        # Speculative warmup should use the padded prefill bucket, not the raw
+        # draft count. The first padding slot is the decode bucket (1 token).
+        spec_num_tokens = (
+            self.num_tokens_paddings[1]
+            if len(self.num_tokens_paddings) > 1
+            else self.num_tokens_paddings[0]
+        )
+
+        # Compile the cached-prefix (chunked SDPA op) graph in addition to the
+        # standard one, but only when the op is usable; otherwise the first
+        # continuation chunk would compile mid-serving (or hit the ttnn
+        # page-table-stick assert on unsupported layouts).
+        prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
 
         configs = [
             {
@@ -2229,24 +2911,73 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "num_reqs": num_reqs,
                 "all_greedy": all_greedy,
                 "apply_grammar": apply_grammar,
+                "prefix_chunk": prefix_chunk,
+                "spec_decode": False,
             }
             for (
                 num_reqs,
                 num_tokens,
                 all_greedy,
                 apply_grammar,
+                prefix_chunk,
             ) in product(
                 num_reqs_options,
                 num_tokens_paddings,
                 all_greedy_options,
                 apply_grammar_options,
+                prefix_chunk_options,
             )
+            # The cached-prefix variant only applies to prefill buckets; the
+            # decode bucket (num_tokens == 1) always takes the standard path.
+            if not (prefix_chunk and num_tokens == 1)
         ]
 
+        if (
+            self.speculative_config is not None
+            and self.num_spec_tokens
+            and not self.tt_config.decode_only
+        ):
+            configs.extend(
+                {
+                    "num_tokens": spec_num_tokens,
+                    "num_reqs": num_reqs,
+                    "all_greedy": all_greedy,
+                    "apply_grammar": apply_grammar,
+                    "prefix_chunk": prefix_chunk,
+                    "spec_decode": True,
+                }
+                for (
+                    num_reqs,
+                    all_greedy,
+                    apply_grammar,
+                    prefix_chunk,
+                ) in product(
+                    num_reqs_options,
+                    all_greedy_options,
+                    # Applying grammar to speculative decoding is not supported yet.
+                    # [TODO] Issue: https://github.com/tenstorrent/tt-xla/issues/5701
+                    [False],
+                    prefix_chunk_options,
+                )
+            )
+
+        # Compile largest buckets first so the biggest pinned trace buffers get a
+        # clean DRAM arena, avoiding fragmentation OOMs at long context (#5522).
+        configs.sort(key=lambda c: (c["num_reqs"], c["num_tokens"]), reverse=True)
+
+        decode_num_reqs = self.num_reqs_max_model_len
+        prefill_cap = min(self.max_prefill_num_reqs, self.num_reqs_max_model_len)
         for config in configs:
-            if config["num_tokens"] == 1 and config["num_reqs"] != self.max_num_reqs:
+            if config["num_tokens"] == 1 and config["num_reqs"] != decode_num_reqs:
                 logger.debug(
-                    f"Skipping config={config} because decode path only supports max_num_reqs={self.max_num_reqs}"
+                    f"Skipping config={config} because decode path only supports "
+                    f"num_reqs_max_model_len={decode_num_reqs}"
+                )
+                continue
+            if config["num_tokens"] != 1 and config["num_reqs"] > prefill_cap:
+                logger.debug(
+                    f"Skipping config={config} because prefill is capped at "
+                    f"{prefill_cap} (min of max_prefill_num_reqs and SMEM limit)"
                 )
                 continue
 
@@ -2261,6 +2992,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dummy_require_struct_decoding,
                 dummy_grammar_bitmask,
                 dummy_bitmasks,
+                dummy_spec_decode_metadata,
             ) = self._get_dummy_inputs(config)
             if config["num_tokens"] == 1 and self.enable_decode_fused_graphs:
                 _, _, _, _ = self._model_decode(
@@ -2285,6 +3017,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     dummy_input_embeds,
                     dummy_indices,
                     dummy_sampling_metadata,
+                    dummy_spec_decode_metadata,
                     dummy_attn_metadata,
                     config["apply_grammar"],
                     dummy_require_struct_decoding,
@@ -2293,7 +3026,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     config["num_tokens"],
                     None,
                 )
-                self._update_num_xla_graphs("_model_prefill")
+                self._update_num_xla_graphs(
+                    "_model_prefill_spec"
+                    if config.get("spec_decode")
+                    else "_model_prefill"
+                )
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2307,6 +3044,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = config["num_reqs"]
         all_greedy = config["all_greedy"]
         apply_grammar = config["apply_grammar"]
+        prefix_chunk = config.get("prefix_chunk", False)
+        spec_decode = config.get("spec_decode", False)
         hsize = self.model_config.get_hidden_size()
 
         dummy_inputs = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
@@ -2324,12 +3063,40 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ).to(self.device)
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        batch_idx = self._batch_idx_dev[num_reqs]
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        ):
+            # batch_idx feeds paged_fill_cache; shard it on "batch" like
+            # page_table / cache_position so its per-device dim0 matches the
+            # DP-sharded K/V input.
+            safe_mark_sharding(page_table, self.mesh, ("batch", None))
+            safe_mark_sharding(cache_position, self.mesh, ("batch",))
+            safe_mark_sharding(batch_idx, self.mesh, ("batch",))
+
+        # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
+        # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
+        # attention through the chunked op, and a distinct fill_page_table tensor
+        # keeps the traced input arity matching runtime.
+        fill_page_table = page_table
+        chunk_start_idx = None
+        if prefix_chunk:
+            fill_page_table = torch.zeros(
+                (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
+            ).to(self.device)
+            chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
-            fill_page_table=page_table,
+            fill_page_table=fill_page_table,
+            dp_size=self.dp_size,
+            chunk_start_idx=chunk_start_idx,
+            batch_idx=batch_idx,
+            num_users=num_reqs,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
@@ -2362,6 +3129,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dummy_grammar_bitmask = self.grammar_bitmask_cpu[:num_reqs].to(self.device)
             dummy_bitmasks = self.structured_decode_bitmasks.to(self.device)
 
+        dummy_spec_decode_metadata = None
+        if spec_decode:
+            dummy_draft_len = self.num_spec_tokens
+            if dummy_draft_len > 0:
+                dummy_spec_decode_metadata = self._build_spec_decode_metadata(
+                    [[0] * dummy_draft_len for _ in range(num_reqs)]
+                )
+
+            dummy_indices = torch.zeros(
+                (num_reqs, self.num_spec_tokens + 1), dtype=torch.int32
+            )
+            for req_idx in range(num_reqs):
+                bonus_idx = self.num_spec_tokens
+                dummy_indices[req_idx, :bonus_idx] = torch.arange(
+                    bonus_idx, dtype=torch.int32
+                )
+                dummy_indices[req_idx, bonus_idx] = bonus_idx
+            dummy_indices = dummy_indices.to(self.device)
+        else:
+            dummy_indices = torch.zeros(num_reqs, dtype=torch.int32).to(self.device)
+
         return (
             dummy_inputs,
             dummy_positions,
@@ -2372,6 +3160,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dummy_require_struct_decoding,
             dummy_grammar_bitmask,
             dummy_bitmasks,
+            dummy_spec_decode_metadata,
         )
 
     def _model_decode(
@@ -2465,6 +3254,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         input_embeds,
         logits_indices,
         sampling_metadata,
+        spec_decode_metadata,
         attn_metadata,
         apply_grammar,
         require_struct_decoding,
@@ -2501,17 +3291,62 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 positions,
                 input_embeds,
             )
-            logits, selected_token_ids = self._model_prefill_postprocess_compiled(
-                hidden_states,
-                logits_indices,
-                sampling_metadata,
-                apply_grammar,
+            if spec_decode_metadata is None:
+                logits, selected_token_ids = self._model_prefill_postprocess_compiled(
+                    hidden_states,
+                    logits_indices,
+                    sampling_metadata,
+                    None,
+                    apply_grammar,
+                    require_struct_decoding,
+                    grammar_bitmask,
+                    bitmasks,
+                )
+            else:
+                # Rejection sampling has data-dependent Python branching.
+                # Keep it outside torch.compile to avoid Dynamo guard failures.
+                logits = self._model_prefill_logits_compiled(
+                    hidden_states,
+                    logits_indices,
+                    apply_grammar,
+                    require_struct_decoding,
+                    grammar_bitmask,
+                    bitmasks,
+                )
+                # NOTE: This path cannot be compiled today because rejection
+                # sampling includes request-wise dynamic control flow
+                # (early accept/reject exits and variable draft lengths).
+                selected_token_ids = self.rejection_sample_from_logits(
+                    logits,
+                    sampling_metadata,
+                    spec_decode_metadata,
+                )
+
+        return hidden_states, logits, selected_token_ids, kv_connector_output
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _model_prefill_logits_compiled(
+        self,
+        hidden_states,
+        logits_indices,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+    ):
+        """Compile only logits + optional grammar for prefill."""
+        selected_states = self.select_hidden_states(hidden_states, logits_indices)
+        logits = self.compute_logits(selected_states)
+
+        if apply_grammar:
+            logits = self.structured_decode(
                 require_struct_decoding,
                 grammar_bitmask,
+                logits,
                 bitmasks,
             )
 
-        return hidden_states, logits, selected_token_ids, kv_connector_output
+        return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def _model_prefill_model_compiled(
@@ -2541,6 +3376,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         hidden_states,
         logits_indices,
         sampling_metadata,
+        spec_decode_metadata,
         apply_grammar,
         require_struct_decoding,
         grammar_bitmask,
@@ -2564,37 +3400,65 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _precompile_backbone(self) -> None:
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
-        num_reqs_options = sorted({self.min_num_reqs, self.max_num_reqs})
-        for num_tokens in self.num_tokens_paddings:
-            for warmup_num_reqs in num_reqs_options:
-                num_reqs_max = min(warmup_num_reqs, self.num_reqs_max_model_len)
-                logger.info(
-                    "  -- num_tokens: %d, num_reqs: %d (max_model_len path)",
-                    num_tokens,
-                    num_reqs_max,
-                )
-                self._dummy_run(
-                    num_tokens,
-                    num_reqs_max,
-                    self.max_num_blocks_per_req,
-                )
-                # Sync per token count so prefill and decode graphs stay separate.
-                torch_xla.sync()
-                if self.most_model_len is not None:
-                    assert self.num_reqs_most_model_len is not None
-                    assert self.num_blocks_per_most_len_req is not None
-                    num_reqs_most = min(warmup_num_reqs, self.num_reqs_most_model_len)
+        # Precompile the cached-prefix (chunked SDPA op) graph only when the op is
+        # usable; otherwise small configs would hit the ttnn page-table-stick assert.
+        chunked = self._chunked_sdpa_active
+
+        def _compile_path(
+            num_reqs_buckets: set[int],
+            path_max_num_reqs: int,
+            num_blocks_per_req: int,
+            label: str,
+        ) -> None:
+            # Compile every reachable row-count bucket for one attention path at
+            # its SMEM-clamped decode count and prefill cap, using that path's
+            # page table -- mirrors _precompile_model_fused so warmup covers
+            # exactly the shapes _prepare_inputs requests at runtime (#5416).
+            decode_num_reqs = path_max_num_reqs
+            prefill_cap = min(self.max_prefill_num_reqs, path_max_num_reqs)
+            # Largest-first to avoid fragmentation (#5522).
+            for num_reqs in sorted(num_reqs_buckets, reverse=True):
+                for num_tokens in reversed(self.num_tokens_paddings):
+                    # Decode (num_tokens == 1) only at the path's decode count;
+                    # prefill capped at the path's SMEM-clamped prefill bucket.
+                    if num_tokens == 1 and num_reqs != decode_num_reqs:
+                        continue
+                    if num_tokens != 1 and num_reqs > prefill_cap:
+                        continue
                     logger.info(
-                        "  -- num_tokens: %d, num_reqs: %d (most_model_len path)",
+                        "  -- num_tokens: %d, num_reqs: %d (%s)",
                         num_tokens,
-                        num_reqs_most,
+                        num_reqs,
+                        label,
                     )
                     self._dummy_run(
-                        num_tokens,
-                        num_reqs_most,
-                        self.num_blocks_per_most_len_req,
+                        num_tokens, num_reqs, num_blocks_per_req, prefix_chunk=False
                     )
+                    # Sync per token count so prefill and decode graphs stay separate.
                     torch_xla.sync()
+                    # Precompile the cached-prefix graph for prompt chunks
+                    # (num_tokens > 1) so it isn't compiled on the first continuation.
+                    if chunked and num_tokens > 1:
+                        self._dummy_run(
+                            num_tokens, num_reqs, num_blocks_per_req, prefix_chunk=True
+                        )
+                        torch_xla.sync()
+
+        _compile_path(
+            self._max_len_num_reqs,
+            self.num_reqs_max_model_len,
+            self.max_num_blocks_per_req,
+            "max_model_len path",
+        )
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            assert self.num_blocks_per_most_len_req is not None
+            _compile_path(
+                self._most_len_num_reqs,
+                self.num_reqs_most_model_len,
+                self.num_blocks_per_most_len_req,
+                "most_model_len path",
+            )
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -2619,11 +3483,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            # Match model.forward's hidden_states sharding ("batch" axis,
-            # from RowParallel down_proj). A mismatched axis here silently
-            # corrupts the select output on (2,2) 2D mesh.
             if self.enable_tensor_parallel:
+                # Match model.forward's hidden_states sharding ("batch" axis,
+                # from RowParallel down_proj); a mismatched axis silently
+                # corrupts the select output on a 2D mesh.
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
+            elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+                safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
 
             self.select_hidden_states_compiled(dummy_hidden, indices)
 
@@ -3013,7 +3879,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.enable_tensor_parallel:
+        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
+            # each device writes its own K/V slice via paged_update_cache. The
+            # TP-only spec puts block_size on the DP axis and fails
+            # ttir.paged_update_cache. Tracked as a follow-up.
+            pass
+        elif self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
@@ -3057,12 +3929,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.select_hidden_states(hidden_states, indices_do_sample)
 
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
-        batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        result = hidden_states[batch_indices, indices_do_sample, :]
-        # Only emit the sharding constraint on 2D mesh — under 1D mesh the
-        # `tt.sharding_constraint @mesh` op lands in a sub-graph that doesn't
-        # otherwise reference @mesh, which trips "unknown mesh: @mesh" in
-        # shlo_compiler.
+        if indices_do_sample.ndim == 1:
+            batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
+            result = hidden_states[batch_indices, indices_do_sample, :]
+        else:
+            batch_indices = torch.arange(
+                indices_do_sample.shape[0], dtype=torch.int32
+            ).unsqueeze(1)
+            batch_indices = batch_indices.expand_as(indices_do_sample)
+            result = hidden_states[batch_indices, indices_do_sample, :]
+            result = result.reshape(-1, result.shape[-1])
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
@@ -3085,7 +3961,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return logits
 
     def sample_from_logits(
-        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
+        self,
+        logits: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
         """
         Sample with xla-friendly function. This function is to be traced
@@ -3103,7 +3981,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+
         return out_tokens
+
+    def rejection_sample_from_logits(
+        self,
+        logits: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+        spec_decode_metadata: SpecDecodeMetadata,
+    ) -> torch.Tensor:
+        """Sample via speculative rejection sampler.
+
+        This function intentionally runs outside torch.compile.
+        The rejection-sampling implementation contains request-wise dynamic
+        control flow (variable draft lengths and early exits on rejection)
+        that Dynamo cannot safely trace into a stable fullgraph.
+        """
+        return self.rejection_sampler(
+            spec_decode_metadata,
+            None,
+            logits,
+            sampling_metadata=sampling_metadata,
+        ).sampled_token_ids
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
@@ -3449,6 +4348,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         )
 
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
+
 
 def _adjust_min_token(min_token_size: int) -> int:
     """
@@ -3502,6 +4405,70 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     index = bisect.bisect_left(paddings, x)
     assert index < len(paddings)
     return paddings[index]
+
+
+def _bucket_num_reqs(
+    min_num_reqs: int, max_prefill_num_reqs: int, path_max_num_reqs: int
+) -> tuple[int, int, int]:
+    """Return the ``(small_prefill, big_prefill, decode)`` row-count buckets for
+    one attention path.
+
+    A batch's row count is clamped to the SMEM sequence limit of the active path
+    (``path_max_num_reqs`` == ``num_reqs_max_model_len`` or
+    ``num_reqs_most_model_len``). Decode uses that limit; the prefill buckets are
+    ``min_num_reqs`` and ``max_prefill_num_reqs``, each clamped to it so neither
+    row count exceeds what SMEM holds. See issue #5416.
+    """
+    return (
+        min(min_num_reqs, path_max_num_reqs),
+        min(max_prefill_num_reqs, path_max_num_reqs),
+        path_max_num_reqs,
+    )
+
+
+def _reachable_num_reqs(
+    min_num_reqs: int,
+    max_prefill_num_reqs: int,
+    num_reqs_max_model_len: int,
+    num_reqs_most_model_len: Optional[int],
+) -> set[int]:
+    """All row-count buckets `_prepare_inputs` can request across both paths.
+
+    Per-batch device buffers must be keyed by exactly this set so every runtime
+    ``target_num_reqs`` resolves to a preallocated buffer.
+    """
+    reqs = set(
+        _bucket_num_reqs(min_num_reqs, max_prefill_num_reqs, num_reqs_max_model_len)
+    )
+    if num_reqs_most_model_len is not None:
+        reqs |= set(
+            _bucket_num_reqs(
+                min_num_reqs, max_prefill_num_reqs, num_reqs_most_model_len
+            )
+        )
+    return reqs
+
+
+def _select_target_num_reqs(
+    min_num_reqs: int,
+    max_prefill_num_reqs: int,
+    path_max_num_reqs: int,
+    is_decode_step: bool,
+    actual_num_reqs: int,
+) -> int:
+    """Pick the row-count bucket for a step on a given attention path.
+
+    Decode uses the SMEM-clamped decode bucket; prefill uses the small bucket
+    when it fits, else the big one. The result is always a member of
+    :func:`_reachable_num_reqs` for the same config, so it always hits a
+    preallocated buffer.
+    """
+    small, big, decode = _bucket_num_reqs(
+        min_num_reqs, max_prefill_num_reqs, path_max_num_reqs
+    )
+    if is_decode_step:
+        return decode
+    return small if actual_num_reqs <= small else big
 
 
 def _make_src_and_dst_indices(

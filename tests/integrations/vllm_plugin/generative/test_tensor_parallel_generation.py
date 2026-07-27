@@ -3,7 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
-from conftest import assert_output_coherent, check_host_memory
+from chunked_prefill_data import CHUNKED_PREFILL_PROMPT
+from conftest import (
+    GROUNDED_BATCH_CHECKS,
+    assert_batch_grounded,
+    assert_output_coherent,
+    check_host_memory,
+)
 
 
 @pytest.mark.push
@@ -22,7 +28,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
-            "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
         },
@@ -38,16 +43,15 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "use_2d_mesh", "opt_level"],
+    ["model_name", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-0.6B", True, 0),
-        pytest.param("Qwen/Qwen3-0.6B", False, 1),
+        pytest.param("Qwen/Qwen3-0.6B", True),
+        pytest.param("Qwen/Qwen3-0.6B", False),
     ],
 )
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     use_2d_mesh: bool,
-    opt_level: int,
 ):
     prompts = [
         "Continue in English: I like taking walks in the",
@@ -63,7 +67,6 @@ def test_tensor_parallel_generation_llmbox_small(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -71,6 +74,86 @@ def test_tensor_parallel_generation_llmbox_small(
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
     assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
+def test_tensor_parallel_chunked_prefill_n300(model_name: str):
+    """Chunked prefill under pure TP on n300 (tt-xla #4986/#5691).
+
+    prefill_chunk_size << prompt length splits the prompt into several
+    block-aligned chunks, so chunks 2..N route through the cached-prefix
+    chunked-SDPA path while the KV cache and attention are sharded across the 2
+    chips. No existing multichip test exercised this (all use max_model_len=32
+    with prompts that fit one chunk). Greedy for determinism; coherence catches
+    a corrupted cached-prefix (garbage) or a TP-shard hang.
+    """
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "min_context_len": 128,
+            "enable_tensor_parallel": True,
+            # Opt in to chunked prefill; platform.py derives
+            # max_num_batched_tokens from this.
+            "prefill_chunk_size": 128,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = (
+        llm.generate([CHUNKED_PREFILL_PROMPT], sampling_params)[0].outputs[0].text
+    )
+    print(f"output: {output_text}")
+    assert_output_coherent(output_text)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["model_name", "use_2d_mesh"],
+    [
+        pytest.param("Qwen/Qwen3-0.6B", True),
+        pytest.param("Qwen/Qwen3-0.6B", False),
+    ],
+)
+def test_tensor_parallel_generation_wider_batch(model_name: str, use_2d_mesh: bool):
+    """Wide batch (>1 seq per device) under pure TP, greedy + grounded.
+
+    Batch=1 TP is correct, so the existing coherence tests (all batch=1) never
+    exercised this. On the 2D (2,4) mesh it exposes multi-user prefill
+    corruption; the 1D mesh is the clean control.
+    """
+    checks = GROUNDED_BATCH_CHECKS
+    prompts = [p for p, _ in checks]
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 128,
+        "max_num_seqs": 4,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.002,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": use_2d_mesh,
+            "cpu_sampling": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    for (prompt, _), out in zip(checks, outputs):
+        print(f"prompt: {prompt}, output: {out.outputs[0].text}")
+    assert_batch_grounded(outputs, checks)
 
     check_host_memory(model_name)
 
@@ -87,11 +170,11 @@ def test_tensor_parallel_generation_llmbox_small(
         "flat_model_io",
     ],
     [
-        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 0, False),
+        pytest.param("Qwen/Qwen3-32B", "", [2, 4], 1, False),
         pytest.param("Qwen/Qwen3-8B", "", [1, 8], 1, False),
+        # opt_level=1 produces garbage output (#4325).
         pytest.param("meta-llama/Llama-3.1-70B", "bfp_bf8", [2, 4], 0, False),
-        # TODO - change opt_level to 1 once these issues: tt-mlir#8919 and tt-mlir#8920 are
-        # fixed and uplifted
+        # opt_level=1 fails: MoE all_to_all_dispatch requires row-major layout (tt-mlir#8920).
         pytest.param("deepseek-ai/DeepSeek-V2-Lite", "", [2, 4], 0, True),
     ],
 )
@@ -103,7 +186,7 @@ def test_tensor_parallel_generation_llmbox_large(
     flat_model_io: bool,
 ):
     prompts = [
-        "I like taking walks in the",
+        "Continue in English: I like taking walks in the",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
@@ -115,6 +198,7 @@ def test_tensor_parallel_generation_llmbox_large(
         "additional_config": {
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
             "optimization_level": opt_level,
@@ -134,14 +218,13 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "experimental_weight_dtype", "mesh_shape", "opt_level"],
-    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8], 0)],
+    ["model_name", "experimental_weight_dtype", "mesh_shape"],
+    [pytest.param("mistralai/Mistral-Large-Instruct-2411", "bfp_bf8", [4, 8])],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(
+def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     model_name: str,
     experimental_weight_dtype: str,
     mesh_shape: list[int],
-    opt_level: int,
 ):
     inputs = ["How many days ago was Mistral founded?"]
 
@@ -155,9 +238,9 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
         "additional_config": {
             "min_context_len": 64,
             "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "mesh_shape": mesh_shape,
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -174,7 +257,8 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 @pytest.mark.parametrize(
     ["mesh_shape", "opt_level"],
     [
-        pytest.param([1, 4], 0, marks=pytest.mark.bhqb),
+        # [8, 4] exceed the SDPA decode tree-reduction limit at opt_level=1 (tt-mlir#9007).
+        pytest.param([1, 4], 1, marks=pytest.mark.bhqb),
         pytest.param([8, 4], 0, marks=pytest.mark.bh_galaxy),
     ],
 )
@@ -219,13 +303,13 @@ def test_tensor_parallel_generation_gemma4_31b(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "opt_level"],
+    ["model_name"],
     [
-        pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", 0),
-        pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506", 0),
+        pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503"),
+        pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506"),
     ],
 )
-def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: int):
+def test_tensor_parallel_generation_mistral_small(model_name: str):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
 
     user_text = "What action do you think I should take in this situation? "
@@ -251,7 +335,6 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -267,10 +350,10 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "opt_level"],
-    [pytest.param("mistralai/Pixtral-Large-Instruct-2411", 0)],
+    ["model_name"],
+    [pytest.param("mistralai/Pixtral-Large-Instruct-2411")],
 )
-def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str, opt_level: int):
+def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
     messages = [
         {
@@ -296,7 +379,6 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str, opt_leve
             "min_context_len": 1024,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)

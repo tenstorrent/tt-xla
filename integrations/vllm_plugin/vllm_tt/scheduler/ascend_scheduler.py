@@ -37,6 +37,7 @@ class AscendScheduler(Scheduler):
         kv_cache_config: KVCacheConfig,
         structured_output_manager: StructuredOutputManager,
         block_size: int,
+        hash_block_size: int | None = None,
         mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
         include_finished_set: bool = False,
         log_stats: bool = False,
@@ -46,6 +47,7 @@ class AscendScheduler(Scheduler):
             kv_cache_config,
             structured_output_manager,
             block_size,
+            hash_block_size,
             mm_registry,
             include_finished_set,
             log_stats,
@@ -57,10 +59,13 @@ class AscendScheduler(Scheduler):
         add_cfg = vllm_config.additional_config or {}
         self.prefill_batch_threshold = int(add_cfg.get("prefill_batch_threshold") or 0)
         self.b1_min_num_seqs = int(add_cfg.get("min_num_seqs") or 0)
+        # Fresh-prefill KV-cache admission watermark (0.0 = off). See
+        # TTConfig.prefill_kv_watermark.
+        self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
-        # if self.scheduler_config.chunked_prefill_enabled:
+        # if self.scheduler_config.tt_chunked_prefill_enabled:
         #     return super().schedule()
         scheduled_new_reqs: list[Request] = []
         scheduled_resumed_reqs: list[Request] = []
@@ -82,6 +87,15 @@ class AscendScheduler(Scheduler):
 
         # Record scheduled LoRA requests.
         scheduled_loras: set[int] = set()
+
+        # Partial prefill chunks scheduled this step: kept out of self.running
+        # until prefill completes, so excluded from the scheduled-vs-running check.
+        num_partial_prefill_scheduled = 0
+
+        # Stage (num_computed_tokens) of the first prefill scheduled this step.
+        # Only same-stage prefills batch together; mixing a fresh request with a
+        # continuation corrupts the fresh one's cached-prefix attention.
+        step_prefill_num_computed: Optional[int] = None
 
         # Use a temporary queue to collect requests that need to be skipped
         # and put back at the head of the waiting queue later
@@ -108,6 +122,14 @@ class AscendScheduler(Scheduler):
                 break
 
             request = request_queue.peek_request()
+
+            # Defensive: drop a stale finished/aborted request (e.g. a mid-prefill
+            # chunk aborted on client disconnect) instead of crashing EngineCore
+            # at the status check below.
+            if request.is_finished():
+                request_queue.pop_request()
+                self.scheduled_req_ids.discard(request.request_id)
+                continue
 
             # b1-prefill cap: stop admitting fresh prefills once the cap is
             # hit; continuation chunks (num_computed>0) are never capped.
@@ -181,11 +203,42 @@ class AscendScheduler(Scheduler):
                 num_computed_tokens = (
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
+                assert num_computed_tokens <= request.num_tokens, (
+                    f"Invalid token accounting for request {request.request_id}: "
+                    f"computed={num_computed_tokens} "
+                    f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                    f"> total_tokens={request.num_tokens}"
+                )
+
+                if request.prefill_stats is not None:
+                    assert num_computed_tokens <= request.num_prompt_tokens, (
+                        f"Invalid prefill token accounting for request {request.request_id}: "
+                        f"computed={num_computed_tokens} "
+                        f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                        f"> prompt_tokens={request.num_prompt_tokens} "
+                        f"(total_tokens={request.num_tokens})"
+                    )
+                    request.prefill_stats.set(
+                        num_prompt_tokens=request.num_prompt_tokens,
+                        num_local_cached_tokens=num_new_local_computed_tokens,
+                        num_external_cached_tokens=num_external_computed_tokens,
+                    )
             else:
-                # P/D: skip checking prefix cache if loaded from remote kvs.
-                new_computed_blocks = self.kv_cache_manager.create_empty_block_list()
+                # Remote-kv or continued chunk: pass the manager's empty-blocks
+                # singleton (allocate_slots compares it by identity).
+                new_computed_blocks = self.kv_cache_manager.empty_kv_cache_blocks
                 num_new_local_computed_tokens = 0
                 num_computed_tokens = request.num_computed_tokens
+
+            # Batch only same-stage prefills; defer a different-stage one to avoid
+            # fresh+continuation mixing that corrupts the fresh request.
+            if (
+                getattr(self.scheduler_config, "tt_chunked_prefill_enabled", False)
+                and step_prefill_num_computed is not None
+                and num_computed_tokens != step_prefill_num_computed
+            ):
+                skip_cur_request()
+                continue
 
             # P/D: loading remote KV, do not allocate for new work.
             if load_kv_async:
@@ -219,10 +272,40 @@ class AscendScheduler(Scheduler):
                     request_queue.pop_request()
                     continue
 
-                if num_new_tokens > token_budget:
-                    # Scheduling would exceed token_budget, skip.
-                    skip_cur_request()
-                    continue
+                chunked_prefill = getattr(
+                    self.scheduler_config, "tt_chunked_prefill_enabled", False
+                )
+                # Cap per request at the per-seq chunk, not the batch-wide budget,
+                # so one long prompt can't eat the whole budget and serialize others.
+                if chunked_prefill:
+                    chunk_cap = min(
+                        token_budget,
+                        getattr(
+                            self.scheduler_config,
+                            "tt_prefill_chunk_size",
+                            token_budget,
+                        ),
+                    )
+                else:
+                    chunk_cap = token_budget
+
+                if num_new_tokens > chunk_cap:
+                    if chunked_prefill:
+                        # Take only the chunk that fits; the rest continues next
+                        # step once num_computed_tokens advances.
+                        num_new_tokens = self._block_aligned_chunk(
+                            num_new_tokens, chunk_cap
+                        )
+                        if num_new_tokens == 0:
+                            # Remaining budget < one block: can't take a
+                            # block-aligned chunk without corrupting the cached-
+                            # prefix fill. Defer to the next step.
+                            skip_cur_request()
+                            continue
+                    else:
+                        # Scheduling would exceed token_budget, skip.
+                        skip_cur_request()
+                        continue
                 assert num_new_tokens > 0
                 blocks = new_computed_blocks.blocks[0]
 
@@ -247,7 +330,26 @@ class AscendScheduler(Scheduler):
                         skip_cur_request()
                         continue
 
-            watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            base_watermark = getattr(self.scheduler_config, "watermark", 0.01)
+            # Apply the high-watermark only to FRESH prefills
+            # (num_computed_tokens == 0); continuation chunks keep the base
+            # watermark so an in-flight prefill is never stranded. The
+            # forward-progress guard falls back to the base watermark when
+            # nothing is running or scheduled yet, so a single large prompt that
+            # exceeds the reserve still gets admitted instead of deadlocking.
+            # See TTConfig.prefill_kv_watermark.
+            nothing_scheduled_yet = not (
+                scheduled_new_reqs or scheduled_resumed_reqs or scheduled_running_reqs
+            )
+            force_progress = not self.running and nothing_scheduled_yet
+            if (
+                self.prefill_kv_watermark > 0.0
+                and request.num_computed_tokens == 0
+                and not force_progress
+            ):
+                watermark = self.prefill_kv_watermark
+            else:
+                watermark = base_watermark
             if not self._check_watermark_for_prefill(
                 request, num_new_tokens, blocks, watermark
             ):
@@ -285,17 +387,36 @@ class AscendScheduler(Scheduler):
                 request.status = RequestStatus.WAITING_FOR_REMOTE_KVS
                 continue
 
-            self.running.append(request)
             if self.log_stats:
                 request.record_event(EngineCoreEventType.SCHEDULED, scheduled_timestamp)
             self.scheduled_req_ids.add(request.request_id)
+
+            # A partial prefill stays out of self.running until done (the decode
+            # loop requires each running request to have one uncomputed token).
+            fully_prefilled = (
+                num_computed_tokens + num_new_tokens
+            ) >= request.num_tokens
+
             # Check request status.
             if request.status == RequestStatus.WAITING:
                 scheduled_new_reqs.append(request)
             elif request.status == RequestStatus.PREEMPTED:
                 scheduled_resumed_reqs.append(request)
+            elif request.status == RequestStatus.RUNNING:
+                # Continued prefill chunk of an already-started request: emit
+                # cached (running) request data rather than NewRequestData.
+                scheduled_running_reqs.append(request)
             else:
                 raise RuntimeError(f"Invalid request status: {request.status}")
+
+            if fully_prefilled:
+                self.running.append(request)
+            else:
+                # Re-enqueue and mark RUNNING so the next step's chunk is
+                # recognized as a continuation.
+                request.status = RequestStatus.RUNNING
+                step_skipped_waiting.prepend_request(request)
+                num_partial_prefill_scheduled += 1
 
             req_index += 1
 
@@ -305,11 +426,12 @@ class AscendScheduler(Scheduler):
             # Update request info.
             num_scheduled_tokens[request.request_id] = num_new_tokens
             token_budget -= num_new_tokens
+            # Record this step's prefill stage so later iterations only batch
+            # same-stage prefills.
+            if step_prefill_num_computed is None:
+                step_prefill_num_computed = num_computed_tokens
             request.status = RequestStatus.RUNNING
             request.num_computed_tokens = num_computed_tokens
-            # Count the number of prefix cached tokens.
-            if request.num_cached_tokens < 0:
-                request.num_cached_tokens = num_computed_tokens
 
             # Encoder-related: commit the scheduled encoder inputs and reserve
             # space for their outputs in the encoder cache.
@@ -387,6 +509,8 @@ class AscendScheduler(Scheduler):
                         self.kv_cache_manager.free(preempted_req)
                         preempted_req.status = RequestStatus.PREEMPTED
                         preempted_req.num_computed_tokens = 0
+                        if preempted_req.spec_token_ids:
+                            preempted_req.spec_token_ids = []
                         if self.log_stats:
                             preempted_req.record_event(
                                 EngineCoreEventType.PREEMPTED, scheduled_timestamp
@@ -419,13 +543,19 @@ class AscendScheduler(Scheduler):
                         num_new_tokens
                         + request.num_computed_tokens
                         - request.num_tokens
+                        - request.num_output_placeholders
                     )
                     if num_scheduled_spec_tokens > 0:
-                        # Trim spec_token_ids list to num_scheduled_spec_tokens.
-                        del request.spec_token_ids[num_scheduled_spec_tokens:]
+                        spec_token_ids = request.spec_token_ids
+                        if len(spec_token_ids) > num_scheduled_spec_tokens:
+                            spec_token_ids = spec_token_ids[:num_scheduled_spec_tokens]
                         scheduled_spec_decode_tokens[request.request_id] = (
-                            request.spec_token_ids
+                            spec_token_ids
                         )
+
+                    # New spec tokens will be set in `update_draft_token_ids`
+                    # before the next step when applicable.
+                    request.spec_token_ids = []
 
                 # Record scheduled LoRA requests.
                 if self.lora_config and request.lora_request:
@@ -436,9 +566,12 @@ class AscendScheduler(Scheduler):
         assert total_num_scheduled_tokens <= self.max_num_scheduled_tokens
         assert token_budget >= 0
         assert len(self.running) <= self.max_num_running_reqs
-        assert len(scheduled_new_reqs) + len(scheduled_resumed_reqs) + len(
-            scheduled_running_reqs
-        ) <= len(self.running)
+        assert (
+            len(scheduled_new_reqs)
+            + len(scheduled_resumed_reqs)
+            + len(scheduled_running_reqs)
+            <= len(self.running) + num_partial_prefill_scheduled
+        )
 
         # Get the longest common prefix among all requests in the running queue.
         # This can be potentially used for cascade attention.
@@ -522,6 +655,25 @@ class AscendScheduler(Scheduler):
         self.finished_req_ids = set()  # type: ignore
         return scheduler_output
 
+    def _block_aligned_chunk(self, num_new_tokens: int, token_budget: int) -> int:
+        """Size a prefill chunk to fit ``token_budget`` for chunked prefill.
+
+        Non-final chunks are block-aligned so the cumulative prefix length stays
+        block-aligned, which the cached-prefix attention path relies on
+        (``fill_page_table`` is rolled by whole blocks). Also avoid a 1-token
+        remainder: a lone final token is a 1-token "prefill" the attention path
+        (``query_len > 1``) misroutes to decode.
+        """
+        chunk = (token_budget // self.block_size) * self.block_size
+        if chunk <= 0:
+            # Budget < one block: a mid-block num_computed would corrupt the
+            # cached-prefix fill (wrong output at batch>1). Return 0 to defer to
+            # the next step, where the request gets the full budget.
+            return 0
+        if (num_new_tokens - chunk) == 1 and chunk > self.block_size:
+            chunk -= self.block_size
+        return chunk
+
     def _check_watermark_for_prefill(
         self, request, num_new_tokens, computed_blocks, watermark=0.01
     ):
@@ -547,10 +699,15 @@ class AscendScheduler(Scheduler):
         ) >= watermark_blocks
 
     def _get_prompt_limit(self, request: Request) -> int:
-        prompt_limit = min(
-            self.max_model_len,
-            self.max_num_scheduled_tokens,
-        )
+        # With chunked prefill the prompt is split into chunks, so its length
+        # limit is max_model_len alone. Without chunking it must fit one step.
+        if getattr(self.scheduler_config, "tt_chunked_prefill_enabled", False):
+            prompt_limit = self.max_model_len
+        else:
+            prompt_limit = min(
+                self.max_model_len,
+                self.max_num_scheduled_tokens,
+            )
 
         # Model is fine tuned with long context. Return the fine tuned max_len.
         if request.lora_request and request.lora_request.long_lora_max_len:
@@ -568,18 +725,40 @@ class AscendScheduler(Scheduler):
 
         For example, the API server can abort a request when the client
         disconnects.
+
+        Extends the base handler to also purge finished/aborted requests from
+        the *waiting-side* queues. A mid-prefill chunked request (status RUNNING)
+        lives in ``self.skipped_waiting``, not ``self.running``; the base handler
+        only removes RUNNING requests from ``self.running``, so an aborted one
+        would linger and crash the next ``schedule()`` (Invalid request status:
+        FINISHED_ABORTED). Removing it from both waiting queues prevents that.
         """
         if request_ids is None:
             return
+        # Materialize once; super() iterates request_ids again below.
+        if isinstance(request_ids, str):
+            request_ids = [request_ids]
+        else:
+            request_ids = list(request_ids)
 
+        to_remove: list[Request] = []
         for req_id in request_ids:
             request = self.requests.get(req_id)
-            if request is None:
-                # Invalid request ID.
+            if request is None or request.is_finished():
+                # Invalid or already-finished request ID.
                 continue
+            to_remove.append(request)
             if request.status == RequestStatus.RUNNING:
                 self.scheduled_req_ids.discard(request.request_id)
+
         super().finish_requests(request_ids, finished_status)
+
+        # Purge from the waiting-side queues (chunked-prefill continuations the
+        # base handler misses). remove_requests just filters the deque, so it is
+        # a safe no-op for already-removed requests.
+        if to_remove:
+            self.waiting.remove_requests(to_remove)
+            self.skipped_waiting.remove_requests(to_remove)
 
     def update_from_output(
         self,
@@ -588,16 +767,53 @@ class AscendScheduler(Scheduler):
     ) -> dict[int, EngineCoreOutputs]:
         num_scheduled_tokens = scheduler_output.num_scheduled_tokens
 
-        # NOTE(woosuk): As len(self.running) can be up to 1K or more, the below
-        # loop can be a performance bottleneck. We should do our best to avoid
-        # expensive operations inside the loop.
-        for request in self.running:
-            req_id = request.request_id
-            num_tokens_scheduled = num_scheduled_tokens.get(req_id, 0)
-            if num_tokens_scheduled == 0:
-                # The request was not scheduled in this step.
-                continue
-            if req_id in self.scheduled_req_ids:
-                self.scheduled_req_ids.remove(req_id)
+        req_id_to_index = model_runner_output.req_id_to_index
+
+        # Async scheduling can surface stale request ids that were scheduled
+        # but are no longer present in the runner's output map.  The request
+        # was moved to `running` and had its num_computed_tokens updated during
+        # schedule(), but the model never processed it.  Simply dropping it
+        # from num_scheduled_tokens leaves the request in `running` with an
+        # inconsistent num_computed_tokens, causing an AssertionError on the
+        # next schedule() call.  Instead, preempt the request so it is
+        # cleanly re-queued to waiting and will be retried from scratch.
+        stale_req_ids = [
+            req_id
+            for req_id in list(num_scheduled_tokens)
+            if req_id not in req_id_to_index
+        ]
+        if stale_req_ids:
+            stale_set = set(stale_req_ids)
+            for req_id in stale_req_ids:
+                num_scheduled_tokens.pop(req_id, None)
+                scheduler_output.scheduled_spec_decode_tokens.pop(req_id, None)
+                self.scheduled_req_ids.discard(req_id)
+
+            # Preempt each stale request: free its KV cache allocation, reset
+            # state, and move it back to the head of the waiting queue so it
+            # will be re-scheduled on the next step.
+            still_running = []
+            for request in self.running:
+                if request.request_id in stale_set:
+                    self.kv_cache_manager.free(request)
+                    request.status = RequestStatus.PREEMPTED
+                    request.num_computed_tokens = 0
+                    self.waiting.prepend_request(request)
+                else:
+                    still_running.append(request)
+            self.running = still_running
+
+            logger.warning(
+                "Preempted %d stale scheduled request id(s) missing from "
+                "model_runner_output (will retry): %s",
+                len(stale_req_ids),
+                stale_req_ids[:3],
+            )
+
+        # Clear by what was scheduled, not self.running: a partial-prefill
+        # continuation stays out of self.running, so iterating it would leak the
+        # partial's id and block decode forever (gated on empty). (tt-xla #5664)
+        for req_id in num_scheduled_tokens:
+            self.scheduled_req_ids.discard(req_id)
 
         return super().update_from_output(scheduler_output, model_runner_output)

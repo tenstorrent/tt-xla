@@ -12,8 +12,8 @@ source venv/activate
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_2_1b
 pytest -svv tests/benchmark/test_vision.py::test_resnet50
 
-# LLMBOX / QB — tensor-parallel models
-pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp
+# QB2 — tensor-parallel models
+pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2
 
 # Galaxy
 pytest -svv tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy
@@ -65,14 +65,14 @@ Performance benchmarks run via the **"Performance benchmark"** GitHub Actions wo
 
 - **`mlir_override`** — Git SHA of a tt-mlir commit to use instead of the default toolchain. Default: empty.
 - **`test_filter`** (Filter tests based on the name property) — Comma-separated substrings to match against test names (case insensitive). E.g. `"llama,qwen"` runs all tests with "llama" or "qwen" in the name. Default: empty (all tests).
-- **`runs-on-filter`** (Architecture you want to run the tests on) — Hardware to run on: `n150`, `p150`, `n300-llmbox`, `galaxy-wh-6u`, or `All`. Default: `n150`.
+- **`runs-on-filter`** (Architecture you want to run the tests on) — Hardware to run on: `n150`, `p150`, `galaxy-wh-6u`, `qb2-blackhole`, or `All`. Default: `n150`.
 - **`sh-runner`** (Run on shared runner) — Must be set to `false` for precise performance comparison. Shared runners provide less stable results. Default: `true`.
 - **`perf_regression_check`** (Enable perf metrics regression testing) — Compare results against the last nightly run and flag >5% regressions in samples/sec. Default: `false`.
 
 ### Examples
 
 ```bash
-# Run llama and qwen benchmarks on n300-llmbox for a specific tt-mlir commit
+# Run llama and qwen benchmarks on n150 for a specific tt-mlir commit
 gh workflow run "Performance benchmark" --ref my-branch \
   -f test_filter="llama,qwen" \
   -f runs-on-filter=n150 \

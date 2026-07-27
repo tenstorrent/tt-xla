@@ -9,7 +9,7 @@ from infra import (
     make_partition_spec,
     run_jax_multichip_op_test_with_random_inputs,
 )
-from utils import failed_fe_compilation, failed_ttmlir_compilation
+from utils import failed_fe_compilation
 
 
 @pytest.mark.nightly
@@ -27,15 +27,7 @@ from utils import failed_fe_compilation, failed_ttmlir_compilation
 @pytest.mark.parametrize(
     "multichip_mode",
     [
-        pytest.param(
-            ShardingMode.INPUTS_AND_MODULE,
-            marks=pytest.mark.xfail(
-                reason=failed_ttmlir_compilation(
-                    "Get device id issue on 4 chips with LLMbox "
-                    "(https://github.com/tenstorrent/tt-xla/issues/484)"
-                )
-            ),
-        ),
+        ShardingMode.INPUTS_AND_MODULE,
         pytest.param(
             ShardingMode.MODULE,
             marks=pytest.mark.xfail(

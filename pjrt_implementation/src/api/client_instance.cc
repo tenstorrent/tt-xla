@@ -122,6 +122,9 @@ static tt_pjrt_status launchDistributedRuntime() {
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
   // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
   const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
+  // On/off toggle for routing every rank through `python -m tracy` via ttrun
+  // Args forwarded verbatim to `python -m tracy`.
+  const char *tracy_cmd = std::getenv("TT_DISTRIBUTED_TRACY_CMD");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -216,6 +219,20 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (rank_file_path) {
     distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
+  }
+
+  if (tracy_cmd) {
+    // NOTE: `-r` must be present in TT_DISTRIBUTED_TRACY_CMD for tracy to
+    // actually capture and write .tracy/csv output; without it the rank dirs
+    // stay empty.
+    std::vector<std::string> tracy_args;
+    std::istringstream tracy_arg_stream(tracy_cmd);
+    std::string tracy_arg;
+    while (tracy_arg_stream >> tracy_arg) {
+      tracy_args.push_back(tracy_arg);
+    }
+    distributed_options.multiProcessArgs->withTracy(true).withTracyArgs(
+        tracy_args);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
@@ -841,12 +858,13 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }
 
-  // Execution device count from the device assignment (>1 for a multi-device
-  // run) tells the module builder to give no-input graphs the full mesh instead
-  // of collapsing it. Assumes pure SPMD (num_replicas == 1), which holds for
-  // the torch-xla / JAX SPMD compiles here.
+  // SPMD partition count (>1 = genuine multi-device SPMD run) tells the module
+  // builder to give no-input graphs the full mesh instead of collapsing it.
+  // Uses num_partitions, not the device-assignment size: the size counts host
+  // devices and wrongly fires for a single-chip graph on a multi-chip host.
   size_t target_num_devices =
-      replica_device_ids.has_value() ? replica_device_ids->size() : 1;
+      static_cast<size_t>(CompileOptionsParser::extractNumPartitions(
+          args->compile_options, args->compile_options_size));
 
   std::string_view program_format(args->program->format,
                                   args->program->format_size);

@@ -13,6 +13,7 @@ from vllm.model_executor.custom_op import PluggableLayer
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper
 from vllm.v1.attention.backend import AttentionBackend, AttentionLayer, MLAAttentionImpl
+from vllm.v1.attention.backends.mla.prefill.base import MLAPrefillBackend
 
 from ..logger import tt_init_logger
 from .attention import TTAttentionMetadataBuilder, TTMetadata
@@ -21,6 +22,43 @@ if TYPE_CHECKING:
     from vllm.config import VllmConfig
 
 logger = tt_init_logger(__name__)
+
+
+class _TTNoopMLAPrefillBackend(MLAPrefillBackend):
+    """No-op MLA prefill backend used only to satisfy MLAAttention init on TT.
+
+    TT's OOT MLA path calls ``impl.forward(...)`` directly and does not use
+    vLLM's prefill backend object. This class prevents constructor-time backend
+    assertions on platforms where FlashAttention MLA prefill is unavailable.
+    """
+
+    @staticmethod
+    def get_name() -> str:
+        return "TT_NOOP_MLA_PREFILL"
+
+    def run_prefill_new_tokens(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        return_softmax_lse: bool,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        raise RuntimeError(
+            "TT no-op MLA prefill backend should not be executed. "
+            "TTMLAAttention routes prefill via TT ops directly."
+        )
+
+    def run_prefill_context_chunk(
+        self,
+        chunk_idx: int,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        raise RuntimeError(
+            "TT no-op MLA prefill backend should not be executed. "
+            "TTMLAAttention routes prefill via TT ops directly."
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -153,7 +191,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         layer: "MLAAttention",
         output: Optional[torch.Tensor] = None,
         **kwargs,
-    ) -> torch.Tensor:
+    ) -> None:
         """MLA attention on TT (prefill and paged decode).
         Dispatches on token count per user: prefill (S > 1) attends against the
         freshly built local latent K via tt::flash_mla_prefill; decode (S == 1)
@@ -168,6 +206,9 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             output:      [tokens, num_heads * v_head_dim]   (write target)
         Returns the written output tensor.
         """
+        assert (
+            output is not None
+        ), "TTMLAAttentionBackendImpl.forward requires an output tensor."
         q_nope, q_pe = q
 
         is_prefill = self._infer_is_prefill(q_nope, attn_metadata)
@@ -213,7 +254,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         k_lat = torch.cat([kv_c.unsqueeze(2), k_pe_v], dim=-1)  # [b, S, 1, L+R]
 
         if is_prefill:
-            return self._forward_prefill(
+            self._forward_prefill(
                 q_lat,
                 k_lat,
                 kv_cache,
@@ -226,7 +267,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 output,
             )
         else:
-            return self._forward_decode(
+            self._forward_decode(
                 q_lat,
                 k_lat,
                 kv_cache,
@@ -267,7 +308,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> None:
         q_for_kernel = q_lat.transpose(1, 2).contiguous()  # [b, N, S, L+R]
         k_for_kernel = k_lat.transpose(1, 2).contiguous()  # [b, 1, S, L+R]
 
@@ -317,10 +358,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 )
             kv_cache.copy_(filled_cache)
 
-        if output is not None:
-            output.copy_(out)
-            return output
-        return out
+        output.copy_(out)
 
     def _forward_decode(
         self,
@@ -333,7 +371,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> None:
         """
         Paged MLA decode on TT (one token per user, S = 1).
         Shapes:
@@ -381,10 +419,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
 
         # Reshape to vLLM's output contract: [tokens, N * V]
         out = out.reshape(users, self.num_heads * self.v_head_dim)
-        if output is not None:
-            output.copy_(out)
-            return output
-        return out
+        output.copy_(out)
 
 
 class TTMLAAttention(MLAAttention):
@@ -429,14 +464,24 @@ class TTMLAAttention(MLAAttention):
 @MultiHeadLatentAttentionWrapper.register_oot
 class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
     def __init__(self, *args, **kwargs):
+        import vllm.model_executor.layers.attention.mla_attention as _mla_attn_module
         import vllm.model_executor.layers.mla as _mla_module
 
         orig_cls = _mla_module.MLAAttention
+        orig_get_mla_prefill_backend = getattr(
+            _mla_attn_module, "get_mla_prefill_backend", None
+        )
         _mla_module.MLAAttention = TTMLAAttention
+        if orig_get_mla_prefill_backend is not None:
+            _mla_attn_module.get_mla_prefill_backend = (
+                lambda _vllm_config: _TTNoopMLAPrefillBackend
+            )
         try:
             super().__init__(*args, **kwargs)
         finally:
             _mla_module.MLAAttention = orig_cls
+            if orig_get_mla_prefill_backend is not None:
+                _mla_attn_module.get_mla_prefill_backend = orig_get_mla_prefill_backend
         logger.info(
             "[TT] Installed TTMLAAttention (prefix=%s) — MLA prefill uses "
             "torch.ops.tt.flash_mla_prefill; decode uses "

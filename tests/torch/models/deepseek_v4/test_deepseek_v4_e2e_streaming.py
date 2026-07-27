@@ -375,6 +375,10 @@ def _setup_logging() -> None:
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {message}")
 
 
+@pytest.mark.xfail(
+    reason="galaxy-bh DRAM OOM (536 MB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5681.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.bh_galaxy
 @torch.inference_mode()

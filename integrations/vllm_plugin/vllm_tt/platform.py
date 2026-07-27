@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -56,14 +58,44 @@ class TTConfig:
     # If unset, it resolves to scheduler_config.max_num_seqs.
     min_num_seqs: Optional[int] = None
 
+    # Maximum request-batch size for *prefill* compilation and tracing.
+    # When set to a value smaller than max_num_seqs, prefill graphs compile
+    # and trace at this batch shape instead of max_num_seqs. With
+    # enable_trace=True, each traced bucket keeps its peak activations
+    # resident in DRAM; capping prefill here is the primary knob for
+    # reducing prefill DRAM footprint. Decode is unaffected (always
+    # compiles at max_num_seqs). Must satisfy min_num_seqs <=
+    # max_prefill_num_seqs <= max_num_seqs. Defaults to max_num_seqs.
+    max_prefill_num_seqs: Optional[int] = None
+
     # b1-prefill batch threshold. When <= this many prefills are
     # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
     # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
     # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
     prefill_batch_threshold: int = 0
 
+    # KV-cache high-watermark for *fresh* prefill admission, as a fraction of
+    # the block pool (tt-xla: large-context concurrency thrash). AscendScheduler
+    # stops admitting NEW prefills once doing so would leave less than this
+    # fraction of the pool free, reserving headroom for in-flight requests to
+    # finish decoding instead of evicting (preempting) them and re-prefilling.
+    # Continuation chunks of already-started prefills and decode are NOT gated
+    # (decode may use the pool to 100%). A forward-progress guard always admits
+    # at least one prefill when nothing is running, so a single large prompt is
+    # never starved. 0.0 = off (legacy 1% watermark for all prefills).
+    # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
+    # Override at runtime with env var TTXLA_PREFILL_KV_WATERMARK_PERCENT (a
+    # percent, e.g. 25), which takes precedence over additional_config.
+    # Resolved/validated in TTPlatform.check_and_update_config.
+    prefill_kv_watermark: float = 0.25
+
     batch_size: int = 1
     enable_precompile_all: bool = True
+
+    # Per-step prefill chunk size (caps max_num_batched_tokens); 0 (default) =
+    # opt-out. When set, long prompts split into chunks of this many tokens,
+    # bounding compile time + peak prefill DRAM by the chunk, not max_model_len.
+    prefill_chunk_size: int = 0
 
     # Flag to enable data parallel execution of a model. It will require
     # - max_num_seqs > 1
@@ -75,7 +107,7 @@ class TTConfig:
     enable_tensor_parallel: bool = False
 
     # Optimization level (0, 1, or 2) that controls multiple optimization passes.
-    # Level 0 (default): All optimizations disabled
+    # Level 0: All optimizations disabled
     # Level 1: Basic optimizations (optimizer + Conv2d fusion)
     # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
     optimization_level: int = 1
@@ -96,6 +128,17 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience in a model config or test. It is a GRAPH-WIDE override applied
+    # to every matmul, including tiny index-arithmetic matmuls (e.g. the per-user
+    # last-token gather that lowers to `flat_index = indices @ strides` ->
+    # embedding). Forcing bf16 destination accumulation there rounds flat
+    # indices >= 512 to the wrong value -> wrong gathered row -> wrong logits ->
+    # per-user divergence in batched greedy decoding (tt-xla #5116). Unset is
+    # better for accuracy: ttnn picks fp32 accumulation for fp32-output ops
+    # (exact index math) and bf16 for bf16 compute matmuls (no memory
+    # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Override the on-device KV cache element dtype.
@@ -133,9 +176,17 @@ class TTConfig:
     use_2d_mesh: bool = True
 
     # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
-    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # execution. When None, use_2d_mesh / parallel_mode determine the shape.
     # When set, it overrides use_2d_mesh.
     mesh_shape: Optional[list[int]] = None
+
+    # When True, weight partition specs include the "batch" (DP) axis —
+    # FSDP-style sharding that saves memory at the cost of extra communication.
+    # When False (default), weights are sharded only on the "model" (TP) axis
+    # and replicated across DP replicas (classic DP+TP), which incurs fewer
+    # CCLs. Enable batch-axis sharding only for models that otherwise don't fit
+    # on a machine.
+    shard_weights_on_batch_axis: bool = False
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
@@ -193,6 +244,44 @@ class TTPlatform(Platform):
     # device-side tt::sampling kernel does not yet).
     _cpu_sampling: bool = False
 
+    @classmethod
+    def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
+        """Validate the first TT speculative-decode support slice.
+
+        For now, TT only supports method='ngram' in synchronous scheduling.
+        All other methods and async scheduling are rejected explicitly.
+        """
+        speculative_config = vllm_config.speculative_config
+        if speculative_config is None:
+            return
+
+        method = getattr(speculative_config, "method", None)
+        if method != "ngram":
+            raise NotImplementedError(
+                "TT speculative decoding currently supports only "
+                "speculative_config.method='ngram'."
+            )
+
+        if getattr(vllm_config.scheduler_config, "async_scheduling", False):
+            raise NotImplementedError(
+                "TT ngram speculative decoding currently supports only "
+                "synchronous scheduling (async_scheduling=False)."
+            )
+
+        if hasattr(speculative_config, "use_ngram_gpu") and callable(
+            speculative_config.use_ngram_gpu
+        ):
+            if speculative_config.use_ngram_gpu():
+                raise NotImplementedError(
+                    "TT speculative decoding does not support ngram_gpu yet. "
+                    "Use method='ngram' (CPU proposer path)."
+                )
+
+        logger.info(
+            "[TT] Enabling speculative decoding with method='ngram' "
+            "(synchronous scheduling only)."
+        )
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -230,6 +319,21 @@ class TTPlatform(Platform):
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
         raise NotImplementedError
+
+    @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -294,18 +398,40 @@ class TTPlatform(Platform):
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
-        if tt_config.min_num_seqs is None:
-            additional_config["min_num_seqs"] = (
-                vllm_config.scheduler_config.max_num_seqs
+
+        max_num_seqs = vllm_config.scheduler_config.max_num_seqs
+
+        # Resolve/validate max_prefill_num_seqs first so min_num_seqs can default to it.
+        if tt_config.max_prefill_num_seqs is None:
+            additional_config["max_prefill_num_seqs"] = max_num_seqs
+            tt_config.max_prefill_num_seqs = additional_config["max_prefill_num_seqs"]
+        elif tt_config.max_prefill_num_seqs < 1:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= 1 for the TT backend."
             )
+        elif tt_config.max_prefill_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # Resolve/validate min_num_seqs after max_prefill_num_seqs.
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = tt_config.max_prefill_num_seqs
             tt_config.min_num_seqs = additional_config["min_num_seqs"]
         elif tt_config.min_num_seqs < 1:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
             )
-        elif tt_config.min_num_seqs > vllm_config.scheduler_config.max_num_seqs:
+        elif tt_config.min_num_seqs > max_num_seqs:
             raise ValueError(
                 "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        if tt_config.max_prefill_num_seqs < tt_config.min_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= min_num_seqs "
                 "for the TT backend."
             )
 
@@ -317,6 +443,23 @@ class TTPlatform(Platform):
             raise ValueError(
                 "additional_config['prefill_batch_threshold'] must be >= 0."
             )
+
+        # Resolve prefill_kv_watermark to a concrete fraction the scheduler can
+        # read directly: default, then env override (percent), then validate.
+        # See TTConfig.prefill_kv_watermark.
+        if additional_config.get("prefill_kv_watermark") is None:
+            additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
+        env_wm = os.environ.get("TTXLA_PREFILL_KV_WATERMARK_PERCENT")
+        if env_wm is not None:
+            additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
+        wm = float(additional_config["prefill_kv_watermark"])
+        if not (0.0 <= wm < 1.0):
+            raise ValueError(
+                "prefill_kv_watermark (TTXLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
+                f"must be in [0, 1); got {wm}."
+            )
+        additional_config["prefill_kv_watermark"] = wm
+
         vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
@@ -358,9 +501,7 @@ class TTPlatform(Platform):
         if compilation_config.backend == "":
             compilation_config.backend = "tt"
 
-        assert (
-            vllm_config.speculative_config is None
-        ), "TT does not support speculative decoding"
+        cls._validate_speculative_decode_config(vllm_config)
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -385,10 +526,6 @@ class TTPlatform(Platform):
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
 
-        assert (
-            not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TT backend"
-
         if (
             scheduler_config.is_multimodal_model
             and not scheduler_config.disable_chunked_mm_input
@@ -406,11 +543,44 @@ class TTPlatform(Platform):
                 "prefill and prefix caching to be disabled."
             )
             vllm_config.scheduler_config.enable_chunked_prefill = False
-            vllm_config.scheduler_config.chunked_prefill_enabled = False
+            vllm_config.scheduler_config.tt_chunked_prefill_enabled = False
             vllm_config.scheduler_config.max_num_batched_tokens = max(
                 vllm_config.model_config.max_model_len,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
+        elif model_config is not None and model_config.runner_type != "pooling":
+            # Opt-in via prefill_chunk_size. tt_chunked_prefill_enabled is a
+            # TT-only attr (vLLM has no such field) gating the TT path; vLLM's
+            # enable_chunked_prefill defaults True and can't stand in for it.
+            chunk_size = int(additional_config.get("prefill_chunk_size", 0))
+            if chunk_size > 0:
+                # PER-SEQUENCE cap bounding the prefill activation + token-padding
+                # ladder, not a batch-wide sum. Floor at one block for alignment.
+                per_seq_chunk = max(chunk_size, cache_config.block_size)
+
+                # Per-step batch-wide budget: one chunk per user, so scale by
+                # max_num_seqs to batch all users' same-stage chunks in one step.
+                budget = per_seq_chunk * scheduler_config.max_num_seqs
+                logger.info(
+                    "[TT] Chunked prefill: per-seq chunk %d, "
+                    "max_num_batched_tokens %d -> %d (= chunk x max_num_seqs %d) "
+                    "so up to %d users prefill per step.",
+                    per_seq_chunk,
+                    scheduler_config.max_num_batched_tokens,
+                    budget,
+                    scheduler_config.max_num_seqs,
+                    scheduler_config.max_num_seqs,
+                )
+                scheduler_config.enable_chunked_prefill = True
+                scheduler_config.tt_chunked_prefill_enabled = True
+                # TT-internal per-sequence chunk cap, read by AscendScheduler
+                # (per-request chunk sizing) and TTModelRunner (bucket ladder).
+                scheduler_config.tt_prefill_chunk_size = per_seq_chunk
+                # Derived value: a user-supplied max_num_batched_tokens is
+                # intentionally overridden here (logged above).
+                scheduler_config.max_num_batched_tokens = budget
+                scheduler_config.max_num_encoder_input_tokens = budget
+                scheduler_config.encoder_cache_size = budget
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
@@ -478,3 +648,10 @@ class TTPlatform(Platform):
             max_model_len,
         )
         return max_model_len
+
+    @classmethod
+    def manual_seed_all(cls, seed: int) -> None:
+        """Set RNG seed across all devices for the current platform. Set in
+        worker after initializing the device.
+        """
+        return

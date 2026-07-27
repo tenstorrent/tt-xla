@@ -95,7 +95,8 @@ test_config:
 
   yolov3/pytorch-Base-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "datasets.exceptions.DatasetGenerationError: An error occurred while generating the dataset, error in datasets"
     markers: ["extended"]
 
   yolov4/pytorch-Base-single_device-inference:
@@ -390,6 +391,10 @@ test_config:
   motif_image_6B_preview/text_to_image/pytorch-Motif-Image-6B-Preview-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "DYNAMO_FAKE_TENSORS_FX_NODE: Dynamo failed to run FX node with fake tensors: aten.add.Tensor — two different devices xla:0, cpu"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -728,7 +733,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed (calc ~0.19, required 0.99). https://github.com/tenstorrent/tt-xla/issues/5739"
     optimization_level: 2
 
   yolos/pytorch-single_device-inference:
@@ -770,13 +776,13 @@ test_config:
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8167537277595653. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -889,7 +895,9 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     filechecks:
       - concatenate_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
@@ -898,14 +906,18 @@ test_config:
     optimization_level: 1
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-0_6B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
@@ -1566,6 +1578,10 @@ test_config:
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   huggyllama/pytorch-Llama_7B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1707,7 +1723,8 @@ test_config:
     optimization_level: 2
     arch_overrides:
       p150:
-        status: EXPECTED_PASSING
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed (calc ~0.43). https://github.com/tenstorrent/tt-xla/issues/5739"
 
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1809,8 +1826,9 @@ test_config:
 
   qwen_3/causal_lm/pytorch-14B-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
 
   qwen_3/causal_lm/pytorch-30B_A3b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1819,7 +1837,9 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
     arch_overrides:
       n150:
