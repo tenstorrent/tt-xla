@@ -168,7 +168,7 @@ def test_chunk_budget_decoupled_from_max_model_len():
     assert text, "generation with budget << max_model_len was empty"
 
 
-@pytest.mark.nightly
+@pytest.mark.push
 @pytest.mark.single_device
 def test_chunked_prefill_batch_all_users_match(monkeypatch):
     """Batch>1 chunked prefill must produce identical output for all users.
@@ -177,6 +177,11 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
     correct (e.g. a stale page-table pointer or bad GQA broadcast), this test
     catches it. Also sets VLLM_XLA_CHECK_RECOMPILATION=1 to verify that the
     chunked-prefill path reuses compiled graphs after warm-up (no recompile).
+
+    On push: tiny opt-125m keeps it fast, and it is a real chunked-prefill
+    *correctness* signal on every PR alongside the recompile guard
+    (test_prefill_recompile.py), so a break like #5579 can't slip through on a
+    single xfailed test (tt-xla #5691).
     """
     monkeypatch.setenv("VLLM_XLA_CHECK_RECOMPILATION", "1")
 
@@ -200,7 +205,6 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
         enable_prefix_caching=False,
         additional_config={
             "prefill_chunk_size": chunk,
-            "enable_const_eval": True,
             "min_context_len": 32,
         },
     )

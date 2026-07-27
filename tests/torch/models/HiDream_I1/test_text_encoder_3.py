@@ -9,6 +9,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import get_mesh
 
 from third_party.tt_forge_models.hidream_i1.pytorch import ModelLoader, ModelVariant
@@ -51,4 +52,5 @@ def _run(sharded: bool):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
     )

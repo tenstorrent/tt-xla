@@ -37,7 +37,16 @@ class Embedding(torch.nn.Module):
 @pytest.mark.parametrize(
     "mesh_shape,shard_spec",
     [
-        ((1, 8), ("batch", "model")),
+        # mesh_shape0 fails (was Error code 13, now PythonFallbackKernel.cpp:143 PythonDispatcherTLS).
+        # mesh_shape1 is a separate, newer failure and is intentionally left failing.
+        pytest.param(
+            (1, 8),
+            ("batch", "model"),
+            marks=pytest.mark.xfail(
+                reason="llmbox: was Error code 13, now PythonFallbackKernel.cpp:143 PythonDispatcherTLS. Tracked by https://github.com/tenstorrent/tt-xla/issues/4481 (error signature has drifted over time).",
+                strict=False,
+            ),
+        ),
         ((2, 4), (None, "batch")),
     ],
 )

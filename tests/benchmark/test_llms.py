@@ -37,6 +37,26 @@ def default_read_logits_fn(output):
     return output.logits
 
 
+def _resolve_pcc_mode(request):
+    """Resolve the LLM PCC-only iteration mode from the --pcc-* CLI flags.
+
+    Returns "prefill" | "decode" | "both" | "" (disabled). --pcc-only, or
+    combining --pcc-prefill with --pcc-decode, asserts both phases.
+    """
+    if request is None:
+        return ""
+    pcc_only = request.config.getoption("--pcc-only")
+    pcc_prefill = request.config.getoption("--pcc-prefill")
+    pcc_decode = request.config.getoption("--pcc-decode")
+    if pcc_only or (pcc_prefill and pcc_decode):
+        return "both"
+    if pcc_prefill:
+        return "prefill"
+    if pcc_decode:
+        return "decode"
+    return ""
+
+
 def test_llm(
     ModelLoaderModule,
     variant,
@@ -163,6 +183,7 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        pcc_mode=_resolve_pcc_mode(request),
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
@@ -1059,7 +1080,7 @@ def test_ministral_8b(
         output_file=output_file,
         num_layers=num_layers,
         request=request,
-        fp32_dest_acc_en=False,
+        fp32_dest_acc_en=None,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
@@ -1095,7 +1116,7 @@ def test_llama_3_1_8b(
         output_file=output_file,
         num_layers=num_layers,
         request=request,
-        fp32_dest_acc_en=False,
+        fp32_dest_acc_en=None,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
@@ -1413,7 +1434,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         num_layers=2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=64,  # Decode pcc drops for batch 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/5558
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -1449,7 +1470,7 @@ def test_kimi_k2_6_tp_galaxy_2_layers(
         num_layers=2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=64,  # Decode pcc drops for batch 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/5558
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -1878,6 +1899,20 @@ def test_llama_3_1_70b_tp_qb2(
     )
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+
+    # The loader's default 70B mesh on QB2 is (2, N//2): despite the "batch" axis
+    # name it is NOT data-parallel -- inputs are replicated and the weights are
+    # sharded across BOTH axes (2D tensor parallelism; the only qb2 model doing so,
+    # and the only one exercising distributed_rms_norm). That multi-axis weight
+    # sharding corrupts the first-decode KV-cache read (garbage/NaN logits, decode
+    # PCC ~0 -> issue #5487), even though the SDPA-decode op itself is correct
+    # (Falcon-10B uses a single-axis TP mesh + the same op and decodes fine). Use a
+    # single-axis TP-only mesh here: decode PCC recovers to ~0.999. Restoring the
+    # 2D weight-sharded mesh (regaining distributed_rms_norm coverage) is tracked
+    # in issue #5738.
+    def _qb2_tp_only_mesh(model_loader, num_devices):
+        return (1, num_devices), ("batch", "model")
+
     test_llm_tp(
         ModelLoader,
         variant,
@@ -1888,11 +1923,12 @@ def test_llama_3_1_70b_tp_qb2(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        mesh_config_fn=_qb2_tp_only_mesh,
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # TP-only mesh fixes the opt-2 decode failure (#5487)
     )
 
 
@@ -2014,7 +2050,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -2108,7 +2144,7 @@ def test_glm_4_7_tp_galaxy_4_layers(
         num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=0,
@@ -2117,4 +2153,5 @@ def test_glm_4_7_tp_galaxy_4_layers(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
+        experts_implementation="eager",
     )

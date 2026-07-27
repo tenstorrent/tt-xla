@@ -263,6 +263,146 @@ def test_sdxl_lightning(output_file, request):
     )
 
 
+def test_flux2(output_file, request):
+    from benchmarks.flux2_pipeline import Flux2Config, Flux2Pipeline_TT
+
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+    )
+
+    # FLUX.2-dev: ~24B Mistral3 text encoder + ~32B Flux2 transformer (both
+    # tensor-parallel sharded across the mesh's model axis) + replicated VAE.
+    # Multichip — wired to the 4-chip blackhole (qb2) in perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = 50
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = Flux2Pipeline_TT(config=Flux2Config(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux2",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_flux2_output.png",
+    )
+
+
+def test_flux(output_file, request):
+    from benchmarks.flux_pipeline import FluxConfig, FluxPipeline_TT
+
+    from third_party.tt_forge_models.flux.pytorch.src.model_utils import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+    )
+
+    # FLUX.1-dev native: 1024x1024, 50 steps, guidance 3.5, seq-512 (source
+    # inference pipeline defaults). All 4 components (CLIP, T5, transformer, VAE)
+    # run on TT; the transformer is tensor-parallel sharded across the mesh's
+    # model axis. Multichip — wired to the 4-chip blackhole in
+    # perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = 50
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = FluxPipeline_TT(config=FluxConfig(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux1-dev",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_flux1_output.png",
+    )
+
+
+def test_zimage(output_file, request):
+    from benchmarks.zimage_pipeline import ZImageConfig, ZImagePipeline_TT
+
+    from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
+        GUIDANCE_SCALE,
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    # Z-Image: ~6.2B ZImageTransformer2DModel + Qwen3 text encoder + VAE, all on
+    # one Blackhole chip (OOMs on single Wormhole). CFG runs as two batch=1
+    # passes. Blackhole-only — wired to p150-perf in perf-bench-matrix.json.
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = ZImagePipeline_TT(
+            config=ZImageConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="zimage",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE decode
+        # at 1280x720 does not OOM (issue #4755).
+        optimization_level=1,
+        output_image_path="test_zimage_output.png",
+    )
+
+
 def _run_janus_pro_benchmark(
     model_id, model_info_name, output_image_path, output_file, request
 ):
@@ -366,4 +506,99 @@ def test_janus_pro_7b(output_file, request):
         output_image_path="test_janus_pro_7b_output.png",
         output_file=output_file,
         request=request,
+    )
+
+
+def test_glm_image(output_file, request):
+    """GLM-Image diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    Unlike the single-chip SD models above, GLM-Image's DiT transformer runs
+    tensor-parallel across a multi-chip mesh (the AR vision-language encoder, T5
+    glyph encoder, FlowMatchEuler scheduler and VAE decode stay on CPU). The
+    matrix pins this entry to an llmbox (n300-llmbox) runner so the mesh is available.
+    """
+    from benchmarks.glm_image_pipeline import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+        GlmImageConfig,
+        GlmImagePipeline,
+    )
+
+    prompt = PROMPT
+    num_inference_steps = 50
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); AR / T5 / scheduler
+        # / VAE on CPU. compile_options are already applied globally by the harness.
+        pipeline = GlmImagePipeline(config=GlmImageConfig())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                seed=DEFAULT_SEED,
+                num_inference_steps=steps,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="glm-image",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        output_image_path="test_glm_image_output.png",
+    )
+
+
+def test_hunyuan_image_2_1(output_file, request):
+    from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.pipeline import (
+        HunyuanImage21Config,
+        HunyuanImage21Pipeline,
+    )
+
+    # HunyuanImage-2.1 (Distilled): 2048x2048, 8 steps, distilled guidance 3.5.
+    # Only the ~17.45B MMDiT transformer runs on TT (tensor-parallel sharded across
+    # the mesh's model axis); the Qwen2.5-VL + ByT5 text encoders, scheduler and
+    # VAE run on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    prompt = (
+        "A cute, cartoon-style anthropomorphic penguin plush toy with fluffy fur, "
+        "standing in a painting studio, wearing a red knitted scarf and a red beret "
+        "with the word 'Tencent' on it, holding a paintbrush with a focused "
+        "expression as it paints an oil painting of the Mona Lisa, rendered in a "
+        "photorealistic photographic style."
+    )
+    num_inference_steps = 8
+    height = width = 2048
+
+    def build_pipeline_fn(compile_options):
+        pipeline = HunyuanImage21Pipeline(config=HunyuanImage21Config())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="hunyuan-image-2.1",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_hunyuan_image_2_1_output.png",
     )

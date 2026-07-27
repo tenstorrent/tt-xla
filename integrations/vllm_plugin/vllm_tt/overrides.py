@@ -61,7 +61,7 @@ def _promote_pre_allocated_attrs_to_buffers(model: torch.nn.Module) -> None:
         model.register_buffer(attr, t, persistent=False)
 
 
-def replace_modules(model: torch.nn.Module) -> None:
+def replace_modules(model: torch.nn.Module, *, use_flat_model_io: bool = False) -> None:
     logger.info(
         "Replacing vLLM modules with TT-compatible overrides where necessary..."
     )
@@ -71,6 +71,8 @@ def replace_modules(model: torch.nn.Module) -> None:
         if fqn in MODULE_TYPE_TO_TT_OVERRIDE:
             return MODULE_TYPE_TO_TT_OVERRIDE[fqn](module)
         for base_cls, override_fn in ISINSTANCE_OVERRIDES:
+            if use_flat_model_io and base_cls is MRotaryEmbedding:
+                continue
             if isinstance(module, base_cls):
                 return override_fn(module)
         return None

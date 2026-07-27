@@ -49,8 +49,20 @@ class CompilerConfig:
     math_fidelity: Optional[str] = None
 
     # Override fp32 destination accumulation for all ttnn operations exposing
-    # compute kernel config. If None, the default behavior from MLIR is used.
-    # Currently, MLIR default is true for all operations.
+    # compute kernel config. If None, the default behavior from MLIR is used
+    # (MLIR default is true at opt level 0; at opt level > 0 it is left unset
+    # so ttnn picks the per-op default).
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience. It is a GRAPH-WIDE override applied to every matmul,
+    # including tiny index-arithmetic matmuls (e.g. the per-user last-token
+    # gather that lowers to `flat_index = indices @ strides` -> embedding).
+    # Forcing bf16 destination accumulation on those rounds flat indices >= 512
+    # to the wrong value -> wrong gathered row -> wrong logits -> per-user
+    # divergence in batched greedy decoding (tt-xla #5116). Unset is better for
+    # accuracy: ttnn picks fp32 accumulation for fp32-output ops (exact index
+    # math) and bf16 for bf16 compute matmuls (no memory regression). Only set
+    # True/False deliberately for a specific, validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
@@ -86,10 +98,6 @@ class CompilerConfig:
     # Enable D2M subgraph creation pass for d2m elementwise fusion.
     # Only effective when optimization_level >= 1 (optimizer must be enabled)
     enable_create_d2m_subgraphs: bool = False
-
-    # Enable the all_reduce decomposition workaround which breaks all_reduce down
-    # into reduce_scatter + all_gather (or all_gather + local reduce).
-    all_reduce_workaround_enabled: bool = True
 
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
@@ -146,9 +154,6 @@ class CompilerConfig:
                     f"is enabled, got optimization_level={self.optimization_level}"
                 )
             options["enable_create_d2m_subgraphs"] = "true"
-
-        if not self.all_reduce_workaround_enabled:
-            options["all_reduce_workaround_enabled"] = "false"
 
         return options
 

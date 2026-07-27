@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import vllm
 from utils import (
+    align_arch,
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
@@ -65,6 +66,35 @@ class VLLMEmbeddingBenchmarkConfig:
     batch_size: int = 1
     warmup_iterations: int = 1
     loop_count: int = 32
+
+
+def _get_device_info_from_engine(
+    llm: vllm.LLM,
+) -> Tuple[str, int, Optional[Tuple[int, int]]]:
+    """
+    Read real TT device info from the live vLLM engine's worker(s).
+
+    Returns:
+        (arch, device_count, mesh_shape)
+    """
+    arch = ""
+    device_count = 1
+    mesh_shape = None
+    try:
+        results = llm.collective_rpc("get_device_info")
+        if results and results[0]:
+            info = results[0]
+            arch = align_arch(str(info.get("arch", "")).lower())
+            device_count = max(int(info.get("device_count", 1)), 1)
+            resolved_mesh = info.get("mesh_shape")
+            if isinstance(resolved_mesh, (list, tuple)) and len(resolved_mesh) == 2:
+                mesh_shape = (int(resolved_mesh[0]), int(resolved_mesh[1]))
+    except Exception as e:
+        print(
+            f"Warning: could not read TT device info from engine ({e}); using defaults."
+        )
+
+    return arch, max(int(device_count), 1), mesh_shape
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -162,23 +192,6 @@ def _extract_metrics(
     )
 
 
-def _get_device_info(
-    config: VLLMBenchmarkConfig,
-) -> Tuple[str, int, Optional[Tuple[int, int]]]:
-    """
-    Derive device info from config.
-
-    This is a workaround as these info are needed for the benchmark schema, but
-    vLLM abstracts the device layer. Mesh shape follows the plugin convention (num_devices, 1).
-
-    Returns:
-        (arch, device_count, mesh_shape)
-    """
-    if config.additional_config.get("enable_tensor_parallel", False):
-        return "wormhole_llmbox", 8, (8, 1)
-    return "wormhole", 1, None
-
-
 def _assert_token_counts(
     outputs: List[vllm.RequestOutput], max_tokens: int, max_model_len: int
 ):
@@ -224,6 +237,7 @@ def benchmark_vllm(
     )
 
     llm = _create_llm(config)
+    arch, device_count, mesh_shape = _get_device_info_from_engine(llm)
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
@@ -301,8 +315,6 @@ def benchmark_vllm(
         ttft_ms=avg_ttft_ms,
     )
 
-    arch, device_count, mesh_shape = _get_device_info(config)
-
     return create_benchmark_result(
         full_model_name=full_model_name,
         model_type=model_type,
@@ -359,6 +371,8 @@ def benchmark_vllm_embedding(
     print(f"Creating vLLM embedding engine for {config.model} ...")
     print(f"  LLM args: {llm_args}")
     llm = vllm.LLM(**llm_args)
+
+    arch, device_count, _ = _get_device_info_from_engine(llm)
 
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
@@ -417,9 +431,9 @@ def benchmark_vllm_embedding(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch="wormhole",
+        arch=arch,
         input_is_image=False,
         input_sequence_length=config.max_model_len,
-        device_count=1,
+        device_count=device_count,
         vllm=True,
     )

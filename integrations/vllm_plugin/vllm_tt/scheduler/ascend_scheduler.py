@@ -37,6 +37,7 @@ class AscendScheduler(Scheduler):
         kv_cache_config: KVCacheConfig,
         structured_output_manager: StructuredOutputManager,
         block_size: int,
+        hash_block_size: int | None = None,
         mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
         include_finished_set: bool = False,
         log_stats: bool = False,
@@ -46,6 +47,7 @@ class AscendScheduler(Scheduler):
             kv_cache_config,
             structured_output_manager,
             block_size,
+            hash_block_size,
             mm_registry,
             include_finished_set,
             log_stats,
@@ -201,6 +203,26 @@ class AscendScheduler(Scheduler):
                 num_computed_tokens = (
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
+                assert num_computed_tokens <= request.num_tokens, (
+                    f"Invalid token accounting for request {request.request_id}: "
+                    f"computed={num_computed_tokens} "
+                    f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                    f"> total_tokens={request.num_tokens}"
+                )
+
+                if request.prefill_stats is not None:
+                    assert num_computed_tokens <= request.num_prompt_tokens, (
+                        f"Invalid prefill token accounting for request {request.request_id}: "
+                        f"computed={num_computed_tokens} "
+                        f"(local={num_new_local_computed_tokens}, external={num_external_computed_tokens}) "
+                        f"> prompt_tokens={request.num_prompt_tokens} "
+                        f"(total_tokens={request.num_tokens})"
+                    )
+                    request.prefill_stats.set(
+                        num_prompt_tokens=request.num_prompt_tokens,
+                        num_local_cached_tokens=num_new_local_computed_tokens,
+                        num_external_cached_tokens=num_external_computed_tokens,
+                    )
             else:
                 # Remote-kv or continued chunk: pass the manager's empty-blocks
                 # singleton (allocate_slots compares it by identity).
@@ -410,9 +432,6 @@ class AscendScheduler(Scheduler):
                 step_prefill_num_computed = num_computed_tokens
             request.status = RequestStatus.RUNNING
             request.num_computed_tokens = num_computed_tokens
-            # Count the number of prefix cached tokens.
-            if request.num_cached_tokens < 0:
-                request.num_cached_tokens = num_computed_tokens
 
             # Encoder-related: commit the scheduled encoder inputs and reserve
             # space for their outputs in the encoder cache.
@@ -490,6 +509,8 @@ class AscendScheduler(Scheduler):
                         self.kv_cache_manager.free(preempted_req)
                         preempted_req.status = RequestStatus.PREEMPTED
                         preempted_req.num_computed_tokens = 0
+                        if preempted_req.spec_token_ids:
+                            preempted_req.spec_token_ids = []
                         if self.log_stats:
                             preempted_req.record_event(
                                 EngineCoreEventType.PREEMPTED, scheduled_timestamp
@@ -522,13 +543,19 @@ class AscendScheduler(Scheduler):
                         num_new_tokens
                         + request.num_computed_tokens
                         - request.num_tokens
+                        - request.num_output_placeholders
                     )
                     if num_scheduled_spec_tokens > 0:
-                        # Trim spec_token_ids list to num_scheduled_spec_tokens.
-                        del request.spec_token_ids[num_scheduled_spec_tokens:]
+                        spec_token_ids = request.spec_token_ids
+                        if len(spec_token_ids) > num_scheduled_spec_tokens:
+                            spec_token_ids = spec_token_ids[:num_scheduled_spec_tokens]
                         scheduled_spec_decode_tokens[request.request_id] = (
-                            request.spec_token_ids
+                            spec_token_ids
                         )
+
+                    # New spec tokens will be set in `update_draft_token_ids`
+                    # before the next step when applicable.
+                    request.spec_token_ids = []
 
                 # Record scheduled LoRA requests.
                 if self.lora_config and request.lora_request:
@@ -740,16 +767,53 @@ class AscendScheduler(Scheduler):
     ) -> dict[int, EngineCoreOutputs]:
         num_scheduled_tokens = scheduler_output.num_scheduled_tokens
 
-        # NOTE(woosuk): As len(self.running) can be up to 1K or more, the below
-        # loop can be a performance bottleneck. We should do our best to avoid
-        # expensive operations inside the loop.
-        for request in self.running:
-            req_id = request.request_id
-            num_tokens_scheduled = num_scheduled_tokens.get(req_id, 0)
-            if num_tokens_scheduled == 0:
-                # The request was not scheduled in this step.
-                continue
-            if req_id in self.scheduled_req_ids:
-                self.scheduled_req_ids.remove(req_id)
+        req_id_to_index = model_runner_output.req_id_to_index
+
+        # Async scheduling can surface stale request ids that were scheduled
+        # but are no longer present in the runner's output map.  The request
+        # was moved to `running` and had its num_computed_tokens updated during
+        # schedule(), but the model never processed it.  Simply dropping it
+        # from num_scheduled_tokens leaves the request in `running` with an
+        # inconsistent num_computed_tokens, causing an AssertionError on the
+        # next schedule() call.  Instead, preempt the request so it is
+        # cleanly re-queued to waiting and will be retried from scratch.
+        stale_req_ids = [
+            req_id
+            for req_id in list(num_scheduled_tokens)
+            if req_id not in req_id_to_index
+        ]
+        if stale_req_ids:
+            stale_set = set(stale_req_ids)
+            for req_id in stale_req_ids:
+                num_scheduled_tokens.pop(req_id, None)
+                scheduler_output.scheduled_spec_decode_tokens.pop(req_id, None)
+                self.scheduled_req_ids.discard(req_id)
+
+            # Preempt each stale request: free its KV cache allocation, reset
+            # state, and move it back to the head of the waiting queue so it
+            # will be re-scheduled on the next step.
+            still_running = []
+            for request in self.running:
+                if request.request_id in stale_set:
+                    self.kv_cache_manager.free(request)
+                    request.status = RequestStatus.PREEMPTED
+                    request.num_computed_tokens = 0
+                    self.waiting.prepend_request(request)
+                else:
+                    still_running.append(request)
+            self.running = still_running
+
+            logger.warning(
+                "Preempted %d stale scheduled request id(s) missing from "
+                "model_runner_output (will retry): %s",
+                len(stale_req_ids),
+                stale_req_ids[:3],
+            )
+
+        # Clear by what was scheduled, not self.running: a partial-prefill
+        # continuation stays out of self.running, so iterating it would leak the
+        # partial's id and block decode forever (gated on empty). (tt-xla #5664)
+        for req_id in num_scheduled_tokens:
+            self.scheduled_req_ids.discard(req_id)
 
         return super().update_from_output(scheduler_output, model_runner_output)

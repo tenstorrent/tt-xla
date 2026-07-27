@@ -107,7 +107,7 @@ class TTConfig:
     enable_tensor_parallel: bool = False
 
     # Optimization level (0, 1, or 2) that controls multiple optimization passes.
-    # Level 0 (default): All optimizations disabled
+    # Level 0: All optimizations disabled
     # Level 1: Basic optimizations (optimizer + Conv2d fusion)
     # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
     optimization_level: int = 1
@@ -128,6 +128,17 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience in a model config or test. It is a GRAPH-WIDE override applied
+    # to every matmul, including tiny index-arithmetic matmuls (e.g. the per-user
+    # last-token gather that lowers to `flat_index = indices @ strides` ->
+    # embedding). Forcing bf16 destination accumulation there rounds flat
+    # indices >= 512 to the wrong value -> wrong gathered row -> wrong logits ->
+    # per-user divergence in batched greedy decoding (tt-xla #5116). Unset is
+    # better for accuracy: ttnn picks fp32 accumulation for fp32-output ops
+    # (exact index math) and bf16 for bf16 compute matmuls (no memory
+    # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Override the on-device KV cache element dtype.
@@ -233,6 +244,44 @@ class TTPlatform(Platform):
     # device-side tt::sampling kernel does not yet).
     _cpu_sampling: bool = False
 
+    @classmethod
+    def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
+        """Validate the first TT speculative-decode support slice.
+
+        For now, TT only supports method='ngram' in synchronous scheduling.
+        All other methods and async scheduling are rejected explicitly.
+        """
+        speculative_config = vllm_config.speculative_config
+        if speculative_config is None:
+            return
+
+        method = getattr(speculative_config, "method", None)
+        if method != "ngram":
+            raise NotImplementedError(
+                "TT speculative decoding currently supports only "
+                "speculative_config.method='ngram'."
+            )
+
+        if getattr(vllm_config.scheduler_config, "async_scheduling", False):
+            raise NotImplementedError(
+                "TT ngram speculative decoding currently supports only "
+                "synchronous scheduling (async_scheduling=False)."
+            )
+
+        if hasattr(speculative_config, "use_ngram_gpu") and callable(
+            speculative_config.use_ngram_gpu
+        ):
+            if speculative_config.use_ngram_gpu():
+                raise NotImplementedError(
+                    "TT speculative decoding does not support ngram_gpu yet. "
+                    "Use method='ngram' (CPU proposer path)."
+                )
+
+        logger.info(
+            "[TT] Enabling speculative decoding with method='ngram' "
+            "(synchronous scheduling only)."
+        )
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -270,6 +319,21 @@ class TTPlatform(Platform):
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
         raise NotImplementedError
+
+    @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -437,9 +501,7 @@ class TTPlatform(Platform):
         if compilation_config.backend == "":
             compilation_config.backend = "tt"
 
-        assert (
-            vllm_config.speculative_config is None
-        ), "TT does not support speculative decoding"
+        cls._validate_speculative_decode_config(vllm_config)
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -463,10 +525,6 @@ class TTPlatform(Platform):
         scheduler_config = vllm_config.scheduler_config
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
-
-        assert (
-            not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TT backend"
 
         if (
             scheduler_config.is_multimodal_model
@@ -590,3 +648,10 @@ class TTPlatform(Platform):
             max_model_len,
         )
         return max_model_len
+
+    @classmethod
+    def manual_seed_all(cls, seed: int) -> None:
+        """Set RNG seed across all devices for the current platform. Set in
+        worker after initializing the device.
+        """
+        return

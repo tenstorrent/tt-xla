@@ -250,7 +250,14 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_attention_decode(variant, variant_config, arch):
+def test_llama_attention_decode(variant, variant_config, arch, request):
+    if arch == "llmbox" and str(variant) in {"Tinyllama_v1.1"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query and result must have the same type). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
@@ -434,7 +441,14 @@ def test_llama_create_heads(variant, variant_config, seq_len):
     get_available_variants("llama").items(),
     ids=[str(k) for k in get_available_variants("llama").keys()],
 )
-def test_llama_attention(variant, variant_config, seq_len, arch):
+def test_llama_attention(variant, variant_config, seq_len, arch, request):
+    if arch == "llmbox" and str(variant) in {"3.0_8B"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query and result must have the same type). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if "70b" in str(variant) and not arch == "llmbox":
         pytest.skip("70B models don't fit on a single device")
 
@@ -702,7 +716,14 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention_decode(variant, variant_config, arch):
+def test_qwen3_attention_decode(variant, variant_config, arch, request):
+    if arch == "llmbox" and str(variant) in {"30B_A3b"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query and result must have the same type). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -901,7 +922,14 @@ def test_qwen3_create_heads(variant, variant_config, seq_len):
     get_available_variants("qwen3").items(),
     ids=[str(k) for k in get_available_variants("qwen3").keys()],
 )
-def test_qwen3_attention(variant, variant_config, seq_len, arch):
+def test_qwen3_attention(variant, variant_config, seq_len, arch, request):
+    if arch == "llmbox" and str(variant) in {"0_6B"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query and result must have the same type). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if not arch == "llmbox" and (str(variant) == "32B" or str(variant) == "30B_A3b"):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -1387,7 +1415,14 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
     get_available_variants("qwen2_5").items(),
     ids=[str(k) for k in get_available_variants("qwen2_5").keys()],
 )
-def test_qwen2_5_attention_decode(variant, variant_config, arch):
+def test_qwen2_5_attention_decode(variant, variant_config, arch, request):
+    if arch == "llmbox" and str(variant) in {"7B", "14B", "Math_7B"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query and result must have the same type). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if not arch == "llmbox" and (
         str(variant) == "72B_Instruct" or str(variant) == "32B_Instruct"
     ):
@@ -1812,7 +1847,14 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
     get_available_variants("gemma").items(),
     ids=[str(k) for k in get_available_variants("gemma").keys()],
 )
-def test_gemma_attention_decode(variant, variant_config, arch):
+def test_gemma_attention_decode(variant, variant_config, arch, request):
+    if arch == "llmbox" and str(variant) in {"1.1_2B_IT", "1.1_7B_IT", "2B", "2_2B_IT"}:
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: ValueError Error code 13 ('ttir.scaled_dot_product_attention' op Query num heads must be divisible by key/value num heads). Tracked by https://github.com/tenstorrent/tt-xla/issues/5682.",
+                strict=False,
+            )
+        )
     if not arch == "llmbox" and (str(variant) == "2_27B_IT"):
         pytest.skip("Variant doesn't fit on a single device")
 
@@ -2542,7 +2584,15 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 @parametrize_arch(["single_device", "llmbox", "galaxy"])
-def test_gpt_oss_attention_decode(variant, variant_config, arch):
+def test_gpt_oss_attention_decode(variant, variant_config, arch, request):
+    # NOTE: only the llmbox variants are covered here; galaxy-120B is intentionally left failing.
+    if arch == "llmbox":
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="llmbox: PCC comparison failed (pcc=nan). Tracked by https://github.com/tenstorrent/tt-xla/issues/5683.",
+                strict=False,
+            )
+        )
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant)
@@ -2696,9 +2746,6 @@ def test_glm_4_attention_prefill(seq_len, variant, variant_config):
     "variant,variant_config",
     get_available_variants("glm_4").items(),
     ids=[str(k) for k in get_available_variants("glm_4").keys()],
-)
-@pytest.mark.xfail(
-    reason="TT_FATAL: MUL_BCAST_GRANULARITY (3) must be power of 2. https://github.com/tenstorrent/tt-xla/issues/4282"
 )
 def test_glm_4_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")

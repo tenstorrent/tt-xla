@@ -27,7 +27,9 @@ from vllm.config import (
     update_config,
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
-from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -300,6 +302,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         parallel_config = self.parallel_config
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
+        self.use_flat_model_io = self.tt_config.flat_model_io
 
         # Data parallel execution
         self.num_additional_inputs = 0
@@ -1045,10 +1048,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1213,6 +1215,48 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # then the embedding layer is not included in the CUDA graph.
             return input_ids, None
 
+    def _prepare_model_call_tensors(
+        self,
+        input_ids: torch.Tensor | None,
+        positions: torch.Tensor,
+        inputs_embeds: torch.Tensor | None,
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor,
+        torch.Tensor | None,
+        Optional[torch.Size],
+    ]:
+        if not self.use_flat_model_io:
+            return input_ids, positions, inputs_embeds, None
+
+        restore_shape: Optional[torch.Size] = None
+
+        if input_ids is not None and input_ids.ndim > 1:
+            restore_shape = input_ids.shape
+            input_ids = input_ids.reshape(-1)
+
+        if inputs_embeds is not None and inputs_embeds.ndim > 2:
+            if restore_shape is None:
+                restore_shape = torch.Size(inputs_embeds.shape[:-1])
+            inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+
+        if positions.ndim > 1:
+            if restore_shape is None:
+                restore_shape = positions.shape
+            positions = positions.reshape(-1)
+
+        return input_ids, positions, inputs_embeds, restore_shape
+
+    def _restore_model_hidden_states(
+        self,
+        hidden_states: torch.Tensor,
+        restore_shape: Optional[torch.Size],
+    ) -> torch.Tensor:
+        if restore_shape is None or hidden_states.ndim != 2:
+            return hidden_states
+
+        return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1263,10 +1307,23 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
+                (
+                    model_input_ids,
+                    model_positions,
+                    model_inputs_embeds,
+                    hidden_state_shape,
+                ) = self._prepare_model_call_tensors(
+                    input_ids,
+                    self.position_ids,
+                    inputs_embeds,
+                )
                 hidden_states = self.model(
-                    input_ids=input_ids,
-                    positions=self.position_ids,
-                    inputs_embeds=inputs_embeds,
+                    input_ids=model_input_ids,
+                    positions=model_positions,
+                    inputs_embeds=model_inputs_embeds,
+                )
+                hidden_states = self._restore_model_hidden_states(
+                    hidden_states, hidden_state_shape
                 )
                 hidden_states = hidden_states.to("cpu")
 
@@ -1453,6 +1510,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.model.compile(backend="tt", dynamic=False)
         logger.info(f"Compiled model: \n{self.model}")
 
+        layer_type = cast(type[Any], AttentionLayerBase)
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, layer_type).keys()
+        )
+
     def reload_weights(self) -> None:
         assert (
             getattr(self, "model", None) is not None
@@ -1511,10 +1573,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_users=num_reqs,
         )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
 
         with (
             self.maybe_select_dummy_loras(
@@ -1522,9 +1583,22 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
-            out = self.model(
-                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(
+                input_ids,
+                position_ids,
+                inputs_embeds,
             )
+            out = self.model(
+                input_ids=model_input_ids,
+                positions=model_positions,
+                inputs_embeds=model_inputs_embeds,
+            )
+            out = self._restore_model_hidden_states(out, hidden_state_shape)
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
@@ -1803,6 +1877,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _get_req_paddings(min_req_size: int, max_req_size: int) -> list[int]:
