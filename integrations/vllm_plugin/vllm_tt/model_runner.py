@@ -604,6 +604,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=[self.block_size],
             kernel_block_sizes=[self.block_size],
+            max_num_blocks_per_req=[self.max_num_blocks_per_req],
             is_pooling_model=False,
         )
 
@@ -4141,6 +4142,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vocab_size=self.model_config.get_vocab_size(),
                 block_sizes=block_sizes,
                 kernel_block_sizes=block_sizes,
+                max_num_blocks_per_req=[
+                    cdiv(
+                        self.max_model_len,
+                        block_sizes,
+                    )
+                ],
                 is_pooling_model=False,
             )
         # Always (re)allocate the per-group page-table device buffers: even at an

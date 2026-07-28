@@ -422,6 +422,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # If there's no kv_cache_spec, we don't need KV cache block tables
         kv_cache_spec = self.get_kv_cache_spec()
         block_sizes = [self.block_size] if kv_cache_spec else []
+        max_num_blocks_per_req = [cdiv(self.max_model_len, bs) for bs in block_sizes]
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -433,6 +434,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=block_sizes,
             kernel_block_sizes=block_sizes,
+            max_num_blocks_per_req=max_num_blocks_per_req,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 "cpu",
