@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 import torch
 from vllm.sampling_params import SamplingType
+from vllm.v1.sample.logits_processor import LogitsProcessors
 
 from .metadata import DEFAULT_SAMPLING_PARAMS
 
@@ -61,6 +62,13 @@ class SamplingBatchView:
     num_prompt_tokens: np.ndarray
     token_ids_cpu: np.ndarray
     max_num_logprobs: int
+    # Pooling-only in upstream; always False on the v2 generation path.
+    logits_processing_needs_token_ids: np.ndarray
+    # v2 hard-codes num_speculative_steps=0, so no drafts to expose.
+    spec_token_ids: list[list[int]]
+    # Neither TT runner builds custom logits processors.
+    logitsprocs: LogitsProcessors
+    logitsprocs_need_output_token_ids: bool
 
 
 class TTSamplingStates:
@@ -286,4 +294,8 @@ class TTSamplingStates:
             num_prompt_tokens=num_prompt_tokens,
             token_ids_cpu=token_ids_cpu,
             max_num_logprobs=max_num_logprobs,
+            logits_processing_needs_token_ids=np.zeros(padded_num_reqs, dtype=bool),
+            spec_token_ids=[[] for _ in range(padded_num_reqs)],
+            logitsprocs=LogitsProcessors(),
+            logitsprocs_need_output_token_ids=False,
         )
