@@ -67,6 +67,7 @@ def make_vllm_config(**tt_overrides):
         parallel_config=object(),
         load_config=object(),
         lora_config=None,
+        speculative_config=None,
         additional_config=additional_config,
     )
 
@@ -195,6 +196,42 @@ def test_init_single_device_disables_parallel():
     assert r.parallel_mode == ParallelismMode.DISABLED
     assert r.mesh is None
     assert r.dp_size == 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_without_speculative_config_disables_spec_decode():
+    r = TTModelRunnerV2(make_vllm_config(), torch.device("cpu"))
+    assert r.num_spec_tokens == 0
+    assert r.drafter is None
+    assert r.req_states.num_speculative_steps == 0
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_sizes_draft_table_from_speculative_config(monkeypatch):
+    cfg = make_vllm_config()
+    cfg.speculative_config = SimpleNamespace(num_speculative_tokens=3, method="ngram")
+    sentinel = object()
+    monkeypatch.setattr(
+        "vllm.v1.spec_decode.ngram_proposer.NgramProposer",
+        lambda vllm_config: sentinel,
+    )
+    r = TTModelRunnerV2(cfg, torch.device("cpu"))
+    assert r.num_spec_tokens == 3
+    assert r.drafter is sentinel
+    assert r.req_states.draft_tokens.shape[1] == 3
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_init_skips_drafter_for_non_ngram_method():
+    cfg = make_vllm_config()
+    cfg.speculative_config = SimpleNamespace(num_speculative_tokens=2, method="eagle")
+    r = TTModelRunnerV2(cfg, torch.device("cpu"))
+    # Verification still runs; only the ngram proposer is TT-supported.
+    assert r.num_spec_tokens == 2
+    assert r.drafter is None
 
 
 @pytest.mark.push
