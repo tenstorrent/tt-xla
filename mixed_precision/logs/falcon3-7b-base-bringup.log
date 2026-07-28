@@ -1,0 +1,163 @@
+# MP Bringup Log — falcon3-7b-base
+
+- **Model / pytest id:** Falcon3-7B-Base / falcon3-7b-base
+- **Hardware:** n150 (Wormhole_b0)
+- **Branch / commit:** dgolubovic/mp-agentic-bringup @ 7629aef6c
+- **Agent session date:** 2026-07-27
+
+## 0. Environment sanity-check (skill Step 0)
+- `vllm 0.22.1`
+- `from vllm.v1.worker.worker_base import CompilationTimes` → OK (venv matches branch)
+- `import chisel` → OK (explorer/debug build present)
+- `jax.devices('tt')` → [TTDevice(id=0, arch=Wormhole_b0)]
+- Verdict: environment healthy, proceed.
+
+- **Size note:** Falcon3-7B-Base is 7B → does NOT fit full bf16 on n150. Per skill
+  bfp8-only branch: NO bf16 e2e ceiling run. baseline = current committed bfp8 config.
+  Committed config: `_config("tiiuae/Falcon3-7B-Base")` = weights bfp8, kv bf16, act off.
+
+## 1. Baseline
+- Starting config (dtypes as-is): weights=bfp8, kv=bf16, activations=off
+- **IMPORTANT:** committed config's `optimization_level=2` FAILS TO COMPILE on n150 (typecast
+  layout bug, see §3 attempt #0). Baseline (and all runs) use `optimization_level=0`.
+- `baseline_acc` (TOP1 p5): **81.25%**   TOP5 p5: **93.75%**
+  (full: TOP1 min59.38/p5 81.25/med 82.03/mean 81.35/max 82.81; TOP5 min78.12/p5 93.75/med/mean/max ~93)
+- `threshold`: **73.125%** (0.90 × 81.25%, skill default)
+- Command: `_BENCH_OPTIMIZATION_LEVEL=0 pytest -svv "...[falcon3-7b-base]" --accuracy-testing`
+- Output: mixed_precision/logs/runs/falcon3_baseline_opt0.out
+
+## 2. Runs (one row per accuracy run)
+
+| # | weight_dtype | weight_overrides | kv_cache | activation_lowering | other knobs | TOP1 p5 | TOP5 p5 | notes |
+|---|---|---|---|---|---|---|---|---|
+| 0 | bfp8 | - | bf16 | off | opt=2 | FAIL | FAIL | committed config — compile error (typecast layout) |
+| 1 | bfp8 | - | bf16 | off | opt=0 | 81.25% | 93.75% | **baseline** |
+| 2 | bfp8 | - | bfp8 | off (no-op 1-chip) | opt=0 | 79.69% | 95.31% | + KV bfp8; TOP1 -1.56pp, TOP5 +1.56pp; above threshold |
+| 3 | bfp8 default | down_proj→bfp4 ONLY (gate/up glob missed) | bfp8 | off | opt=0 | 75.00% | 93.75% | down_proj bfp4 alone: TOP1 -4.69pp vs run2, still >thr |
+| 4 | bfp8 default | gate_up_proj+down_proj→bfp4 | bfp8 | off | opt=0 | 71.88% | 93.75% | full MLP bfp4: TOP1 BELOW threshold (71.88<73.125) → DROP full-MLP bfp4 |
+| 5 | bfp8 default | - | bfp8 | off | opt=0 (BAKED committed config, no env) | 79.69% | 95.31% | FINAL — checked-in entry PASSES, reproduces run 2 |
+
+### Parameter-name finding (glob matching) — IMPORTANT
+- Overrides match against the **vLLM model's** `named_parameters`, NOT the HF checkpoint names.
+- HF Falcon3 (Llama arch) has separate `mlp.gate_proj` / `mlp.up_proj` / `mlp.down_proj`, but
+  **vLLM fuses gate+up into a single `gate_up_proj`** (MergedColumnParallelLinear).
+- Run 3 used HF-style globs: `mlp.gate_proj.weight` and `mlp.up_proj.weight` → "did not match"
+  warning (silently NOT lowered); `mlp.down_proj.weight` DID match (vLLM keeps that name).
+- Correct MLP globs for this model: `model.layers.*.mlp.gate_up_proj.weight` +
+  `model.layers.*.mlp.down_proj.weight` (file: overrides_falcon3_7b_mlp_bfp4_fused.json).
+- Run 3 therefore = down_proj-only bfp4 (partial); Run 4 = full-MLP bfp4 (corrected).
+
+### IR verification (skill §A) — Run 4 fused glob applied
+- Newest ttnn prefill graph after Run 4: `grep -c bfp_bf4` = **460**, `bfp_bf8` = 631.
+- Reference counts on same-model graphs: KV/baseline graph = 1 bfp4 (enum-legend only);
+  Run 3 (down_proj only) graph = 234 bfp4. Run 4's 460 ≈ 2× confirms gate_up_proj + down_proj
+  both lowered. No "did not match" warning. Override confirmed applied.
+
+## 3. Investigations
+
+### Baseline attempt #0 — committed config (opt-level 2) FAILS TO COMPILE
+- Cmd: `pytest -svv "...[falcon3-7b-base]" --accuracy-testing` (no env overrides; committed
+  `_config("tiiuae/Falcon3-7B-Base")` = weights bfp8, kv bf16, act off, optimization_level=2).
+- Result: compile error during `_precompile_model_fused` / prefill warm-up (`ValueError: Error code: 13`).
+- Root error (module_builder TTIRToTTNNCommon pipeline):
+  ```
+  loc("convert.197"): error: L1SpillManagement: DRAM output config failed validation after demotion
+  TT_FATAL typecast_device_op.cpp:110: input_tensor_memory_layout == out_memory_config.memory_layout()
+  Typecast requires Input and Output memory layout to match. Input: BLOCK_SHARDED, Output: INTERLEAVED
+  ; this indicates a compiler bug
+  ```
+- Interpretation: NOT accuracy, NOT DRAM OOM. Compiler bug in the opt-level-2 L1-spill / DRAM-demotion
+  path emitting a typecast whose input (block-sharded) and output (interleaved) memory layouts mismatch.
+  Sibling config `llama-3.1-8b` already pins `optimization_level=0` to dodge opt-level-2 issues on n150.
+- Action: retry baseline at `_BENCH_OPTIMIZATION_LEVEL=0`.
+- Output: mixed_precision/logs/runs/falcon3_baseline.out
+
+### Op-level chisel (Run 4 dropped below threshold → per task, diagnose)
+- Rationale: only the full-MLP-**bfp4** config fell below threshold; every bfp8 config is comfortably
+  above. Per skill, chisel measures KERNEL correctness (device-vs-torch-of-its-inputs), NOT
+  quant-vs-fp32, so it cannot "explain" bfp4 loss. Purpose here = confirm the KEPT config's bfp8
+  kernels are numerically sound (no broken/regressing kernel silently hurting the baseline).
+- Recipe: temp-edit `test_falcon3_7b` (trace_enabled=False, experimental_weight_dtype="bfp_bf8",
+  optimization_level=0); `timeout 900 pytest -svv --enable-chisel --num-layers 1 ...test_falcon3_7b`.
+- Output: mixed_precision/logs/runs/falcon3_chisel_1layer_bfp8.out
+  Results JSONL copied to: mixed_precision/logs/chisel/falcon3_7b_1layer_bfp8.jsonl
+- Result: **all kernels sound.** 265 `numerics` records; PCC min=0.99985, median=1.0000.
+  Lowest ops: ttnn.softmax 0.99985; ttnn.permute/reshape/typecast/matmul/where all 0.99988;
+  everything else ≈1.0. Even the bfp8 weight `ttnn.matmul` = 0.99988. NO broken/regressing kernel,
+  no degenerate max/eq/argmax outliers. Conclusion: the kept bfp8 config's kernels are numerically
+  correct; the full-MLP-bfp4 threshold miss is genuine 4-bit quantization loss, NOT a kernel bug
+  (consistent with skill: chisel = kernel correctness, cannot quantify quant-vs-fp32).
+- NOTE: the pytest process HUNG after chisel finished writing the JSONL and was killed by
+  `timeout` (EXIT=124). The JSONL (written ~1 min in) is complete and valid; the hang was in
+  post-run teardown/perf-metrics, not in capture. trace was already False.
+
+## 4. Pattern-not-triggering findings (if any)
+- The MLP bfp4 override glob initially used HF names (`mlp.gate_proj`/`mlp.up_proj`) and silently
+  did NOT lower those tensors (vLLM fuses them to `gate_up_proj`). Not a tt-mlir pass miss — a
+  parameter-naming mismatch in the override JSON. Fixed by using `gate_up_proj`. See §3.
+
+## 5. Final result
+- **Final config kept (baked into SINGLE_DEVICE_CONFIGS as an uncommitted working-tree edit):**
+  `_config("tiiuae/Falcon3-7B-Base", optimization_level=0, experimental_kv_cache_dtype="bfp_bf8")`
+  → weights bfp8 (default), KV cache bfp8, activation lowering off, **optimization_level=0**.
+- Confirmation run of the committed entry (no env overrides): mixed_precision/logs/runs/falcon3_final_committed.out
+  → **TOP1 p5 79.69% / TOP5 p5 95.31%, PASSED** (exactly reproduces run 2). Checked-in entry works.
+- **Features kept / dropped and WHY:**
+  - KV-cache bfp8 → **KEPT.** TOP1 p5 81.25%→79.69% (-1.56pp, well above 73.125% threshold),
+    TOP5 p5 93.75%→95.31% (up). Halves KV memory (KV capacity 5,600→11,232 tokens observed).
+  - Weight bfp8 → **KEPT** (already the config default; chisel confirms matmul PCC 0.99988).
+  - Activation-dtype lowering → **NOT SET** (no-op on single chip — pass matches CCL subgraphs
+    absent on one device).
+  - MLP-weight bfp4 → **DROPPED (full MLP).** gate_up_proj+down_proj bfp4 → TOP1 p5 71.88%,
+    BELOW the 73.125% threshold. The huge intermediate_size=23040 MLP is not 4-bit-robust.
+    down_proj-only bfp4 holds TOP1 p5 75.00% (thin 1.9pp margin) — documented as an OPTIONAL
+    memory-saving override (overrides_falcon3_7b_mlp_bfp4_fused.json / a down_proj-only variant),
+    not baked in.
+- **Mechanism note:** `_config`'s `if optimization_level:` guard treats `0` as falsy, so passing
+  `optimization_level=0` OMITS the key from `additional_config` (verified in the final run's LLM
+  args). That absent-key state == the plugin's compiling default and is byte-identical to the
+  successful `_BENCH_OPTIMIZATION_LEVEL=0` env-var runs (2–4). It is the opt=**2** committed default
+  that actively fails; omitting/0 is the fix.
+- **Extra (non-MP) finding baked in:** optimization_level MUST be 0. The committed default opt=2
+  fails to COMPILE on n150 (typecast BLOCK_SHARDED→INTERLEAVED layout mismatch in L1-spill/DRAM
+  demotion). This is a pre-existing compiler bug, orthogonal to MP, but blocks the model entirely
+  at opt=2, so the final config pins opt=0 (precedent: llama-3.1-8b).
+
+## 6. Root-cause analysis — what went wrong
+1. **Baseline did not even compile at the committed opt-level 2** — a typecast memory-layout
+   TT_FATAL, not OOM and not MP. Cost one full ~3-min run to discover. The skill's happy path
+   assumes the current committed config is a working starting point; here it wasn't. Dropping to
+   opt-level 0 (documented precedent in the same file: llama-3.1-8b) unblocked it. Lesson: a
+   "baseline" run can fail to COMPILE for opt-level reasons unrelated to MP; treat a compile
+   failure distinctly from an accuracy/OOM failure and check opt-level precedents first.
+2. **MLP bfp4 override glob silently missed** because it used HF checkpoint names
+   (`mlp.gate_proj`/`mlp.up_proj`), but vLLM FUSES gate+up into `gate_up_proj`. `down_proj` kept
+   its name and matched. The "did not match any model parameters" warning was the tell. Cost one
+   run (which became a useful down_proj-only data point). Lesson: confirm the **vLLM** fused param
+   names (gate_up_proj, qkv_proj), not the HF names, before writing MLP/attention globs.
+3. **chisel timeout=124 despite trace off** — capture completed fast (~1 min, valid JSONL) but the
+   pytest process hung in teardown/perf-metrics and was killed at 900s. Not a data-loss issue; the
+   JSONL was already complete. Lesson: after a chisel run, check for the JSONL regardless of a 124
+   exit — the records may be fully captured even when the process hangs on shutdown.
+
+## 7. Proposed skill edits (draft — needs user approval before applying)
+1. **Param-name guidance (§ happy-path step 3):** state explicitly that override globs match the
+   **vLLM** model's parameter names, and vLLM fuses `gate_proj`+`up_proj`→`gate_up_proj` (and
+   q/k/v→`qkv_proj`) for Llama-family models (incl. Falcon3, which is Llama-arch). The example glob
+   `model.layers.*.mlp.*proj.weight` does NOT match the fused `gate_up_proj` via `*proj` — actually
+   it does match `gate_up_proj.weight` (ends in `proj.weight`), but separate `gate_proj`/`up_proj`
+   globs silently miss. Recommend confirming names from the "did not match" warning or the vLLM
+   model, and give the fused MLP glob set as the Falcon3/Llama example.
+2. **Compile-failure branch (new red flag / Step 0.5):** add that the committed config may FAIL TO
+   COMPILE (not just under-perform) — e.g. an opt-level-2 typecast/L1-spill layout TT_FATAL on
+   n150. Instruct: on a compile failure during the baseline, retry at `_BENCH_OPTIMIZATION_LEVEL=0`
+   (precedent llama-3.1-8b) BEFORE any MP work, and pin opt-level in the final config. Distinguish
+   compile-fail from OOM (do NOT halve batch size for a layout TT_FATAL).
+3. **chisel EXIT=124 note (§ what-can-go-wrong B):** add that even with trace off, the pytest
+   process may hang in teardown after chisel writes its JSONL; the timeout kill (124) is expected
+   and the JSONL is still complete — always inspect `chisel_results/*.jsonl` before concluding the
+   run failed.
+4. **Very-large-MLP bfp4 caveat:** note that models with an outsized intermediate_size (Falcon3-7B:
+   23040, 7.5× hidden) are LESS bfp4-robust on MLP than the skill's "MLP is usually most
+   quantization-robust" heuristic implies — full-MLP bfp4 fell below threshold here; a partial
+   (down_proj-only) bfp4 was the most that held.
