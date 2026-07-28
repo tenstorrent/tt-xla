@@ -61,6 +61,19 @@ class TTWorker:
         is_driver_worker: bool = False,
     ):
         self.is_driver_worker = is_driver_worker
+
+        # Set the tt-metal per-operation watchdog timeout in the worker process
+        # itself, so it is guaranteed to be present where tt-metal reads it
+        # regardless of how the process was launched (standalone `vllm serve` /
+        # pytest, or via tt-inference-server's tt-media-server, which crosses an
+        # extra multiprocessing.Process + vLLM spawn boundary before this point).
+        # setdefault so a shell/yaml-provided value still wins.
+        os.environ.setdefault("TT_METAL_OPERATION_TIMEOUT_SECONDS", "120")
+        # tt-mlir runtime logger verbosity. Set here (earliest point in the
+        # worker process) so it lands before the runtime initializes its logger
+        # on device bring-up. setdefault so a shell/yaml value still wins.
+        os.environ.setdefault("TTMLIR_RUNTIME_LOGGER_LEVEL", "DEBUG")
+
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
         self.cache_config = vllm_config.cache_config
