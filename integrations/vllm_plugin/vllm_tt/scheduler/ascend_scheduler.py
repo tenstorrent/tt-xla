@@ -608,6 +608,13 @@ class AscendScheduler(Scheduler):
         )
         scheduled_cached_reqs = cached_reqs_data
 
+        # Dynamic speculative decoding: compute optimal K for the next step.
+        num_spec_tokens_to_schedule = self.num_spec_tokens
+        if self.dynamic_sd_lookup is not None and len(num_scheduled_tokens) > 0:
+            num_spec_tokens_to_schedule = self.dynamic_sd_lookup[
+                len(num_scheduled_tokens)
+            ]
+
         scheduler_output = SchedulerOutput(
             scheduled_new_reqs=new_reqs_data,
             scheduled_cached_reqs=scheduled_cached_reqs,
@@ -623,6 +630,7 @@ class AscendScheduler(Scheduler):
             # the previous and the current steps.
             finished_req_ids=self.finished_req_ids,  # type: ignore
             free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
+            num_spec_tokens_to_schedule=num_spec_tokens_to_schedule,
         )
 
         # NOTE(Kuntai): this function is designed for multiple purposes:

@@ -5,6 +5,8 @@
 import bisect
 import contextlib
 import gc
+import inspect
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
@@ -88,7 +90,7 @@ from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
 from vllm.v1.spec_decode.ngram_proposer import NgramProposer
 
 try:
-    from vllm.v1.spec_decode.gemma4_proposer import Gemma4Proposer
+    from vllm.v1.spec_decode.gemma4 import Gemma4Proposer
 except ImportError:
     Gemma4Proposer = None  # type: ignore[assignment]
 
@@ -176,6 +178,14 @@ logger = tt_init_logger(__name__)
 
 INVALID_TOKEN_ID = -1
 
+# Upstream Gemma4 proposer API wiring is not complete in TTModelRunner yet.
+# The temporary ngram fallback can crash in some environments (Numba runtime
+# segfault), so keep it disabled by default. Set
+# TT_VLLM_ENABLE_UNWIRED_GEMMA4_NGRAM_FALLBACK=1 to restore old behavior.
+_ENABLE_UNWIRED_GEMMA4_NGRAM_FALLBACK = os.environ.get(
+    "TT_VLLM_ENABLE_UNWIRED_GEMMA4_NGRAM_FALLBACK", "0"
+).lower() in {"1", "true", "yes", "on"}
+
 
 def _is_gemma4_mtp_enabled(speculative_config: object | None) -> bool:
     if speculative_config is None:
@@ -241,6 +251,15 @@ class TTGemma4ProposerAdapter:
 
     def __init__(self, proposer: object):
         self._proposer = proposer
+        try:
+            params = inspect.signature(self._proposer.propose).parameters
+            self._uses_upstream_propose_api = "target_hidden_states" in params
+        except (TypeError, ValueError):
+            self._uses_upstream_propose_api = False
+
+    @property
+    def uses_upstream_propose_api(self) -> bool:
+        return self._uses_upstream_propose_api
 
     def reset_finished_reqs(self, finished_req_ids: Sequence[str]) -> None:
         for method_name in ("on_requests_finished", "reset_finished_reqs"):
@@ -248,6 +267,11 @@ class TTGemma4ProposerAdapter:
             if callable(method):
                 method(finished_req_ids)
                 return
+
+    def set_per_group_block_table(self, gid: int, block_table: torch.Tensor) -> None:
+        method = getattr(self._proposer, "set_per_group_block_table", None)
+        if callable(method):
+            method(gid, block_table)
 
     def update_hidden_state_feedback(
         self,
@@ -274,23 +298,44 @@ class TTGemma4ProposerAdapter:
         sampled_token_ids_list: list[list[int]],
         num_tokens_no_spec: np.ndarray,
         token_ids_cpu: np.ndarray,
+        num_spec_tokens_to_schedule: int | None = None,
     ) -> list[list[int]]:
         raw: object | None = None
-        try:
-            raw = self._proposer.propose(
-                sampled_token_ids_list,
-                num_tokens_no_spec,
-                token_ids_cpu,
-            )
-        except TypeError:
+        if num_spec_tokens_to_schedule is not None:
             try:
                 raw = self._proposer.propose(
+                    num_speculative_tokens=num_spec_tokens_to_schedule,
                     sampled_token_ids=sampled_token_ids_list,
                     num_tokens_no_spec=num_tokens_no_spec,
                     token_ids_cpu=token_ids_cpu,
                 )
             except TypeError:
-                raw = self._proposer.propose()
+                try:
+                    raw = self._proposer.propose(
+                        num_spec_tokens_to_schedule,
+                        sampled_token_ids_list,
+                        num_tokens_no_spec,
+                        token_ids_cpu,
+                    )
+                except TypeError:
+                    pass
+
+        if raw is None:
+            try:
+                raw = self._proposer.propose(
+                    sampled_token_ids_list,
+                    num_tokens_no_spec,
+                    token_ids_cpu,
+                )
+            except TypeError:
+                try:
+                    raw = self._proposer.propose(
+                        sampled_token_ids=sampled_token_ids_list,
+                        num_tokens_no_spec=num_tokens_no_spec,
+                        token_ids_cpu=token_ids_cpu,
+                    )
+                except TypeError:
+                    raw = self._proposer.propose()
 
         return _normalize_draft_token_ids(raw, len(sampled_token_ids_list))
 
@@ -658,10 +703,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         "Please install a vLLM build with Gemma4Proposer support."
                     )
                 try:
-                    proposer = Gemma4Proposer(vllm_config)
+                    proposer = Gemma4Proposer(self.vllm_config, self.device, self)
                 except TypeError:
-                    proposer = Gemma4Proposer()
+                    try:
+                        proposer = Gemma4Proposer(self.vllm_config, self.device)
+                    except TypeError:
+                        proposer = Gemma4Proposer(self.vllm_config)
                 self._gemma4_drafter_adapter = TTGemma4ProposerAdapter(proposer)
+                # Keep an ngram proposer as a compatibility fallback when
+                # Gemma4Proposer exposes the upstream full-model propose API.
+                self.drafter = NgramProposer(vllm_config)
             # Initialize ngram CPU proposer for speculative decoding
             elif self.speculative_config.method == "ngram":
                 self.drafter = NgramProposer(vllm_config)
@@ -1650,6 +1701,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
+        if self._gemma4_drafter_adapter is not None:
+            for gid, group_block_table in enumerate(
+                self.input_batch.block_table.block_tables
+            ):
+                self._gemma4_drafter_adapter.set_per_group_block_table(
+                    gid,
+                    group_block_table.get_device_tensor(actual_num_reqs),
+                )
+
         batch_idx = self._batch_idx_dev[target_num_reqs]
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
@@ -2165,7 +2225,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.drafter is None and self._gemma4_drafter_adapter is None
         ):
             return
+        logger.info(f"scheduler_output: {scheduler_output}")
+        logger.info(f"self.num_spec_tokens: {self.num_spec_tokens}")
 
+        num_spec_tokens_to_schedule = int(
+            getattr(
+                scheduler_output, "num_spec_tokens_to_schedule", self.num_spec_tokens
+            )
+        )
+        logger.info(f"num_spec_tokens_to_schedule: {num_spec_tokens_to_schedule}")
+        if num_spec_tokens_to_schedule <= 0:
+            return
+
+        logger.info(
+            f"proposing draft token IDs for {num_spec_tokens_to_schedule} speculative tokens"
+        )
         # Convert sampled_token_ids to list of lists for ngram proposer
         sampled_token_ids_list = sampled_token_ids.cpu().tolist()
         if not sampled_token_ids_list:
@@ -2211,6 +2285,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     ]
                 )
         req_ids = cast(list[str], self.input_batch.req_ids[: self.input_batch.num_reqs])
+
+        def _propose_with_ngram_fallback() -> list[list[int]]:
+            if self.drafter is None:
+                return [[] for _ in req_ids]
+            try:
+                logger.info(
+                    f"Calling drafter.propose with num_spec_tokens_to_schedule={num_spec_tokens_to_schedule}"
+                )
+                return self.drafter.propose(
+                    num_spec_tokens_to_schedule,
+                    sampled_token_ids_list,
+                    num_tokens_no_spec,
+                    token_ids_cpu,
+                )
+            except TypeError:
+                logger.info(f"calling drafter.propose fallback")
+                return self.drafter.propose(
+                    sampled_token_ids_list,
+                    num_tokens_no_spec,
+                    token_ids_cpu,
+                )
+
         if self._gemma4_drafter_adapter is not None:
             for req_idx in discard_req_indices:
                 if 0 <= req_idx < len(req_ids):
@@ -2225,24 +2321,41 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_feedback,
                 sampled_token_ids_list,
             )
-            draft_token_ids = self._gemma4_drafter_adapter.propose(
-                sampled_token_ids_list,
-                num_tokens_no_spec,
-                token_ids_cpu,
-            )
+            if self._gemma4_drafter_adapter.uses_upstream_propose_api:
+                if _ENABLE_UNWIRED_GEMMA4_NGRAM_FALLBACK:
+                    logger.warning_once(
+                        "Gemma4Proposer uses upstream SpecDecodeBaseProposer API; "
+                        "falling back to TT ngram proposer until the full upstream "
+                        "propose contract is wired in TTModelRunner."
+                    )
+                    draft_token_ids = _propose_with_ngram_fallback()
+                else:
+                    logger.warning_once(
+                        "Gemma4Proposer uses upstream SpecDecodeBaseProposer API; "
+                        "disabling ngram fallback by default due known Numba runtime "
+                        "segfault risk. Set TT_VLLM_ENABLE_UNWIRED_GEMMA4_NGRAM_FALLBACK=1 "
+                        "to re-enable old fallback behavior."
+                    )
+                    draft_token_ids = [[] for _ in req_ids]
+            else:
+                draft_token_ids = self._gemma4_drafter_adapter.propose(
+                    sampled_token_ids_list,
+                    num_tokens_no_spec,
+                    token_ids_cpu,
+                    num_spec_tokens_to_schedule=num_spec_tokens_to_schedule,
+                )
         else:
             assert self.drafter is not None
             # Propose draft tokens using ngram proposer
-            draft_token_ids = self.drafter.propose(
-                sampled_token_ids_list,
-                num_tokens_no_spec,
-                token_ids_cpu,
-            )
+            draft_token_ids = _propose_with_ngram_fallback()
 
         for req_id, draft_tokens in zip(req_ids, draft_token_ids):
             if draft_tokens:
                 self._draft_token_req_ids.append(req_id)
                 self._draft_token_ids.append(draft_tokens)
+        logger.info(
+            f"draft token IDs proposed for {self._draft_token_req_ids} requests"
+        )
 
     def take_draft_token_ids(self) -> DraftTokenIds | None:
         """Take draft token IDs and request IDs from proposer.
