@@ -28,10 +28,12 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
+import torch_xla.distributed.spmd as xs
 from tt_torch.custom_ops import (
     dsa_kernels_available,
     topk_large_indices_mask_invalid_slots,
 )
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.layers.layernorm import LayerNorm
 from vllm.model_executor.layers.linear import (
@@ -268,6 +270,15 @@ class TTIndexer(nn.Module):
         # the model graph). The architecture is fixed for the process anyway.
         self._kernels_available = dsa_kernels_available()
 
+        # Same reason: xs.get_global_mesh() reaches into _XLAC. The mesh is built
+        # once in model_runner before load_model, so it is available by now and
+        # fixed for the process. Used by the prefill sequence split.
+        self._mesh = xs.get_global_mesh()
+        self._mesh_devices = 1
+        if self._mesh is not None:
+            for dim in self._mesh.mesh_shape:
+                self._mesh_devices *= dim
+
         self._log_advisories()
 
     # ------------------------------------------------------------------ #
@@ -445,6 +456,45 @@ class TTIndexer(nn.Module):
             return indices
         return topk_large_indices_mask_invalid_slots(indices, visible_count)
 
+    def _prefill_seq_shard_spec(self, seq_len: int):
+        """Partition spec splitting the indexer query's seq dim, or None.
+
+        None means "leave the query replicated", which is correct on a single
+        device and is the historical behaviour everywhere.
+
+        Two divisibility conditions have to hold, and both are hard requirements
+        rather than perf heuristics:
+          * ``seq_len % devices == 0`` -- the op derives one Sq for every rank, so
+            a ragged split would misdescribe the tail device.
+          * ``Sq % 32 == 0`` -- Sq is a tile height, and chunk_start_idx must stay
+            tile-aligned (``chunk_start_idx % TILE_WIDTH == 0``).
+        Both hold for the shapes DSA runs at (seq_len >= 32 * devices); below that
+        the query stays replicated, which is fine because such a short prefill
+        cannot clear ``dsa_prefill_uses_sparse`` at production topk anyway.
+
+        ``seq_len`` is a Python int at trace time, so this is a static branch: one
+        graph per prefill bucket, same as the sparse predicates.
+        """
+        if self._mesh is None or self._mesh_devices <= 1:
+            return None
+        if (
+            seq_len % self._mesh_devices != 0
+            or (seq_len // self._mesh_devices) % 32 != 0
+        ):
+            logger.warning(
+                "[TT] DSA prefill: seq_len %d does not split into %d tile-aligned "
+                "shards; leaving the indexer query replicated. On Blackhole the "
+                "indexer_score_dsa kernel rejects that layout (it reads a "
+                "per-device rank off q and requires T >= (rank+1) * Sq).",
+                seq_len,
+                self._mesh_devices,
+            )
+            return None
+        # Compound axis in mesh-axis order => row-major linearization over ALL
+        # devices, which is what the op's seq_shard_axes=[] / cluster_axis=None
+        # flat device rank assumes.
+        return (None, None, tuple(self._mesh.axis_names), None)
+
     def _forward_prefill(
         self, q_op, k_op, w_op, kv_cache, attn_metadata, users, seq_len
     ):
@@ -470,6 +520,32 @@ class TTIndexer(nn.Module):
             torch.arange(seq_len, dtype=torch.int32, device=q_op.device) + 1
         ).view(1, 1, seq_len, 1)
 
+        # Shard the query sequence across the mesh when it divides evenly. The
+        # indexer_score_dsa kernel models q as sequence-parallel: it derives a
+        # per-device rank from q's device coords and requires
+        # T >= (max_rank + 1) * Sq. A sequence-REPLICATED q on N devices therefore
+        # reports rank N-1 with Sq == T and aborts with "fullest-device chunk window
+        # ... exceeds T". Sharding seq gives Sq == T / N, satisfying the bound with
+        # equality -- exactly the layout the op's chunk_start deduction assumes, so
+        # nothing extra has to be plumbed through tt-mlir. K stays replicated
+        # (the op needs all T keys) and so do the indexer's heads, since the op sums
+        # over the Hi resident on the device.
+        #
+        # sharding_constraint_tensor, not xs.mark_sharding: this runs inside the
+        # traced graph, and mark_sharding/get_global_mesh reach into _XLAC, which
+        # dynamo refuses to trace ("Attempted to call function marked as skipped").
+        # It is functional, hence the reassignments.
+        seq_spec = self._prefill_seq_shard_spec(seq_len)
+        if seq_spec is not None:
+            q_op = sharding_constraint_tensor(q_op, self._mesh, seq_spec)
+            w_op = sharding_constraint_tensor(w_op, self._mesh, seq_spec)
+            # visible_count is indexed by query row, so it must follow q's split.
+            # A sharded iota is materialized per shard with globally-correct values,
+            # keeping row s's visible count s+1 in GLOBAL coordinates.
+            visible_count = sharding_constraint_tensor(
+                visible_count, self._mesh, seq_spec
+            )
+
         # Both DSA ops require batch == 1, so score/select one user at a time.
         per_user = []
         for u in range(users):
@@ -478,9 +554,18 @@ class TTIndexer(nn.Module):
                 key=k_op[u : u + 1],
                 weights=w_op[u : u + 1],
                 chunk_start_idx=0,
-            )  # [1, 1, seq_len, seq_len]
+            )  # [1, 1, seq_len/shards, seq_len]
             per_user.append(self._select(score, visible_count))
-        return torch.cat(per_user, dim=0)  # [users, 1, seq_len, topk]
+        indices = torch.cat(per_user, dim=0)  # [users, 1, seq_len, topk]
+
+        if seq_spec is not None:
+            # sparse_sdpa is sharded on heads, not sequence, so every device needs
+            # indices for every query row: state the replication explicitly rather
+            # than leaving the resharding for the partitioner to infer.
+            indices = sharding_constraint_tensor(
+                indices, self._mesh, (None, None, None, None)
+            )
+        return indices
 
     def _forward_decode(self, q_op, k_op, w_op, kv_cache, attn_metadata, users):
         # Append this token's indexer K at the current position.

@@ -551,7 +551,7 @@ def test_tensor_parallel_generation_deepseek_v32_3l(
             "enable_tensor_parallel": True,
             "mesh_shape": [2, 4],
             # Mirrors the known-good DeepSeek-V2-Lite params above.
-            "optimization_level": 0,
+            "optimization_level": 1,
             "flat_model_io": True,
             "export_path": export_dir,
             "export_model_name": f"dsa_3l_topk{index_topk}",
@@ -607,35 +607,32 @@ def _run_dsa(model_dir, mesh_shape, dsa_mode, export_dir):
             "num_hidden_layers": DSA_NUM_LAYERS,
             "enable_tensor_parallel": True,
             "mesh_shape": mesh_shape,
-            # Mirrors the known-good DeepSeek-V2-Lite params above.
-            "optimization_level": 0,
+            # Mirrors the known-good DeepSeek-V2-Lite params above. Must be >= 1:
+            # at 0 the DSA composites inline their primitive decompositions even on
+            # Blackhole with a correct system desc, so the A/B would compare the
+            # decomposition against dense and prove nothing about the kernels.
+            "optimization_level": 1,
             "flat_model_io": True,
             "dsa_mode": dsa_mode,
             "export_path": export_dir,
             "export_model_name": f"dsa_{dsa_mode}",
         },
     )
-    output = llm.generate(prompts, sampling_params)[0].outputs[0]
-    print(f"dsa_mode={dsa_mode}: {output.token_ids} {output.text!r}")
-    return list(output.token_ids)
+    try:
+        output = llm.generate(prompts, sampling_params)[0].outputs[0]
+        print(f"dsa_mode={dsa_mode}: {output.token_ids} {output.text!r}")
+        return list(output.token_ids)
+    finally:
+        # Release the devices before the caller builds the second engine. Letting
+        # `llm` fall out of scope is NOT enough: the EngineCore child process holds
+        # every /dev/tenstorrent fd until explicitly shut down, so the next
+        # vllm.LLM() in this test blocks forever waiting for devices that the first
+        # engine still owns. Both engines sitting on 16 fds each, with the second
+        # parked in futex waits, is what the old skip on this test described as a
+        # "sparse prefill stall".
+        llm.llm_engine.engine_core.shutdown()
 
 
-@pytest.mark.skip(
-    reason="DSA sparse prefill stalls in the full model on Wormhole. All 12 graphs "
-    "convert to ttnn_runtime MLIR in ~20s, then execution never completes: the host "
-    "parks in tt::tt_metal::distributed::FDMeshCommandQueue::read_completion_queue "
-    "with no kernel-cache activity. Reproduced at DSA_MODEL_LEN 256 AND 1024, so it "
-    "is shape-independent. dsa_mode='off' on the same model/config completes in "
-    "~3 min, which isolates it to the sparse path. NOT the sparse_sdpa decomposition "
-    "memory blowup (fixed, see docs/dsa-tt-mlir-changes.md) -- the graphs contain "
-    "ttnn.scatter and no [1,S,TOPK,T] tensor. NOT sparse_sdpa alone either: it "
-    "passes on device at production shapes in tests/torch/ops/test_dsa_ops.py and "
-    "under a TP mesh in oot_backends/test_dsa_prefill_impl.py. The untested "
-    "combination this test is first to exercise is all three DSA ops inside one "
-    "compiled model graph under TP sharding. Next bisect step: run with "
-    "index_topk > DSA_MODEL_LEN so the indexer and its KV cache are still built but "
-    "no DSA op is emitted, separating the kv-cache/spec plumbing from the ops."
-)
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.parametrize(
