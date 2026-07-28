@@ -380,13 +380,13 @@ def partition_fused_moe(
     mesh (see below), independent of the DP/TP weight-sharding flag.
 
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
-    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
-    path on a genuine 2D mesh (both axes > 1), where experts are distributed
-    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
-    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
-    the dense bmm path, which needs the full expert set on every device, so
-    leave the expert weights replicated (mirrors the is_2d guard in
-    layers/fused_moe.py)."""
+    [E, H, I] on the RoutedExperts submodule. The TT MoE path only takes the
+    expert-parallel (tt_experts_forward) path on a genuine 2D mesh (both axes >
+    1), where experts are distributed across *all* devices via a compound
+    sharding over both axes (e.g. (2,2) -> 4-way split of E). On a 1D /
+    degenerate / single-chip mesh it uses the dense bmm path, which needs the
+    full expert set on every device, so leave the expert weights replicated
+    (mirrors the is_2d guard in TTRoutedExperts.forward_native)."""
     mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
     if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
         logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
@@ -412,8 +412,12 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
-        ("TTFusedMoE", partition_fused_moe),
-        ("TTSharedFusedMoE", partition_fused_moe),
+        # vLLM 0.25.1 moved the stacked expert weights (w13_weight/w2_weight)
+        # from the old monolithic TTFusedMoE module onto the RoutedExperts
+        # submodule; TT injects TTRoutedExperts there (see layers/fused_moe.py).
+        # partition_fused_moe reads w13_weight/w2_weight, so it must match that
+        # class. Only fires on MoE + genuine 2D mesh (expert parallelism).
+        ("TTRoutedExperts", partition_fused_moe),
     ]
 )
 

@@ -474,6 +474,12 @@ class TTPlatform(Platform):
                 "vllm_tt.scheduler.AscendScheduler"
             )
 
+        # TT does not support asynchronous scheduling (is_async_output_supported
+        # is False). v0.25.1 auto-enables it when left unset, which drives the
+        # AscendScheduler stale-request path into an endless preempt/retry loop.
+        # Force it off.
+        vllm_config.scheduler_config.async_scheduling = False
+
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
@@ -655,3 +661,21 @@ class TTPlatform(Platform):
         worker after initializing the device.
         """
         return
+
+
+def install_tt_accelerator_memory_info() -> None:
+    """Route ``torch.accelerator.get_memory_info`` to the TT host-memory estimate.
+
+    vLLM 0.25.1's Gemma4 multimodal encoder sizes its vision-encoder chunks with
+    ``torch.accelerator.get_memory_info()``, which asserts on the TT (xla/"jax")
+    device because it has no torch ``DeviceAllocator``. Reuse the same host-memory
+    estimate as ``TTPlatform.mem_get_info`` (the value only scales the encoder
+    chunk size, so a host-memory estimate is always safe).
+    """
+    if not hasattr(torch, "accelerator"):
+        return
+
+    def _tt_get_memory_info(device=None) -> tuple[int, int]:
+        return TTPlatform.mem_get_info()
+
+    torch.accelerator.get_memory_info = _tt_get_memory_info
