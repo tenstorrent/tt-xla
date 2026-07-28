@@ -253,7 +253,23 @@ SINGLE_DEVICE_CONFIGS = [
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
     pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
-    pytest.param(_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-base"),
+    # MP bringup (dgolubovic/mp-agentic-bringup): final tuned config — weights bfp8 (default)
+    # + KV cache bfp8, at optimization_level=0. TOP1 p5 79.69% / TOP5 p5 95.31% vs baseline
+    # (opt0, KV bf16) TOP1 p5 81.25% / TOP5 p5 93.75% (threshold 73.125%). opt-level MUST be 0:
+    # the default optimization_level=2 FAILS TO COMPILE on n150 (L1-spill typecast layout bug,
+    # BLOCK_SHARDED vs INTERLEAVED in the DRAM-demotion path). Activation-dtype lowering NOT set
+    # (no-op single-chip). MLP-weight bfp4 evaluated and NOT baked in: full-MLP bfp4 (gate_up_proj
+    # + down_proj) drops TOP1 p5 to 71.88% (below threshold); down_proj-only bfp4 holds 75.00%
+    # (thin margin) — enable via TT_BENCHMARK_WEIGHT_OVERRIDES only if memory-constrained.
+    # See mixed_precision/logs/falcon3-7b-base-bringup.log.
+    pytest.param(
+        _config(
+            "tiiuae/Falcon3-7B-Base",
+            optimization_level=0,
+            experimental_kv_cache_dtype="bfp_bf8",
+        ),
+        id="falcon3-7b-base",
+    ),
     # Mistral
     pytest.param(
         _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
