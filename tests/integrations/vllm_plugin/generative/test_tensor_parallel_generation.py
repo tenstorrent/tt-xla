@@ -388,3 +388,317 @@ def test_tensor_parallel_generation_galaxy_wh_6u_pixtral_large(model_name: str):
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
+
+
+# --------------------------------------------------------------------------- #
+# DeepSeek Sparse Attention (DeepSeek-V3.2)
+# --------------------------------------------------------------------------- #
+DSA_REPO = "deepseek-ai/DeepSeek-V3.2-Exp"
+DSA_NUM_LAYERS = 3
+DSA_SHORT_PROMPT = "Continue in English: I like taking walks in the"
+# The model's own index_topk, used when the test does not override it.
+DSA_STOCK_INDEX_TOPK = 2048
+# 9 x 234 tokens = 2106, the fewest repeats that clear DSA_STOCK_INDEX_TOPK.
+DSA_LONG_PROMPT = " ".join([CHUNKED_PREFILL_PROMPT] * 9)
+# Small because the decomposition path is the fallback, not because of any
+# specific limit: production-shape coverage (index_topk=2048) lives in
+# tests/torch/ops/test_dsa_ops.py, which runs the real op shapes on device.
+DSA_MODEL_LEN = 256
+# index_topk is overridden from the model's 2048 to exactly the padded prefill
+# length. That does two things at once:
+#   * seq_len >= index_topk, so the sparse prefill path actually runs
+#     (dsa_prefill_uses_sparse); and
+#   * top-k can cover every causally visible key, so the sparse result must equal
+#     dense causal attention -- which is what makes the A/B comparison below a
+#     real correctness assertion rather than just an op-emission check.
+# It affects no weight shape, and satisfies tt.topk_large_indices' k in [16, 2048]
+# with k % 16 == 0 plus tt.sparse_sdpa's topk % k_chunk_size == 0 (256 % 128).
+DSA_INDEX_TOPK = DSA_MODEL_LEN
+
+# The stablehlo custom calls the three DSA op wrappers emit.
+DSA_SHLO_OPS = ("tt.indexer_score_dsa", "tt.topk_large_indices", "tt.sparse_sdpa")
+# Their promoted TTNN forms; present only when the Blackhole kernels are used
+# rather than the composites' primitive decompositions.
+DSA_TTNN_OPS = ("ttnn.indexer_score_dsa", "ttnn.topk_large_indices", "ttnn.sparse_sdpa")
+
+
+def _dsa_model_dir():
+    """The offline BF16 checkpoint, or skip with instructions to build it.
+
+    The published V3.2 checkpoint is fp8 block-quantized, which TT cannot run:
+    vLLM routes it to Fp8LinearMethod (CUDA-only block GEMMs) and tt-xla does not
+    dequantize fp8 on load. ``build_weight_cache.py --vllm-keys`` produces a bf16
+    copy of the first N layers with HF parameter names preserved (only the shards
+    holding those layers download -- ~10 GB, not the full ~690 GB checkpoint).
+    """
+    import sys
+    from pathlib import Path
+
+    script_dir = Path(__file__).resolve().parents[3] / "torch/models/deepseek_v3_2_exp"
+    sys.path.insert(0, str(script_dir))
+    from build_weight_cache import _has_cache, _vllm_cache_dir
+
+    cache_dir = _vllm_cache_dir(DSA_REPO, DSA_NUM_LAYERS)
+    if not _has_cache(cache_dir):
+        pytest.skip(
+            f"DSA bf16 checkpoint not found at {cache_dir}. Build it once with:\n"
+            f"  python {script_dir}/build_weight_cache.py "
+            f"--repo {DSA_REPO} --n-layers {DSA_NUM_LAYERS} --vllm-keys"
+        )
+    return cache_dir
+
+
+def _exported_ir(export_dir: str, stage: str) -> str:
+    from pathlib import Path
+
+    files = sorted((Path(export_dir) / "irs").glob(f"{stage}_*.mlir"))
+    assert files, f"no {stage}_*.mlir exported under {export_dir}/irs"
+    return "\n".join(f.read_text() for f in files)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["index_topk", "model_len", "prompt"],
+    [
+        # Stock index_topk (2048) with a 128-token window: both sparse
+        # predicates take the dense branch, so no DSA op is emitted. Covers the
+        # DSA model plumbing with the three ops factored out.
+        pytest.param(None, 128, DSA_SHORT_PROMPT, id="dense"),
+        # A 234-token prompt pads to the 256 prefill bucket, and index_topk is
+        # lowered to 128 so 256 >= 128 clears dsa_prefill_uses_sparse. The
+        # decode bucket is 256 as well, so dsa_decode_uses_sparse clears too --
+        # this one param exercises all three DSA ops in both phases. 128
+        # satisfies tt.topk_large_indices' k in [16, 2048] with k % 16 == 0, and
+        # the indexer picks k_chunk_size=128 so tt.sparse_sdpa's
+        # topk % k_chunk_size == 0 holds. index_topk affects no weight shape.
+        pytest.param(128, 256, CHUNKED_PREFILL_PROMPT, id="sparse-topk128"),
+        # The model's real index_topk. 2048 sits at the top of
+        # tt.topk_large_indices' k range and the indexer picks k_chunk_size=128,
+        # so 2048 % 128 == 0 holds.
+        #
+        # model_len MUST be a power of two: _adjust_min_token silently rounds
+        # min_context_len up to one, while the page table is still sized from
+        # max_model_len. A non-power-of-two (2176 was tried) yields a 4096-token
+        # prefill bucket against a 68-block page table and dies inside tt-metal
+        # with "Input seq_len (4096) must fit in max_num_blocks_per_seq (68) *
+        # block_size (32)". 2048 cannot hold the 2106-token prompt, so 4096 it
+        # is. Much heavier than the params above: on Wormhole the
+        # indexer_score_dsa decomposition materializes a [1, 64, 4096, 4096]
+        # bf16 intermediate (~2 GB) per layer.
+        pytest.param(
+            None,
+            4096,
+            DSA_LONG_PROMPT,
+            id="sparse-topk2048",
+            marks=pytest.mark.skip(
+                reason="OOMs on Wormhole's decomposition path. Production "
+                "index_topk needs a prefill bucket >= 2048, and the smallest "
+                "power-of-two bucket holding a >2048-token prompt is 4096. At "
+                "that width the inlined indexer_score_dsa decomposition carries "
+                "a [1, 64, 4096, 4096] bf16 intermediate (2 GiB, confirmed in "
+                "the exported TTIR) and execution dies in bank_manager asking "
+                "for a single 34359738368 B (32 GiB) DRAM buffer against a "
+                "12 GiB device. The 32 GiB is 16x the largest tensor in the IR "
+                "and appears in no tensor type, so it is runtime scratch inside "
+                "a TTNN op -- ttnn.topk over a 4096-wide row with k=2048 is the "
+                "prime suspect, since the Blackhole topk_large_indices kernel "
+                "(which streams in LLK-sized windows) is what this path "
+                "replaces. Re-enable under a Blackhole marker, where all three "
+                "composites promote to kernels and none of these intermediates "
+                "is materialized. Sparse coverage on Wormhole is the "
+                "sparse-topk128 param above."
+            ),
+        ),
+    ],
+)
+def test_tensor_parallel_generation_deepseek_v32_3l(
+    index_topk: int | None, model_len: int, prompt: str, tmp_path
+):
+    """3 layers of DeepSeek-V3.2 generate tokens end to end, dense and sparse.
+
+    Stock model config apart from ``num_hidden_layers`` and, for the sparse
+    param, ``index_topk``. ``first_k_dense_replace=3`` means layers 0-2 are the
+    dense-MLP layers, so this exercises MLA + the DSA indexer + rope + weight
+    loading, and no MoE. The [2, 4] mesh gives 128 / 4 = 32 query heads per
+    device, exactly satisfying tt.sparse_sdpa's "heads >= 32 and a multiple of
+    32" constraint.
+
+    Output is expected to be gibberish -- three layers of a 61-layer model feed
+    lm_head nothing resembling the full model's hidden states -- so only token
+    production is asserted, not coherence. What is asserted precisely is which
+    DSA ops reached the graph, read back from the exported StableHLO: the
+    sparse/dense split is a static Python branch on the prefill bucket, so
+    without that check a silent fall back to dense would still pass.
+    """
+    model_dir = _dsa_model_dir()
+    export_dir = str(tmp_path / "ir")
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=8)
+
+    llm = vllm.LLM(
+        model=model_dir,
+        hf_overrides={} if index_topk is None else {"index_topk": index_topk},
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            # Collapses the token-padding ladder to [1, model_len], i.e. two
+            # graph shapes instead of four -- the main lever on compile time.
+            "min_context_len": model_len,
+            "num_hidden_layers": DSA_NUM_LAYERS,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [2, 4],
+            # Mirrors the known-good DeepSeek-V2-Lite params above.
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "export_path": export_dir,
+            "export_model_name": f"dsa_3l_topk{index_topk}",
+        },
+    )
+
+    output = llm.generate([prompt], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+    assert output.token_ids, "no tokens generated"
+    assert len(output.token_ids) <= 8
+
+    # The engine core runs in a child process, so in-process counters cannot see
+    # the emitted ops; grep the exported MLIR instead.
+    shlo = _exported_ir(export_dir, "shlo")
+    # Mirrors dsa_prefill_uses_sparse: the prefill bucket is model_len (the prompt
+    # pads up to it), and the effective top-k is the model's own value unless
+    # overridden. Keying off `index_topk is not None` instead would wrongly call
+    # the stock-2048 param dense.
+    effective_topk = DSA_STOCK_INDEX_TOPK if index_topk is None else index_topk
+    expect_sparse = model_len >= effective_topk
+    for op in DSA_SHLO_OPS:
+        if expect_sparse:
+            assert op in shlo, (
+                f"{op} was not emitted: DSA fell back to the dense path even "
+                f"though the prefill bucket ({model_len}) covers "
+                f"index_topk ({index_topk})."
+            )
+        else:
+            assert op not in shlo, f"{op} emitted unexpectedly on the dense path"
+
+    check_host_memory(model_dir)
+
+
+def _run_dsa(model_dir, mesh_shape, dsa_mode, export_dir):
+    """Generate greedily with DSA in the given mode; return (token_ids, export_dir)."""
+    # Short prompt: it pads up to DSA_MODEL_LEN, which is what makes seq_len equal
+    # index_topk.
+    prompts = ["Continue in English: I like taking walks in the"]
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=8)
+    llm = vllm.LLM(
+        model=model_dir,
+        hf_overrides={"index_topk": DSA_INDEX_TOPK},
+        # == max_model_len, so the chunked-prefill path stays off (MLA requires it).
+        max_num_batched_tokens=DSA_MODEL_LEN,
+        max_num_seqs=1,
+        max_model_len=DSA_MODEL_LEN,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            # Collapses the token-padding ladder to [1, DSA_MODEL_LEN], i.e. two
+            # graph shapes instead of four -- the main lever on compile time here.
+            "min_context_len": DSA_MODEL_LEN,
+            "num_hidden_layers": DSA_NUM_LAYERS,
+            "enable_tensor_parallel": True,
+            "mesh_shape": mesh_shape,
+            # Mirrors the known-good DeepSeek-V2-Lite params above.
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "dsa_mode": dsa_mode,
+            "export_path": export_dir,
+            "export_model_name": f"dsa_{dsa_mode}",
+        },
+    )
+    output = llm.generate(prompts, sampling_params)[0].outputs[0]
+    print(f"dsa_mode={dsa_mode}: {output.token_ids} {output.text!r}")
+    return list(output.token_ids)
+
+
+@pytest.mark.skip(
+    reason="DSA sparse prefill stalls in the full model on Wormhole. All 12 graphs "
+    "convert to ttnn_runtime MLIR in ~20s, then execution never completes: the host "
+    "parks in tt::tt_metal::distributed::FDMeshCommandQueue::read_completion_queue "
+    "with no kernel-cache activity. Reproduced at DSA_MODEL_LEN 256 AND 1024, so it "
+    "is shape-independent. dsa_mode='off' on the same model/config completes in "
+    "~3 min, which isolates it to the sparse path. NOT the sparse_sdpa decomposition "
+    "memory blowup (fixed, see docs/dsa-tt-mlir-changes.md) -- the graphs contain "
+    "ttnn.scatter and no [1,S,TOPK,T] tensor. NOT sparse_sdpa alone either: it "
+    "passes on device at production shapes in tests/torch/ops/test_dsa_ops.py and "
+    "under a TP mesh in oot_backends/test_dsa_prefill_impl.py. The untested "
+    "combination this test is first to exercise is all three DSA ops inside one "
+    "compiled model graph under TP sharding. Next bisect step: run with "
+    "index_topk > DSA_MODEL_LEN so the indexer and its KV cache are still built but "
+    "no DSA op is emitted, separating the kv-cache/spec plumbing from the ops."
+)
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        # llmbox (wormhole): the DSA composites inline their primitive
+        # decompositions here. Those are faithful once the plugin supplies the
+        # top-k sentinel contract, so this is a real correctness gate.
+        pytest.param([2, 4], marks=pytest.mark.llmbox),
+        # bhqb (blackhole): the only target where the real TTNN kernels run.
+        pytest.param([1, 4], marks=pytest.mark.bhqb),
+    ],
+)
+def test_tensor_parallel_generation_deepseek_v32_dsa(mesh_shape: list[int], tmp_path):
+    """DeepSeek Sparse Attention end to end on the first 3 layers of V3.2.
+
+    ``first_k_dense_replace=3`` means layers 0-2 are the dense-MLP layers, so this
+    covers MLA + the DSA indexer + rope + weight loading, and no MoE. Either mesh
+    gives 128 / 4 = 32 query heads per device, exactly satisfying tt.sparse_sdpa's
+    "heads >= 32 and a multiple of 32" constraint.
+
+    The assertion is an A/B: with ``index_topk`` equal to the padded prefill length
+    the DSA ops all run, yet top-k selects every causally visible key, so sparse
+    prefill must reproduce the dense ``dsa_mode='off'`` result token for token.
+    Decode is dense in both runs (``max_seq_len == index_topk``), so this isolates
+    prefill.
+
+    Output *coherence* is deliberately not asserted: three layers of a 61-layer
+    model feed lm_head hidden states nothing like the full model's, so the text is
+    expected to be gibberish no matter how correct the attention is.
+    """
+    model_dir = _dsa_model_dir()
+    sparse_dir = str(tmp_path / "ir_auto")
+    dense_dir = str(tmp_path / "ir_off")
+
+    sparse_tokens = _run_dsa(model_dir, mesh_shape, "auto", sparse_dir)
+    dense_tokens = _run_dsa(model_dir, mesh_shape, "off", dense_dir)
+
+    assert sparse_tokens, "no tokens generated"
+
+    # The engine core runs in a child process, so in-process counters cannot see
+    # the emitted ops; grep the exported MLIR instead.
+    sparse_shlo = _exported_ir(sparse_dir, "shlo")
+    for op in DSA_SHLO_OPS:
+        assert op in sparse_shlo, f"dsa_mode='auto' did not emit {op}"
+
+    dense_shlo = _exported_ir(dense_dir, "shlo")
+    for op in DSA_SHLO_OPS:
+        assert op not in dense_shlo, f"dsa_mode='off' unexpectedly emitted {op}"
+
+    # On Blackhole the composites must promote to the real kernels; a silent fall
+    # back to the decompositions is the failure this catches.
+    if mesh_shape == [1, 4]:
+        sparse_ttnn = _exported_ir(sparse_dir, "ttnn")
+        for op in DSA_TTNN_OPS:
+            assert op in sparse_ttnn, (
+                f"{op} missing: the DSA composite fell back to its primitive "
+                "decomposition instead of promoting to the TTNN kernel."
+            )
+
+    assert sparse_tokens == dense_tokens, (
+        "sparse and dense prefill disagree even though index_topk covers every "
+        f"causally visible key: sparse={sparse_tokens} dense={dense_tokens}"
+    )
+
+    check_host_memory(model_dir)

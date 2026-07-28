@@ -417,24 +417,40 @@ def shard_model(
     logger.info("Applying parallel sharding to the model...")
 
     def _process_module(module, name=None, parent=None):
-        for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
-            if get_fqn(module) == module_type:
-                wrapped_module = wrapping_func(
-                    module, mesh, shard_weights_on_batch_axis
-                )
+        # Layers built with disable_tp=True hold FULL (unsharded) weights on every
+        # rank by construction, so sharding them would split a feature vector
+        # rather than distribute work. DeepSeek-V3.2's DSA indexer is the motivating
+        # case: its `wk_weights_proj` is a MergedColumnParallelLinear(disable_tp=True)
+        # whose first shard is the 128-wide index key; sharding that across the
+        # "model" axis leaves each device computing a slice of a single key vector,
+        # silently corrupting k_norm, rope and tt.indexer_score_dsa. Recurse into
+        # children regardless -- only this module is exempt.
+        #
+        # Keyed on `disable_tp` ONLY, never on `tp_size`: LinearBase sets
+        # `tp_size = get_tensor_model_parallel_world_size()`, and this plugin runs
+        # vLLM with a TP world size of 1 (SPMD does the sharding), so `tp_size == 1`
+        # holds for *every* layer and would disable sharding model-wide.
+        if getattr(module, "disable_tp", False):
+            logger.debug("skip sharding %s (disable_tp=True)", get_fqn(module))
+        else:
+            for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
+                if get_fqn(module) == module_type:
+                    wrapped_module = wrapping_func(
+                        module, mesh, shard_weights_on_batch_axis
+                    )
 
-                assert (
-                    parent is not None and name is not None
-                ), "Top Level module is not expected to be wrapped."
-                if wrapped_module is not module:
-                    # Wrapped module and module are different py object.
-                    # The original module should be replaced by the
-                    # wrapped_module.
-                    logger.debug("replace %s with %s", module, wrapped_module)
-                    setattr(parent, name, wrapped_module)
+                    assert (
+                        parent is not None and name is not None
+                    ), "Top Level module is not expected to be wrapped."
+                    if wrapped_module is not module:
+                        # Wrapped module and module are different py object.
+                        # The original module should be replaced by the
+                        # wrapped_module.
+                        logger.debug("replace %s with %s", module, wrapped_module)
+                        setattr(parent, name, wrapped_module)
 
-                module = wrapped_module
-                break
+                    module = wrapped_module
+                    break
 
         for child_name, child_module in list(module.named_children()):
             _process_module(child_module, child_name, module)

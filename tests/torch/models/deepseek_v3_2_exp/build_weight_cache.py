@@ -12,6 +12,7 @@ Usage:
     python build_weight_cache.py --n-layers 10
     python build_weight_cache.py --n-layers 4 --repo deepseek-ai/DeepSeek-V3.1
 """
+
 import argparse
 import json
 import os
@@ -253,6 +254,164 @@ def build_cache(repo_id, n_layers, n_dense_layers=1):
     print(f"Cache dir: {cache_dir}")
 
 
+def _vllm_cache_dir(repo_id, n_layers):
+    """BF16 cache directory consumable directly by vLLM's model loader."""
+    return _dequant_cache_dir(repo_id, n_layers) + "_vllm"
+
+
+_VLLM_EXTRA_FILES = (
+    "config.json",
+    "configuration_deepseek.py",
+    "generation_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+)
+
+
+def build_vllm_cache(repo_id, n_layers):
+    """Build a BF16 checkpoint that vLLM can load, keeping HF parameter names.
+
+    Unlike ``build_cache`` (which renames keys for ``modified_model.py``), this
+    preserves the checkpoint's own key names so vLLM's ``DeepseekV3ForCausalLM``
+    weight loader — including the ``stacked_params_mapping`` fusion of
+    ``indexer.wk`` into ``indexer.wk_weights_proj`` — works unchanged.
+
+    Why this exists: TT cannot run the official fp8 checkpoint. vLLM routes
+    ``quant_method="fp8"`` to ``Fp8LinearMethod``, whose block-quantized GEMMs are
+    CUDA-only, and tt-xla does not dequantize fp8 weights on load. So dequantize
+    offline, drop the ``weight_scale_inv`` tensors, and strip
+    ``quantization_config`` from the emitted config.
+
+    Only layers ``[0, n_layers)`` are kept (whole shards still download; there is
+    no partial-download path). ``num_hidden_layers`` in the emitted config is left
+    at the model's original value, so the model-side truncation comes from
+    ``additional_config["num_hidden_layers"]`` — which means that setting is
+    REQUIRED when loading this directory.
+    """
+    cache_dir = _vllm_cache_dir(repo_id, n_layers)
+
+    if _has_cache(cache_dir):
+        print(f"vLLM cache already exists at {cache_dir}, skipping.")
+        print(f"  Files: {sorted(os.listdir(cache_dir))}")
+        print("  Delete the directory to rebuild.")
+        return cache_dir
+
+    t_total_start = time.perf_counter()
+
+    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
+    with _safe_open_hf(index_path) as f:
+        weight_map = json.load(f)["weight_map"]
+
+    # Group the kept keys the same way build_cache does (shared + per layer), so
+    # peak memory stays at roughly one layer.
+    groups = {}  # group_name -> [ckpt_key]
+    scale_keys = {}  # ckpt_weight_key -> ckpt_scale_key
+    all_key_to_shard = {}
+
+    for ckpt_key, shard_file in weight_map.items():
+        layer_m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
+        layer_id = int(layer_m.group(1)) if layer_m else None
+        if layer_id is not None and layer_id >= n_layers:
+            continue
+
+        all_key_to_shard[ckpt_key] = shard_file
+        if "weight_scale_inv" in ckpt_key:
+            # Consumed by dequantization; never written out.
+            scale_keys[ckpt_key.replace(".weight_scale_inv", ".weight")] = ckpt_key
+            continue
+
+        group = f"layer_{layer_id:04d}" if layer_id is not None else "shared"
+        groups.setdefault(group, []).append(ckpt_key)
+
+    os.makedirs(cache_dir, exist_ok=True)
+    shard_index = {}  # ckpt_key -> output shard filename
+    total_bytes = 0
+
+    for group_name in sorted(groups):
+        t_group = time.perf_counter()
+        ckpt_keys = groups[group_name]
+        needed_scales = {scale_keys[k] for k in ckpt_keys if k in scale_keys}
+        raw = _load_tensors(
+            _group_by_shard(set(ckpt_keys) | needed_scales, all_key_to_shard), repo_id
+        )
+
+        state_dict = {}
+        n_dequant = 0
+        for ckpt_key in ckpt_keys:
+            tensor = raw.get(ckpt_key)
+            if tensor is None:
+                continue
+            if tensor.dtype == torch.float8_e4m3fn:
+                sk = scale_keys.get(ckpt_key)
+                scale_inv = raw.get(sk) if sk else None
+                if scale_inv is not None:
+                    tensor = _weight_dequant(tensor, scale_inv)
+                    n_dequant += 1
+                else:
+                    tensor = tensor.to(torch.bfloat16)
+            elif tensor.dtype not in (torch.bfloat16, torch.int64, torch.int32):
+                tensor = tensor.to(torch.bfloat16)
+            state_dict[ckpt_key] = tensor
+        del raw
+
+        shard_name = f"model-{group_name}.safetensors"
+        chunk_path = os.path.join(cache_dir, shard_name)
+        safetensors_save_file(state_dict, chunk_path, metadata={"format": "pt"})
+        for key in state_dict:
+            shard_index[key] = shard_name
+        chunk_size = os.path.getsize(chunk_path)
+        total_bytes += chunk_size
+        del state_dict
+
+        print(
+            f"  {group_name}: {len(ckpt_keys)} keys, {n_dequant} dequantized, "
+            f"{chunk_size / 1e9:.2f} GB, {time.perf_counter() - t_group:.1f}s",
+            flush=True,
+        )
+
+    # safetensors index so the loader can find every parameter.
+    with open(os.path.join(cache_dir, "model.safetensors.index.json"), "w") as f:
+        json.dump(
+            {"metadata": {"total_size": total_bytes}, "weight_map": shard_index},
+            f,
+            indent=2,
+        )
+
+    # config.json without quantization_config -- the whole point of dequantizing.
+    config_path = hf_hub_download(repo_id, "config.json")
+    with _safe_open_hf(config_path) as f:
+        config = json.load(f)
+    original_layers = config.get("num_hidden_layers")
+    config.pop("quantization_config", None)
+    with open(os.path.join(cache_dir, "config.json"), "w") as f:
+        json.dump(config, f, indent=2)
+
+    for name in _VLLM_EXTRA_FILES:
+        if name == "config.json":
+            continue
+        try:
+            src = hf_hub_download(repo_id, name)
+        except Exception:
+            continue  # optional file, not in every repo
+        with open(src, "rb") as fin, open(os.path.join(cache_dir, name), "wb") as fout:
+            fout.write(fin.read())
+
+    print(
+        f"\nDone. {len(groups)} shards, {total_bytes / 1e9:.2f} GB total, "
+        f"{time.perf_counter() - t_total_start:.1f}s",
+        flush=True,
+    )
+    print(f"vLLM cache dir: {cache_dir}")
+    print(
+        f"\nNOTE: only layers [0, {n_layers}) were written, but config.json still "
+        f"declares num_hidden_layers={original_layers}. Load it with:\n"
+        f'    vllm.LLM(model="{cache_dir}",\n'
+        f'             additional_config={{"num_hidden_layers": {n_layers}, ...}})\n'
+        "Without that setting the loader will look for the missing layers."
+    )
+    return cache_dir
+
+
 def _stack_experts_for_chunk(chunk):
     """Convert per-expert weights in a chunk to stacked StackedExperts format.
 
@@ -385,12 +544,25 @@ if __name__ == "__main__":
         action="store_true",
         help="Build post-sparse cache (stacked experts). Requires pre-sparse cache.",
     )
+    parser.add_argument(
+        "--vllm-keys",
+        action="store_true",
+        help="Build a BF16 checkpoint vLLM can load directly: HF parameter names "
+        "preserved, weight_scale_inv dropped, quantization_config stripped. Use "
+        "this for the vLLM plugin (which cannot run fp8 checkpoints).",
+    )
     args = parser.parse_args()
 
     if not re.fullmatch(
         r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", args.repo
     ):
         parser.error(f"Invalid repo ID {args.repo!r}: expected 'org/model' format")
+
+    if args.vllm_keys:
+        # Key names are preserved verbatim, so n_dense_layers (a modified_model.py
+        # renaming concern) is irrelevant here.
+        build_vllm_cache(args.repo, args.n_layers)
+        raise SystemExit(0)
 
     n_dense_layers = args.n_dense_layers
     if n_dense_layers is None:

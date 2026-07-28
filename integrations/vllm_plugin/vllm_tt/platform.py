@@ -144,6 +144,25 @@ class TTConfig:
     # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
 
+    # DeepSeek Sparse Attention (DSA) mode, for DeepSeek-V3.2-style models.
+    #   "auto" (default): full DSA. Prefill uses tt.sparse_sdpa over the selected
+    #       top-k whenever seq_len >= index_topk (below that, top-k would cover
+    #       every visible key anyway, so the dense kernel is used).
+    #       Decode likewise attends to only the selected top-k once the context
+    #       can exceed index_topk; below that threshold it uses the dense paged
+    #       Flash MLA kernel, which computes exactly the same thing (top-k covers
+    #       every causally visible key) and is faster.
+    #   "dense_decode": opt OUT of sparse decode -- keep the dense paged kernel even
+    #       above index_topk, so every cached entry participates. Deviates from the
+    #       model's trained sparsity; useful only for perf A/B, since sparse decode
+    #       must gather the latent cache (tt.sparse_sdpa cannot read a paged TILE
+    #       cache, and masking the paged kernel is impossible -- ttnn::prim::
+    #       sdpa_decode asserts is_causal).
+    #   "off": build the indexer (so weights still load) but never emit the DSA
+    #       ops and never allocate the indexer K cache; MLA stays fully dense.
+    #       The A/B baseline and kill switch.
+    dsa_mode: str = "auto"
+
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
@@ -245,6 +264,54 @@ class TTPlatform(Platform):
     _cpu_sampling: bool = False
 
     @classmethod
+    def _validate_dsa_config(cls, vllm_config: VllmConfig, additional_config) -> None:
+        """Validate DeepSeek Sparse Attention settings and reject fp8 checkpoints.
+
+        ``supported_quantization`` is empty, and ``Platform.verify_quantization``
+        short-circuits on an empty list -- so vLLM *silently accepts* an fp8
+        checkpoint and routes it to ``Fp8LinearMethod``, whose block-quantized path
+        is CUDA-only. Failing here with an actionable message beats failing deep
+        inside a CUDA kernel dispatch.
+        """
+        dsa_mode = str(additional_config.get("dsa_mode", "auto"))
+        if dsa_mode not in ("auto", "dense_decode", "off"):
+            raise ValueError(
+                f"additional_config['dsa_mode']={dsa_mode!r} is invalid; expected "
+                "one of 'auto', 'dense_decode', 'off'."
+            )
+
+        model_config = vllm_config.model_config
+        if model_config is None:
+            return
+        hf_config = getattr(model_config, "hf_config", None)
+        is_dsa_model = getattr(hf_config, "index_topk", None) is not None
+
+        quant_config = getattr(hf_config, "quantization_config", None) or {}
+        quant_method = quant_config.get("quant_method") if quant_config else None
+        if quant_method == "fp8":
+            raise NotImplementedError(
+                "This checkpoint is fp8-quantized "
+                f"(quant_method='fp8', weight_block_size="
+                f"{quant_config.get('weight_block_size')}), which TT cannot run: "
+                "vLLM routes it to Fp8LinearMethod, whose block-quantized GEMMs are "
+                "CUDA-only, and tt-xla does not dequantize fp8 weights on load.\n"
+                "Build a bf16 checkpoint first, e.g.\n"
+                "  python tests/torch/models/deepseek_v3_2_exp/build_weight_cache.py "
+                "--repo <repo> --n-layers <n> --vllm-keys\n"
+                "then point `model` at the produced directory."
+            )
+
+        if is_dsa_model and dsa_mode != "off":
+            cache_dtype = getattr(vllm_config.cache_config, "cache_dtype", "auto")
+            if cache_dtype != "auto":
+                raise NotImplementedError(
+                    f"Quantized KV cache (cache_dtype={cache_dtype!r}) is not "
+                    "supported with DeepSeek Sparse Attention: the indexer K cache "
+                    "feeds tt.indexer_score_dsa, which has no dtype workaround in "
+                    "tt-mlir and requires real bfloat16."
+                )
+
+    @classmethod
     def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
         """Validate the first TT speculative-decode support slice.
 
@@ -293,8 +360,15 @@ class TTPlatform(Platform):
         num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
-            raise NotImplementedError(
-                "Sparse Attention is not supported on TT devices."
+            if not attn_selector_config.use_mla:
+                raise NotImplementedError(
+                    "Non-MLA sparse attention is not supported on TT devices."
+                )
+            # DeepSeek Sparse Attention rides on the same backend as dense MLA:
+            # TTMLAAttentionBackendImpl branches internally on whether the TT
+            # indexer published top-k indices for the current bucket.
+            logger.info(
+                "Using TT MLA Attention backend with DeepSeek Sparse Attention."
             )
         if attn_selector_config.use_mla:
             logger.info("Using TT MLA Attention backend.")
@@ -536,6 +610,8 @@ class TTPlatform(Platform):
                 "Forcing --disable_chunked_mm_input."
             )
             scheduler_config.disable_chunked_mm_input = True
+
+        cls._validate_dsa_config(vllm_config, additional_config)
 
         if model_config and model_config.use_mla:
             logger.info(

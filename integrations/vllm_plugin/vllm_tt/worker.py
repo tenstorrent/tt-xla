@@ -36,12 +36,11 @@ from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
 from vllm.v1.outputs import DraftTokenIds, ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
-from vllm.v1.worker.utils import bind_kv_cache
 from vllm.v1.worker.worker_base import CompilationTimes
 
 from .attention_impls.attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
-from .model_runner import TTModelRunner
+from .model_runner import TTModelRunner, bind_kv_cache_allowing_dsa
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
 
@@ -255,7 +254,9 @@ class TTWorker:
                 )
 
         runner_kv_caches: list[torch.Tensor] = []
-        bind_kv_cache(
+        # DSA-tolerant: a DeepSeek-V3.2 indexer cache shares its attention layer's
+        # index, which plain bind_kv_cache rejects on non-CUDA platforms.
+        bind_kv_cache_allowing_dsa(
             kv_caches,
             self.vllm_config.compilation_config.static_forward_context,
             runner_kv_caches,

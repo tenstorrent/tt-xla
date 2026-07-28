@@ -105,6 +105,7 @@ from .attention_impls.attention import (
 )
 from .attention_impls.attention_mla import TTMLAAttentionBackend
 from .input_batch import CachedRequestState, InputBatch
+from .layers.dsa_indexer import TTDSAIndexerSpec
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
@@ -156,6 +157,51 @@ def _get_layer_kv_cache_spec(
     if isinstance(kv_cache_spec, UniformTypeKVCacheSpecs):
         return kv_cache_spec.kv_cache_specs[layer_name]
     return kv_cache_spec
+
+
+def _is_dsa_indexer_cache(module) -> bool:
+    """Whether ``module`` is a DeepSeek-V3.2 sparse-attention indexer K cache.
+
+    Imported lazily so models without DSA never pull in ``deepseek_v2``.
+    """
+    try:
+        from vllm.model_executor.models.deepseek_v2 import DeepseekV32IndexerCache
+    except ImportError:
+        return False
+    return isinstance(module, DeepseekV32IndexerCache)
+
+
+def bind_kv_cache_allowing_dsa(
+    kv_caches: dict[str, torch.Tensor],
+    static_forward_context: dict,
+    runner_kv_caches: list[torch.Tensor],
+) -> None:
+    """``bind_kv_cache`` that tolerates a DSA indexer cache on an attention layer.
+
+    ``bind_kv_cache`` groups layers by ``extract_layer_index()``, where a DeepSeek
+    Sparse Attention indexer cache collides with its own attention layer
+    ("...layers.3.self_attn.attn" and "...layers.3.self_attn.indexer.k_cache" both
+    yield 3). For more than one layer at an index it ``pass``es only on
+    cuda/xpu/cpu and raises ``NotImplementedError`` everywhere else, so bind the
+    indexer caches directly.
+
+    Indexer caches are still appended to ``runner_kv_caches``: the callers' TP
+    block is what marks them replicated, and the indexer is ``disable_tp=True`` so
+    a head-axis shard would corrupt it.
+    """
+    indexer_caches = {
+        name: cache
+        for name, cache in kv_caches.items()
+        if _is_dsa_indexer_cache(static_forward_context.get(name))
+    }
+    bind_kv_cache(
+        {n: c for n, c in kv_caches.items() if n not in indexer_caches},
+        static_forward_context,
+        runner_kv_caches,
+    )
+    for name, cache in indexer_caches.items():
+        static_forward_context[name].kv_cache = cache
+        runner_kv_caches.append(cache)
 
 
 if TYPE_CHECKING:
@@ -1153,6 +1199,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     head_size=attn_module.head_size,
                     dtype=self.kv_cache_spec_dtype,
                     cache_dtype_str=cache_dtype_str,
+                )
+            elif _is_dsa_indexer_cache(attn_module):
+                # DeepSeek-V3.2 sparse-attention indexer K cache: an
+                # AttentionLayerBase that is neither Attention nor MLAAttention, so
+                # it would otherwise be dropped here and left with an empty
+                # kv_cache. TTIndexer constructs it with head_dim=index_head_dim and
+                # bf16 (upstream uses head_dim + head_dim//128*4 and uint8 for its
+                # fp8 value+scale layout), so a plain MLAAttentionSpec describes it:
+                # one latent "head" of index_head_dim per slot.
+                #
+                # MLAAttentionSpec subclasses FullAttentionSpec, so this lands in the
+                # SAME UniformTypeKVCacheSpecs group as the MLA latent caches despite
+                # the different head_size -- which is what lets the indexer reuse
+                # attn_metadata.page_table (there is only one block table).
+                if layer_name in kv_cache_spec:
+                    continue
+                if self.tt_config.experimental_kv_cache_dtype:
+                    raise NotImplementedError(
+                        "experimental_kv_cache_dtype is not supported with DeepSeek "
+                        "Sparse Attention: the indexer K cache feeds "
+                        "tt.indexer_score_dsa, which has no dtype workaround in "
+                        "tt-mlir and requires real bfloat16."
+                    )
+                # NOT MLAAttentionSpec, despite the identical single-tensor layout:
+                # MLAAttentionSpec.merge would silently collapse the 576-wide MLA
+                # specs and this 128-wide one into one spec. See TTDSAIndexerSpec.
+                kv_cache_spec[layer_name] = TTDSAIndexerSpec(
+                    block_size=block_size,
+                    num_kv_heads=1,
+                    head_size=attn_module.head_dim,
+                    dtype=self.kv_cache_spec_dtype,
                 )
             else:
                 continue
@@ -2492,6 +2569,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             try:
                 model_loader = get_model_loader(self.load_config)
 
+                # DeepSeek-V3.2-style models build a sparse-attention indexer whose
+                # upstream implementation is CUDA-only (fp8 quantization + a
+                # DeepGEMM custom op). Swap in the TT bf16 indexer before the model
+                # is constructed. Guarded on the config field so non-DSA models
+                # never import deepseek_v2.
+                if getattr(self.model_config.hf_config, "index_topk", None) is not None:
+                    from .layers.dsa_indexer import install_tt_indexer
+
+                    install_tt_indexer()
+
                 # If layer override is active, patch the weight loading process
                 if (
                     self._original_num_layers is not None
@@ -3828,10 +3915,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
-                if isinstance(kv_cache_spec, MLAAttentionSpec):
-                    # MLA stores a SINGLE concatenated latent KV tensor per
-                    # slot (num_kv_heads == 1, head_size == kv_lora_rank +
-                    # qk_rope_head_dim).
+                # TTDSAIndexerSpec must be tested before the generic AttentionSpec
+                # branch: it is a FullAttentionSpec (see its docstring for why) but
+                # stores ONE tensor per slot like MLA, not a K/V pair.
+                if isinstance(kv_cache_spec, (MLAAttentionSpec, TTDSAIndexerSpec)):
+                    # A SINGLE latent tensor per slot: for MLA the concatenated
+                    # kv_lora_rank + qk_rope_head_dim vector, for the DSA indexer
+                    # its index_head_dim key (num_kv_heads == 1 in both cases).
                     kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
                         num_blocks,
                         kv_cache_spec.block_size,
@@ -3873,7 +3963,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
 
-        bind_kv_cache(
+        bind_kv_cache_allowing_dsa(
             kv_caches,
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,

@@ -2,10 +2,32 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import warnings
 from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
+
+# Sentinel index emitted by ``tt.topk_large_indices`` for a ``-inf`` score, and
+# consumed by ``tt.sparse_sdpa`` as "this slot is masked". Sentinels always form a
+# contiguous tail of each row (top-k output is sorted descending, so every -inf
+# tie lands at the end) -- ``tt.sparse_sdpa`` relies on that.
+TOPK_LARGE_INDICES_SENTINEL = 0xFFFFFFFF
+
+
+def _warn_no_kernel(op_name: str, reason: str) -> None:
+    """Warn that a TTNN kernel is unreachable but the op still lowers.
+
+    The DSA ops lower to ``ttcore.composite``; when the TTNN op verifier rejects
+    the shapes (or the arch is not Blackhole) the composite silently falls back to
+    inlining its primitive decomposition instead of failing to compile. That is
+    correct but slower, so surface it rather than letting it pass unnoticed.
+    """
+    warnings.warn(
+        f"tt.{op_name}: {reason}. The TTNN kernel cannot be used; the composite "
+        "will fall back to its (slower) primitive decomposition.",
+        stacklevel=3,
+    )
 
 
 @torch.library.custom_op(
@@ -413,10 +435,13 @@ def paged_flash_mla_decode(
         cur_pos_tensor (opt):[num_users], integer current position per user.
                              Required when ``is_causal`` is ``True``; the op
                              attends to cache positions ``[0, cur_pos]`` per user.
-        attn_mask (opt):     additive mask broadcastable to
-                             [num_users, nqh, 1, max_seq_len]. Required when
-                             ``is_causal`` is ``False``; must be ``None`` when
-                             ``is_causal`` is ``True``.
+        attn_mask (opt):     additive mask shaped [num_users, 1, nqh, max_seq_len].
+                             Required when ``is_causal`` is ``False``; must be
+                             ``None`` when ``is_causal`` is ``True``. The ttnn
+                             kernel lays the mask out as (B, PNHt, PSt) and only
+                             broadcasts dim 0, so dim 2 must equal ``nqh`` (i.e.
+                             replicate across query heads rather than relying on
+                             broadcasting).
         attention_sink (opt):per-query-head sink logits.
     Args:
         head_dim_v: head dimension of V/output. When ``value`` is provided it
@@ -514,6 +539,20 @@ def paged_flash_mla_decode(
 
     device = query.device
     if device.type == "xla":
+        if not is_causal:
+            # ttnn::prim::sdpa_decode hard-asserts is_causal
+            # (sdpa_decode_device_operation.cpp:28, "Multi-latent attention decode
+            # only tested for causal!"), so a non-causal lowering aborts at runtime
+            # with a TT_FATAL rather than returning a masked result. Fail here
+            # instead, where the message is actionable. The CPU reference below does
+            # model the masked case, so it stays available for golden comparisons.
+            raise NotImplementedError(
+                "tt.paged_flash_multi_latent_attention_decode requires is_causal="
+                "True on device: the tt-metal kernel asserts it "
+                "(sdpa_decode_device_operation.cpp:28). To restrict MLA decode to a "
+                "subset of keys (e.g. DeepSeek Sparse Attention), gather the latent "
+                "cache and use tt.sparse_sdpa instead."
+            )
         # Operand order mirrors the ttir.paged_flash_multi_latent_attention_decode
         # operand layout (query, key, value?, page_table, mask?, cur_pos?, sink?);
         # the has_* flags let the StableHLO->TTIR conversion reconstruct which
@@ -594,6 +633,17 @@ def paged_flash_mla_decode(
                 additive_mask[i, :, :, cur_pos_tensor[i] + 1 :] = float("-inf")
         else:
             additive_mask = attn_mask
+            # The device mask layout is [num_users, 1, nqh, max_seq_len] (dim 2 is
+            # the head axis, see the docstring). torch SDPA wants the mask
+            # broadcastable to [num_users, nqh, q_len=1, max_seq_len], so a device
+            # mask would silently broadcast to [num_users, nqh, nqh, ...] here.
+            # Transpose the head axis into place instead.
+            if (
+                additive_mask.dim() == 4
+                and additive_mask.shape[-2] == num_q_heads
+                and additive_mask.shape[-3] == 1
+            ):
+                additive_mask = additive_mask.transpose(-3, -2)
 
         scale_val = 1.0 / (dh_qk**0.5) if scale is None else scale
 
@@ -627,6 +677,435 @@ def paged_flash_mla_decode_fake(
 ) -> torch.Tensor:
     return torch.zeros(
         (query.shape[0], query.shape[1], query.shape[2], head_dim_v),
+        dtype=query.dtype,
+        device=query.device,
+    )
+
+
+@torch.library.custom_op(
+    "tt::indexer_score_dsa", mutates_args=[], device_types=["xla", "cpu"]
+)
+def indexer_score_dsa(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    weights: torch.Tensor,
+    chunk_start_idx: int = 0,
+) -> torch.Tensor:
+    """
+    DeepSeek Sparse Attention (DSA) "lightning indexer" scorer, mirroring
+    ttnn.experimental.indexer_score_dsa semantics.
+
+    Produces the per-token relevance scores that ``tt.topk_large_indices`` then
+    ranks to pick which keys ``tt.sparse_sdpa`` should attend to:
+
+        score[b, s, t] = sum_h relu(q[b, h, s, :] . k[b, t, :]) * weights[b, h, s]
+
+    with an additive causal mask: key ``t`` is visible to query ``s`` iff
+    ``t <= chunk_start_idx + s``; masked (future) positions get ``-inf``.
+
+    Shapes:
+        query:   [b, num_index_heads, sq, index_head_dim]
+        key:     [b, 1, t, index_head_dim]   (MQA: one shared index key head)
+        weights: [b, num_index_heads, sq, 1] (per-head gate)
+    Args:
+        chunk_start_idx: absolute position of the first query token, i.e. the
+                         number of already-cached tokens. Compile-time constant.
+    Returns:
+        Scores of shape [b, 1, sq, t] with the same dtype as ``query``.
+    """
+    assert (
+        len(query.shape) == 4
+    ), "query must be a 4D tensor: [b, num_index_heads, sq, index_head_dim]."
+    assert len(key.shape) == 4, "key must be a 4D tensor: [b, 1, t, index_head_dim]."
+    assert (
+        len(weights.shape) == 4
+    ), "weights must be a 4D tensor: [b, num_index_heads, sq, 1]."
+
+    batch, num_index_heads, sq, index_head_dim = query.shape
+    assert key.shape[0] == batch, "key and query must have the same batch size."
+    assert key.shape[1] == 1, f"key must have exactly 1 head, got {key.shape[1]}."
+    assert key.shape[3] == index_head_dim, (
+        f"key head dim ({key.shape[3]}) must equal query head dim "
+        f"({index_head_dim})."
+    )
+    assert tuple(weights.shape) == (batch, num_index_heads, sq, 1), (
+        "weights must be exactly [b, num_index_heads, sq, 1] "
+        f"({(batch, num_index_heads, sq, 1)}), got {tuple(weights.shape)}."
+    )
+    assert (
+        query.dtype == key.dtype == weights.dtype
+    ), "query, key, and weights must share the same dtype."
+    # Unlike sparse_sdpa, this op has NO operand workaround in tt-mlir, so nothing
+    # will insert a dtype cast for us -- a non-bf16 dtype fails inside the kernel.
+    assert (
+        query.dtype == torch.bfloat16
+    ), f"indexer_score_dsa requires bfloat16 operands, got {query.dtype}."
+    assert (
+        query.device == key.device == weights.device
+    ), "query, key, and weights must be on the same device."
+    assert (
+        isinstance(chunk_start_idx, int) and chunk_start_idx >= 0
+    ), f"chunk_start_idx must be a non-negative int, got {chunk_start_idx}."
+
+    if batch != 1:
+        _warn_no_kernel("indexer_score_dsa", f"batch size is {batch}, must be 1")
+
+    key_seq_len = key.shape[2]
+    output_shape = torch.Size([batch, 1, sq, key_seq_len])
+
+    if query.device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [query, key, weights],
+            "tt.indexer_score_dsa",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes={"chunk_start_idx": str(chunk_start_idx)},
+        )
+
+    elif query.device.type == "cpu":
+        # Accumulate in f32 (matching tt-mlir's indexer_score_dsa golden), then
+        # cast back to the query dtype.
+        q = query.float()
+        k = key.float()
+        w = weights.float()
+
+        qk = torch.relu(torch.einsum("bhsd,btd->bhst", q, k[:, 0]))
+        score = torch.sum(qk * w, dim=1, keepdim=True)  # [b, 1, sq, t]
+
+        row_idx = torch.arange(sq, device=query.device).view(1, 1, sq, 1)
+        col_idx = torch.arange(key_seq_len, device=query.device).view(
+            1, 1, 1, key_seq_len
+        )
+        visible = (row_idx + chunk_start_idx) >= col_idx
+        mask_add = torch.where(
+            visible,
+            torch.zeros((), dtype=torch.float32, device=query.device),
+            torch.full((), float("-inf"), dtype=torch.float32, device=query.device),
+        )
+        return (score + mask_add).to(query.dtype)
+    else:
+        raise ValueError(f"Unsupported device type: {query.device.type}")
+
+
+@indexer_score_dsa.register_fake
+def indexer_score_dsa_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    weights: torch.Tensor,
+    chunk_start_idx: int = 0,
+) -> torch.Tensor:
+    return torch.zeros(
+        (query.shape[0], 1, query.shape[2], key.shape[2]),
+        dtype=query.dtype,
+        device=query.device,
+    )
+
+
+@torch.library.custom_op(
+    "tt::topk_large_indices", mutates_args=[], device_types=["xla", "cpu"]
+)
+def topk_large_indices(input: torch.Tensor, k: int) -> torch.Tensor:
+    """
+    Top-k *indices only* along the last dimension, mirroring
+    ttnn.experimental.topk_large_indices semantics. Specialized for large ``k``
+    (the ttnn op snaps ``k`` to the nearest supported LLK window and streams each
+    row in LLK-sized chunks), which is what DSA's ``index_topk`` (2048) needs.
+
+    Indices come back sorted by descending score. A ``-inf`` input surviving into
+    the result yields the sentinel ``TOPK_LARGE_INDICES_SENTINEL`` (0xFFFFFFFF),
+    which ``tt.sparse_sdpa`` reads as "masked slot". Since the output is sorted
+    descending and all ``-inf`` entries tie at the bottom, sentinels always form a
+    contiguous tail of each row -- exactly the invariant ``tt.sparse_sdpa``
+    requires of its producer.
+
+    Shapes:
+        input: [..., n]  bfloat16, rank >= 1
+    Args:
+        k: number of indices to keep. Must be in [16, 2048] and a multiple of 16.
+    Returns:
+        Indices of shape [..., k], dtype ``torch.uint32``.
+    """
+    assert len(input.shape) >= 1, "input must have rank >= 1."
+    # Hard asserts (not warnings) because this op's decomposition fallback is NOT
+    # semantics-preserving: a plain ttir.topk returns ordinary indices for -inf
+    # ties instead of sentinels, so a silent fallback yields wrong -- not merely
+    # slow -- results. All of these are statically knowable.
+    assert (
+        input.dtype == torch.bfloat16
+    ), f"topk_large_indices requires a bfloat16 input, got {input.dtype}."
+    assert isinstance(k, int) and k > 0, f"k must be a positive int, got {k}."
+    assert 16 <= k <= 2048, f"k must be in [16, 2048], got {k}."
+    assert k % 16 == 0, f"k must be a multiple of 16, got {k}."
+    assert (
+        input.shape[-1] >= k
+    ), f"input's last dim ({input.shape[-1]}) must be >= k ({k})."
+
+    output_shape = torch.Size([*input.shape[:-1], k])
+
+    if input.device.type == "xla":
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input],
+            "tt.topk_large_indices",
+            [output_shape],
+            [torch.uint32],
+            # Required: the StableHLO->TTIR conversion rejects the custom call
+            # when mhlo.frontend_attributes is missing.
+            frontend_attributes={"k": str(k)},
+        )
+
+    elif input.device.type == "cpu":
+        values, indices = torch.topk(
+            input.float(), k=k, dim=-1, largest=True, sorted=True
+        )
+        indices = indices.to(torch.int64)
+        # Masked (-inf) scores become the sentinel. Sorted-descending output puts
+        # every -inf tie at the tail, so the sentinels are contiguous there.
+        indices = torch.where(
+            torch.isneginf(values),
+            torch.full_like(indices, TOPK_LARGE_INDICES_SENTINEL),
+            indices,
+        )
+        return indices.to(torch.uint32)
+    else:
+        raise ValueError(f"Unsupported device type: {input.device.type}")
+
+
+@topk_large_indices.register_fake
+def topk_large_indices_fake(input: torch.Tensor, k: int) -> torch.Tensor:
+    return torch.zeros((*input.shape[:-1], k), dtype=torch.uint32, device=input.device)
+
+
+def dsa_kernels_available(device: Optional[torch.device] = None) -> bool:
+    """Whether the DSA TTNN kernels will run, as opposed to their decompositions.
+
+    All three DSA composites carry a Blackhole-only promotion guard; anywhere else
+    ``TTNNResolveComposites`` inlines the primitive decomposition instead. That
+    distinction is not cosmetic for ``tt.topk_large_indices``: only the kernel
+    implements the ``-inf`` -> sentinel contract (see
+    ``topk_large_indices_mask_invalid_slots``).
+
+    Queried lazily, and conservative on failure: if the arch cannot be determined
+    we report ``False``, which selects the portable path.
+    """
+    if device is not None and device.type != "xla":
+        return False
+    try:
+        import torch_xla
+
+        return "Blackhole" in torch_xla._XLAC._xla_device_kind("xla")
+    except Exception:
+        return False
+
+
+def topk_large_indices_mask_invalid_slots(
+    indices: torch.Tensor, visible_count: torch.Tensor
+) -> torch.Tensor:
+    """Mark slots at or beyond ``visible_count`` invalid, for the *decomposition*.
+
+    Only the Blackhole TTNN kernel implements ``tt.topk_large_indices``' ``-inf``
+    -> ``TOPK_LARGE_INDICES_SENTINEL`` contract. Elsewhere the composite inlines a
+    plain ``ttir.topk``, which returns *ordinary* indices for ``-inf`` ties -- so a
+    causally masked score would let ``tt.sparse_sdpa`` attend to future tokens.
+    (Measured on Wormhole: for a causal score whose row 0 has a single finite
+    entry, the decomposition returned keys 38/36/39/... alongside key 0.)
+
+    No score lookup is needed to repair it: ``-inf`` comes only from the causal
+    mask, so row ``s`` has exactly ``visible_count[s]`` finite entries, and because
+    top-k output is sorted descending the invalid slots are precisely the tail at
+    or beyond that count.
+
+    Returns **int32** with ``-1`` in the invalid slots, which is what the
+    decomposition needs: it typecasts the indices to f32 and compares against an
+    ``arange`` over ``[0, T)``, and ``-1.0`` matches nothing, so those slots
+    contribute no key.
+
+    Call this ONLY when ``dsa_kernels_available()`` is False. On Blackhole, feed
+    ``tt.sparse_sdpa`` the op's uint32 output unmodified: its reader derives the
+    valid-key count from the *first sentinel position*
+    (``sparse_sdpa_reader.cpp``: "nv = first-sentinel index = valid-key count"),
+    so it needs genuine sentinels, and it does not de-duplicate. Passing int32
+    there would also insert a ``ttnn.typecast(si32 -> ui32)`` whose wrap-vs-saturate
+    behaviour for ``-1`` we do not rely on.
+
+    Args:
+        indices:       uint32 ``[..., s, topk]`` from ``tt.topk_large_indices``.
+        visible_count: int32, broadcastable to ``[..., s, 1]`` -- the number of
+                       causally visible keys per query row.
+
+    NOTE: stays in int32 and never casts to uint32. ``.to(torch.uint32)`` inside a
+    ``torch.compile`` graph is silently downgraded to int32 by the torch_xla
+    bridge (and an ``s32 -> u32 -> s64`` chain fails to lower outright), so a
+    uint32 sentinel simply cannot be constructed in-graph.
+    """
+    idx_i32 = indices.to(torch.int32)
+    slot = torch.arange(
+        indices.shape[-1], dtype=torch.int32, device=indices.device
+    ).view(*([1] * (indices.dim() - 1)), -1)
+    return torch.where(slot < visible_count, idx_i32, torch.full_like(idx_i32, -1))
+
+
+@torch.library.custom_op(
+    "tt::sparse_sdpa", mutates_args=[], device_types=["xla", "cpu"]
+)
+def sparse_sdpa(
+    query: torch.Tensor,
+    kv: torch.Tensor,
+    indices: torch.Tensor,
+    v_dim: int,
+    # Optional[float], not `float = None`: the latter registers a non-nullable
+    # `float` in the op schema, so callers can omit `scale` but cannot pass None
+    # explicitly (the older MLA ops in this file have that latent quirk).
+    scale: Optional[float] = None,
+    k_chunk_size: int = 128,
+) -> torch.Tensor:
+    """
+    Sparse (top-k) MLA prefill attention, mirroring ttnn.transformer.sparse_sdpa
+    semantics. The DSA counterpart to ``tt.flash_mla_prefill``: each query token
+    attends only to the key positions named in its ``indices`` row.
+
+        out[b, h, s, :] = softmax_{t in indices[b, 0, s, :]}(
+                              scale * q[b, h, s, :] . kv[b, 0, t, :]
+                          ) @ kv[b, 0, t, :v_dim]
+
+    ``kv`` supplies both K and V from one compressed latent tensor: K is its full
+    width, V its leading ``v_dim`` columns.
+
+    Masking is carried *entirely* by ``indices`` -- there is no mask operand and
+    no causal flag. ``TOPK_LARGE_INDICES_SENTINEL`` (0xFFFFFFFF) marks a masked
+    slot, and sentinels must form a contiguous tail of each row. Every row must
+    name at least one valid key, else its softmax is all-``-inf`` and yields NaN.
+
+    Shapes:
+        query:   [1, nqh, s, dh_qk]
+        kv:      [1, 1, t, dh_qk]
+        indices: [1, 1, s, topk]   integer (uint32 avoids a cast)
+    Args:
+        v_dim:        head dimension of V/output; must be <= dh_qk.
+        scale:        defaults to ``1 / sqrt(dh_qk)`` inside the ttnn op.
+        k_chunk_size: key-gather chunk length; ``topk`` must be a multiple of it.
+    Returns:
+        Output of shape [1, nqh, s, v_dim] with the same dtype as ``query``.
+    """
+    assert len(query.shape) == 4, "query must be a 4D tensor: [1, nqh, s, dh_qk]."
+    assert len(kv.shape) == 4, "kv must be a 4D tensor: [1, 1, t, dh_qk]."
+    assert len(indices.shape) == 4, "indices must be a 4D tensor: [1, 1, s, topk]."
+
+    batch, num_q_heads, seq_len, dh_qk = query.shape
+    key_seq_len = kv.shape[2]
+    topk = indices.shape[3]
+
+    assert kv.shape[0] == batch, "kv and query must have the same batch size."
+    assert kv.shape[1] == 1, f"kv must have exactly 1 latent head, got {kv.shape[1]}."
+    assert (
+        kv.shape[3] == dh_qk
+    ), f"kv head dim ({kv.shape[3]}) must equal query head dim ({dh_qk})."
+    assert tuple(indices.shape[:3]) == (batch, 1, seq_len), (
+        "indices' leading dims must be [b, 1, s] "
+        f"({(batch, 1, seq_len)}), got {tuple(indices.shape[:3])}."
+    )
+    assert (
+        not indices.is_floating_point()
+    ), f"indices must be an integer tensor, got {indices.dtype}."
+    assert (
+        isinstance(v_dim, int) and v_dim > 0
+    ), f"v_dim must be a positive int, got {v_dim} ({type(v_dim)})."
+    assert v_dim <= dh_qk, f"v_dim ({v_dim}) cannot exceed kv's head dim ({dh_qk})."
+    assert (
+        isinstance(k_chunk_size, int) and k_chunk_size >= 32
+    ), f"k_chunk_size must be an int >= 32, got {k_chunk_size}."
+    assert (
+        k_chunk_size % 32 == 0
+    ), f"k_chunk_size must be a multiple of 32, got {k_chunk_size}."
+    assert topk > 0, "indices' last dim (topk) must be positive."
+    assert scale is None or scale > 0, f"scale must be positive, got {scale}."
+    assert query.dtype == kv.dtype, "query and kv must share the same dtype."
+    assert (
+        query.device == kv.device == indices.device
+    ), "query, kv, and indices must be on the same device."
+
+    # Promotion-only constraints: violating these still lowers correctly via the
+    # decomposition, just without the kernel. Note num_q_heads here is the GLOBAL
+    # head count -- under SPMD the verifier sees num_q_heads / model_axis_size, so
+    # it is the PER-DEVICE count that must satisfy the head constraint.
+    if batch != 1:
+        _warn_no_kernel("sparse_sdpa", f"batch size is {batch}, must be 1")
+    if num_q_heads < 32 or num_q_heads % 32 != 0:
+        _warn_no_kernel(
+            "sparse_sdpa",
+            f"per-device query head count is {num_q_heads}, must be >= 32 and a "
+            "multiple of 32",
+        )
+    if dh_qk % 32 != 0:
+        _warn_no_kernel("sparse_sdpa", f"head dim is {dh_qk}, must be a multiple of 32")
+    if v_dim % 32 != 0:
+        _warn_no_kernel("sparse_sdpa", f"v_dim is {v_dim}, must be a multiple of 32")
+    if topk % k_chunk_size != 0:
+        _warn_no_kernel(
+            "sparse_sdpa",
+            f"topk ({topk}) must be a multiple of k_chunk_size ({k_chunk_size})",
+        )
+    if query.dtype != torch.bfloat16:
+        _warn_no_kernel("sparse_sdpa", f"dtype is {query.dtype}, must be bfloat16")
+
+    output_shape = torch.Size([batch, num_q_heads, seq_len, v_dim])
+
+    if query.device.type == "xla":
+        frontend_attributes = {
+            "v_dim": str(v_dim),
+            "k_chunk_size": str(k_chunk_size),
+        }
+        if scale is not None:
+            frontend_attributes["scale"] = str(scale)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [query, kv, indices],
+            "tt.sparse_sdpa",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif query.device.type == "cpu":
+        q = query.float()
+        k = kv.float()
+        scale_val = dh_qk**-0.5 if scale is None else scale
+
+        scores = torch.einsum("bhsd,btd->bhst", q, k[:, 0]) * scale_val
+
+        # Dense sparsity mask: key t is visible to query s iff t is named in
+        # indices[b, 0, s, :]. The sentinel is outside [0, t) so it selects
+        # nothing -- same as the kernel. uint32 supports almost no torch ops
+        # (comparison against an arange raises), so convert to int64 first.
+        idx = indices.to(torch.int64)[:, 0]  # [b, s, topk]
+        key_pos = torch.arange(key_seq_len, device=query.device).view(
+            1, 1, 1, key_seq_len
+        )
+        visible = torch.any(idx.unsqueeze(-1) == key_pos, dim=2)  # [b, s, t]
+        mask_add = torch.where(
+            visible.unsqueeze(1),
+            torch.zeros((), dtype=torch.float32, device=query.device),
+            torch.full((), float("-inf"), dtype=torch.float32, device=query.device),
+        )  # [b, 1, s, t]
+
+        probs = torch.softmax(scores + mask_add, dim=-1)
+        # V is the leading v_dim columns of the latent cache.
+        out = torch.einsum("bhst,btv->bhsv", probs, k[:, 0, :, :v_dim])
+        return out.to(query.dtype)
+    else:
+        raise ValueError(f"Unsupported device type: {query.device.type}")
+
+
+@sparse_sdpa.register_fake
+def sparse_sdpa_fake(
+    query: torch.Tensor,
+    kv: torch.Tensor,
+    indices: torch.Tensor,
+    v_dim: int,
+    scale: Optional[float] = None,
+    k_chunk_size: int = 128,
+) -> torch.Tensor:
+    return torch.zeros(
+        (query.shape[0], query.shape[1], query.shape[2], v_dim),
         dtype=query.dtype,
         device=query.device,
     )
@@ -1009,97 +1488,6 @@ def paged_update_cache_fake(
     update_indices: torch.Tensor,
     page_table: torch.Tensor,
     share_cache=False,
-) -> torch.Tensor:
-    return torch.zeros_like(cache)
-
-
-@torch.library.custom_op(
-    "tt::paged_fill_cache", mutates_args=[], device_types=["xla", "cpu"]
-)
-def paged_fill_cache(
-    cache: torch.Tensor,
-    fill_value: torch.Tensor,
-    page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
-) -> torch.Tensor:
-    device = cache.device
-    if batch_idx is None:
-        batch_idx = torch.tensor([0], dtype=torch.int32, device=device)
-    if device.type == "xla":
-        inputs = [cache, fill_value, page_table, batch_idx]
-        return stablehlo_custom_call.stablehlo_custom_call(
-            inputs,
-            "tt.paged_fill_cache",
-            [cache.shape],
-            [cache.dtype],
-        )
-
-    elif device.type == "cpu":
-        cache = cache.clone()
-
-        block_size = cache.shape[-2]
-        fill_seq_len = fill_value.shape[-2]
-        num_heads = fill_value.shape[-3]
-
-        batch_block_indices = page_table[batch_idx.item()]
-
-        num_blocks_to_fill = fill_seq_len // block_size
-        part_of_final_block_to_fill = fill_seq_len % block_size
-
-        if num_blocks_to_fill > 0:
-            fill_value_in_blocks_shape = [
-                num_blocks_to_fill,
-                num_heads,
-                block_size,
-                fill_value.shape[-1],
-            ]
-            if part_of_final_block_to_fill > 0:
-                fill_value_first_blocks = fill_value[
-                    :, :, :-part_of_final_block_to_fill, :
-                ]
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value_first_blocks.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
-            else:
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
-
-        if part_of_final_block_to_fill > 0:
-            cache[
-                batch_block_indices[num_blocks_to_fill : num_blocks_to_fill + 1],
-                :,
-                :part_of_final_block_to_fill,
-                :,
-            ] = fill_value[:, :, -part_of_final_block_to_fill:, :]
-
-        return cache
-    else:
-        raise ValueError(f"Unsupported device type: {device.type}")
-
-
-@paged_fill_cache.register_fake
-def paged_fill_cache_fake(
-    cache: torch.Tensor,
-    fill_value: torch.Tensor,
-    page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
 ) -> torch.Tensor:
     return torch.zeros_like(cache)
 

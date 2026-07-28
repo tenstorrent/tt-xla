@@ -4,6 +4,7 @@
 """
 MLA (Multi-head Latent Attention) backend for TT devices.
 """
+
 from typing import TYPE_CHECKING, Optional
 
 import torch
@@ -152,6 +153,13 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         self.qk_head_dim = qk_head_dim
         self.v_head_dim = v_head_dim
 
+        # DeepSeek Sparse Attention (DSA). The indexer publishes this step's
+        # selected key indices; `None` means dense attention for this bucket.
+        self.indexer = indexer
+        self.dsa_k_chunk_size = getattr(indexer, "k_chunk_size", 128)
+        if indexer is not None:
+            self._warn_if_head_count_blocks_kernel()
+
         if alibi_slopes is not None:
             raise NotImplementedError("Alibi slopes are not supported for MLA on TT.")
         if kv_cache_dtype != "auto":
@@ -279,6 +287,94 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 output,
             )
 
+    # ------------------------------------------------------------------ #
+    # DeepSeek Sparse Attention helpers
+    # ------------------------------------------------------------------ #
+    def _dsa_topk_indices(self, layer) -> Optional[torch.Tensor]:
+        """This step's DSA key indices, or ``None`` for dense attention.
+
+        The indexer runs earlier in the same forward (from
+        ``MultiHeadLatentAttentionWrapper.forward``) and stashes its result on
+        itself. ``layer.indexer`` is the object vLLM's ``MLAAttention.__init__``
+        stored and is the same instance the wrapper holds, so no extra plumbing is
+        needed; ``self.indexer`` is the fallback for direct-impl tests.
+        """
+        indexer = getattr(layer, "indexer", None) or self.indexer
+        return getattr(indexer, "topk_indices", None) if indexer is not None else None
+
+    def _forward_decode_sparse(
+        self,
+        q_lat: torch.Tensor,
+        kv_cache: torch.Tensor,
+        attn_metadata: TTMetadata,
+        topk_indices: torch.Tensor,
+        users: int,
+    ) -> torch.Tensor:
+        """DSA decode over only the indexer-selected keys. Returns [users, N, L].
+
+        Restricting the *paged* decode kernel with a mask is not an option:
+        ``ttnn::prim::sdpa_decode`` asserts ``is_causal``
+        (``sdpa_decode_device_operation.cpp:28``, "Multi-latent attention decode
+        only tested for causal!"), so a non-causal lowering aborts at runtime. And
+        ``tt.sparse_sdpa`` cannot read the paged cache directly: its ``kv`` operand
+        is forced ROW_MAJOR by a tt-mlir workaround while KV-cache tensors stay
+        TILE, and tt-mlir does not expose tt-metal's ``cache_batch_idx`` (the
+        runtime hardcodes ``std::nullopt``).
+
+        So this gathers each user's latent cache into logical order and runs
+        ``tt.sparse_sdpa`` with a single query token. That is **correctness-first,
+        not fast**: the gather reads and writes the whole context, which costs more
+        than dense decode's single read. Exposing ``cache_batch_idx`` on
+        ``TTNN_SparseSdpaOp`` would remove the gather entirely and is the real fix.
+        """
+        head_dim = kv_cache.shape[-1]
+        block_size = kv_cache.shape[-2]
+        max_seq_len = attn_metadata.page_table.shape[1] * block_size
+        page_table = attn_metadata.page_table
+
+        outs = []
+        for u in range(users):
+            # Undo paging for this user: page_table[u] lists its physical blocks in
+            # logical order, so a gather + reshape yields contiguous positions.
+            blocks = torch.index_select(kv_cache, 0, page_table[u].to(torch.int64))
+            kv_u = blocks.reshape(1, 1, max_seq_len, head_dim)  # [1, 1, T, L+R]
+            outs.append(
+                torch.ops.tt.sparse_sdpa(
+                    # q_lat[u] is [1, N, L+R] (S == 1) -> [1, N, 1, L+R]
+                    query=q_lat[u].transpose(0, 1).unsqueeze(0),
+                    kv=kv_u,
+                    indices=topk_indices[u : u + 1],  # [1, 1, 1, TOPK]
+                    v_dim=self.kv_lora_rank,
+                    scale=self.scale,
+                    k_chunk_size=self.dsa_k_chunk_size,
+                )  # [1, N, 1, L]
+            )
+        # [1, N, 1, L] per user -> [users, N, L]
+        return torch.cat(outs, dim=0).squeeze(2)
+
+    def _warn_if_head_count_blocks_kernel(self) -> None:
+        """Warn when the head count vetoes tt.sparse_sdpa kernel promotion.
+
+        ``tt.sparse_sdpa`` needs ``heads >= 32`` and ``heads % 32 == 0`` *per
+        device* (post-Shardy). The op wrapper only sees the global count, so it
+        cannot check this, and a violation degrades silently to the decomposition.
+
+        Called from ``__init__``, never from ``forward``: forward runs inside the
+        traced graph, where dynamo only tolerates the logging methods registered via
+        ``ignore_logging_methods`` (``logger.info``) -- a ``logger.warning`` there
+        aborts compilation of the whole model. The head count is static anyway.
+        """
+        if self.num_heads % 32 == 0 and self.num_heads >= 32:
+            return
+        logger.warning(
+            "[TT] DSA: %d query heads is not >= 32 and a multiple of 32, so "
+            "tt.sparse_sdpa cannot use its TTNN kernel and will fall back to the "
+            "primitive decomposition. Note this check sees the GLOBAL head count; "
+            "under tensor parallelism it is heads/model_axis_size that must satisfy "
+            "the constraint.",
+            self.num_heads,
+        )
+
     @staticmethod
     def _infer_is_prefill(
         q_nope: torch.Tensor, attn_metadata: TTMetadata | None
@@ -312,15 +408,42 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         q_for_kernel = q_lat.transpose(1, 2).contiguous()  # [b, N, S, L+R]
         k_for_kernel = k_lat.transpose(1, 2).contiguous()  # [b, 1, S, L+R]
 
-        out_lat = torch.ops.tt.flash_mla_prefill(
-            query=q_for_kernel,
-            key=k_for_kernel,
-            head_dim_v=self.kv_lora_rank,
-            value=None,
-            attn_mask=attn_metadata.attn_mask if attn_metadata is not None else None,
-            is_causal=attn_metadata.is_causal if attn_metadata is not None else True,
-            scale=self.scale,
-        )  # [b, N, S, L]
+        topk_indices = self._dsa_topk_indices(layer)
+        if topk_indices is not None:
+            # DSA sparse prefill. `k_for_kernel` is already [b, 1, S, L+R], which is
+            # exactly tt.sparse_sdpa's `kv` layout, and v_dim=kv_lora_rank slices the
+            # latent columns W_UV expects -- so the output shape is identical to
+            # flash_mla_prefill's and everything downstream is shared.
+            # tt.sparse_sdpa requires batch == 1, so loop users (a compile-time
+            # unroll of a bucket-static count, like the paged_fill_cache loop below).
+            out_lat = torch.cat(
+                [
+                    torch.ops.tt.sparse_sdpa(
+                        query=q_for_kernel[u : u + 1],  # [1, N, S, L+R]
+                        kv=k_for_kernel[u : u + 1],  # [1, 1, S, L+R]
+                        indices=topk_indices[u : u + 1],  # [1, 1, S, TOPK]
+                        v_dim=self.kv_lora_rank,
+                        scale=self.scale,
+                        k_chunk_size=self.dsa_k_chunk_size,
+                    )
+                    for u in range(users)
+                ],
+                dim=0,
+            )  # [b, N, S, L]
+        else:
+            out_lat = torch.ops.tt.flash_mla_prefill(
+                query=q_for_kernel,
+                key=k_for_kernel,
+                head_dim_v=self.kv_lora_rank,
+                value=None,
+                attn_mask=(
+                    attn_metadata.attn_mask if attn_metadata is not None else None
+                ),
+                is_causal=(
+                    attn_metadata.is_causal if attn_metadata is not None else True
+                ),
+                scale=self.scale,
+            )  # [b, N, S, L]
 
         # Expand latent output back to v_head_dim
         out = torch.einsum(
@@ -394,18 +517,30 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # Call paged MLA decode kernel.
         # It expects query tensor to be of shape [1, users, N, L+R] and reads K/V
         # straight from the paged cache.
+        #
+        # DSA decode. Dense paged decode is the default and, whenever the bucket
+        # cannot exceed index_topk, is not an approximation at all: top-k selects
+        # every causally visible key, so it computes exactly the sparse result (see
+        # dsa_decode_uses_sparse). Above that the indexer publishes indices and the
+        # sparse path below runs.
+        topk_indices = self._dsa_topk_indices(layer)
         is_causal = attn_metadata.is_causal if attn_metadata is not None else True
-        out_lat = torch.ops.tt.paged_flash_mla_decode(
-            query=q_lat.transpose(0, 1),  # [1, users, N, L+R]
-            key=kv_cache,
-            head_dim_v=self.kv_lora_rank,
-            page_table=attn_metadata.page_table,
-            value=None,
-            is_causal=is_causal,
-            attn_mask=None if is_causal else attn_metadata.attn_mask,
-            cur_pos_tensor=attn_metadata.cache_position,
-            scale=self.scale,
-        )  # [1, users, N, L]
+        if topk_indices is not None:
+            out_lat = self._forward_decode_sparse(
+                q_lat, kv_cache, attn_metadata, topk_indices, users
+            )  # [users, N, L]
+        else:
+            out_lat = torch.ops.tt.paged_flash_mla_decode(
+                query=q_lat.transpose(0, 1),  # [1, users, N, L+R]
+                key=kv_cache,
+                head_dim_v=self.kv_lora_rank,
+                page_table=attn_metadata.page_table,
+                value=None,
+                is_causal=is_causal,
+                attn_mask=None if is_causal else attn_metadata.attn_mask,
+                cur_pos_tensor=attn_metadata.cache_position,
+                scale=self.scale,
+            )  # [1, users, N, L]
 
         # Expand latent output back to v_head_dim
         out_lat = out_lat.reshape(users, self.num_heads, self.kv_lora_rank)

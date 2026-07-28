@@ -553,7 +553,7 @@ class InputBatch:
             self.token_ids_cpu[empty_index, :num_tokens] = self.token_ids_cpu[
                 last_req_index, :num_tokens
             ]
-            (self.spec_token_ids[last_req_index], self.spec_token_ids[empty_index]) = (
+            self.spec_token_ids[last_req_index], self.spec_token_ids[empty_index] = (
                 self.spec_token_ids[empty_index],
                 self.spec_token_ids[last_req_index],
             )
