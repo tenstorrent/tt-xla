@@ -319,9 +319,48 @@ def partition_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
     # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
+
+
+def _pin_users_to_batch_axis_hook(mesh: "xs.Mesh"):
+    """Forward hook pinning dim 0 (users) of a layer's output to the DP axis.
+
+    Two differences from ``sharding_constraint_hook`` that this call site needs:
+    vLLM's *ParallelLinear layers return an ``(output, bias)`` tuple, which that
+    helper rejects; and the spec must match the runtime rank exactly (a sharded
+    spec of the wrong rank raises in ``_normalize_partition_spec_for_rank``), so
+    it is built from ``ndim`` here. Dim 0 is users whether the activation is
+    [users, tokens, hidden] or flattened [users*tokens, hidden] — users is the
+    major dim either way, so the split stays contiguous and correct.
+    """
+    if not hasattr(mesh, "shape"):
+        axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
+    else:
+        axis_sizes = mesh.shape()
+    batch_axis_size = axis_sizes.get("batch")
+
+    def hook(_mod, _inputs, output):
+        is_tuple = isinstance(output, tuple)
+        tensor = output[0] if is_tuple else output
+        if not isinstance(tensor, torch.Tensor):
+            return output
+        # Same divisibility guard safe_mark_sharding applies, which
+        # torch.ops.tt.sharding_constraint does not do for us: b1-prefill
+        # (min_num_seqs=1) compiles graphs at num_reqs=1, whose dim 0 is not
+        # divisible by the DP axis. Constraining those raises "Could not compute
+        # local sharded shape for result N". Leave them to Shardy — with a
+        # single user there is no batch split to preserve anyway.
+        if not batch_axis_size or tensor.shape[0] % batch_axis_size != 0:
+            return output
+        spec = ("batch",) + (None,) * (tensor.ndim - 1)
+        sdy_sharding = _partition_spec_to_sdy_sharding(mesh, spec)
+        pinned = torch.ops.tt.sharding_constraint(tensor, sdy_sharding)
+        return (pinned, *output[1:]) if is_tuple else pinned
+
+    return hook
 
 
 def partition_row_parallel_linear(
@@ -330,6 +369,20 @@ def partition_row_parallel_linear(
     assert isinstance(layer, RowParallelLinear)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
+    if batch_axis is not None:
+        # Weight is [out, in] and "model" already owns `in` (that is what makes
+        # this row-parallel), so "batch" can only land on the OUTPUT dim. Shardy
+        # then takes the cheap local option and lets the activation inherit it,
+        # putting "batch" on the hidden dim. A mesh axis can only shard one dim,
+        # so users gets evicted to replicated — which back-propagates a
+        # users-replicated result onto chunked SDPA, whose sharding rule has no
+        # users factor to object, and the TTIR shape verifier fires.
+        #
+        # Pin users back to the DP axis so Shardy must all-gather the hidden dim
+        # after the matmul instead of re-laying-out users. That is what FSDP is
+        # supposed to do, and it is already what happens for QKV/gate_up, where
+        # "batch" sits on the contracting dim and leaves Shardy no choice.
+        layer.register_forward_hook(_pin_users_to_batch_axis_hook(mesh))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -354,11 +407,11 @@ def partition_parallel_lm_head(
     safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
-    #batch_axis = "batch" if shard_weights_on_batch_axis else None
-    #safe_mark_sharding(layer.weight, mesh, (None, "batch"))
-    #logger.debug("Applied parallel sharding to %s", layer)
-    #xs.mark_sharding(layer.weight, mesh, ("model", None))
-    #return layer
+    # batch_axis = "batch" if shard_weights_on_batch_axis else None
+    # safe_mark_sharding(layer.weight, mesh, (None, "batch"))
+    # logger.debug("Applied parallel sharding to %s", layer)
+    # xs.mark_sharding(layer.weight, mesh, ("model", None))
+    # return layer
 
 
 def partition_vocab_parallel_embedding(

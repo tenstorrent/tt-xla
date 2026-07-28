@@ -564,8 +564,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
         )
+        # Sized by max(tokens, reqs): these are indexed per-REQUEST
+        # (query_start_loc_np[1 : num_reqs + 1], seq_lens_np[:num_reqs]) but were
+        # sized purely by tokens. Under chunked prefill max_num_tokens is the
+        # per-seq CHUNK budget (e.g. 128), which can be smaller than max_num_seqs
+        # (e.g. 256) — the first config where tokens >= reqs stops holding. The
+        # short buffer then makes np.cumsum(..., out=...) raise "provided out is
+        # the wrong size for the accumulation". Over-sizing is harmless; every
+        # use slices the front.
+        req_token_capacity = max(self.max_num_tokens, self.max_num_reqs)
         self.query_start_loc_cpu = torch.zeros(
-            self.max_num_tokens + 1,
+            req_token_capacity + 1,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
@@ -573,7 +582,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np = self.query_start_loc_cpu.numpy()
 
         self.seq_lens_cpu = torch.zeros(
-            self.max_num_tokens,
+            req_token_capacity,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
@@ -2659,6 +2668,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
+            # Shard on "batch" like page_table above. Left replicated, shardy has
+            # to all_slice it (-> ttnn.mesh_partition), and the sliced *value* --
+            # no longer a func arg -- gets the default TILE layout, which hangs
+            # paged_fill_cache. Mirrors _prepare_inputs.
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
@@ -3098,6 +3116,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros(
                 (num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
             ).to(self.device)
+            # Shard on "batch" like page_table above; see _dummy_run for why
+            # leaving it replicated tilizes the page table and hangs the fill.
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             chunk_start_idx = torch.zeros((1,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
