@@ -11,11 +11,11 @@ machine (prefill -> denoise* -> commit), reusing the spec-decode data path with
 overloaded semantics.
 
 This module is a port of upstream ``vllm.model_executor.models.diffusion_gemma``
-(the CUDA/GPU runner reference) onto the Tenstorrent MRv2 data path. This first
-piece is the pure-compute core -- the per-request state buffers and the
-accept/renoise/convergence step -- which is framework-agnostic torch and is
-validated on CPU. The runner-coupled pieces (DiffusionGemmaModelState,
-DiffusionSampler, per-request attention mask, read-only KV) build on top.
+(the CUDA/GPU runner reference) onto the Tenstorrent MRv2 data path. It holds the
+pure-compute core (per-request state buffers, the accept/renoise/convergence
+step) plus ``TTDiffusionGemmaModelState``, all validated on CPU. Still to land:
+the DiffusionSampler port, span-gather over canvas logits, read-only KV, and
+threading the per-request mask through the runner's step loop.
 
 Two device edits vs upstream, both behaviour-preserving (verified on TT + CPU):
 - ``torch.cummax`` fails to lower on TT. It runs over ascending-sorted entropy,
@@ -26,8 +26,20 @@ Two device edits vs upstream, both behaviour-preserving (verified on TT + CPU):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import torch
+import torch.nn as nn
+
+from .model_state import TTModelState
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from vllm.config import VllmConfig
+    from vllm.v1.core.sched.output import NewRequestData
+    from vllm.v1.worker.gpu.mm.encoder_cache import EncoderCache
 
 
 def _random_tokens(shape, vocab_size: int, device, dtype) -> torch.Tensor:
@@ -295,3 +307,139 @@ class DiffusionGemmaRequestStates:
         self.is_encoder_phase[slot_idx] = False
         self.accepted_canvas_history_len[slot_idx] = 0
         self.self_conditioning_embeds[slot_idx] = 0
+
+
+# Additive attention-mask levels. Float, not bool: a bool mask gives wrong
+# results on the TT SDPA op (device-verified).
+_MASK_KEEP = 0.0
+_MASK_BLOCK = -1e4
+
+_DEFAULT_CANVAS_LENGTH = 32
+_DEFAULT_MAX_DENOISING_STEPS = 48
+
+
+class TTDiffusionGemmaModelState(TTModelState):
+    """``ModelState`` for DiffusionGemma on the TT MRv2 data path.
+
+    One Gemma-4 backbone in two weight-sharing modes, selected per request:
+    encoder (causal attention, writes KV; prefill and commit) and decoder
+    (bidirectional attention, reads fixed KV; denoise).
+
+    Port of upstream ``DiffusionGemmaModelState``. Upstream builds a per-request
+    causal tensor through ``build_attn_metadata``; TT's ``prepare_attn`` is
+    runner-driven and carries one ``TTMetadata``, so the per-request mode becomes
+    an explicit additive ``attn_mask`` with ``is_causal=False``.
+    """
+
+    def __init__(
+        self,
+        vllm_config: "VllmConfig",
+        model: nn.Module,
+        encoder_cache: "EncoderCache | None",
+        device: torch.device,
+    ) -> None:
+        super().__init__(vllm_config, model, encoder_cache, device)
+
+        diffusion_config = getattr(vllm_config, "diffusion_config", None)
+        self.gen_config = self.model_config.try_get_generation_config() or {}
+
+        canvas_length = (
+            getattr(diffusion_config, "canvas_length", None) or _DEFAULT_CANVAS_LENGTH
+        )
+        max_denoising_steps = getattr(
+            diffusion_config, "max_denoising_steps", None
+        ) or self.gen_config.get("max_denoising_steps", _DEFAULT_MAX_DENOISING_STEPS)
+        # Transformers' stability_threshold=1 means "matches the previous step";
+        # the history buffer here includes the current step, so add 1.
+        stability_threshold = self.gen_config["stability_threshold"] + 1
+
+        self.canvas_length = canvas_length
+        self.diffusion_states = DiffusionGemmaRequestStates(
+            max_num_reqs=self.max_num_reqs,
+            canvas_length=canvas_length,
+            vocab_size=self.model_config.get_vocab_size(),
+            max_denoising_steps=max_denoising_steps,
+            device=device,
+            hidden_size=self.model_config.hf_text_config.hidden_size,
+            stability_threshold=stability_threshold,
+        )
+        self._req_id_to_slot: dict[str, int] = {}
+
+    def get_supported_generation_tasks(self) -> tuple[str, ...]:
+        return ("generate",)
+
+    def add_request(self, req_index: int, new_req_data: "NewRequestData") -> None:
+        self._req_id_to_slot[new_req_data.req_id] = req_index
+        self.diffusion_states.add_request(req_index)
+        if not new_req_data.req_id.startswith("_warmup_"):
+            self.diffusion_states.prompt_len[req_index] = len(
+                new_req_data.prompt_token_ids
+            )
+
+    def remove_request(self, req_id: str) -> None:
+        slot = self._req_id_to_slot.pop(req_id, None)
+        if slot is not None:
+            self.diffusion_states.remove_request(slot)
+
+    def build_attn_mask(
+        self, slot_indices_np: np.ndarray, query_len: int
+    ) -> torch.Tensor:
+        """``[num_reqs, 1, query_len, query_len]`` additive mask.
+
+        Encoder-phase rows get a causal mask, denoising rows get an open
+        (bidirectional) one. Built with ``where`` over a static shape rather than
+        boolean-index assignment, which lowers to a dynamic-shaped op the
+        Shardy/SPMD pass rejects.
+        """
+        causal = torch.triu(
+            torch.full(
+                (query_len, query_len),
+                _MASK_BLOCK,
+                dtype=self.dtype,
+                device=self.device,
+            ),
+            diagonal=1,
+        ).view(1, 1, query_len, query_len)
+        is_encoder = self.diffusion_states.is_encoder_phase[slot_indices_np]
+        return torch.where(
+            is_encoder.view(-1, 1, 1, 1),
+            causal,
+            torch.zeros((), dtype=self.dtype, device=self.device) + _MASK_KEEP,
+        )
+
+    def prepare_attn(
+        self,
+        attention_layer_names: "Iterable[str]",
+        page_table: torch.Tensor,
+        cache_position: torch.Tensor,
+        fill_page_table: torch.Tensor | None = None,
+        batch_idx: torch.Tensor | None = None,
+        num_users: int | None = None,
+        dp_size: int = 1,
+        chunk_start_idx: torch.Tensor | None = None,
+        attn_mask: torch.Tensor | None = None,
+        is_causal: bool = True,
+        slot_indices_np: np.ndarray | None = None,
+        query_len: int | None = None,
+    ) -> dict[str, Any]:
+        """As ``TTModelState.prepare_attn``, but with a per-request mode mask.
+
+        ``slot_indices_np`` / ``query_len`` are the extra per-step host metadata
+        the mask needs; without them (e.g. warmup) this falls back to the base
+        causal path.
+        """
+        if slot_indices_np is not None and query_len is not None:
+            attn_mask = self.build_attn_mask(slot_indices_np, query_len)
+            is_causal = False
+        return super().prepare_attn(
+            attention_layer_names,
+            page_table,
+            cache_position,
+            fill_page_table=fill_page_table,
+            batch_idx=batch_idx,
+            num_users=num_users,
+            dp_size=dp_size,
+            chunk_start_idx=chunk_start_idx,
+            attn_mask=attn_mask,
+            is_causal=is_causal,
+        )

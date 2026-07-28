@@ -72,6 +72,9 @@ def test_subclass_registration_wins_over_base(restore_registry):
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_diffusion_gemma_arch_is_registered():
+def test_diffusion_gemma_arch_resolves_to_its_tt_state():
+    from vllm_tt.diffusion_gemma import TTDiffusionGemmaModelState
+    from vllm_tt.model_state_registry import _resolve
+
     target = _REGISTRY["DiffusionGemmaForConditionalGeneration"]
-    assert target == "vllm_tt.diffusion_gemma:TTDiffusionGemmaModelState"
+    assert _resolve(target) is TTDiffusionGemmaModelState
