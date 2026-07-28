@@ -93,11 +93,12 @@ class TTRequestState:
         # Last sampled token per slot (seeds the next decode input).
         self.last_sampled_tokens = np.zeros((self.max_num_reqs, 1), dtype=np.int64)
 
-        # Draft tokens (spec decode). TT has no spec decode
-        # (num_speculative_steps == 0), so this degenerates to a zero-width row.
+        # Draft tokens (spec decode); zero-width when num_speculative_steps == 0.
         self.draft_tokens = np.zeros(
             (self.max_num_reqs, self.num_speculative_steps), dtype=np.int64
         )
+        # How many of draft_tokens[slot] are live this step (drafts vary in length).
+        self.num_draft_tokens = np.zeros(self.max_num_reqs, dtype=np.int32)
 
         self.next_prefill_tokens = np.zeros(self.max_num_reqs, dtype=np.int32)
 
@@ -134,6 +135,27 @@ class TTRequestState:
             # Fresh prefill (num_computed_tokens == 0) never reads this slot.
             self.last_sampled_tokens[req_idx] = all_token_ids[num_computed_tokens - 1]
         self.draft_tokens[req_idx] = 0
+        self.num_draft_tokens[req_idx] = 0
+
+    def set_draft_tokens(self, req_idx: int, drafts: list[int]) -> None:
+        """Stage this step's drafts for a slot (spec decode).
+
+        Drafts land in all_token_ids right after the committed tokens so the
+        input gather picks them up, but total_len does NOT advance: they are
+        unverified. Accepted tokens overwrite them in the writeback.
+        """
+        n = len(drafts)
+        assert n <= self.num_speculative_steps, (
+            f"{n} drafts exceeds num_speculative_steps " f"{self.num_speculative_steps}"
+        )
+        self.num_draft_tokens[req_idx] = n
+        if n:
+            self.draft_tokens[req_idx, :n] = drafts
+            pos = int(self.total_len[req_idx])
+            self.all_token_ids[req_idx, pos : pos + n] = drafts
+
+    def clear_draft_tokens(self, req_idx: int) -> None:
+        self.num_draft_tokens[req_idx] = 0
 
     def apply_staged_writes(self) -> None:
         """No-op: numpy writes land immediately (see module docstring).
