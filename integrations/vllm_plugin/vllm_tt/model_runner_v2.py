@@ -25,6 +25,7 @@ cpu_sampling / prompt-logprobs branches.
 from __future__ import annotations
 
 import bisect
+import contextlib
 import logging
 from typing import TYPE_CHECKING, Optional
 
@@ -34,6 +35,7 @@ import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
 from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv
+from vllm.v1.worker.kv_connector_model_runner_mixin import KVConnectorModelRunnerMixin
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 from .logger import tt_init_logger
@@ -112,7 +114,7 @@ def replace_set_lora(model):
             module.reset_lora = _tpu_reset_lora.__get__(module, module.__class__)
 
 
-class TTModelRunnerV2(LoRAModelRunnerMixin):
+class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     """Tenstorrent MRv2 model runner (see module docstring)."""
 
     def __init__(
@@ -1018,9 +1020,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         self.update_requests(scheduler_output)
 
         if scheduler_output.total_num_scheduled_tokens == 0:
-            # No tokens this step (e.g. only KV-connector activity).
+            from vllm.distributed.kv_transfer import has_kv_transfer_group
             from vllm.v1.worker.gpu_model_runner import EMPTY_MODEL_RUNNER_OUTPUT
 
+            if has_kv_transfer_group():
+                # Nothing to run, but the connector still has sends/recvs to drive.
+                return self.kv_connector_no_forward(scheduler_output, self.vllm_config)
             return EMPTY_MODEL_RUNNER_OUTPUT
 
         if self.supports_mm_inputs and scheduler_output.scheduled_encoder_inputs:
@@ -1052,6 +1057,60 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         want_prompt_hs = bool(self.num_prompt_logprobs)
         prompt_lp_hs: dict[int, torch.Tensor] = {}
 
+        kv_connector_output = None
+        with contextlib.ExitStack() as stack:
+            if self._has_kv_transfer_group():
+                # Once per step, not per pass: get_finished() reports a transfer
+                # only on its first call, so per-pass entry would drop finished
+                # send/recv ids. start_load_kv needs an active forward context,
+                # so push a token-less one as kv_connector_no_forward does.
+                from vllm.forward_context import set_forward_context
+
+                stack.enter_context(set_forward_context(None, self.vllm_config))
+                kv_connector_output = stack.enter_context(
+                    self.maybe_get_kv_connector_output(scheduler_output)
+                )
+            self._run_pass_loop(
+                ordered_slots,
+                ordered_num_tokens,
+                grammar_output,
+                want_prompt_hs,
+                out_req_ids,
+                out_sampled,
+                prompt_lp_hs,
+            )
+
+        prompt_logprobs_dict = self._get_prompt_logprobs_dict(
+            prompt_lp_hs, scheduler_output
+        )
+
+        from vllm.v1.outputs import ModelRunnerOutput
+
+        return ModelRunnerOutput(
+            req_ids=out_req_ids,
+            req_id_to_index={rid: i for i, rid in enumerate(out_req_ids)},
+            sampled_token_ids=out_sampled,
+            prompt_logprobs_dict=prompt_logprobs_dict,
+            kv_connector_output=kv_connector_output,
+        )
+
+    @staticmethod
+    def _has_kv_transfer_group() -> bool:
+        from vllm.distributed.kv_transfer import has_kv_transfer_group
+
+        return has_kv_transfer_group()
+
+    def _run_pass_loop(
+        self,
+        ordered_slots,
+        ordered_num_tokens,
+        grammar_output,
+        want_prompt_hs: bool,
+        out_req_ids: list,
+        out_sampled: list,
+        prompt_lp_hs: dict,
+    ) -> None:
+        """Decode-first multi-pass loop; appends into the caller's output lists."""
         start_index = 0
         while start_index < len(ordered_slots):
             (
@@ -1112,19 +1171,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
                 out_sampled.append(valid[b])
 
             start_index = end_index
-
-        prompt_logprobs_dict = self._get_prompt_logprobs_dict(
-            prompt_lp_hs, scheduler_output
-        )
-
-        from vllm.v1.outputs import ModelRunnerOutput
-
-        return ModelRunnerOutput(
-            req_ids=out_req_ids,
-            req_id_to_index={rid: i for i, rid in enumerate(out_req_ids)},
-            sampled_token_ids=out_sampled,
-            prompt_logprobs_dict=prompt_logprobs_dict,
-        )
 
     def _run_model_pass(
         self,
@@ -1924,8 +1970,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
         return kv_cache_spec
 
     def initialize_kv_cache(self, kv_cache_config: "KVCacheConfig") -> None:
-        """Allocate KV caches, bind them into the forward context, and (under TP)
-        shard them across the mesh. KV-transfer registration is still deferred.
+        """Allocate KV caches, bind them into the forward context, register them
+        with the KV-transfer group, and (under TP) shard them across the mesh.
         """
         from vllm.v1.worker.utils import bind_kv_cache
 
@@ -1940,6 +1986,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
+        self._register_kv_caches_for_transfer(kv_caches)
 
         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
             # DP+TP: leave replicated; each device writes its own slice via
@@ -1961,6 +2008,25 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
                     else:
                         # Replicate the MLA latent KV cache.
                         xs.mark_sharding(cache, self.mesh, (None, None, None, None))
+
+    def _register_kv_caches_for_transfer(self, kv_caches: dict) -> None:
+        """Hand the allocated caches to the KV-connector, if one is configured.
+
+        Without this a disaggregated-serving setup silently transfers nothing.
+        """
+        from vllm.distributed.kv_transfer import (
+            get_kv_transfer_group,
+            has_kv_transfer_group,
+        )
+        from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+
+        if not has_kv_transfer_group():
+            return
+        get_kv_transfer_group().register_kv_caches(kv_caches)
+        get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
+        logger.info(
+            "Registered %d KV cache layer(s) with the KV connector.", len(kv_caches)
+        )
 
     def get_model(self):
         return self.model
@@ -2050,8 +2116,14 @@ class TTModelRunnerV2(LoRAModelRunnerMixin):
             )
 
     def reload_weights(self) -> None:
-        raise NotImplementedError(
-            "reload_weights is not supported in the v2 runner yet."
+        from vllm.model_executor.model_loader import get_model_loader
+
+        assert (
+            getattr(self, "model", None) is not None
+        ), "Cannot reload weights before model is loaded."
+        logger.info("Reloading weights inplace...")
+        get_model_loader(self.load_config).load_weights(
+            self.model, model_config=self.model_config
         )
 
     def ensure_kv_transfer_shutdown(self) -> None:

@@ -78,10 +78,34 @@ def test_update_config_rejects_unknown_config():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_reload_weights_not_supported():
+def test_reload_weights_requires_a_loaded_model():
     r = object.__new__(TTModelRunnerV2)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(AssertionError, match="before model is loaded"):
         r.reload_weights()
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_reload_weights_loads_inplace(monkeypatch):
+    r = object.__new__(TTModelRunnerV2)
+    r.model = object()
+    r.load_config = object()
+    r.model_config = object()
+
+    calls = {}
+
+    class _Loader:
+        def load_weights(self, model, model_config):
+            calls["model"] = model
+            calls["model_config"] = model_config
+
+    monkeypatch.setattr(
+        "vllm.model_executor.model_loader.get_model_loader",
+        lambda load_config: _Loader(),
+    )
+    r.reload_weights()
+    assert calls["model"] is r.model
+    assert calls["model_config"] is r.model_config
 
 
 @pytest.mark.push
