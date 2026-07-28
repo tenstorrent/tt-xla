@@ -1587,6 +1587,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None).
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        # A prefill step with >4 concurrent cached rows (num_computed > 0)
+        # corrupts higher-index rows past dp_size 4 (validated dp_size 8: <=4
+        # cached rows correct, >4 drop to garbage). Cold rows and <=4 cached
+        # rows are unaffected, so fail loudly only on the offending step rather
+        # than serve wrong tokens. Distinct from the paged fill/sampler DP bugs.
+        num_cached_rows = int(np.count_nonzero(num_computed_for_reqs > 0))
+        if self.dp_size > 4 and num_cached_rows > 4:
+            raise RuntimeError(
+                f"DP cached-prefix prefill corrupts with >4 concurrent cached "
+                f"rows at dp_size={self.dp_size} (got {num_cached_rows}); cap "
+                f"concurrent cached-prefix requests to 4 (e.g. lower max_num_seqs) "
+                f"or use dp_size <= 4."
+            )
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
         )
