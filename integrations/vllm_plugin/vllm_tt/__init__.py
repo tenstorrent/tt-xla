@@ -40,7 +40,7 @@ def register_oot_layers():
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
 
-    # DRAFT (pending review): patch the FusedMoE factory for TT MoE.
+    # Patch the FusedMoE factory for TT MoE.
     from .layers.fused_moe import install_tt_fused_moe
 
     install_tt_fused_moe()
