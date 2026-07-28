@@ -2244,8 +2244,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
-        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
+        # Only pure 1D-TP (mesh (1, N)) lacks a batch axis. Keying off
+        # use_2d_mesh instead picked size-1 "model" for DP-only (dp, 1), a
+        # silent no-op that left activations replicated.
+        batch_axis = "model" if self.mesh.mesh_shape[0] == 1 else "batch"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
