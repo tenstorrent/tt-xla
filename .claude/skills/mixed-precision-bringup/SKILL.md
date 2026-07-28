@@ -140,6 +140,14 @@ multi-wheel uplift, **out of scope for a bringup: escalate to the user.**
 
 1. **Baseline.** Run accuracy on the current config → record `baseline_acc`
    (TOP1 p5). Set `threshold` (user value, else 0.90 × baseline_acc).
+   - **The committed config may FAIL TO COMPILE, not just under-perform.** Seen on
+     n150: `optimization_level=2` (the `_config` default) hits a typecast
+     `L1SpillManagement` / DRAM-demotion layout `TT_FATAL` during
+     `_xla_warm_up_cache`. This is a compile error, **not OOM** (do NOT halve
+     batch size for it). Fix: retry the baseline at `_BENCH_OPTIMIZATION_LEVEL=0`
+     (precedent: the `llama-3.1-8b` config pins `optimization_level=0`) and pin
+     `optimization_level=0` in the final config. Only start MP work once the
+     baseline compiles.
 2. **All features on, weights → bfp8.** Turn on KV-cache and activation lowering
    (both true), and lower all weights to `bfp_bf8` if not already. Run accuracy.
 3. **Weights → bfp4 on MLP/MoE.** With everything at bfp8, push MLP/MoE matmul
@@ -153,6 +161,13 @@ multi-wheel uplift, **out of scope for a bringup: escalate to the user.**
      parameters" warning). MoE experts differ (e.g. gpt-oss uses bare
      `...mlp.experts.gate_up_proj`, no `.weight`). **Confirm the real parameter
      names first** (from the model or the IR) — don't trust the example glob.
+   - **Globs match the vLLM parameter names, which are FUSED** for Llama-family
+     models (incl. Falcon3): `gate_proj`+`up_proj` → `gate_up_proj`, and
+     q/k/v → `qkv_proj`. Separate `gate_proj`/`up_proj` globs silently miss (only
+     `down_proj` keeps its name). Use the fused glob, e.g.
+     `{"default":"bfp_bf8","model.layers.*.mlp.gate_up_proj.weight":"bfp_bf4","model.layers.*.mlp.down_proj.weight":"bfp_bf4"}`.
+     The "did not match any model parameters" warning is your tell that a glob
+     used the wrong (HF) name.
 
 Record every run (config + TOP1/TOP5 p5) in your log. Stop lowering a tensor
 class when it pushes below `threshold`.
@@ -250,6 +265,10 @@ Diagnose op-by-op — do not guess:
      `chisel_results/*.jsonl` aside after each run (the next run overwrites it).
    - **Rank:** load the JSONL, keep `check == "numerics"`, sort ascending by
      `payload.pcc`.
+   - **EXIT=124 is expected:** even with trace off, the pytest process often hangs
+     in teardown *after* chisel has written a complete JSONL, so the `timeout` kills
+     it (exit 124). Always inspect `chisel_results/*.jsonl` before concluding the
+     run failed — the records are usually all there.
    - **Interpretation (critical):** chisel's golden is *promoted from device
      tensors*, so it measures **kernel correctness (device vs torch-of-its-inputs),
      NOT quantization-vs-fp32** — and it may not score matmul/linear (goldens get
