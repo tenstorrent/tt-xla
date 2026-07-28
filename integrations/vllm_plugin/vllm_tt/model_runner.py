@@ -485,6 +485,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.tt_config.max_prefill_num_seqs is not None
             else self.max_num_reqs
         )
+        # Resolved from the *unpadded* max_num_seqs in platform.py, so under DP
+        # they can land on a non-multiple of dp_size. Align them up.
+        if self.dp_size > 1:
+            for _name in ("min_num_reqs", "max_prefill_num_reqs"):
+                _old = getattr(self, _name)
+                _new = min(
+                    _align_num_reqs_for_dp(_old, self.dp_size, round_up=True),
+                    self.max_num_reqs,
+                )
+                if _new != _old:
+                    logger.warning(
+                        "Data parallel requires %s divisible by dp_size; "
+                        "adjusting from %d to %d.",
+                        _name,
+                        _old,
+                        _new,
+                    )
+                    setattr(self, _name, _new)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -660,6 +678,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # absolute block ids. Set in initialize_kv_cache.
         self._group_is_sliding: list[bool] = [False]
         self._group_window_blocks: list[int] = [0]
+        # SMEM-capped, so round DOWN to stay under the limit. Rounding to 0
+        # means this context length cannot host dp_size rows at all.
+        if self.dp_size > 1:
+            _old = self.num_reqs_max_model_len
+            _new = _align_num_reqs_for_dp(_old, self.dp_size, round_up=False)
+            if _new == 0:
+                raise ValueError(
+                    f"num_reqs_max_model_len={_old} is below dp_size="
+                    f"{self.dp_size}: this max_model_len/block_size only fits "
+                    f"{_old} rows in SMEM, so a data-parallel batch cannot be "
+                    f"sharded across {self.dp_size} replicas. Lower dp_size or "
+                    f"max_model_len."
+                )
+            if _new != _old:
+                logger.warning(
+                    "Data parallel requires num_reqs_max_model_len divisible by "
+                    "dp_size; adjusting from %d to %d.",
+                    _old,
+                    _new,
+                )
+                self.num_reqs_max_model_len = _new
         self.query_start_loc_cpu = torch.zeros(
             self.max_num_reqs + 1,
             dtype=torch.int32,
@@ -5023,6 +5062,20 @@ def _row_lead(num_computed: np.ndarray, block_size: int) -> np.ndarray:
     of a speculative decode row.
     """
     return (num_computed % block_size).astype(np.int32)
+
+
+def _align_num_reqs_for_dp(value: int, dp_size: int, *, round_up: bool) -> int:
+    """Round a request-count bucket to a multiple of ``dp_size``.
+
+    A bucket that is not a multiple leaves the batch dim indivisible by the
+    mesh's "batch" axis, so ``safe_mark_sharding`` replicates it and DP
+    degenerates into every device computing the whole batch.
+    """
+    if dp_size <= 1 or value % dp_size == 0:
+        return value
+    if round_up:
+        return ((value + dp_size - 1) // dp_size) * dp_size
+    return (value // dp_size) * dp_size
 
 
 def _bucket_num_reqs(
