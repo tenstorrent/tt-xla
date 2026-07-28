@@ -1939,8 +1939,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
-        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
+        # The batch dim shards on "batch" unless the mesh has no batch axis
+        # (pure 1D-TP, mesh (1, N)), where activations shard on "model" instead.
+        # use_2d_mesh is the wrong test: it is False for *any* mesh with a size-1
+        # axis, so DP-only (mesh (dp, 1)) also picked "model" -- an axis of size
+        # 1, i.e. a silent no-op that left activations replicated while
+        # page_table / cache_position / batch_idx / attn_mask were sharded on
+        # "batch". 62b822233 removed this ternary for exactly that reason;
+        # a5dfc8cb8 reintroduced it while fixing pure-TP wide-batch.
+        batch_axis = "model" if self.mesh.mesh_shape[0] == 1 else "batch"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
