@@ -556,8 +556,15 @@ class TTPlatform(Platform):
             )
             vllm_config.scheduler_config.enable_chunked_prefill = False
             vllm_config.scheduler_config.tt_chunked_prefill_enabled = False
+            # With chunked prefill disabled, a single scheduler step must be able
+            # to hold a full batch of full-length sequences, so vLLM asserts
+            # max_num_batched_tokens >= max_model_len * max_num_seqs. Scale the
+            # override by max_num_seqs accordingly (single-seq is unchanged since
+            # max_model_len * 1 < DEFAULT_MAX_NUM_BATCHED_TOKENS); otherwise a
+            # batch > DEFAULT/max_model_len seqs would trip that assertion.
             vllm_config.scheduler_config.max_num_batched_tokens = max(
-                vllm_config.model_config.max_model_len,
+                vllm_config.model_config.max_model_len
+                * vllm_config.scheduler_config.max_num_seqs,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
         elif model_config is not None and model_config.runner_type != "pooling":

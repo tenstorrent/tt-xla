@@ -145,7 +145,13 @@ class TTFusedMoE(FusedMoE):
     def _apply_gate(self, gate_up):
         gate, up = gate_up.chunk(2, dim=-1)
         if self.activation == MoEActivation.SILU:
-            return F.silu(gate) * up
+            # Inline SiLU as gate*sigmoid(gate) rather than F.silu. F.silu's aten
+            # decomposition is wrapped in @pw_cast_for_opmath, which upcasts the
+            # whole activation to fp32 (a 2.15 GB device buffer per MoE layer at
+            # batch=32 / 8192 tokens). aten.sigmoid has no such upcast, so this
+            # keeps the SwiGLU in bf16. PCC vs the fp32 path is ~1.0 (SwiGLU is
+            # pointwise; bf16 only adds a ULP of rounding — verified numerically).
+            return gate * torch.sigmoid(gate) * up
         if self.activation == MoEActivation.GELU:
             # HF Gemma-4 uses tanh-approximated GELU; vLLM's "gelu" maps here.
             return F.gelu(gate, approximate="tanh") * up

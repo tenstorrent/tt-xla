@@ -317,6 +317,29 @@ def _tt_experts_forward_ep(
 
     # num_devices = dispatch_devices (cluster_axis size), not total.
     hidden_3d = hidden_states.view(1, T, H)
+    # Pin the router indices to the same token-axis-replicated sharding the
+    # hidden states already carry. The hidden is replicated on the token axis
+    # (its embedding is sharding-constrained to replicated); the index tensor is
+    # otherwise unconstrained, so Shardy is free to shard it on the cluster axis
+    # once the token count is large. When it does, each device sees the full
+    # hidden (T rows) but only its shard of the indices (T/dispatch_devices), and
+    # all_to_all_dispatch asserts input_shape[2] == indices_shape[2] (e.g. 8192
+    # vs 2048). Replicating the tiny index tensor keeps the two consistent and
+    # matches the single-request path (T small) that already works.
+    try:
+        from torch_xla.distributed.spmd import get_global_mesh
+
+        from .sharding import sharding_constraint_tensor
+
+        _mesh = get_global_mesh()
+        if _mesh is not None:
+            top_k_index = sharding_constraint_tensor(
+                top_k_index, _mesh, (None,) * top_k_index.ndim
+            )
+    except Exception:
+        # Sharding constraints are a no-op off-device / single-device; never let
+        # this optional pin break the EP path.
+        pass
     dispatched, metadata = torch.ops.tt.all_to_all_dispatch(
         hidden_3d,
         top_k_index,

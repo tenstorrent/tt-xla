@@ -34,6 +34,26 @@ def _mesh_shape():
     return [int(x) for x in raw.split(",")] if raw else None
 
 
+def _load_e2e_prompts():
+    """Return the 32 fixed-length prompts defined in the dense e2e reference
+    (tests/torch/models/deepseek_v4/test_deepseek_v4_e2e.py). Extracted by
+    parsing the source (via ast.literal_eval) rather than importing the module,
+    which pulls in heavy model-build deps and a relative-import package layout."""
+    import ast
+    import re
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
+    e2e_path = os.path.join(
+        repo_root, "tests", "torch", "models", "deepseek_v4", "test_deepseek_v4_e2e.py"
+    )
+    src = open(e2e_path).read()
+    m = re.search(r"PROMPTS\s*=\s*(\[.*?\n\])", src, re.S)
+    if m is None:
+        raise RuntimeError(f"could not find PROMPTS list in {e2e_path}")
+    return ast.literal_eval(m.group(1))
+
+
 @pytest.mark.nightly
 @pytest.mark.bh_galaxy
 @pytest.mark.skipif(
@@ -124,10 +144,19 @@ def test_dsv4_flash_generation():
     # (a ~685MB/bank C4A reshape OOMs against a 684.5MB largest-free-block).
     # DSV4_GPU_MEM_UTIL lowers the pool to leave contiguous room for probes.
     gpu_mem_util = float(os.environ.get("DSV4_GPU_MEM_UTIL", "0.2"))
+    # DSV4_MAX_NUM_SEQS: how many requests vLLM keeps in flight (the batch dim of
+    # the model forward). Default 1 (sequential). Set 32 to batch all e2e prompts
+    # into a single prefill. DSV4_MAX_NUM_BATCHED_TOKENS caps total scheduled
+    # tokens per step; to prefill all N prompts in ONE step it must be >= sum of
+    # prompt lengths (e.g. 32*128=4096). Defaults to max_model_len (single-seq).
+    max_num_seqs = int(os.environ.get("DSV4_MAX_NUM_SEQS", "1"))
+    max_num_batched_tokens = int(
+        os.environ.get("DSV4_MAX_NUM_BATCHED_TOKENS", str(max_model_len))
+    )
     llm_args = {
         "model": _CKPT,
-        "max_num_batched_tokens": max_model_len,
-        "max_num_seqs": 1,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "max_num_seqs": max_num_seqs,
         "max_model_len": max_model_len,
         "gpu_memory_utilization": gpu_mem_util,
         "trust_remote_code": True,
@@ -139,16 +168,27 @@ def test_dsv4_flash_generation():
     # token from the prompt's last-position logits) + (max_tokens - 1) decodes.
     # DSV4_MAX_TOKENS=11 => 1 prefill + 10 decodes.
     max_tokens = int(os.environ.get("DSV4_MAX_TOKENS", "32"))
-    prompts = ["I like taking walks in the"]
+    # DSV4_USE_E2E_PROMPTS=1 pulls the 32 fixed-length (128-token) prompts from
+    # tests/torch/models/deepseek_v4/test_deepseek_v4_e2e.py so the vLLM path is
+    # driven by the same inputs as the dense e2e reference.
+    if os.environ.get("DSV4_USE_E2E_PROMPTS") == "1":
+        prompts = _load_e2e_prompts()
+    else:
+        prompts = ["I like taking walks in the"]
     sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=max_tokens)
-    out = llm.generate(prompts, sampling_params)[0].outputs[0]
-    output_text = out.text
-    token_ids = list(out.token_ids)
-    print(f"[dsv4] prompt: {prompts[0]!r}", flush=True)
+    results = llm.generate(prompts, sampling_params)
     print(
-        f"[dsv4] decoded {len(token_ids)} token(s) "
-        f"(1 prefill + {len(token_ids) - 1} decode): ids={token_ids}",
-        flush=True,
+        f"[dsv4] batch of {len(results)} prompt(s), max_tokens={max_tokens}", flush=True
     )
-    print(f"[dsv4] decoded text: {output_text!r}", flush=True)
-    assert_output_coherent(output_text)
+    for i, res in enumerate(results):
+        out = res.outputs[0]
+        token_ids = list(out.token_ids)
+        print(
+            f"[dsv4] #{i:02d} prompt={prompts[i][:48]!r}... "
+            f"decoded {len(token_ids)} tok (1 prefill + {len(token_ids) - 1} decode) "
+            f"ids={token_ids}",
+            flush=True,
+        )
+        print(f"[dsv4] #{i:02d} text={out.text!r}", flush=True)
+    # Coherence check on the first sequence (all share the same decode graph).
+    assert_output_coherent(results[0].outputs[0].text)

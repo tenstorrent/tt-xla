@@ -303,6 +303,40 @@ class TTWorker:
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
             tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+
+        # --- KV pool right-sizing (opt-in: TT_KV_CACHE_RIGHTSIZE=1) ----------
+        # vLLM fills the entire gpu_memory_utilization budget with KV blocks,
+        # sizing the pool for thousands of concurrent requests (e.g. ~4400x for a
+        # 32-seq bring-up run). That over-allocation wastes and fragments device
+        # DRAM and can OOM the pool alloc itself. Cap the pool to the concurrency
+        # the scheduler can actually reach -- max_num_seqs sequences of
+        # max_model_len tokens -- plus a safety margin, freeing DRAM for the
+        # activation buffers. per-token bytes come from the same specs vLLM uses
+        # to derive num_blocks, so blocks*block_size ~= workload_tokens*margin.
+        # Trades unused serving concurrency for capacity; correctness/PCC intact.
+        if os.environ.get("TT_KV_CACHE_RIGHTSIZE") == "1":
+            margin = float(os.environ.get("TT_KV_CACHE_MARGIN", "2.0"))
+            per_token_bytes = sum(
+                spec.page_size_bytes / spec.block_size
+                for spec in kv_cache_spec.values()
+                if isinstance(spec, AttentionSpec) and spec.block_size > 0
+            )
+            workload_tokens = (
+                self.scheduler_config.max_num_seqs * self.model_config.max_model_len
+            )
+            workload_bytes = int(workload_tokens * per_token_bytes * margin)
+            if 0 < workload_bytes < tpu_kv_cache_bytes:
+                logger.info(
+                    "KV right-size: %d seqs x %d tokens x %.1fx margin -> "
+                    "capping KV pool %.2f GiB -> %.2f GiB",
+                    self.scheduler_config.max_num_seqs,
+                    self.model_config.max_model_len,
+                    margin,
+                    tpu_kv_cache_bytes / 1024**3,
+                    workload_bytes / 1024**3,
+                )
+                tpu_kv_cache_bytes = workload_bytes
+
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
             "KV cache budget = %.2f GiB",
