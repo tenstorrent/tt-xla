@@ -84,6 +84,13 @@ def make_runner(max_num_reqs=8, max_model_len=32, max_num_blocks_per_req=4):
     r.max_num_reqs = max_num_reqs
     r.num_tokens_paddings = [1, 32, 64, 128]
     r.dp_size = 1
+    # Spec decode off by default; scenarios that want it set these.
+    r.device = torch.device("cpu")
+    r.max_model_len = max_model_len
+    r.num_spec_tokens = 0
+    r.drafter = None
+    r._draft_token_ids = None
+    r._draft_token_req_ids = None
     return r
 
 
