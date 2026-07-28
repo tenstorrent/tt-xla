@@ -357,19 +357,28 @@ class Sampler(nn.Module):
             is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp
         ).to(torch.bfloat16)
 
-        # Pad batch to 32 (kernel requirement).
-        if batch < _TTNN_SAMPLING_BATCH_SIZE:
-            pad_size = _TTNN_SAMPLING_BATCH_SIZE - batch
-            values = torch.nn.functional.pad(
-                values, (0, 0, 0, pad_size), value=float("-inf")
-            )
-            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
-            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
-            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
-            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
-
-        result = torch.ops.tt.sampling(values, indices, k_tensor, p_tensor, temp_tensor)
-        return result[:batch].to(torch.int64)
+        # The tt::sampling kernel requires exactly batch=32, so process the
+        # batch in tiles of 32 rows (padding only the final partial tile up to
+        # 32) and concatenate. A single pad-to-32 truncates when batch > 32.
+        outputs = []
+        for tile_start in range(0, batch, _TTNN_SAMPLING_BATCH_SIZE):
+            tile_end = min(tile_start + _TTNN_SAMPLING_BATCH_SIZE, batch)
+            n = tile_end - tile_start
+            v = values[tile_start:tile_end]
+            idx = indices[tile_start:tile_end]
+            k = k_tensor[tile_start:tile_end]
+            p = p_tensor[tile_start:tile_end]
+            t = temp_tensor[tile_start:tile_end]
+            if n < _TTNN_SAMPLING_BATCH_SIZE:
+                pad_size = _TTNN_SAMPLING_BATCH_SIZE - n
+                v = torch.nn.functional.pad(v, (0, 0, 0, pad_size), value=float("-inf"))
+                idx = torch.nn.functional.pad(idx, (0, 0, 0, pad_size))
+                k = torch.nn.functional.pad(k, (0, pad_size), value=1)
+                p = torch.nn.functional.pad(p, (0, pad_size), value=1.0)
+                t = torch.nn.functional.pad(t, (0, pad_size), value=1.0)
+            res = torch.ops.tt.sampling(v, idx, k, p, t)
+            outputs.append(res[:n])
+        return torch.cat(outputs, dim=0).to(torch.int64)
 
 
 def chunked_topk_candidates(
@@ -389,11 +398,18 @@ def chunked_topk_candidates(
     batch = logits.shape[0]
     chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
 
-    # Multi-core topk is 14x faster at batch=32 vs small batches — pad
-    # with -inf rows so dummy entries can't win the topk.
+    # Multi-core topk is 14x faster at batch=32 vs small batches — pad up to
+    # the next multiple of 32 with -inf rows so dummy entries can't win the
+    # topk. Pad UP (never a fixed 32 target): 32 - batch is negative when
+    # batch > 32, which makes F.pad TRUNCATE the batch to 32 instead of padding.
+    padded_batch = max(
+        _TTNN_SAMPLING_BATCH_SIZE,
+        ((batch + _TTNN_SAMPLING_BATCH_SIZE - 1) // _TTNN_SAMPLING_BATCH_SIZE)
+        * _TTNN_SAMPLING_BATCH_SIZE,
+    )
     logits = torch.nn.functional.pad(
         logits,
-        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        (0, 0, 0, padded_batch - batch),
         value=float("-inf"),
     )
 
