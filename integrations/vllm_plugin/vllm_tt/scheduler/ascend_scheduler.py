@@ -208,17 +208,27 @@ class AscendScheduler(Scheduler):
 
             # Get already-cached tokens.
             if request.num_computed_tokens == 0:
-                new_computed_blocks, num_new_local_computed_tokens = (
-                    self.kv_cache_manager.get_computed_blocks(request)
-                )
+                (
+                    new_computed_blocks,
+                    num_new_local_computed_tokens,
+                    # Junction to pin for sparse-retention shared-prefix
+                    # handling; 0 when no uncached shared prefix is found.
+                    request.shared_prefix_boundary,
+                ) = self.kv_cache_manager.get_computed_blocks(request)
 
                 # Get externally-cached tokens if using a KVConnector.
                 if self.connector is not None:
-                    num_external_computed_tokens, load_kv_async = (
+                    ext_tokens, load_kv_async = (
                         self.connector.get_num_new_matched_tokens(
                             request, num_new_local_computed_tokens
                         )
                     )
+                    if ext_tokens is None:
+                        # Connector could not determine the number of matched
+                        # tokens for this step; defer request.
+                        skip_cur_request()
+                        continue
+                    num_external_computed_tokens = ext_tokens
 
                 # Total computed tokens (local + external).
                 num_computed_tokens = (
