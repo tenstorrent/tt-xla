@@ -1637,15 +1637,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+        active_rows = num_scheduled_tokens_per_req > 0
+        num_computed_active = num_computed_for_reqs[active_rows]
+        prefix_chunk_step = (
+            padded_total_num_scheduled_tokens > 1
+            and num_computed_active.size > 0
+            and bool(np.all(num_computed_active > 0))
         )
         chunk_start_idx = None
         if prefix_chunk_step and self._chunked_sdpa_active:
             # Same-stage batching => one shared [1] prefix offset; the op masks
             # causally and applies it internally (no host attn_mask).
             self._chunk_start_idx_dev.copy_(
-                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+                torch.tensor([int(num_computed_active.min())], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
