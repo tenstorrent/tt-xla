@@ -337,6 +337,78 @@ approach in G1. tt-xla now raises a Python-level `NotImplementedError` for
 `tt.paged_flash_mla_decode` still *advertises* an `attn_mask` operand that no
 Blackhole/Wormhole path can actually execute.
 
+### G1/G2 addendum — mask vs gather, concretely
+
+G2 calls the mask "otherwise-natural" without quantifying it, which invites the wrong
+conclusion. The mask approach is **not** asymptotically better than the gather: both
+are `O(context)`. Only G1 breaks that.
+
+The crux is that a masked paged decode still reads the *entire* cache.
+`sdpa_flash_decode.cpp:344-350` fuses the mask as an **add** onto the scores per
+K-chunk (`add_mask_fusion`); there is no "this chunk is all `-inf`, skip it" path.
+The chunk range comes from `cur_pos` (causal masking is applied only at the last
+chunk, `apply_mask_at_last_chunk`), and the sole early exit
+(`reader_decode_all.cpp:181`) is for cores with no assigned work, not mask-driven.
+Masked-out keys are read, multiplied, and then discarded. Chunk-skipping would not
+rescue it either: DSA's selected tokens are scattered, not clustered, so almost every
+chunk retains at least one live key.
+
+Per layer, per decode step, per user. DeepSeek-V3.2 latent width `L+R = 576`, bf16:
+
+| approach | traffic | T=4096, k=2048 | T=8192, k=2048 |
+|---|---|---|---|
+| gather (current) | `2·T·576·2` (paged read + dense write) + `k·576·2` (sparse read) | 11.25 MiB | 20.25 MiB |
+| additive `-inf` mask | `T·576·2` (in-place paged read) + `≈users·T·2` (mask) | 4.50 MiB | 9.00 MiB |
+| `cache_batch_idx` (G1) | `k·576·2`, **flat in T** | 2.25 MiB | 2.25 MiB |
+
+The gather pays for the context twice — once reading the paged cache, once writing
+the dense staging buffer — before `sparse_sdpa` reads it a third time. The mask pays
+once; building the mask is `O(T)` writes on a 1-wide vector rather than a 576-wide
+one, i.e. ~1/576th the cost of the copy it replaces.
+
+So the mask would have been worth having, on three counts:
+
+1. **2-2.5x less traffic** — a constant factor, not a change in asymptotics. 2.5x at
+   `T=4096`, decaying towards 2x as context grows (the gather's fixed `k·576·2` term
+   shrinks in proportion, leaving the 2x read+write penalty).
+2. **It batches over users; the gather cannot.** `tt.sparse_sdpa` requires
+   `B == 1`, so `_forward_decode_sparse` runs a Python `for u in range(users)` loop:
+   N gathers, N kernel calls and a `cat`, all unrolled into the traced graph.
+   `tt.paged_flash_mla_decode` takes `query [1, num_users, nqh, dh_qk]` with
+   `page_table [num_users, …]` and a mask broadcasting as
+   `[num_users, nqh, 1, max_seq_len]` — one call regardless of batch size.
+3. **Far smaller diff** — it reuses the already-validated dense paged decode path
+   instead of introducing a staging buffer and a per-user loop.
+
+None of that makes it the fix. Decode cost would still grow linearly with context.
+**If only one of G1/G2 is landed, land G1** — and landing G1 makes G2 moot, because
+`sparse_sdpa` reading the paged cache directly needs no mask at all.
+
+That the kernel path is genuinely `O(top-k)` is confirmed in
+`sparse_sdpa_reader.cpp:94`:
+
+> binary-search the first sentinel -> nv (valid-key count); only `ceil(nv/k_chunk)`
+> chunks are active.
+
+This is also why the contiguous-sentinel-tail contract is load-bearing rather than
+cosmetic: the reader binary-searches for the *first* sentinel, so a non-contiguous
+tail truncates the valid-key count and silently drops real keys.
+
+**Arch caveat.** G1's benefit is Blackhole-only, and that is a hard tt-metal
+constraint rather than a tt-mlir policy choice — all three DSA kernels `TT_FATAL` on
+arch: `sparse_sdpa_device_operation.cpp:73`,
+`topk_large_indices_device_operation.cpp:31`, and
+`indexer_score_device_operation.cpp:235` (reason at :232 — "the compute kernel relies
+on BH fast-untilize + custom BH LLK paths"). tt-mlir's `requireBlackhole` promotion
+guards mirror these faithfully. Nothing is lost by that: on Wormhole the
+`sparse_sdpa` composite inlines a **dense** decomposition (full `[B,H,S,T]` scores,
+then mask), so DSA there is strictly more expensive than plain dense MLA with or
+without G1 — Wormhole is a correctness/bring-up vehicle, never a perf target. What
+G1 would change on Wormhole is only code organisation: honouring `cache_batch_idx`
+would move the gather from tt-xla Python into the tt-mlir decomposition, same
+traffic but one implementation instead of two, and tt-xla's decode path sheds its
+per-user loop on both architectures.
+
 ### G3. `TTNN_TopKLargeIndicesOp` does not expose `valid_length` (performance / simplicity)
 
 tt-metal's `topk_large_indices` has a `valid_length` attribute
