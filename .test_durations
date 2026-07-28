@@ -3604,7 +3604,7 @@
     "tests/integrations/vllm_plugin/generative/test_decode.py::test_decode": 55.52,
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_bhqb_gemma4_26b_a4b": 447.51,
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_bhqb_gemma4_image[26b_a4b]": 533.59,
-    "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_bhqb_gemma4_image[31b]": 431.91,
+    "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_bhqb_gemma4_image[31b]": 864.83,
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_single_device_gemma4_e4b": 207.56,
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_single_device_gemma4_e4b_image": 260.53,
     "tests/integrations/vllm_plugin/generative/test_kv_cache_bleed.py::test_kv_cache_no_cross_user_bleed": 188.92,

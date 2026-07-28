@@ -63,7 +63,12 @@ class AscendScheduler(Scheduler):
         # TTConfig.prefill_kv_watermark.
         self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
 
-    def schedule(self) -> SchedulerOutput:
+    def schedule(self, throttle_prefills: bool = False) -> SchedulerOutput:
+        # v0.25.1: EngineCore calls schedule(self._should_throttle_prefills())
+        # positionally, so the parameter must exist. TT is single-instance, so
+        # DP prefill throttling is ignored. current_step advances to match the
+        # base (decode-cadence gating / stats read it).
+        self.current_step += 1
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
         # if self.scheduler_config.tt_chunked_prefill_enabled:
         #     return super().schedule()
@@ -633,26 +638,13 @@ class AscendScheduler(Scheduler):
             batch = KVEventBatch(ts=time.time(), events=events)
             self.kv_event_publisher.publish(batch)
 
-        # Advance the number of computed tokens for the request AFTER
-        # the request is scheduled.
-        # 1. The scheduler_output of the current step has to include the
-        #    original number of scheduled tokens to determine input IDs.
-        # 2. Advance the number of computed tokens here allowing us to
-        #    schedule the prefill request again immediately in the next
-        #    scheduling step.
-        # 3. If some tokens (e.g. spec tokens) are rejected later, the number of
-        #    computed tokens will be adjusted in update_from_output.
-        for req_id, num_scheduled_token in num_scheduled_tokens.items():
-            request = self.requests[req_id]
-            request.num_computed_tokens += num_scheduled_token
-            request.is_prefill_chunk = request.num_computed_tokens < (
-                request.num_tokens + request.num_output_placeholders
-            )
-            scheduler_output.has_structured_output_requests |= (
-                request.use_structured_output and not request.is_prefill_chunk
-            )
-
-        self.finished_req_ids = set()  # type: ignore
+        # Advance num_computed_tokens, set is_prefill_chunk, and clear the
+        # finished/preempted id sets. Delegated to the base (v0.25.1 also
+        # records the deferred-free fence and prunes the in-flight-prefill set
+        # here); calling it keeps this override in sync with future changes.
+        if self.defer_block_free and total_num_scheduled_tokens > 0:
+            self.sched_step_seq += 1
+        self._update_after_schedule(scheduler_output)
         return scheduler_output
 
     def _block_aligned_chunk(self, num_new_tokens: int, token_budget: int) -> int:
