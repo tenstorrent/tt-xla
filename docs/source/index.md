@@ -57,5 +57,6 @@ troubleshooting_codegen
 torch_xla_build
 tools
 tt_explorer
+graph_capture
 bisect_improvements
 ```

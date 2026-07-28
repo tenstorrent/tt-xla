@@ -11,10 +11,13 @@
 #include "api/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
 #include <optional>
+#include <unordered_map>
 #include <unordered_set>
 
 // tracy includes
@@ -460,6 +463,160 @@ onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args) {
   return nullptr;
 }
 
+// Configuration for TTNN graph capture, read once from the environment.
+struct GraphCaptureConfig {
+  bool enabled = false;
+  std::filesystem::path output_dir;
+  // Maximum number of executions to capture; 0 means no limit.
+  std::size_t limit = 0;
+};
+
+static const GraphCaptureConfig &getGraphCaptureConfig() {
+  static const GraphCaptureConfig config = []() {
+    GraphCaptureConfig cfg;
+
+    const char *output_dir = std::getenv("TTXLA_GRAPH_CAPTURE_DIR");
+    if (!output_dir || *output_dir == '\0') {
+      return cfg;
+    }
+    cfg.enabled = true;
+    cfg.output_dir = output_dir;
+
+    if (const char *limit = std::getenv("TTXLA_GRAPH_CAPTURE_LIMIT")) {
+      try {
+        cfg.limit = std::stoull(limit);
+      } catch (const std::exception &) {
+        LOG_F(ERROR,
+              "Invalid TTXLA_GRAPH_CAPTURE_LIMIT value \"%s\", ignoring it and "
+              "capturing every execution.",
+              limit);
+      }
+    }
+
+    return cfg;
+  }();
+
+  return config;
+}
+
+// Captures the TTNN graph of a single PJRT execution into a JSON report for the
+// ttnn-visualizer, importable with `python -m ttnn.graph_report`.
+//
+// The capture must begin and end on the thread that dispatches the TTNN ops:
+// tt-metal keeps the graph tracker's processor stack in `static thread_local`
+// storage, so a capture armed on any other thread observes nothing and yields
+// an empty report without reporting an error. Wrapping the dispatch call itself
+// is what makes the thread correct by construction rather than by assumption.
+//
+// Ending the capture from the destructor also means an execution that fails
+// part way through still produces the report showing how far it got, which is
+// usually the report worth having.
+class GraphCaptureScope {
+public:
+  explicit GraphCaptureScope(const LoadedExecutableInstance *instance) {
+    const GraphCaptureConfig &config = getGraphCaptureConfig();
+    if (!config.enabled) {
+      return;
+    }
+
+    // Graph capture is implemented only for the local TTNN runtime; on the
+    // other runtimes the underlying runtime call aborts the process, so skip
+    // instead of taking the whole run down.
+    if (tt::runtime::getCurrentDeviceRuntime() !=
+            tt::runtime::DeviceRuntime::TTNN ||
+        tt::runtime::getCurrentHostRuntime() ==
+            tt::runtime::HostRuntime::Distributed) {
+      warnUnsupportedRuntimeOnce();
+      return;
+    }
+
+    const ExecutableImage &executable_image =
+        *instance->getSharedExecutableImage();
+    // The fingerprint hashes the MLIR and the compile options, so it is stable
+    // across runs and distinct per graph. The executable name is currently a
+    // fixed string, so this is what actually tells two graphs of the same
+    // program apart, such as an LLM's prefill and decode.
+    const std::string &fingerprint = executable_image.getFingerprint();
+
+    // Count captures per graph rather than per process, so that a limit of N
+    // yields N reports for every graph instead of N reports in total. A global
+    // count would spend the whole budget on whichever graph ran first and never
+    // capture the others.
+    std::size_t index = 0;
+    {
+      static std::mutex s_capture_counts_mutex;
+      static std::unordered_map<std::string, std::size_t> s_capture_counts;
+      std::lock_guard<std::mutex> counts_lock(s_capture_counts_mutex);
+      index = s_capture_counts[fingerprint]++;
+    }
+
+    if (config.limit != 0 && index >= config.limit) {
+      // Report the cap exactly once per graph, so a truncated set of reports is
+      // never mistaken for the complete picture.
+      if (index == config.limit) {
+        LOG_F(INFO,
+              "TTNN graph capture limit of %zu reached for graph %s, further "
+              "executions of it will not be captured. Raise "
+              "TTXLA_GRAPH_CAPTURE_LIMIT to capture more.",
+              config.limit, fingerprint.c_str());
+      }
+      return;
+    }
+
+    std::string name = executable_image.getExecutableName();
+    std::replace(name.begin(), name.end(), '/', '_');
+    if (name.empty()) {
+      name = "executable";
+    }
+    std::string filename = "graph_" + name + "_" + fingerprint + "_" +
+                           std::to_string(index) + ".json";
+
+    std::error_code error_code;
+    std::filesystem::create_directories(config.output_dir, error_code);
+    if (error_code) {
+      LOG_F(ERROR, "Failed to create TTNN graph capture directory %s: %s",
+            config.output_dir.c_str(), error_code.message().c_str());
+      return;
+    }
+    m_report_path = (config.output_dir / filename).string();
+
+    tt::runtime::beginGraphCapture(/*normalMode=*/true);
+    m_active = true;
+  }
+
+  ~GraphCaptureScope() {
+    if (!m_active) {
+      return;
+    }
+
+    // Never let a reporting failure escape into the execution path.
+    try {
+      tt::runtime::endGraphCaptureToFile(m_report_path);
+      LOG_F(INFO, "Wrote TTNN graph capture report to %s",
+            m_report_path.c_str());
+    } catch (const std::exception &e) {
+      LOG_F(ERROR, "Failed to write TTNN graph capture report to %s: %s",
+            m_report_path.c_str(), e.what());
+    }
+  }
+
+  GraphCaptureScope(const GraphCaptureScope &) = delete;
+  GraphCaptureScope &operator=(const GraphCaptureScope &) = delete;
+
+private:
+  static void warnUnsupportedRuntimeOnce() {
+    static std::once_flag s_warned;
+    std::call_once(s_warned, []() {
+      LOG_F(WARNING,
+            "TTXLA_GRAPH_CAPTURE_DIR is set but TTNN graph capture is only "
+            "supported on the local TTNN runtime; no reports will be written.");
+    });
+  }
+
+  bool m_active = false;
+  std::string m_report_path;
+};
+
 PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
@@ -500,6 +657,11 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
     }
     return nullptr;
   }
+
+  // Scoped here rather than inside a concrete executable so that both the
+  // flatbuffer and the compiled-shared-object paths are covered by one
+  // implementation, and so begin/end share a call frame with the dispatch.
+  GraphCaptureScope graph_capture_scope(instance);
 
   tt_pjrt_status status = instance->execute(args);
   return *ErrorInstance::makeError(status).release();

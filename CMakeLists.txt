@@ -77,6 +77,25 @@ endif()
 set(TTMLIR_BUILD_TYPE "Release" CACHE STRING "Build type for tt-mlir")
 set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 
+# TTMLIR_BUILD_TYPE defaults to Release independently of CMAKE_BUILD_TYPE, so a
+# plain -DCMAKE_BUILD_TYPE=Debug silently produces a Debug plugin linked against
+# a Release tt-mlir. NDEBUG then differs between the two, and since several
+# LLVM/MLIR types carry `#ifndef NDEBUG` members the two sides disagree on
+# struct layout. That corrupts data passed across the boundary and typically
+# surfaces as an assertion failure deep inside LLVM (e.g. a non-power-of-2
+# StringMap size while building a pass pipeline), which looks nothing like a
+# build configuration problem.
+# An empty CMAKE_BUILD_TYPE is forced to Release further down, which matches the
+# TTMLIR_BUILD_TYPE default, so only compare once the user has actually set one.
+if(CMAKE_BUILD_TYPE AND NOT CMAKE_BUILD_TYPE STREQUAL TTMLIR_BUILD_TYPE)
+    message(WARNING
+        "CMAKE_BUILD_TYPE (${CMAKE_BUILD_TYPE}) differs from TTMLIR_BUILD_TYPE "
+        "(${TTMLIR_BUILD_TYPE}). Mismatched NDEBUG settings across the tt-xla / "
+        "tt-mlir boundary can cause LLVM/MLIR struct layout mismatches and "
+        "crashes at runtime. Pass -DTTMLIR_BUILD_TYPE=${CMAKE_BUILD_TYPE} to "
+        "match, or use one of the CMake presets.")
+endif()
+
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
     set(TT_RUNTIME_DEBUG ON)

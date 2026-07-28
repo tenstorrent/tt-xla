@@ -1,0 +1,2996 @@
+{
+  "operation_type_breakdown": {
+    "func.func": 1,
+    "func.return": 1,
+    "ttnn.add": 38,
+    "ttnn.argmax": 1,
+    "ttnn.concat": 1,
+    "ttnn.cos": 1,
+    "ttnn.deallocate": 697,
+    "ttnn.embedding": 1,
+    "ttnn.ge": 1,
+    "ttnn.matmul": 91,
+    "ttnn.multiply": 19,
+    "ttnn.nlp_concat_heads_decode": 18,
+    "ttnn.nlp_create_qkv_heads_decode": 18,
+    "ttnn.paged_update_cache": 36,
+    "ttnn.repeat": 2,
+    "ttnn.reshape": 40,
+    "ttnn.rms_norm": 37,
+    "ttnn.rotary_embedding": 36,
+    "ttnn.scaled_dot_product_attention_decode": 18,
+    "ttnn.sin": 1,
+    "ttnn.slice_static": 36,
+    "ttnn.to_layout": 2,
+    "ttnn.to_memory_config": 315,
+    "ttnn.typecast": 5,
+    "ttnn.where": 1
+  },
+  "perf_targets": {
+    "aiclk_hz": 1000000000,
+    "arch": "wormhole_b0",
+    "compute_bound_ops": 0,
+    "cycles_per_tile_matmul": 32,
+    "dram_bandwidth_bytes_per_sec": 288000000000,
+    "dram_bound_ops": 109,
+    "num_chips": 1,
+    "num_tensix_cores": 64,
+    "params_count": 1551892480,
+    "params_memory_bytes": 1648885760,
+    "roofline_ms": 5.7252977777777811,
+    "skipped_ops": 0,
+    "top_perf_estimate_ms": 8.1789968253968315
+  },
+  "shardable_operations": [
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (0,0)>]>>",
+      "location": "add.9",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (0,0)>]>>",
+      "location": "add.172",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<32x1xui32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.205",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <8x8>, memref<1x1xui32, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.205",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "gather.206",
+      "operation": "ttnn.embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.240",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.242",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.242",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.242",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x32xsi32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "scatter.267",
+      "operation": "ttnn.repeat"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1xf32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.273",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 + d1 + d2, d3), <1x1>, memref<1x1xf32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.273",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (3,0)>]>>",
+      "location": "dot.284",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x1>, memref<1x8x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "concatenate.286",
+      "operation": "ttnn.concat"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "cosine.313",
+      "operation": "ttnn.cos"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.316",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "sine.287",
+      "operation": "ttnn.sin"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.290",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.323",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.323",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 + d1 + d2, d3), <1x1>, memref<1x1xsi32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "broadcast.438",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (3,0)>]>>",
+      "location": "compare.439",
+      "operation": "ttnn.ge"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (3,0)>]>>",
+      "location": "select.444",
+      "operation": "ttnn.where"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.483",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.483",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (3,0)>]>>",
+      "location": "dot.549",
+      "operation": "ttnn.repeat"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.549",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.551",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.551",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.559_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.559_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x32>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "custom-call.592",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.605",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.594",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.611",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.617_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.617_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.650",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.652",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.652",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.652",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.707",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.707",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.844",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.844",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.910",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.912",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.912",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.920_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.920_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.953",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.966",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.955",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.972",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.978_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.978_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.1011",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1013",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.1013",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.1013",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1068",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1068",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1205",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1205",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.1271",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.1273",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.1273",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1281_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1281_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.1314",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1327",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1316",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.1333",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1339_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1339_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.1372",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1374",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.1374",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.1374",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1429",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1429",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1566",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1566",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.1632",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.1634",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.1634",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1642_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1642_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.1675",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1688",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1677",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.1694",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1700_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.1700_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.1733",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.1735",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.1735",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.1735",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1790",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1790",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.1927",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.1927",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.1993",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.1995",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.1995",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2003_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2003_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2036",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2049",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2038",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.2055",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2061_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2061_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2094",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2096",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.2096",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.2096",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.2151",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.2151",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.2288",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.2288",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.2354",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.2356",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.2356",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2364_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2364_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2397",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2410",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2399",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.2416",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2422_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2422_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2455",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2457",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.2457",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.2457",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.2512",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.2512",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.2649",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.2649",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.2715",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.2717",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.2717",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2725_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2725_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2758",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2771",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2760",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.2777",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2783_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.2783_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.2816",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.2818",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.2818",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.2818",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.2873",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.2873",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3010",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3010",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.3076",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.3078",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.3078",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3086_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3086_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3119",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3132",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3121",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.3138",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3144_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3144_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3177",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3179",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.3179",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.3179",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3234",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3234",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3371",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3371",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.3437",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.3439",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.3439",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3447_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3447_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3480",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3493",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3482",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.3499",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3505_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3505_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3538",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3540",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.3540",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.3540",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3595",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3595",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3732",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3732",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.3798",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.3800",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.3800",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3808_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3808_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3841",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3854",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3843",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.3860",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3866_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.3866_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.3899",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.3901",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.3901",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.3901",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.3956",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.3956",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.4093",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.4093",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.4159",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.4161",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.4161",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4169_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4169_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4202",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4215",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4204",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.4221",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4227_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4227_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4260",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4262",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.4262",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.4262",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.4317",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.4317",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.4454",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.4454",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.4520",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.4522",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.4522",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4530_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4530_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4563",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4576",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4565",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.4582",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4588_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4588_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4621",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4623",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.4623",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.4623",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.4678",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.4678",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.4815",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.4815",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.4881",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.4883",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.4883",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4891_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4891_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4924",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4937",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4926",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.4943",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4949_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.4949_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.4982",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.4984",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.4984",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.4984",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5039",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5039",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5176",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5176",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.5242",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.5244",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.5244",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5252_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5252_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.5285",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5298",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5287",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.5304",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5310_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5310_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.5343",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5345",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.5345",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.5345",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5400",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5400",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5537",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5537",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.5603",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.5605",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.5605",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5613_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5613_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.5646",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5659",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5648",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.5665",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5671_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5671_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.5704",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.5706",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.5706",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.5706",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5761",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5761",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.5898",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.5898",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.5964",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.5966",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.5966",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5974_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.5974_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6007",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6020",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6009",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.6026",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6032_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6032_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6065",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6067",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.6067",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.6067",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.6122",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.6122",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.6259",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.6259",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.6325",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.6327",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.6327",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6335_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6335_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6368",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6381",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6370",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.6387",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6393_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6393_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6426",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6428",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "dot.6428",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "dot.6428",
+      "operation": "ttnn.nlp_create_qkv_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.6483",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.6483",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <32x1>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <height_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,3)>]>>",
+      "location": "add.6620",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <8x8>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.6620",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 32 + d2, d3), <1x1>, memref<32x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.6686",
+      "operation": "ttnn.scaled_dot_product_attention_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x8>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,0)>]>>",
+      "location": "convert.6688",
+      "operation": "ttnn.nlp_concat_heads_decode"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.6688",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6696_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6696_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6729",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6742",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6731",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "multiply.6748",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6754_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "add.6754_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "custom-call.6787",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x64>, memref<1x64x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>, core_ranges = <[#ttnn.core_range<(0,0), (7,7)>]>>",
+      "location": "dot.6789",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x4096x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reshape.6790",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<32x131072xbf16, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.6789",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<32x1xui32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.6820",
+      "operation": "ttnn.argmax"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.6820",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.6820",
+      "operation": "ttnn.typecast"
+    }
+  ],
+  "summary": {
+    "dram_spilled_ops": 29,
+    "effectively_sharded_ops": 260,
+    "effectively_sharded_percentage": 70.844686648501366,
+    "sharded_and_spilled_ops": 4,
+    "sharded_ops": 264,
+    "sharded_percentage": 71.934604904632153,
+    "spilled_percentage": 7.9019073569482288,
+    "system_memory_ops": 0,
+    "system_memory_percentage": 0,
+    "total_ops": 1417,
+    "total_ops_with_output_tensor": 682,
+    "total_shardable_ops": 367
+  }
+}
