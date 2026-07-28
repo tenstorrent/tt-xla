@@ -1647,10 +1647,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # DP suppresses only chunk_start_idx (the chunked SDPA op), and routes
         # the cached prefix through the masked gather instead. Cold prefill
         # leaves attn_mask None. Both shapes are precompiled in warmup.
-        if (
-            padded_total_num_scheduled_tokens > 1
-            and not is_cold_prefill
-        ):
+        if padded_total_num_scheduled_tokens > 1 and not is_cold_prefill:
             num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
             # Mask batch must equal the query batch (target_num_reqs, the
             # request-count bucket) -- not the fixed max -- else SDPA asserts
@@ -1682,9 +1679,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # Mask [batch, 1, q, kv] must shard on batch like the query /
                 # page_table, else the SDPA op rejects a mask whose batch differs
                 # from the per-device query batch under DP.
-                safe_mark_sharding(
-                    attn_mask, self.mesh, ("batch", None, None, None)
-                )
+                safe_mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -3279,9 +3274,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if attn_mask is not None:
                 # Mask [batch, 1, q, kv] must shard on batch like the query,
                 # else the SDPA op rejects mask-batch != per-device query-batch.
-                safe_mark_sharding(
-                    attn_mask, self.mesh, ("batch", None, None, None)
-                )
+                safe_mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
 
         # prefix_chunk=True builds the cached-prefix metadata so the chunked SDPA
         # graph is compiled here (mirrors _dummy_run); chunk_start_idx routes
