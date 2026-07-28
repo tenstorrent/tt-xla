@@ -415,12 +415,11 @@ class RunnerTelemetry(_JsonlSink):
     ) -> None:
         """Hook: end of the runner's ``sample_tokens``. O(active_slots).
 
-        ``emitted_tokens`` counts *tokens* emitted this step, not emitting rows
-        (rows still prefilling emit none). Decode rate is emitted-tokens /
-        wall-time since the previous step, i.e. *accepted* tokens/step. On the v1
-        runner that distinction is live rather than theoretical: with spec decode
-        a row can accept several tokens in one step, and the caller sums
-        the per-row accepted lengths (``gen_lens``) rather than counting rows.
+        ``emitted_tokens`` counts *tokens* emitted this step; rows still
+        prefilling emit none. Decode rate is emitted-tokens / wall-time since the
+        previous step, i.e. *accepted* tokens/step. Both runners run ngram
+        speculative decode, where one row can accept several tokens in a step, so
+        callers sum per-row accepted lengths.
         """
         if not self.enabled:
             return

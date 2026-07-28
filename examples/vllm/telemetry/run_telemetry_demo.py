@@ -49,7 +49,7 @@ def main():
         additional_config={
             "enable_const_eval": False,
             "min_context_len": 256,
-            # Turn telemetry on (v1 runner: the default on main).
+            # Turn telemetry on; v2 is the default runner on this branch.
             "telemetry_enabled": True,
             "telemetry_dir": str(tele_dir),
             "telemetry_flush_ms": 200,

@@ -38,6 +38,7 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import KVConnectorModelRunne
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 from .logger import tt_init_logger
+from .telemetry import RunnerTelemetry, resolve_config
 from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 
 logger = tt_init_logger(__name__)
@@ -115,6 +116,9 @@ def replace_set_lora(model):
 
 class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     """Tenstorrent MRv2 model runner (see module docstring)."""
+
+    # Instances built without __init__ read this; disabled opens no files.
+    _telemetry = RunnerTelemetry(False, "", 1.0)
 
     def __init__(
         self,
@@ -300,6 +304,14 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.input_buffers = TTInputBuffers(
             self.max_num_reqs, self.max_num_tokens, self.device
         )
+
+        # Gating resolved in TTPlatform.check_and_update_config.
+        tele_enabled, tele_dir, tele_flush_s = resolve_config(
+            enabled=getattr(self.tt_config, "telemetry_enabled", False),
+            directory=getattr(self.tt_config, "telemetry_dir", None),
+            flush_ms=getattr(self.tt_config, "telemetry_flush_ms", None),
+        )
+        self._telemetry = RunnerTelemetry(tele_enabled, tele_dir, tele_flush_s)
 
         self.encoder_cache: dict = {}
         self.num_prompt_logprobs: dict = {}
@@ -549,6 +561,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler resends them through ``scheduled_new_reqs`` when resumed.
         """
         for req_id in scheduler_output.finished_req_ids:
+            if self._telemetry.enabled:
+                slot = self.req_states.req_id_to_index.get(req_id)
+                if slot is not None:
+                    prompt_len = int(self.req_states.prompt_len[slot])
+                    self._telemetry.on_request_completed(
+                        req_id,
+                        slot,
+                        prompt_len,
+                        int(self.req_states.total_len[slot]) - prompt_len,
+                    )
             self._remove_request(req_id)
         for req_id in scheduler_output.preempted_req_ids:
             self._remove_request(req_id)
@@ -563,7 +585,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             assert sampling_params is not None, "Pooling not supported in the v2 runner"
 
             req_id = new.req_id
-            # A re-added id (streaming abort+resubmit) must clear its stale slot.
+            # A re-added id (streaming abort+resubmit) must clear its stale slot;
+            # read the re-admission flag first, since clearing erases the evidence.
+            tele_readmission = (
+                self._telemetry.enabled and req_id in self.req_states.req_id_to_index
+            )
             self._remove_request(req_id)
 
             prompt_len = len(new.prompt_token_ids)
@@ -578,6 +604,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 req_id, prompt_len, all_token_ids, new.num_computed_tokens
             )
             slot = self.req_states.req_id_to_index[req_id]
+
+            if self._telemetry.enabled:
+                self._telemetry.on_request_admitted(
+                    req_id,
+                    slot,
+                    prompt_len,
+                    int(self.req_states.prefill_len[slot]),
+                    num_cached_tokens=int(new.num_computed_tokens),
+                    readmission=tele_readmission,
+                )
 
             # Seeded requests carry their own generator; the rest use global RNG.
             generator = None
@@ -1150,7 +1186,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 kv_connector_output = stack.enter_context(
                     self.maybe_get_kv_connector_output(scheduler_output)
                 )
-            self._run_pass_loop(
+            tele_passes = self._run_pass_loop(
                 ordered_slots,
                 ordered_num_tokens,
                 grammar_output,
@@ -1159,8 +1195,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 out_sampled,
                 prompt_lp_hs,
             )
+            # An implicit None return from the loop must not break the step.
+            tele_passes = tele_passes or (0, 0, 0)
 
         self.propose_draft_token_ids(out_req_ids, out_sampled)
+
+        # Per-step occupancy plus this step's pass split, from the loop's tally.
+        if self._telemetry.enabled:
+            self._telemetry.on_step(
+                self.req_states,
+                prefill_passes=tele_passes[0],
+                decode_passes=tele_passes[1],
+                emitted_tokens=tele_passes[2],
+            )
 
         prompt_logprobs_dict = self._get_prompt_logprobs_dict(
             prompt_lp_hs, scheduler_output
@@ -1237,8 +1284,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         out_req_ids: list,
         out_sampled: list,
         prompt_lp_hs: dict,
-    ) -> None:
-        """Decode-first multi-pass loop; appends into the caller's output lists."""
+    ) -> tuple[int, int, int]:
+        """Decode-first multi-pass loop; appends into the caller's output lists.
+
+        Returns ``(prefill_passes, decode_passes, emitted_tokens)`` for telemetry;
+        all zero when telemetry is disabled.
+        """
+        tele_on = self._telemetry.enabled
+        tele_prefill_passes = 0
+        tele_decode_passes = 0
+        tele_emitted_tokens = 0
         start_index = 0
         while start_index < len(ordered_slots):
             (
@@ -1296,7 +1351,21 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 sampled = pass_result
 
+            # Row state after the pass and tokens-per-row both misclassify: a
+            # completed single-shot prefill, and a spec-decode verification pass.
+            pass_prefill = False
+            if tele_on:
+                rs = self.req_states
+                for b in range(len(idx_mapping)):
+                    if int(num_scheduled[b]) == 0:
+                        continue
+                    slot = int(idx_mapping[b])
+                    if int(rs.num_computed_tokens[slot]) < int(rs.prefill_len[slot]):
+                        pass_prefill = True
+                        break
+
             valid = self.postprocess(idx_mapping, num_scheduled, sampled)
+            pass_emitted = 0
             for b in range(len(idx_mapping)):
                 if int(num_scheduled[b]) == 0:
                     # DP padding row: not scheduled this step, don't report it.
@@ -1304,8 +1373,20 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 slot = int(idx_mapping[b])
                 out_req_ids.append(self.req_states.index_to_req_id[slot])
                 out_sampled.append(valid[b])
+                if tele_on and valid[b]:
+                    # len() per row keeps this accepted tokens/step under spec decode.
+                    pass_emitted += len(valid[b])
+            if tele_on:
+                tele_emitted_tokens += pass_emitted
+                if pass_prefill:
+                    tele_prefill_passes += 1
+                elif pass_emitted > 0:
+                    # Empty passes count as neither.
+                    tele_decode_passes += 1
 
             start_index = end_index
+
+        return tele_prefill_passes, tele_decode_passes, tele_emitted_tokens
 
     def _run_model_pass(
         self,
