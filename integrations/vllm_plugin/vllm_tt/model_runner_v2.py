@@ -151,6 +151,20 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.lora_config = vllm_config.lora_config
         self.device = device
 
+        # Speculative decode (ngram). Mirrors v1: num_spec_tokens gates the whole
+        # path, drafter is only built for the ngram method.
+        self.speculative_config = getattr(vllm_config, "speculative_config", None)
+        self.num_spec_tokens = 0
+        self.drafter = None
+        self._draft_token_ids: list[list[int]] | None = None
+        self._draft_token_req_ids: list[str] | None = None
+        if self.speculative_config is not None:
+            self.num_spec_tokens = self.speculative_config.num_speculative_tokens
+            if self.speculative_config.method == "ngram":
+                from vllm.v1.spec_decode.ngram_proposer import NgramProposer
+
+                self.drafter = NgramProposer(vllm_config)
+
         # additional_config arrives as a plain dict; build the typed TTConfig
         # (as the v1 runner does) so the field reads below see real values.
         self.tt_config = TTConfig(**vllm_config.additional_config)
@@ -284,7 +298,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
             max_num_batched_tokens=self.max_num_tokens,
-            num_speculative_steps=0,
+            num_speculative_steps=self.num_spec_tokens,
             vocab_size=self.vocab_size,
             device=self.device,
         )
@@ -432,6 +446,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         from .model_state import TTModelState
         from .overrides import repair_stale_moe_closures, replace_modules
+        from .rejection_sampler import RejectionSampler
         from .sampler import Sampler
 
         logger.info("Loading model %s ...", self.model_config.model)
@@ -500,6 +515,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.model.compile(backend="tt", dynamic=False)
         logger.info("Model loaded and registered for tt compilation.")
         self.sampler = Sampler()
+        self.rejection_sampler = RejectionSampler(self.sampler)
 
         encoder_cache = self.encoder_cache if self.supports_mm_inputs else None
         self.model_state = TTModelState(
@@ -745,14 +761,20 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens: np.ndarray,
         target_num_reqs: int,
         padded_query_len: int,
+        spec_decode_metadata=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Host substitute for the v2 Triton input-prep kernels.
 
         Builds 2D input_ids/positions [target_num_reqs, padded_query_len] plus flat
-        query_start_loc/seq_lens/logits_indices from TTRequestState, indexed by
-        idx_mapping_np[b] -> stable slot. Prefill and decode share one gather
+        query_start_loc/seq_lens from TTRequestState, indexed by idx_mapping_np[b]
+        -> stable slot. Prefill and decode share one gather
         (all_token_ids[computed:computed+n]); the sampled token was already
-        appended by the writeback and there is no spec decode. Padding stays zero.
+        appended by the writeback, and staged drafts sit right after it. Padding
+        stays zero.
+
+        logits_indices is flat [target_num_reqs] (one logit at each request's last
+        scheduled token), or packed [target_num_reqs, num_spec_tokens+1] under spec
+        decode so draft and bonus logits come out of a single pass.
         """
         num_reqs = len(idx_mapping_np)
         rs = self.req_states
@@ -773,6 +795,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             seq_lens[b] = computed + n
             # One logit per request, at its last scheduled token (within-row).
             logits_indices[b] = n - 1
+
+        if spec_decode_metadata is not None:
+            # Packed [reqs, spec_width]: draft rows index the first draft_len
+            # positions, every remaining column points at the bonus logit.
+            spec_width = self.num_spec_tokens + 1
+            packed = np.zeros((target_num_reqs, spec_width), dtype=np.int32)
+            for b in range(num_reqs):
+                bonus_idx = int(num_scheduled_tokens[b]) - 1
+                packed[b, :] = bonus_idx
+                draft_len = spec_decode_metadata.num_draft_tokens[b]
+                if draft_len:
+                    packed[b, :draft_len] = np.arange(draft_len, dtype=np.int32)
+            logits_indices = packed
 
         query_start_loc = np.zeros(target_num_reqs + 1, dtype=np.int32)
         np.cumsum(num_scheduled_tokens, out=query_start_loc[1 : num_reqs + 1])
@@ -905,6 +940,73 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         is_mm_embed = is_mm_embed.to(self.device)
         return mm_embeds, is_mm_embed, mm_indices
 
+    def _apply_scheduled_drafts(self, scheduler_output: "SchedulerOutput") -> None:
+        """Stage this step's scheduled draft tokens into the slot table.
+
+        The scheduler already counts drafts in num_scheduled_tokens, so the input
+        gather reads them straight out of all_token_ids once staged here.
+        """
+        if not self.num_spec_tokens:
+            return
+        rs = self.req_states
+        scheduled = (
+            getattr(scheduler_output, "scheduled_spec_decode_tokens", None) or {}
+        )
+        for req_id, slot in rs.req_id_to_index.items():
+            drafts = scheduled.get(req_id)
+            if drafts:
+                rs.set_draft_tokens(slot, [int(t) for t in drafts])
+            else:
+                rs.clear_draft_tokens(slot)
+
+    def _build_spec_decode_metadata(self, idx_mapping_np: np.ndarray):
+        """Per-pass SpecDecodeMetadata over the packed [reqs, spec_width] logits.
+
+        Returns None when spec decode is off or no request in this pass carries
+        drafts, which keeps the non-spec path on the flat one-logit-per-request
+        layout. Mirrors the v1 builder.
+        """
+        if not self.num_spec_tokens:
+            return None
+        rs = self.req_states
+        num_draft = [int(rs.num_draft_tokens[int(s)]) for s in idx_mapping_np]
+        if not any(num_draft):
+            return None
+
+        from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
+
+        spec_width = self.num_spec_tokens + 1
+        flat: list[int] = []
+        target_logits_indices: list[int] = []
+        bonus_logits_indices: list[int] = []
+        for b, draft_len in enumerate(num_draft):
+            base = b * spec_width
+            slot = int(idx_mapping_np[b])
+            flat.extend(int(t) for t in rs.draft_tokens[slot, :draft_len])
+            target_logits_indices.extend(range(base, base + draft_len))
+            bonus_logits_indices.append(base + spec_width - 1)
+
+        dev = self.device
+        cu_num_draft = np.cumsum(np.array(num_draft, dtype=np.int32), dtype=np.int32)
+        cu_num_sampled = np.cumsum(
+            np.array([d + 1 for d in num_draft], dtype=np.int32), dtype=np.int32
+        )
+        return SpecDecodeMetadata(
+            draft_token_ids=torch.tensor(flat, dtype=torch.int32).to(dev),
+            num_draft_tokens=num_draft,
+            cu_num_draft_tokens=torch.from_numpy(cu_num_draft).to(dev),
+            cu_num_sampled_tokens=torch.from_numpy(cu_num_sampled).to(dev),
+            target_logits_indices=torch.tensor(
+                target_logits_indices, dtype=torch.int32
+            ).to(dev),
+            bonus_logits_indices=torch.tensor(
+                bonus_logits_indices, dtype=torch.int32
+            ).to(dev),
+            logits_indices=torch.arange(
+                len(num_draft) * spec_width, dtype=torch.int32
+            ).to(dev),
+        )
+
     def postprocess(
         self,
         idx_mapping_np: np.ndarray,
@@ -934,11 +1036,15 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # Still prefilling: ignore the sampled token from this partial req.
                 valid[b] = []
                 continue
-            token_id = int(valid[b][0])
+            # Spec decode accepts 1..num_spec_tokens+1 tokens per request; the
+            # non-spec path always yields exactly one.
+            tokens = [int(t) for t in valid[b]]
+            if not tokens:
+                continue
             pos = int(rs.total_len[slot])
-            rs.all_token_ids[slot, pos] = token_id
-            rs.total_len[slot] = pos + 1
-            rs.last_sampled_tokens[slot, 0] = token_id
+            rs.all_token_ids[slot, pos : pos + len(tokens)] = tokens
+            rs.total_len[slot] = pos + len(tokens)
+            rs.last_sampled_tokens[slot, 0] = tokens[-1]
 
         return valid
 
@@ -1028,6 +1134,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return self.kv_connector_no_forward(scheduler_output, self.vllm_config)
             return EMPTY_MODEL_RUNNER_OUTPUT
 
+        self._apply_scheduled_drafts(scheduler_output)
+
         if self.supports_mm_inputs and scheduler_output.scheduled_encoder_inputs:
             # Run the vision/multimodal encoder once per step; outputs are cached
             # by mm_hash and consumed per pass in _run_model_pass. Text-only
@@ -1080,6 +1188,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 prompt_lp_hs,
             )
 
+        self.propose_draft_token_ids(out_req_ids, out_sampled)
+
         prompt_logprobs_dict = self._get_prompt_logprobs_dict(
             prompt_lp_hs, scheduler_output
         )
@@ -1093,6 +1203,52 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             prompt_logprobs_dict=prompt_logprobs_dict,
             kv_connector_output=kv_connector_output,
         )
+
+    def propose_draft_token_ids(
+        self, out_req_ids: list[str], out_sampled: list[list[int]]
+    ) -> None:
+        """Run the ngram proposer over this step's accepted tokens.
+
+        Drafts are cached for the scheduler to pick up via take_draft_token_ids.
+        Host-only (the proposer is CPU/numpy), so nothing is compiled here.
+        """
+        self._draft_token_req_ids = []
+        self._draft_token_ids = []
+        if not self.drafter or not self.num_spec_tokens or not out_req_ids:
+            return
+        if not any(out_sampled):
+            return
+
+        rs = self.req_states
+        # num_tokens_no_spec: committed context length, drafts excluded. total_len
+        # already excludes staged drafts and includes this step's accepted tokens.
+        slots = [rs.req_id_to_index[rid] for rid in out_req_ids]
+        num_tokens_no_spec = np.array(
+            [int(rs.total_len[s]) for s in slots], dtype=np.int32
+        )
+        token_ids_cpu = np.zeros((len(slots), self.max_model_len), dtype=np.int32)
+        for i, slot in enumerate(slots):
+            n = int(rs.total_len[slot])
+            token_ids_cpu[i, :n] = rs.all_token_ids[slot, :n]
+
+        drafts = self.drafter.propose(
+            [list(row) for row in out_sampled], num_tokens_no_spec, token_ids_cpu
+        )
+        for req_id, draft in zip(out_req_ids, drafts):
+            if draft:
+                self._draft_token_req_ids.append(req_id)
+                self._draft_token_ids.append(draft)
+
+    def take_draft_token_ids(self):
+        """Hand this step's cached drafts to the scheduler (once)."""
+        if not self.num_spec_tokens or not self._draft_token_req_ids:
+            return None
+        from vllm.v1.outputs import DraftTokenIds
+
+        out = DraftTokenIds(self._draft_token_req_ids, self._draft_token_ids)
+        self._draft_token_ids = None
+        self._draft_token_req_ids = None
+        return out
 
     @staticmethod
     def _has_kv_transfer_group() -> bool:
@@ -1121,9 +1277,15 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end_index,
             ) = self._select_batch(ordered_slots, ordered_num_tokens, start_index)
 
+            spec_md = self._build_spec_decode_metadata(idx_mapping)
+
             input_ids, positions, _query_start_loc, seq_lens, logits_indices = (
                 self._prepare_input_tokens(
-                    idx_mapping, num_scheduled, target_num_reqs, padded_query_len
+                    idx_mapping,
+                    num_scheduled,
+                    target_num_reqs,
+                    padded_query_len,
+                    spec_md,
                 )
             )
             page_table, fill_page_table, cache_position = self._prepare_attn_tensors(
@@ -1147,6 +1309,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 cache_position,
                 want_prompt_hs,
                 grammar_output,
+                spec_md,
             )
             if want_prompt_hs:
                 sampled, hidden_states = pass_result
@@ -1186,6 +1349,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position: np.ndarray,
         want_prompt_hs: bool = False,
         grammar_output=None,
+        spec_decode_metadata=None,
     ):
         """Run one compiled forward+sample pass for the selected sub-batch.
 
@@ -1199,6 +1363,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         from types import SimpleNamespace
 
         from .metadata import XLASupportedSamplingMetadata
+        from .rejection_sampler import RejectionSampler
 
         dev = self.device
         input_ids_dev = torch.from_numpy(input_ids).to(dev)
@@ -1273,6 +1438,14 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # a plain python bool so dynamo specializes a separate graph (no-grammar
         # path unaffected).
         apply_grammar = grammar_output is not None
+        spec_active = spec_decode_metadata is not None
+        if apply_grammar and spec_active:
+            # Same limitation as v1: tenstorrent/tt-xla#5701.
+            logger.warning_once(
+                "Speculative decoding with grammar is not supported yet. "
+                "Disabling grammar for this step."
+            )
+            apply_grammar = False
         require_struct = grammar_bitmask = bitmasks = None
         if apply_grammar:
             require_struct, grammar_bitmask, bitmasks = (
@@ -1293,11 +1466,27 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             require_struct,
             grammar_bitmask,
             bitmasks,
+            logits_only=spec_active,
         )
         if want_prompt_hs:
             forward_out, hidden_states = result
         else:
             forward_out, hidden_states = result, None
+        if spec_active:
+            # Rejection sampling runs outside torch.compile: variable draft
+            # lengths and early exit on rejection are request-wise dynamic
+            # control flow dynamo cannot trace into a stable fullgraph.
+            selected = self.rejection_sampler(
+                spec_decode_metadata,
+                None,
+                forward_out,
+                sampling_metadata=sampling_metadata,
+            ).sampled_token_ids
+            sampled, _ = RejectionSampler.parse_output(selected, self.vocab_size)
+            sampled = sampled[: len(idx_mapping_np)]
+            if want_prompt_hs:
+                return sampled, hidden_states
+            return sampled
         if self.cpu_sampling:
             # forward_out is logits [target_num_reqs, vocab]; mask (grammar) and
             # sample on host. Device sampling masks inside _sample_compiled.
@@ -1332,6 +1521,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         require_struct_decoding=None,
         grammar_bitmask=None,
         bitmasks=None,
+        logits_only=False,
     ):
         """Run the forward->logits graph, then (device path) the sampling graph.
 
@@ -1356,8 +1546,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         logits, hidden_states = fwd if want_prompt_hs else (fwd, None)
 
-        if self.cpu_sampling:
-            # Stop at logits; grammar + sampling run on the host.
+        if self.cpu_sampling or logits_only:
+            # Stop at logits; grammar + sampling run on the host (spec decode
+            # rejection-samples them outside the compiled region).
             out = logits
         else:
             out = self._sample_compiled(
@@ -1479,8 +1670,18 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def _select_hidden_states(self, hidden_states, indices_do_sample):
         # Gather each request's last-token hidden state: hidden is [reqs, tokens, H].
-        batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-        result = hidden_states[batch_indices, indices_do_sample, :]
+        if indices_do_sample.ndim == 1:
+            batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
+            result = hidden_states[batch_indices, indices_do_sample, :]
+        else:
+            # Spec decode: [reqs, spec_width] indices -> flat [reqs*spec_width, H]
+            # so the rejection sampler's flat target/bonus indices line up.
+            batch_indices = torch.arange(
+                indices_do_sample.shape[0], dtype=torch.int32
+            ).unsqueeze(1)
+            batch_indices = batch_indices.expand_as(indices_do_sample)
+            result = hidden_states[batch_indices, indices_do_sample, :]
+            result = result.reshape(-1, result.shape[-1])
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
