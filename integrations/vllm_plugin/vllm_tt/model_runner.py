@@ -456,7 +456,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.max_model_len * scheduler_config.max_num_seqs
                 <= scheduler_config.max_num_batched_tokens
             ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
-        self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         # Match vLLM's per-request block-table width, which rounds up to a
         # multiple of (128 // block_size) for attention-backend alignment (vLLM
         # #39324). Sizing the padded page-table buffer the same way keeps it >=
@@ -467,11 +466,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             * (128 // self.block_size)
             if self.block_size <= 128
             else _base_blocks_per_req
-        )
-        self.num_blocks_per_most_len_req = (
-            cdiv(self.most_model_len, self.block_size)
-            if self.most_model_len is not None
-            else None
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
@@ -630,16 +624,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             device="cpu",
         )
         # adjust num_reqs to avoid SMEM OOM.
-        self.num_reqs_most_model_len = (
-            min(
-                TTAttentionBackend.get_max_num_seqs(
-                    self.most_model_len, self.block_size
-                ),
-                self.max_num_reqs,
-            )
-            if self.most_model_len is not None
-            else None
-        )
         self.num_reqs_max_model_len = min(
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
@@ -712,18 +696,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.num_reqs_max_model_len,
             )
         )
-        self._most_len_num_reqs = (
-            set(
-                _bucket_num_reqs(
-                    self.min_num_reqs,
-                    self.max_prefill_num_reqs,
-                    self.num_reqs_most_model_len,
-                )
-            )
-            if self.num_reqs_most_model_len is not None
-            else set()
-        )
-        self._reachable_num_reqs = self._max_len_num_reqs | self._most_len_num_reqs
+        self._reachable_num_reqs = set(self._max_len_num_reqs)
 
         self._input_ids_dev = {
             (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
@@ -769,17 +742,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Chunked-prefill prefix offset: persistent [1] int32 dev buffer so the
         # value can change per step under a captured trace without recompiling.
         self._chunk_start_idx_dev = _alloc_dev((1,), torch.int32)
-        if self.most_model_len is not None:
-            assert self.num_reqs_most_model_len is not None
-            assert self.num_blocks_per_most_len_req is not None
-            self._cache_position_dev_most = {
-                num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
-                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
-            }
-            self._cache_position_sliding_dev_most = {
-                num_reqs: _alloc_dev((num_reqs,), self.seq_lens_cpu.dtype)
-                for num_reqs in {self.min_num_reqs, self.num_reqs_most_model_len}
-            }
         # Per-group page_table / fill_page_table device buffers (nested by group
         # index); rebuilt for the real group count in initialize_kv_cache.
         # cache_position and chunk_start_idx are group-independent, so stay single.
@@ -821,15 +783,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._max_len_num_reqs,
             ),
         }
-        if self.most_model_len is not None:
-            _checks["page_table_dev_most"] = (
-                set(self._page_table_dev_most[0]),
-                self._most_len_num_reqs,
-            )
-            _checks["cache_position_dev_most"] = (
-                set(self._cache_position_dev_most),
-                self._most_len_num_reqs,
-            )
+
         for _name, (_keys, _needed) in _checks.items():
             assert _needed <= _keys, (
                 f"{_name} buffer keyed by {sorted(_keys)} is missing reachable "
@@ -1242,28 +1196,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             }
             for g in range(num_groups)
         }
-        if self.most_model_len is not None:
-            assert self.num_reqs_most_model_len is not None
-            assert self.num_blocks_per_most_len_req is not None
-            most_reqs = {self.min_num_reqs, self.num_reqs_most_model_len}
-            self._page_table_dev_most = {
-                g: {
-                    nr: _alloc_dev(
-                        (nr, _pt_width(g, self.num_blocks_per_most_len_req)), dt
-                    )
-                    for nr in most_reqs
-                }
-                for g in range(num_groups)
-            }
-            self._fill_page_table_dev_most = {
-                g: {
-                    nr: _alloc_dev(
-                        (nr, _pt_width(g, self.num_blocks_per_most_len_req)), dt
-                    )
-                    for nr in most_reqs
-                }
-                for g in range(num_groups)
-            }
         self._num_kv_cache_groups = num_groups
 
     def get_kv_cache_spec(self) -> dict[str, KVCacheSpec]:
@@ -1421,40 +1353,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         assert start_index < num_reqs
 
         # Get the number of scheduled tokens for each request.
-        use_max_model_len = self.most_model_len is None
         num_scheduled_tokens_per_req = []
         max_num_scheduled_tokens_all_reqs = 0
         end_index = start_index
 
-        # Use either most_model_len or max_model_len depending on request size.
         for i in range(start_index, num_reqs):
             req_id = self.input_batch.req_ids[i]
             assert req_id is not None
             num_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
-            if (
-                not use_max_model_len
-                and self.most_model_len is not None
-                and num_tokens > self.most_model_len
-            ):
-                use_max_model_len = True
             num_scheduled_tokens_per_req.append(num_tokens)
-        if use_max_model_len:
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_max_model_len
-                ]
-                end_index = start_index + self.num_reqs_max_model_len
-            else:
-                end_index = num_reqs
+        if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
+            num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
+                : self.num_reqs_max_model_len
+            ]
+            end_index = start_index + self.num_reqs_max_model_len
         else:
-            assert self.num_reqs_most_model_len is not None
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_most_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_most_model_len
-                ]
-                end_index = start_index + self.num_reqs_most_model_len
-            else:
-                end_index = num_reqs
+            end_index = num_reqs
 
         # Reconcile with the prefill row cap: if this is a prefill pass (any
         # request has > 1 scheduled token) and the SMEM-trimmed batch still
@@ -1481,14 +1395,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs = len(num_scheduled_tokens_per_req)
         actual_num_reqs = num_reqs
 
-        # Row-count bucket for this step, clamped to the active path's SMEM seq
-        # limit (see `_select_target_num_reqs`). #5416.
-        path_max_num_reqs = (
-            self.num_reqs_max_model_len
-            if use_max_model_len
-            else self.num_reqs_most_model_len
-        )
-        assert path_max_num_reqs is not None
+        # Row-count bucket for this step, clamped to the SMEM sequence limit.
+        path_max_num_reqs = self.num_reqs_max_model_len
         is_decode_step = max_num_scheduled_tokens_all_reqs == 1
         target_num_reqs = _select_target_num_reqs(
             self.min_num_reqs,
@@ -1599,16 +1507,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # seq_lens / cache_position are identical across kv_cache groups (the
         # decode position is physical, not per-group), so compute them once. Only
         # the block tables differ per group (built inside the loop below).
-        if use_max_model_len:
-            assert self.num_reqs_max_model_len is not None
-            width = self.max_num_blocks_per_req
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
-            cache_position_dev = self._cache_position_dev_max[target_num_reqs]
-        else:
-            assert self.num_reqs_most_model_len is not None
-            width = self.num_blocks_per_most_len_req
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
-            cache_position_dev = self._cache_position_dev_most[target_num_reqs]
+        width = self.max_num_blocks_per_req
+        seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
+        cache_position_dev = self._cache_position_dev_max[target_num_reqs]
 
         cache_position = seq_lens - 1
         cache_position = cache_position[:target_num_reqs]
@@ -1692,10 +1593,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cp_rel = np.full((target_num_reqs,), -1, dtype=np.int64)
             if actual_num_reqs > 0:
                 cp_rel[:actual_num_reqs] = cur_pos_abs - start_block * bs_s
-            if use_max_model_len:
-                scp_dev = self._cache_position_sliding_dev_max[target_num_reqs]
-            else:
-                scp_dev = self._cache_position_sliding_dev_most[target_num_reqs]
+            scp_dev = self._cache_position_sliding_dev_max[target_num_reqs]
             scp_dev.copy_(torch.from_numpy(cp_rel).to(scp_dev.dtype))
             sliding_cache_position = scp_dev
             if self.parallel_mode in (
@@ -1757,16 +1655,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # => pre-hybrid behavior.
         attn_metadata_per_group: list[TTMetadata] = []
         for g in range(self._num_kv_cache_groups):
-            if use_max_model_len:
-                page_table_dev = self._page_table_dev_max[g][target_num_reqs]
-                fill_page_table_dev_buf = self._fill_page_table_dev_max[g][
-                    target_num_reqs
-                ]
-            else:
-                page_table_dev = self._page_table_dev_most[g][target_num_reqs]
-                fill_page_table_dev_buf = self._fill_page_table_dev_most[g][
-                    target_num_reqs
-                ]
+            page_table_dev = self._page_table_dev_max[g][target_num_reqs]
+            fill_page_table_dev_buf = self._fill_page_table_dev_max[g][target_num_reqs]
 
             if self._group_is_sliding[g]:
                 # Sliding: window-width rotated ring page_table + window-relative
@@ -3888,15 +3778,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_num_blocks_per_req,
             "max_model_len path",
         )
-        if self.most_model_len is not None:
-            assert self.num_reqs_most_model_len is not None
-            assert self.num_blocks_per_most_len_req is not None
-            _compile_path(
-                self._most_len_num_reqs,
-                self.num_reqs_most_model_len,
-                self.num_blocks_per_most_len_req,
-                "most_model_len path",
-            )
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -4169,12 +4050,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
         torch_xla.sync()
-        if self.most_model_len is not None:
-            self._dummy_run(
-                num_tokens,
-                self.num_reqs_most_model_len,
-                self.num_blocks_per_most_len_req,
-            )
         torch_xla.sync(wait=False)
         self.encoder_cache.clear()
         gc.collect()
@@ -4921,9 +4796,8 @@ def _bucket_num_reqs(
     """Return the ``(small_prefill, big_prefill, decode)`` row-count buckets for
     one attention path.
 
-    A batch's row count is clamped to the SMEM sequence limit of the active path
-    (``path_max_num_reqs`` == ``num_reqs_max_model_len`` or
-    ``num_reqs_most_model_len``). Decode uses that limit; the prefill buckets are
+    A batch's row count is clamped to the SMEM sequence limit for the active
+    model length path. Decode uses that limit; the prefill buckets are
     ``min_num_reqs`` and ``max_prefill_num_reqs``, each clamped to it so neither
     row count exceeds what SMEM holds. See issue #5416.
     """
@@ -4938,23 +4812,15 @@ def _reachable_num_reqs(
     min_num_reqs: int,
     max_prefill_num_reqs: int,
     num_reqs_max_model_len: int,
-    num_reqs_most_model_len: Optional[int],
 ) -> set[int]:
-    """All row-count buckets `_prepare_inputs` can request across both paths.
+    """All row-count buckets `_prepare_inputs` can request.
 
     Per-batch device buffers must be keyed by exactly this set so every runtime
     ``target_num_reqs`` resolves to a preallocated buffer.
     """
-    reqs = set(
+    return set(
         _bucket_num_reqs(min_num_reqs, max_prefill_num_reqs, num_reqs_max_model_len)
     )
-    if num_reqs_most_model_len is not None:
-        reqs |= set(
-            _bucket_num_reqs(
-                min_num_reqs, max_prefill_num_reqs, num_reqs_most_model_len
-            )
-        )
-    return reqs
 
 
 def _select_target_num_reqs(
