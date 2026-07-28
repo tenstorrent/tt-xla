@@ -861,7 +861,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     cache_dtype_str=cache_dtype_str,
                 )
             else:
-                continue
+                # Other AttentionLayerBase impls (e.g. Deepseek sparse SWA) emit
+                # their own spec, including SlidingWindowMLASpec.
+                spec = attn_module.get_kv_cache_spec(self.vllm_config)
+                if spec is not None:
+                    kv_cache_spec[layer_name] = spec
 
         return kv_cache_spec
 

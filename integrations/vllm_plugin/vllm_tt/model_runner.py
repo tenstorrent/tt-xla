@@ -112,6 +112,12 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .rejection_sampler import RejectionSampler
 from .sampler import Sampler
+from .swa_cache_utils import (
+    assign_ring_slots,
+    build_sliding_ring_page_table,
+    sliding_ring_phys_blocks,
+    sliding_window_blocks,
+)
 from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 from .vllm_utils import (
     apply_hidden_layer_override,
@@ -157,43 +163,6 @@ def _get_layer_kv_cache_spec(
     if isinstance(kv_cache_spec, UniformTypeKVCacheSpecs):
         return kv_cache_spec.kv_cache_specs[layer_name]
     return kv_cache_spec
-
-
-def _assign_ring_slots(
-    row_req_ids: "list[str]",
-    batch_req_ids: "list[str]",
-    req_ring_slot: "dict[str, int]",
-    free_ring_slots: "list[int]",
-) -> "np.ndarray":
-    """Assign each request a stable per-user sliding-ring slot.
-
-    The physical sliding ring is split into one sub-ring per slot; a request
-    must keep the SAME slot for its lifetime, otherwise a subsequent decode step
-    would read/write a different sub-ring. Keying the slot by req_id (not batch
-    row) makes it survive InputBatch row-condensing, which reorders rows when
-    requests finish.
-
-    ``row_req_ids`` are the requests to return slots for (the current prepare
-    pass's rows). ``batch_req_ids`` is the full current batch, used to reclaim
-    the slots of departed requests -- reclaiming against the full batch (not the
-    per-pass subset) means a partial pass never frees a still-live request's
-    slot. Freed slots are reused by later requests, whose fresh prefill
-    overwrites the sub-ring. Mutates ``req_ring_slot`` and ``free_ring_slots`` in
-    place and returns an int64 array of slots aligned with ``row_req_ids``.
-    """
-    active = set(batch_req_ids)
-    for rid in [r for r in req_ring_slot if r not in active]:
-        free_ring_slots.append(req_ring_slot.pop(rid))
-    # Hand out the smallest free slot first (deterministic across steps).
-    free_ring_slots.sort(reverse=True)
-    slots = []
-    for rid in row_req_ids:
-        slot = req_ring_slot.get(rid)
-        if slot is None:
-            slot = free_ring_slots.pop()
-            req_ring_slot[rid] = slot
-        slots.append(slot)
-    return np.array(slots, dtype=np.int64)
 
 
 if TYPE_CHECKING:
@@ -626,7 +595,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._layer_to_group: dict[str, int] = {}
         # Per-user sliding-ring slots, keyed by req_id so a request keeps its
         # physical sub-ring across InputBatch row-condensing. Freed on request
-        # exit and reused. See _assign_ring_slots.
+        # exit and reused. See assign_ring_slots.
         self._req_ring_slot: dict[str, int] = {}
         self._free_ring_slots: list[int] = list(range(self.max_num_reqs))
         # Per-group block sizes. vLLM's page-size unification can assign a
@@ -1164,12 +1133,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.num_reqs_max_model_len,
         }
 
-        # Per-group page-table width: sliding groups only address their small
-        # window ring, so their page_table is that narrow (the paged ops require
-        # page_table_width <= cache_num_blocks). Full groups use the base width.
+        # Per-group page-table width: sliding groups address their window ring
+        # at full window_blocks (never clamp to the full-attention path width;
+        # phys_blocks = wb*N+1 always admits width=wb). Full groups use base.
         def _pt_width(g, base_width):
             if g < len(self._group_is_sliding) and self._group_is_sliding[g]:
-                return min(self._group_window_blocks[g], base_width)
+                return self._group_window_blocks[g]
             return base_width
 
         self._page_table_dev_max = {
@@ -1286,7 +1255,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     cache_dtype_str=cache_dtype_str,
                 )
             else:
-                continue
+                # Other AttentionLayerBase impls (e.g. Deepseek sparse SWA) emit
+                # their own spec, including SlidingWindowMLASpec.
+                spec = attn_module.get_kv_cache_spec(self.vllm_config)
+                if spec is not None:
+                    kv_cache_spec[layer_name] = spec
 
         return kv_cache_spec
 
@@ -1467,7 +1440,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Populate position ids for each request.
         # For request i with n scheduled tokens, positions are computed as:
-        #   arange(n) + num_computed_tokens[i]
+        #   arange(n) + num_computed_tokens[start_index + i]
         # which offsets the new tokens by the number of tokens already processed.
         #
         # Example (num_computed_tokens = [0, 0, 0]):
@@ -1485,10 +1458,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #   [[3, 4, 0, 0, 0],
         #    [10,11,12,13,14],
         #    [5, 6, 7, 0, 0]]
+        batch_slice = slice(start_index, end_index)
         for i, n in enumerate(num_scheduled_tokens_per_req):
             positions = (
                 torch.arange(n, dtype=torch.int32)
-                + self.input_batch.num_computed_tokens_cpu[i]
+                + self.input_batch.num_computed_tokens_cpu[start_index + i]
             )
             if self.uses_mrope:
                 arange[:, i, :n] = positions
@@ -1507,9 +1481,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Fill input_ids with the newly scheduled tokens for each request, starting
         # from the current computed token offset.
         for i, n in enumerate(num_scheduled_tokens_per_req):
-            computed_tokens = self.input_batch.num_computed_tokens_cpu[i]
+            computed_tokens = self.input_batch.num_computed_tokens_cpu[start_index + i]
             input_ids_cpu[i, :n] = self.input_batch.token_ids_cpu_tensor[
-                i, computed_tokens : n + computed_tokens
+                start_index + i, computed_tokens : n + computed_tokens
             ]
 
         # Move input_ids and position_ids to the target device for execution.
@@ -1536,7 +1510,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np[num_reqs + 1 :] = 1
 
         self.seq_lens_np[:num_reqs] = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
+            self.input_batch.num_computed_tokens_cpu[batch_slice]
             + num_scheduled_tokens_per_req
         )
 
@@ -1577,20 +1551,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             si = self._group_is_sliding.index(True)
             bs_s = self._group_block_sizes[si]
             wb = self._group_window_blocks[si]
-            sliding_width = min(wb, width)
-            cur_pos_abs = (seq_lens.numpy() - 1)[:actual_num_reqs].astype(np.int64)
-            cur_block = cur_pos_abs // bs_s
-            num_win = np.minimum(cur_block + 1, wb)
-            start_block = cur_block - num_win + 1
+            pass_seq_lens = seq_lens.numpy()[:actual_num_reqs].astype(np.int64)
             # Guard the not-yet-supported sliding-window prefill cases: only rows
             # being filled (num_scheduled>1) are affected, because paged_fill_cache
             # matches fill block k positionally to page_table[k] and would corrupt
             # KV when the fill spans past the window (start_block>0) or continues a
             # cached prefix (num_computed>0). Decode rows are correct at any context.
             if actual_num_reqs > 0:
+                cur_pos_abs = pass_seq_lens - 1
+                cur_block = cur_pos_abs // bs_s
+                num_win = np.minimum(cur_block + 1, wb)
+                start_block = cur_block - num_win + 1
                 nsched = np.asarray(num_scheduled_tokens_per_req[:actual_num_reqs])
                 num_computed = np.asarray(
-                    self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+                    self.input_batch.num_computed_tokens_cpu[batch_slice]
                 )
                 filling = nsched > 1
                 bad = filling & ((start_block > 0) | (num_computed > 0))
@@ -1600,25 +1574,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         "prefix caching / chunked prefill (num_computed > 0) is "
                         "not yet supported on TT"
                     )
-            jr = np.arange(sliding_width)
             # Per-user ring: each request owns a stable physical sub-ring
             # [1 + slot*wb, 1 + (slot+1)*wb). The slot is keyed by req_id (not
             # batch row) so it survives InputBatch row-condensing. Block 0 is a
             # shared null sink that padded / inactive rows (page_table value 0)
-            # write to harmlessly. Rotating the window into logical order makes
-            # the write hit the correct ring slot and keeps the read's causal +
-            # sliding_window mask correct.
-            pt = np.zeros((target_num_reqs, sliding_width), dtype=np.int64)
-            if actual_num_reqs > 0:
-                rot = (start_block[:, None] + jr[None, :]) % wb
-                slots = _assign_ring_slots(
-                    self.input_batch.req_ids[:actual_num_reqs],
+            # write to harmlessly.
+            slots = (
+                assign_ring_slots(
+                    self.input_batch.req_ids[batch_slice],
                     self.input_batch.req_ids[: self.input_batch.num_reqs],
                     self._req_ring_slot,
                     self._free_ring_slots,
                 )
-                user_base = (1 + slots * wb)[:, None]
-                pt[:actual_num_reqs] = rot + user_base
+                if actual_num_reqs > 0
+                else np.zeros((0,), dtype=np.int64)
+            )
+            pt, cp_rel, _ = build_sliding_ring_page_table(
+                pass_seq_lens, bs_s, wb, slots, target_num_reqs
+            )
             sliding_page_table = torch.from_numpy(pt.astype(np.int32)).to(
                 self.block_table_cpu.dtype
             )
@@ -1638,9 +1611,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.block_table_cpu.dtype
                 )
             )
-            cp_rel = np.full((target_num_reqs,), -1, dtype=np.int64)
-            if actual_num_reqs > 0:
-                cp_rel[:actual_num_reqs] = cur_pos_abs - start_block * bs_s
             if use_max_model_len:
                 scp_dev = self._cache_position_sliding_dev_max[target_num_reqs]
             else:
@@ -1659,7 +1629,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # offset depends on the group's block_size -> computed per group in the
         # loop below from this raw token count.
         num_computed_tokens_slice = (
-            self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+            self.input_batch.num_computed_tokens_cpu[batch_slice]
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
@@ -1686,7 +1656,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
-        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[batch_slice]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
         )
@@ -1766,7 +1736,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (target_num_reqs, width), dtype=self.block_table_cpu.dtype
             )
             page_table[:actual_num_reqs, :copy_width] = group_block_table[
-                :actual_num_reqs, :copy_width
+                batch_slice, :copy_width
             ]
             if actual_num_reqs == 1:
                 page_table[1:, :] = 0
@@ -2938,7 +2908,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata_per_group = []
         for _g in range(self._num_kv_cache_groups):
             if self._group_is_sliding[_g]:
-                pt_w = min(self._group_window_blocks[_g], num_blocks)
+                pt_w = self._group_window_blocks[_g]
                 grp_cache_position = sliding_cache_position
             else:
                 pt_w = num_blocks
@@ -3408,7 +3378,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata_per_group = []
         for _g in range(self._num_kv_cache_groups):
             if self._group_is_sliding[_g]:
-                pt_w = min(self._group_window_blocks[_g], self.max_num_blocks_per_req)
+                pt_w = self._group_window_blocks[_g]
                 grp_cache_position = sliding_cache_position
             else:
                 pt_w = self.max_num_blocks_per_req
@@ -4145,15 +4115,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # window_blocks int32 block ids, so window_blocks * 4 % 32 == 0 ->
         # window_blocks % 8 == 0. The ring is over-provisioned to that width; the
         # sliding_window mask still limits attention to the real window.
-        def _round_up(n, m):
-            return ((n + m - 1) // m) * m
-
         self._group_window_blocks = [
             (
-                _round_up(
-                    cdiv(g.kv_cache_spec.sliding_window, g.kv_cache_spec.block_size)
-                    + 1,
-                    8,
+                sliding_window_blocks(
+                    g.kv_cache_spec.sliding_window, g.kv_cache_spec.block_size
                 )
                 if isinstance(g.kv_cache_spec, SlidingWindowSpec)
                 else 0
@@ -4234,10 +4199,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self._group_is_sliding[g]:
                 # Per-user ring: max_num_reqs window_blocks sub-rings + a leading
                 # null block (block 0). Each request maps to a stable sub-ring
-                # [1 + slot*wb, 1 + (slot+1)*wb) (_assign_ring_slots), so
+                # [1 + slot*wb, 1 + (slot+1)*wb) (assign_ring_slots), so
                 # concurrent requests never collide; padded / inactive rows write
                 # to block 0 harmlessly. The worker reserves these bytes up front.
-                phys_blocks = self._group_window_blocks[g] * self.max_num_reqs + 1
+                phys_blocks = sliding_ring_phys_blocks(
+                    self._group_window_blocks[g], self.max_num_reqs
+                )
             else:
                 phys_blocks = pool_num_blocks
             for layer_name in kv_cache_group.layer_names:

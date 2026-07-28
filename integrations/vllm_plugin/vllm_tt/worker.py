@@ -49,6 +49,7 @@ from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
+from .swa_cache_utils import sliding_ring_reserve_bytes, sliding_window_blocks
 
 logger = tt_init_logger(__name__)
 
@@ -336,17 +337,19 @@ class TTWorker:
             if isinstance(layer_spec, SlidingWindowSpec):
                 # Match model_runner: +1 slack block, rounded up to 8 so the
                 # page-table stick (window_blocks int32 ids) is 32-byte aligned.
-                window_blocks = (
-                    cdiv(layer_spec.sliding_window, layer_spec.block_size) + 1
+                window_blocks = sliding_window_blocks(
+                    layer_spec.sliding_window, layer_spec.block_size
                 )
-                window_blocks = ((window_blocks + 7) // 8) * 8
                 # Per-user ring: one window_blocks sub-ring per batch slot plus a
                 # leading null block. The ring is sharded on the KV-head axis, so
                 # page_size_bytes (global, all heads) is divided by the shard
                 # count for the per-device cost.
-                sliding_reserve += (
-                    (max_num_reqs * window_blocks + 1) * layer_spec.page_size_bytes
-                ) // kv_shard_size
+                sliding_reserve += sliding_ring_reserve_bytes(
+                    window_blocks,
+                    max_num_reqs,
+                    layer_spec.page_size_bytes,
+                    kv_shard_size,
+                )
                 num_sliding += 1
         if sliding_reserve > 0:
             logger.info(
