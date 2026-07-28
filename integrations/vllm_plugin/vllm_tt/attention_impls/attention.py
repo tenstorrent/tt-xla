@@ -597,11 +597,21 @@ class TTAttentionBackendImpl(AttentionImpl):
                 # Re-assert the head-axis sharding with a graph-emitted
                 # sharding_constraint (torch.compile-safe; eager mark_sharding
                 # can't be traced inside the fused-prefill fullgraph region).
+                # Under DP the batch dim must stay sharded too: leaving it None
+                # declares the gathered K/V batch-replicated while Q and the
+                # mask are batch-sharded, and SDPA then rejects the mask batch.
+                kv_batch_axis = (
+                    "batch"
+                    if attn_metadata.dp_size > 1
+                    and key_for_sdpa.shape[0] % attn_metadata.dp_size == 0
+                    else None
+                )
+                kv_spec = (kv_batch_axis, "model", None, None)
                 key_for_sdpa = sharding_constraint_tensor(
-                    key_for_sdpa, attn_metadata.mesh, (None, "model", None, None)
+                    key_for_sdpa, attn_metadata.mesh, kv_spec
                 )
                 value_for_sdpa = sharding_constraint_tensor(
-                    value_for_sdpa, attn_metadata.mesh, (None, "model", None, None)
+                    value_for_sdpa, attn_metadata.mesh, kv_spec
                 )
             query_for_sdpa = inputs.query.transpose(-3, -2)
             sdpa_kwargs = {
