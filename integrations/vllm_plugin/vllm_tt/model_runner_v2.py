@@ -444,7 +444,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
         from vllm.model_executor.model_loader import get_model_loader
 
-        from .model_state import TTModelState
+        from .model_state_registry import get_tt_model_state_cls
         from .overrides import repair_stale_moe_closures, replace_modules
         from .rejection_sampler import RejectionSampler
         from .sampler import Sampler
@@ -518,7 +518,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.rejection_sampler = RejectionSampler(self.sampler)
 
         encoder_cache = self.encoder_cache if self.supports_mm_inputs else None
-        self.model_state = TTModelState(
+        model_state_cls = get_tt_model_state_cls(self.model)
+        logger.info("Using model state %s.", model_state_cls.__name__)
+        self.model_state = model_state_cls(
             self.vllm_config, self.model, encoder_cache, self.device
         )
 
