@@ -278,8 +278,14 @@ def test_from_v2_states_allowed_token_ids_mask():
         vocab_size=VOCAB,
     )
     assert md.no_allowed_token_ids is False
-    mask = md.allowed_token_ids_mask  # additive: 0.0 allowed, -inf disallowed
-    assert tuple(mask.shape) == (2, VOCAB)
-    assert mask[0, 5].item() == 0.0
-    assert mask[0, 7].item() == 0.0
-    assert mask[0, 6].item() == float("-inf")
+    bool_mask = md.allowed_token_ids_mask  # upstream contract: True == disallowed
+    assert tuple(bool_mask.shape) == (2, VOCAB)
+    assert bool_mask[0, 5].item() is False
+    assert bool_mask[0, 7].item() is False
+    assert bool_mask[0, 6].item() is True
+
+    additive = md.allowed_token_ids_additive_mask  # 0.0 allowed, -inf disallowed
+    assert tuple(additive.shape) == (2, VOCAB)
+    assert additive[0, 5].item() == 0.0
+    assert additive[0, 7].item() == 0.0
+    assert additive[0, 6].item() == float("-inf")
