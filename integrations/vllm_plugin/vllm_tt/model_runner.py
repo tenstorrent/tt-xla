@@ -1362,7 +1362,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, n in enumerate(num_scheduled_tokens_per_req):
             positions = (
                 torch.arange(n, dtype=torch.int32)
-                + self.input_batch.num_computed_tokens_cpu[i]
+                + self.input_batch.num_computed_tokens_cpu[start_index + i]
             )
             if self.uses_mrope:
                 arange[:, i, :n] = positions
@@ -1381,9 +1381,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Fill input_ids with the newly scheduled tokens for each request, starting
         # from the current computed token offset.
         for i, n in enumerate(num_scheduled_tokens_per_req):
-            computed_tokens = self.input_batch.num_computed_tokens_cpu[i]
+            computed_tokens = self.input_batch.num_computed_tokens_cpu[start_index + i]
             input_ids_cpu[i, :n] = self.input_batch.token_ids_cpu_tensor[
-                i, computed_tokens : n + computed_tokens
+                start_index + i, computed_tokens : n + computed_tokens
             ]
 
         # Move input_ids and position_ids to the target device for execution.
@@ -1410,7 +1410,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np[num_reqs + 1 :] = 1
 
         self.seq_lens_np[:num_reqs] = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
+            self.input_batch.num_computed_tokens_cpu[
+                start_index : start_index + num_reqs
+            ]
             + num_scheduled_tokens_per_req
         )
 
@@ -1419,22 +1421,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             page_table = self.block_table_cpu[
                 :target_num_reqs, : self.max_num_blocks_per_req
             ]
-            page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.max_num_blocks_per_req
-                ]
-            )
+            page_table[
+                :actual_num_reqs, : self.max_num_blocks_per_req
+            ] = self.input_batch.block_table[0].get_cpu_tensor()[
+                start_index : start_index + actual_num_reqs,
+                : self.max_num_blocks_per_req,
+            ]
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
             assert self.num_reqs_most_model_len is not None
             page_table = self.block_table_cpu[
                 :target_num_reqs, : self.num_blocks_per_most_len_req
             ]
-            page_table[:actual_num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :actual_num_reqs, : self.num_blocks_per_most_len_req
-                ]
-            )
+            page_table[
+                :actual_num_reqs, : self.num_blocks_per_most_len_req
+            ] = self.input_batch.block_table[0].get_cpu_tensor()[
+                start_index : start_index + actual_num_reqs,
+                : self.num_blocks_per_most_len_req,
+            ]
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
         cache_position = seq_lens - 1
@@ -1450,7 +1454,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # different prefix length, so we roll per-row. Done outside the
         # compiled graph to avoid shape-change recompilation.
         offsets = (
-            self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+            self.input_batch.num_computed_tokens_cpu[
+                start_index : start_index + actual_num_reqs
+            ]
             // self.block_size
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
@@ -1524,7 +1530,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Cached-prefix prefill chunk (L > 1 and num_computed > 0): attends over
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None).
-        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[
+            start_index : start_index + num_reqs
+        ]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
         )
