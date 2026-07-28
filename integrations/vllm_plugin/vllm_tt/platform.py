@@ -478,6 +478,25 @@ class TTPlatform(Platform):
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
+
+        # Prefix caching is unsafe under DP: vLLM's block pool is global, but
+        # each DP replica holds its own KV cache, so block id N is different
+        # physical memory per device. A cache hit hands a row block ids that
+        # were only ever filled on the replica that first computed them, and
+        # the reading replica gets zeros -- every row but the one that did the
+        # fill decodes garbage (identical garbage, since they all read zeros).
+        # Chunked-prefill continuation is unaffected: those blocks belong to the
+        # same request on the same replica.
+        if (
+            tt_config.enable_data_parallel
+            and cache_config
+            and cache_config.enable_prefix_caching
+        ):
+            logger.warning(
+                "[TT] Disabling prefix caching: it is not safe under data "
+                "parallelism (per-replica KV cache vs global block pool)."
+            )
+            cache_config.enable_prefix_caching = False
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_TRACE_ONCE compilation level
