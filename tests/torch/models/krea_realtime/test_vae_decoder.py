@@ -17,6 +17,10 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
 )
 
 
+# Only hangs in the full nightly run_torch session; passes standalone. See #5704.
+@pytest.mark.skip(
+    reason="Hangs on n150 — times out the run_torch job at 240 min. https://github.com/tenstorrent/tt-xla/issues/5704"
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
