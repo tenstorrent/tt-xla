@@ -52,15 +52,16 @@ from torch_xla.distributed.spmd import Mesh
 from . import weight_loader
 
 # ---- run configuration ----
-NUM_LAYERS = 12
-BATCH_SIZE = 128
+NUM_LAYERS = 24
+BATCH_SIZE = 8
 MAX_NEW_TOKENS = 16
 # Block-float weight dtype for the resident (no-swap) weights. Streaming keeps all
 # weights in device DRAM (enable_const_eval_inputs_to_system_memory=False), and
 # bf16 weights are ~42 GB/chip for the full model -- far over the ~12 GB/chip DRAM.
 # "bfp_bf8" ~halves the resident footprint, "bfp_bf4" ~quarters it (the full model
 # is borderline resident at bf4); "" keeps bf16. Matches the Kimi streaming test.
-WEIGHT_DTYPE = "bfp_bf8"  # "" | "bfp_bf8" | "bfp_bf4"
+#WEIGHT_DTYPE = "bfp_bf8"  # "" | "bfp_bf8" | "bfp_bf4"
+# Setting a different wieght type causes OOM because both will be stored on device at the moment - need to fix to run this model e2e.
 # Copied from tests/benchmark/benchmarks/llm_benchmark.py so the greedy output is
 # directly comparable to the benchmark's perf-run print.
 INPUT_PROMPT = (
@@ -120,6 +121,42 @@ def _make_mesh(loader) -> Tuple[Mesh, Tuple[int, int]]:
     return Mesh(np.arange(n), mesh_shape, mesh_names), mesh_shape
 
 
+# Per-tensor device-transfer manifest: set STREAM_MANIFEST=1 to log every tensor's
+# path/shape/dtype/spec/per-device bytes as it ships. The per-block + grand-total
+# subtotals always print. See the plan: this reports the *intended* per-device
+# footprint; the *actual* resident DRAM (incl. const-eval clones) is what
+# TT_RUNTIME_MEMORY_LOG_LEVEL=program reports at execute time.
+_MANIFEST = os.environ.get("STREAM_MANIFEST", "0") != "0"
+
+
+def _shard_factor(spec, mesh_sizes) -> int:
+    """Devices a tensor with ``spec`` is split across (1 = replicated). Compound
+    (tuple) axis entries multiply their mesh-dim sizes."""
+    if spec is None or mesh_sizes is None:
+        return 1
+    f = 1
+    for axis in spec:
+        if axis is None:
+            continue
+        if isinstance(axis, tuple):
+            for a in axis:
+                f *= mesh_sizes[a]
+        else:
+            f *= mesh_sizes[axis]
+    return f
+
+
+def _readback_sharding(xla_t):
+    """The sharding string actually annotated on the device tensor, or None if the
+    introspection API is unavailable. A genuinely sharded tensor reads back like
+    ``{devices=[4,8]<=[32]}``; a replicated one reads back as ``''`` (empty) or
+    ``{replicated}``. Cheap: reads the annotation, no sync/host gather."""
+    try:
+        return torch_xla._XLAC._get_xla_sharding_spec(xla_t)
+    except Exception:
+        return None
+
+
 def _upload(cpu_tensor: torch.Tensor, mesh, partition_spec, device) -> torch.Tensor:
     """Move a CPU tensor to the XLA device (lazy) and annotate its shard spec.
     ``partition_spec=None`` leaves it replicated across all devices."""
@@ -129,22 +166,73 @@ def _upload(cpu_tensor: torch.Tensor, mesh, partition_spec, device) -> torch.Ten
     return xla_t
 
 
-def _ship_module(module: nn.Module, spec_by_id: Dict[int, Tuple], mesh, device) -> None:
+def _ship_module(
+    module: nn.Module,
+    spec_by_id: Dict[int, Tuple],
+    mesh,
+    device,
+    mesh_sizes: Dict = None,
+    label: str = "",
+) -> int:
     """Replace every CPU Parameter and Buffer in ``module`` with a device-resident,
     (optionally) sharded copy, dropping the source CPU tensors. Tensors absent
     from ``spec_by_id`` upload replicated. The ``.to(device)`` is lazy -- it only
-    executes when a computation consuming these tensors runs (the dummy flush)."""
-    for sub in module.modules():
+    executes when a computation consuming these tensors runs (the dummy flush).
+
+    Returns the intended per-device byte total shipped (sum of numel*itemsize /
+    shard_factor). Logs a per-tensor manifest when STREAM_MANIFEST=1 and always a
+    per-module subtotal (when ``label`` given), flagging any large tensor that
+    ended up replicated despite a sharded spec."""
+    per_device_total = 0
+    replicated_hits = 0
+
+    def _account(path, src_tensor, spec, xla_t):
+        nonlocal per_device_total, replicated_hits
+        full = src_tensor.numel() * src_tensor.element_size()
+        factor = _shard_factor(spec, mesh_sizes)
+        per_dev = full // factor
+        per_device_total += per_dev
+        rb_spec = _readback_sharding(xla_t)
+        # A genuinely sharded tensor reads back with "devices="; anything else
+        # (empty / {replicated}) means it landed replicated on every chip.
+        rb_sharded = rb_spec is not None and "devices=" in rb_spec
+        flag = ""
+        if factor > 1 and rb_spec is not None and not rb_sharded:
+            flag = f"  <-- ASKED-SHARDED (/{factor}) BUT LANDED REPLICATED [{rb_spec!r}]"
+        elif spec is None and full > 64 * 1024 * 1024:
+            flag = "  <-- LARGE REPLICATED"
+        if flag:
+            replicated_hits += 1
+        if _MANIFEST:
+            logger.info(
+                f"  [ship] {path:58s} {str(tuple(src_tensor.shape)):24s} "
+                f"{str(src_tensor.dtype).replace('torch.', ''):9s} "
+                f"spec={str(spec):24s} {full/1e6:8.1f}MB /{factor:<2d} = "
+                f"{per_dev/1e6:7.1f}MB/chip{flag}"
+            )
+
+    for sub_path, sub in module.named_modules():
         for name, p in list(sub._parameters.items()):
             if p is None or p.device.type != "cpu":
                 continue
-            xla_t = _upload(p.data.detach(), mesh, spec_by_id.get(id(p)), device)
+            path = f"{sub_path}.{name}" if sub_path else name
+            spec = spec_by_id.get(id(p))
+            xla_t = _upload(p.data.detach(), mesh, spec, device)
             sub._parameters[name] = nn.Parameter(xla_t, requires_grad=False)
+            _account(path, p, spec, xla_t)
         for name, b in list(sub._buffers.items()):
             if b is None or b.device.type != "cpu":
                 continue
-            xla_t = _upload(b.detach(), mesh, spec_by_id.get(id(b)), device)
+            path = f"{sub_path}.{name}" if sub_path else name
+            spec = spec_by_id.get(id(b))
+            xla_t = _upload(b.detach(), mesh, spec, device)
             sub._buffers[name] = xla_t
+            _account(path, b, spec, xla_t)
+
+    if label:
+        extra = f"  ({replicated_hits} replicated-flag hits)" if replicated_hits else ""
+        logger.info(f"[ship-total] {label}: {per_device_total/1e9:.3f} GB/chip intended{extra}")
+    return per_device_total
 
 
 # ---------------------------------------------------------------------------
@@ -367,15 +455,29 @@ def test_streaming_deepseek_v3_1() -> None:
         {
             "optimization_level": 0,
             "enable_trace": False,
+            # const-eval ON (default): bf8 shrinks the cached weight output and
+            # decode reuses it (fast). Const-eval keeps inputs+outputs resident on
+            # device per executable (the residency we measure with the manifest +
+            # TT_RUNTIME_MEMORY_LOG_LEVEL below). Inputs stay on device (not host)
+            # so per-block host staging can be freed between ships.
             "enable_const_eval_inputs_to_system_memory": False,
-            # Shrink the resident weights so more layers fit in device DRAM.
-            "experimental_weight_dtype": WEIGHT_DTYPE,
+            # Disable multi-chip CPU-hoisting of const-eval (tt-mlir PR #8474,
+            # ff99051e): on a mesh it segments const-eval around every CCL barrier
+            # and runs each segment shard-by-shard on host, which is the suspected
+            # cause of the per-block flush slowdown + extra resident const-eval
+            # clones on galaxy. Testing whether disabling it reverts the regression.
+            "enable_const_eval_on_cpu": False,
+            # Shrink the cached const-eval weight output so more layers fit.
+            #"experimental_weight_dtype": WEIGHT_DTYPE,
         }
     )
 
     device = torch_xla.device()
     loader = ModelLoader(variant=ModelVariant.DEEPSEEK_V3_1_MODIFIED, num_layers=NUM_LAYERS)
     mesh, mesh_shape = _make_mesh(loader)
+    _, mesh_names = loader.get_mesh_config(xr.global_runtime_device_count())
+    mesh_sizes = dict(zip(mesh_names, mesh_shape))
+    shipped_bytes_total = 0  # running intended per-device device-resident weights
     if BATCH_SIZE % mesh_shape[0] != 0:
         raise ValueError(
             f"BATCH_SIZE ({BATCH_SIZE}) must divide the batch-axis device count "
@@ -418,9 +520,15 @@ def test_streaming_deepseek_v3_1() -> None:
     del top_sd
     gc.collect()
     top_spec_by_id = {id(t): s for t, s in _top_level_shard_spec(model).items()}
-    _ship_module(model.model.embed_tokens, top_spec_by_id, mesh, device)
-    _ship_module(model.model.norm, top_spec_by_id, mesh, device)
-    _ship_module(model.lm_head, top_spec_by_id, mesh, device)
+    shipped_bytes_total += _ship_module(
+        model.model.embed_tokens, top_spec_by_id, mesh, device, mesh_sizes, "embed_tokens"
+    )
+    shipped_bytes_total += _ship_module(
+        model.model.norm, top_spec_by_id, mesh, device, mesh_sizes, "norm"
+    )
+    shipped_bytes_total += _ship_module(
+        model.lm_head, top_spec_by_id, mesh, device, mesh_sizes, "lm_head"
+    )
     # All-gather the vocab-parallel lm_head logits so host-side argmax sees the
     # full vocabulary (mirrors the benchmark).
     model.lm_head.register_forward_hook(
@@ -499,7 +607,13 @@ def test_streaming_deepseek_v3_1() -> None:
 
         # 5c. ship the block sharded (lazy .to(device)).
         block_spec_by_id = {id(t): s for t, s in _block_shard_spec(block).items()}
-        _ship_module(block, block_spec_by_id, mesh, device)
+        shipped_bytes_total += _ship_module(
+            block, block_spec_by_id, mesh, device, mesh_sizes, f"layer {layer_id}"
+        )
+        logger.info(
+            f"[ship-total] cumulative intended device weights: "
+            f"{shipped_bytes_total/1e9:.3f} GB/chip"
+        )
         torch_xla.sync(wait=True)
         xm.wait_device_ops()
         gc.collect()
