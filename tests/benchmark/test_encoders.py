@@ -525,7 +525,7 @@ def test_xtts_v2(output_file, request):
 
     # Same loader instance backs both the model and the decode inputs.
     loader = ModelLoader(variant=ModelVariant.GPT_DECODE)
-    model_info_name = loader.get_model_info().name
+    model_info_name = loader.get_model_info(variant=ModelVariant.GPT_DECODE).name
     print(f"\nLoading model {model_info_name}...")
     model = loader.load_model()
 
