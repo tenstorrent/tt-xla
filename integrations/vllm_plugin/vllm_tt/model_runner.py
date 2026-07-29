@@ -450,6 +450,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.tt_config.max_prefill_num_seqs is not None
             else self.max_num_reqs
         )
+        # These default off the *unpadded* max_num_seqs (resolved in platform.py),
+        # so under DP they can land on a non-multiple of dp_size and the batch dim
+        # silently replicates instead of sharding. Align them up.
+        if self.dp_size > 1:
+            for _name in ("min_num_reqs", "max_prefill_num_reqs"):
+                _old = getattr(self, _name)
+                _new = min(
+                    _align_num_reqs_for_dp(_old, self.dp_size, round_up=True),
+                    self.max_num_reqs,
+                )
+                if _new != _old:
+                    logger.warning(
+                        "Data parallel requires %s divisible by dp_size; "
+                        "adjusting from %d to %d.",
+                        _name,
+                        _old,
+                        _new,
+                    )
+                    setattr(self, _name, _new)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -596,6 +615,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
         )
+        # SMEM-capped row counts: round DOWN so we stay under the limit. A count
+        # that rounds to 0 means this context length cannot host dp_size rows at
+        # all, which would silently run replicated -- fail loudly instead.
+        if self.dp_size > 1:
+            for _name in ("num_reqs_max_model_len", "num_reqs_most_model_len"):
+                _old = getattr(self, _name)
+                if _old is None:
+                    continue
+                _new = _align_num_reqs_for_dp(_old, self.dp_size, round_up=False)
+                if _new == 0:
+                    raise ValueError(
+                        f"{_name}={_old} is below dp_size={self.dp_size}: this "
+                        f"max_model_len/block_size only fits {_old} rows in SMEM, "
+                        f"so a data-parallel batch cannot be sharded across "
+                        f"{self.dp_size} replicas. Lower dp_size or max_model_len."
+                    )
+                if _new != _old:
+                    logger.warning(
+                        "Data parallel requires %s divisible by dp_size; "
+                        "adjusting from %d to %d.",
+                        _name,
+                        _old,
+                        _new,
+                    )
+                    setattr(self, _name, _new)
         self.query_start_loc_cpu = torch.zeros(
             self.max_num_tokens + 1,
             dtype=torch.int32,
@@ -2077,8 +2121,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
-        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
+        # The batch dim shards on "batch" unless the mesh has no batch axis
+        # (pure 1D-TP, mesh (1, N)), where activations shard on "model" instead.
+        # use_2d_mesh is the wrong test: it is False for *any* mesh with a size-1
+        # axis, so DP-only (mesh (dp, 1)) also picked "model" -- an axis of size
+        # 1, i.e. a silent no-op that left activations replicated while
+        # page_table / cache_position / batch_idx / attn_mask were sharded on
+        # "batch". 62b822233 removed this ternary for exactly that reason;
+        # a5dfc8cb8 reintroduced it while fixing pure-TP wide-batch.
+        batch_axis = "model" if self.mesh.mesh_shape[0] == 1 else "batch"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
@@ -4622,6 +4673,24 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     index = bisect.bisect_left(paddings, x)
     assert index < len(paddings)
     return paddings[index]
+
+
+def _align_num_reqs_for_dp(value: int, dp_size: int, *, round_up: bool) -> int:
+    """Round a request-count bucket to a multiple of ``dp_size``.
+
+    Every reachable bucket must be a multiple of dp_size, else the batch dim is
+    not divisible by the mesh's "batch" axis and ``safe_mark_sharding``
+    replicates it instead of sharding -- silently turning DP into every device
+    computing the whole batch (and masking per-row DP bugs). Padding
+    max_num_reqs alone is not enough: the prefill buckets are resolved from the
+    unpadded max_num_seqs. Round SMEM-capped counts down so they stay under
+    their limit; round the prefill bounds up.
+    """
+    if dp_size <= 1 or value % dp_size == 0:
+        return value
+    if round_up:
+        return ((value + dp_size - 1) // dp_size) * dp_size
+    return (value // dp_size) * dp_size
 
 
 def _bucket_num_reqs(
