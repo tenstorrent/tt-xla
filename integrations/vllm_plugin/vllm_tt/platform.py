@@ -159,6 +159,14 @@ class TTConfig:
     # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
+    # Override math fidelity for all ttnn ops exposing compute kernel config.
+    # Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
+    # "ttnn_default" lets ttnn pick per-op; None (default) leaves the MLIR
+    # default. At optimization_level > 0 the compiler leaves this unset (per-op
+    # default), so set it explicitly (e.g. "hifi2"/"hifi4") to force higher
+    # fidelity for accuracy. Higher fidelity trades throughput for precision.
+    math_fidelity: Optional[str] = None
+
     # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
 
@@ -227,6 +235,8 @@ class TTConfig:
         }
         if self.fp32_dest_acc_en is not None:
             cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
+        if self.math_fidelity is not None:
+            cfg["math_fidelity"] = self.math_fidelity
         if self.experimental_kv_cache_dtype is not None:
             cfg["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
         if self.export_path:

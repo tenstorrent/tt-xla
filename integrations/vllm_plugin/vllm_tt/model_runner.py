@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
@@ -536,6 +537,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             min_token_size=self.tt_config.min_context_len,
             max_token_size=self.prefill_chunk_budget,
         )
+        # Debug-only: compile extra bucket sizes that real traffic can never
+        # reach (chunked prefill caps every step at prefill_chunk_budget), to
+        # test whether resident graph/DRAM footprint alone -- independent of
+        # anything actually being exercised at request time -- affects the
+        # hang under investigation. Comma-separated token counts, e.g. "2048,4096".
+        decoy_paddings = os.environ.get("TTXLA_WARMUP_DECOY_PADDINGS")
+        self._decoy_num_tokens: set[int] = set()
+        if decoy_paddings:
+            extra = sorted(int(x) for x in decoy_paddings.split(",") if x.strip())
+            logger.warning(
+                "TTXLA_WARMUP_DECOY_PADDINGS set: compiling %d extra "
+                "unreachable bucket(s) %s at num_reqs=1 only (transient "
+                "compile memory scales with num_reqs, so this avoids the "
+                "num_reqs=32 pairing that OOMs even at modest token counts) "
+                "purely to inflate resident graph/DRAM footprint for "
+                "debugging -- real traffic cannot reach these (every step "
+                "is capped at prefill_chunk_budget=%d).",
+                len(extra),
+                extra,
+                self.prefill_chunk_budget,
+            )
+            self._decoy_num_tokens = set(extra)
+            self.num_tokens_paddings = sorted(
+                set(self.num_tokens_paddings) | set(extra)
+            )
         if self.tt_config.decode_only:
             # Restrict all num_tokens bucketing to the decode shape so every
             # precompile pass (and anything else that reads
@@ -1020,6 +1046,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ), "Pooling is not supported in TPU yet"
             req_id = new_req_data.req_id
             sampling_params = new_req_data.sampling_params
+            if os.environ.get("TTXLA_DUMP_NEW_REQUESTS"):
+                now = time.time()
+                logger.warning(
+                    "[NEW-REQUEST] t=%s.%03d req_id=%s prompt_tokens=%d "
+                    "temperature=%s top_p=%s top_k=%s repetition_penalty=%s "
+                    "presence_penalty=%s frequency_penalty=%s seed=%s "
+                    "max_tokens=%s min_tokens=%s logprobs=%s structured_outputs=%s",
+                    time.strftime("%m-%d %H:%M:%S", time.localtime(now)),
+                    int(now % 1 * 1000),
+                    req_id,
+                    len(new_req_data.prompt_token_ids or []),
+                    sampling_params.temperature,
+                    sampling_params.top_p,
+                    sampling_params.top_k,
+                    sampling_params.repetition_penalty,
+                    sampling_params.presence_penalty,
+                    sampling_params.frequency_penalty,
+                    sampling_params.seed,
+                    sampling_params.max_tokens,
+                    sampling_params.min_tokens,
+                    sampling_params.logprobs,
+                    sampling_params.structured_outputs is not None,
+                )
 
             if (
                 sampling_params
@@ -2574,6 +2623,39 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else:
                     tele_decode_passes += 1
 
+            if os.environ.get("TTXLA_DUMP_SAMPLING_FLAGS"):
+                sig = (
+                    num_reqs,
+                    target_num_reqs,
+                    scheduler_output.total_num_scheduled_tokens,
+                    tuple(input_ids.shape),
+                    self.position_ids.shape[-1] == 1,
+                    apply_grammar,
+                )
+                # Dedup: only log on change. Steady-state decode repeats the
+                # same (num_reqs, shape, ...) tuple every step; a genuinely
+                # new admission almost always differs in total_sched_tokens
+                # (real per-request content length), so distinct prefills
+                # still get their own line even within the same bucket.
+                if sig != getattr(self, "_sampling_flags_last_sig", None):
+                    self._sampling_flags_last_sig = sig
+                    now = time.time()
+                    logger.warning(
+                        "[SAMPLING-FLAGS] t=%s.%03d num_reqs=%d target_num_reqs=%d "
+                        "total_sched_tokens=%d input_ids_shape=%s decode=%s "
+                        "cpu_sampling=%s apply_grammar=%s all_greedy=%s",
+                        time.strftime("%m-%d %H:%M:%S", time.localtime(now)),
+                        int(now % 1 * 1000),
+                        num_reqs,
+                        target_num_reqs,
+                        scheduler_output.total_num_scheduled_tokens,
+                        tuple(input_ids.shape),
+                        self.position_ids.shape[-1] == 1,
+                        self.tt_config.cpu_sampling,
+                        apply_grammar,
+                        sampling_metadata.all_greedy,
+                    )
+
             if self.tt_config.cpu_sampling:
                 hidden_states, logits, selected_token_ids, kv_connector_output = (
                     self._model_unfused(
@@ -3330,6 +3412,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start = time.perf_counter()
         all_greedy_options = [True, False]
         apply_grammar_options = [True, False]
+        if os.environ.get("TTXLA_WARMUP_GREEDY_ONLY"):
+            logger.info(
+                "TTXLA_WARMUP_GREEDY_ONLY set: skipping all_greedy=False precompile."
+            )
+            all_greedy_options = [True]
+        if os.environ.get("TTXLA_WARMUP_NO_GRAMMAR"):
+            logger.info(
+                "TTXLA_WARMUP_NO_GRAMMAR set: skipping apply_grammar=True precompile."
+            )
+            apply_grammar_options = [False]
         num_tokens_paddings = self.num_tokens_paddings
         if self.tt_config.decode_only:
             num_tokens_paddings = [1]  # Only compile the decode path
@@ -3348,6 +3440,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if len(self.num_tokens_paddings) > 1
             else self.num_tokens_paddings[0]
         )
+
+        # Debug-only: compile extra prefill batch sizes that AscendScheduler
+        # never dispatches at (it only ever schedules num_reqs in
+        # {min_num_reqs, max_prefill_num_reqs}), at the same real token-bucket
+        # sizes -- inflates resident graph/DRAM footprint via the num_reqs
+        # axis instead of num_tokens, so no oversized transient compile
+        # buffers (unlike large token-count decoys). Comma-separated, e.g. "2,4,8,16".
+        decoy_num_reqs = os.environ.get("TTXLA_WARMUP_DECOY_NUM_REQS")
+        if decoy_num_reqs:
+            extra = sorted(int(x) for x in decoy_num_reqs.split(",") if x.strip())
+            logger.warning(
+                "TTXLA_WARMUP_DECOY_NUM_REQS set: compiling %d extra "
+                "unreachable batch size(s) %s purely to inflate resident "
+                "graph/DRAM footprint for debugging -- AscendScheduler never "
+                "dispatches at these sizes (only %s).",
+                len(extra),
+                extra,
+                num_reqs_options,
+            )
+            num_reqs_options = sorted(set(num_reqs_options) | set(extra))
 
         # Compile the cached-prefix (chunked SDPA op) graph in addition to the
         # standard one, but only when the op is usable; otherwise the first
@@ -3380,6 +3492,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # The cached-prefix variant only applies to prefill buckets; the
             # decode bucket (num_tokens == 1) always takes the standard path.
             if not (prefix_chunk and num_tokens == 1)
+            # Decoy token buckets (TTXLA_WARMUP_DECOY_PADDINGS) only at
+            # num_reqs=1 -- transient compile memory scales with num_reqs, so
+            # pairing a decoy with the full batch size can OOM even at modest
+            # token counts well within what real num_reqs=1 traffic handles.
+            if not (num_tokens in self._decoy_num_tokens and num_reqs != 1)
         ]
 
         if (
