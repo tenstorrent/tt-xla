@@ -137,6 +137,27 @@ Ran the untouched baseline (verbose logging suppressed via `TTMLIR_RUNTIME_LOGGE
 
 **This is a real, if `n=1`, meaningful result**: every prior occurrence of the hang followed the exact ifeval-then-gpqa sequence (6/6 hangs); gpqa alone against a fresh server did not reproduce it. This is fully consistent with the race-condition mechanism above rather than contradicting it: DRAM allocator fragmentation state is inherently history-dependent (a first-fit/best-fit allocator's layout depends on the exact sequence of prior allocations/deallocations), so "ifeval's admission pattern, then gpqa's burst" and "gpqa's burst alone against a pristine layout" can plausibly produce genuinely different fragmentation histories — only one of which happens to expose the specific address-reuse-before-drain race. Worth at least one more repetition before treating "ifeval-first is necessary" as settled, given n=1 — but this is a good, concrete lead on exactly *which* allocation history matters, not just that resident graph count in the abstract matters.
 
+### Confidence assessment (2026-07-29)
+
+**Very likely correct and specific enough to act on — but not yet fully proven.** Calibration, so a future session picking this back up knows exactly what's solid vs. still open:
+
+**High confidence (verified directly against source, not inferred from a research pass):**
+- Trace buffers and const-eval results genuinely share one DRAM pool (`trace_region_size=0` default, never overridden by us).
+- Generation-id invalidation is global and unconditional — any first-time capture invalidates every other captured trace, regardless of overlap.
+- The eviction path (`erase → release_trace → deallocate_buffer`) has zero device-side synchronization anywhere in it.
+
+**Moderate-high confidence (strong causal experiments, not yet a smoking gun):**
+- Resident graph count/DRAM footprint causally matters — proven via inert decoy graphs (compiled, never invoked by real traffic) reproducing the hang. Clean, controlled result.
+- Forcing sync after every trace replay prevents it at the same graph count — but only 2 clean iterations vs. 6/6 baseline hangs.
+
+**What's still missing before calling this fully proven:**
+1. No direct observation of the actual race — haven't used `GetMemoryView` to catch a live address collision between an evicted trace's freed buffer and a subsequent allocation.
+2. Haven't tried the surgical fix (sync only at the erase/recapture transition, not after every replay). If that alone fixes it too, it confirms the *right* transition was found, rather than a synchronization point that works via serialization side-effects.
+3. **Real confound**: verbose logging alone (no explicit sync) also masked the hang once — confirms this is genuinely probabilistic/timing-sensitive, not deterministic. So any single "ran clean" result (including the `n=1` gpqa-only test above) is weaker evidence than it looks; can't fully rule out some clean runs just got lucky rather than being structurally safe.
+4. One unexcluded alternative: the completion-queue-hang signature is *consistent* with a DRAM address-reuse race, but the exact causal link from "address collision" → "completion queue never posts" hasn't been demonstrated. Some other capacity-constrained resource with similar dynamics (command-queue depth, event/semaphore exhaustion) isn't strictly ruled out, just less parsimonious given everything else fits.
+
+**Highest-value remaining experiments to close the gap**: `TT_RUNTIME_TRACE_REGION_SIZE` set nonzero (isolates the shared-pool half specifically, no sync changes needed), and the surgical erase-time-sync fix (isolates the "right transition" half). Good enough to write up as the leading hypothesis in an upstream issue now; not yet good enough to close the investigation.
+
 ### Important confound discovered: verbose per-op logging alone also masks the hang
 
 Ran the **untouched baseline** (no decoys, no `TT_RUNTIME_SYNC_AFTER_TRACE`, nothing changed except the now-unconditional `LOG_INFO` per-op logging from the rebuild) — `debug_logs/baseline_verbose_log/`. **It completed clean, no hang**, despite this being the exact config that hung 6/6 times before this rebuild.
