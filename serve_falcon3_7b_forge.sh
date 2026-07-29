@@ -41,7 +41,10 @@
 #   MAX_NUM_SEQS, GPU_MEMORY_UTILIZATION, PREFILL_CHUNK_SIZE, MIN_NUM_SEQS,
 #   PREFILL_BATCH_THRESHOLD, OPTIMIZATION_LEVEL, CPU_SAMPLING, ENABLE_TRACE,
 #   KV_CACHE_DTYPE, WEIGHT_DTYPE, MIN_CONTEXT_LEN, TT_KV_POOL_GB,
-#   MATH_FIDELITY, FP32_DEST_ACC_EN, API_KEY, WARMUP, TT_METAL_HOME
+#   MATH_FIDELITY, FP32_DEST_ACC_EN, API_KEY, WARMUP, TT_METAL_HOME,
+#   DISABLE_PREFIX_CACHING (debug opt-in, 0 by default: 1 passes
+#   --no-enable-prefix-caching -- vLLM's cross-request KV-reuse feature, NOT the
+#   "cached-prefix"/chunked-SDPA compile axis controlled by PREFILL_CHUNK_SIZE)
 set -eo pipefail  # NOT -u: venv/activate references vars unset until sourced
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,6 +88,10 @@ WEIGHT_DTYPE="${WEIGHT_DTYPE:-bfp_bf8}"
 MIN_CONTEXT_LEN="${MIN_CONTEXT_LEN:-128}"
 # Debug hack: 1 decoder layer. Set NUM_HIDDEN_LAYERS="" for the full model.
 NUM_HIDDEN_LAYERS="${NUM_HIDDEN_LAYERS-1}"
+# Debug opt-in: disable vLLM's cross-request prefix caching entirely (default
+# on in production). Not a compile-time lever -- purely to see if it affects
+# the hang.
+DISABLE_PREFIX_CACHING="${DISABLE_PREFIX_CACHING:-0}"
 export TT_KV_POOL_GB="${TT_KV_POOL_GB:-32}"
 
 # Same derivation as tt-media-server's VLLMSettings: with chunked prefill the
@@ -152,6 +159,7 @@ echo "   layers     : ${NUM_HIDDEN_LAYERS:-<full model>}"
 echo "   b/ctx/chunk: $MAX_NUM_SEQS / $MAX_MODEL_LENGTH / $PREFILL_CHUNK_SIZE"
 echo "   batched tok: $MAX_NUM_BATCHED_TOKENS   gmu=$GPU_MEMORY_UTILIZATION"
 echo "   addl config: $ADDITIONAL_CONFIG"
+[ "$DISABLE_PREFIX_CACHING" = "1" ] && echo "   prefix cache: DISABLED (--no-enable-prefix-caching)"
 echo "   TT_METAL_CACHE=$TT_METAL_CACHE"
 echo "   log        : $LOG"
 echo "=============================================================="
@@ -190,5 +198,6 @@ vllm serve "$MODEL_REPO" \
   --no-enable-chunked-prefill \
   --additional-config "$ADDITIONAL_CONFIG" \
   ${API_KEY:+--api-key "$API_KEY"} \
+  $([ "$DISABLE_PREFIX_CACHING" = "1" ] && echo --no-enable-prefix-caching) \
   "$@" \
   |& tee "$LOG"
