@@ -35,6 +35,11 @@ on:
         type: string
         required: false
         default: ""
+      stop_after_base:
+        description: 'TEMPORARY (Tailscale verification): single iteration only — api-check, test-and-fix-base, then test-and-fix-full. Skips `decide` (no self-dispatched iteration 2) and test-and-fix-perf.'
+        type: boolean
+        required: false
+        default: false
 
 
 permissions:
@@ -250,7 +255,11 @@ jobs:
 
   decide:
     needs: [setup, api-check, test-and-fix-base]
-    if: always() && needs.setup.result == 'success'
+    # TEMPORARY: `&& !inputs.stop_after_base` pins a verification run to a
+    # single iteration — this job owns the self-dispatch, so skipping it is
+    # what prevents iteration 2. test-and-fix-full opts back in explicitly;
+    # test-and-fix-perf stays skipped, since it only gates on `finalize`.
+    if: always() && needs.setup.result == 'success' && !inputs.stop_after_base
     runs-on: ubuntu-latest
     outputs:
       action: ${{ steps.next.outputs.action }}
@@ -307,8 +316,13 @@ jobs:
           echo "Finalize jobs will run in this same workflow run."
 
   test-and-fix-full:
-    needs: [setup, build-image, build-ttxla, decide]
-    if: always() && needs.decide.outputs.action == 'finalize'
+    # test-and-fix-base is listed explicitly so ordering survives `decide`
+    # being skipped — both jobs' claude-fix commits and pushes to the same
+    # branch, so they must not overlap.
+    needs: [setup, build-image, build-ttxla, decide, test-and-fix-base]
+    # TEMPORARY: the `|| inputs.stop_after_base` arm runs the full suite once
+    # on a verification run, where `decide` never produces `finalize`.
+    if: always() && (needs.decide.outputs.action == 'finalize' || inputs.stop_after_base)
     uses: ./.github/workflows/call-test-uplift.yml
     with:
       test_suite:              model-test-passing.json

@@ -181,4 +181,5 @@ jobs:
             -f "inputs[iteration]=1" \
             -f "inputs[target_version]=$NEW" \
             -f "inputs[current_version]=$CUR" \
-            -f "inputs[baseline_run_id]=$BASELINE"
+            -f "inputs[baseline_run_id]=$BASELINE" \
+            -f "inputs[stop_after_base]=true"
