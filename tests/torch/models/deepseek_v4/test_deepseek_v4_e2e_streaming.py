@@ -393,9 +393,11 @@ def test_streaming_dsv4_flash() -> None:
     # Keep const-eval inputs on device (not bounced to host) so the per-layer
     # host-RAM bound holds.
     torch_xla.set_custom_compile_options(
-        {"enable_const_eval_inputs_to_system_memory": False}
+        {
+            "enable_const_eval_inputs_to_system_memory": False,
+            "enable_const_eval_on_cpu": False,
+        }
     )
-
     mesh, mesh_shape = _make_mesh()
     device = torch_xla.device()
     if BATCH_SIZE % mesh_shape[0] != 0:

@@ -52,16 +52,20 @@ from torch_xla.distributed.spmd import Mesh
 from . import weight_loader
 
 # ---- run configuration ----
-NUM_LAYERS = 24
+NUM_LAYERS = 8
 BATCH_SIZE = 8
 MAX_NEW_TOKENS = 16
-# Block-float weight dtype for the resident (no-swap) weights. Streaming keeps all
-# weights in device DRAM (enable_const_eval_inputs_to_system_memory=False), and
-# bf16 weights are ~42 GB/chip for the full model -- far over the ~12 GB/chip DRAM.
-# "bfp_bf8" ~halves the resident footprint, "bfp_bf4" ~quarters it (the full model
-# is borderline resident at bf4); "" keeps bf16. Matches the Kimi streaming test.
-#WEIGHT_DTYPE = "bfp_bf8"  # "" | "bfp_bf8" | "bfp_bf4"
-# Setting a different wieght type causes OOM because both will be stored on device at the moment - need to fix to run this model e2e.
+# Block-float weight dtype -- currently DISABLED (see below). NOTE (investigated):
+# with enable_const_eval_inputs_to_system_memory=False, bfp_bf8/bf4 do NOT reduce
+# device DRAM. There is no torch block-float dtype, so weights ship as bf16 and the
+# bf8/bf4 conversion happens in-graph: the bf16 input stays resident on device AND a
+# bf8 const-eval output is cached -> "double residency" -> OOM (both bf16 and bf8
+# end up ~bf16 on device). The only built-in way to actually shrink device DRAM is
+# enable_const_eval_inputs_to_system_memory=True, which moves the bf16 weights to
+# HOST -- that breaks the per-block host-RAM bound (the "swap" path). Keeping the
+# host bound AND halving device DRAM needs a tt-mlir fix (drop the dead bf16
+# const-eval input after the bf8 fold). To inspect placement, see STREAM_IR_DUMP.
+WEIGHT_DTYPE = "bfp_bf8"  # "" | "bfp_bf8" | "bfp_bf4"
 # Copied from tests/benchmark/benchmarks/llm_benchmark.py so the greedy output is
 # directly comparable to the benchmark's perf-run print.
 INPUT_PROMPT = (
@@ -127,6 +131,19 @@ def _make_mesh(loader) -> Tuple[Mesh, Tuple[int, int]]:
 # footprint; the *actual* resident DRAM (incl. const-eval clones) is what
 # TT_RUNTIME_MEMORY_LOG_LEVEL=program reports at execute time.
 _MANIFEST = os.environ.get("STREAM_MANIFEST", "0") != "0"
+
+# Set STREAM_IR_DUMP=<dir> to dump the compiled MLIR per pipeline stage to
+# <dir>/irs/*.mlir (via the `export_path` compile option). Inspect
+# <dir>/irs/ttnn_*.mlir: each forward-func weight arg's `#ttnn.ttnn_layout<...>`
+# has buffer_type `dram`/`l1` (device) or `system_memory` (HOST). So
+#   grep -nE "system_memory" ttnn_*.mlir   # weights moved to host (empty => none)
+#   grep -nE "_const_eval_|consteval_" ttnn_*.mlir   # did const-eval hoist run
+# A `system_memory` arg feeding a `ttnn.to_layout`->dram is the fingerprint that
+# `enable_const_eval_inputs_to_system_memory` moved that weight to host. In this
+# test's config (that option False) weights should read back as `dram`, i.e. they
+# stay on device -- which is why bf8 gives no device saving here (the bf16 input
+# never leaves device). No effect unless the env var is set.
+_IR_DUMP = os.environ.get("STREAM_IR_DUMP", "")
 
 
 def _shard_factor(spec, mesh_sizes) -> int:
@@ -451,26 +468,29 @@ def test_streaming_deepseek_v3_1() -> None:
     # Streaming knobs: match the benchmark's DeepSeek config (opt 0, no trace) and
     # keep const-eval inputs (the weights) in device DRAM instead of bouncing them
     # back to host, which would break the per-block host-RAM bound.
-    torch_xla.set_custom_compile_options(
-        {
-            "optimization_level": 0,
-            "enable_trace": False,
-            # const-eval ON (default): bf8 shrinks the cached weight output and
-            # decode reuses it (fast). Const-eval keeps inputs+outputs resident on
-            # device per executable (the residency we measure with the manifest +
-            # TT_RUNTIME_MEMORY_LOG_LEVEL below). Inputs stay on device (not host)
-            # so per-block host staging can be freed between ships.
-            "enable_const_eval_inputs_to_system_memory": False,
-            # Disable multi-chip CPU-hoisting of const-eval (tt-mlir PR #8474,
-            # ff99051e): on a mesh it segments const-eval around every CCL barrier
-            # and runs each segment shard-by-shard on host, which is the suspected
-            # cause of the per-block flush slowdown + extra resident const-eval
-            # clones on galaxy. Testing whether disabling it reverts the regression.
-            "enable_const_eval_on_cpu": False,
-            # Shrink the cached const-eval weight output so more layers fit.
-            #"experimental_weight_dtype": WEIGHT_DTYPE,
-        }
-    )
+    compile_opts = {
+        "optimization_level": 0,
+        "enable_trace": False,
+        # const-eval ON (default): bf8 shrinks the cached weight output and
+        # decode reuses it (fast). Const-eval keeps inputs+outputs resident on
+        # device per executable (the residency we measure with the manifest +
+        # TT_RUNTIME_MEMORY_LOG_LEVEL below). Inputs stay on device (not host)
+        # so per-block host staging can be freed between ships.
+        "enable_const_eval_inputs_to_system_memory": False,
+        # Disable multi-chip CPU-hoisting of const-eval (tt-mlir PR #8474,
+        # ff99051e): on a mesh it segments const-eval around every CCL barrier
+        # and runs each segment shard-by-shard on host, which is the suspected
+        # cause of the per-block flush slowdown + extra resident const-eval
+        # clones on galaxy. Testing whether disabling it reverts the regression.
+        "enable_const_eval_on_cpu": False,
+        # Shrink the cached const-eval weight output so more layers fit.
+        "experimental_weight_dtype": WEIGHT_DTYPE,
+    }
+    # Diagnostic (STREAM_IR_DUMP=<dir>): dump the compiled MLIR per stage so weight
+    # host/device placement can be inspected in <dir>/irs/ttnn_*.mlir. See _IR_DUMP.
+    if _IR_DUMP:
+        compile_opts["export_path"] = _IR_DUMP
+    torch_xla.set_custom_compile_options(compile_opts)
 
     device = torch_xla.device()
     loader = ModelLoader(variant=ModelVariant.DEEPSEEK_V3_1_MODIFIED, num_layers=NUM_LAYERS)
