@@ -16,8 +16,8 @@
 # (~/tt-inference-server/falcon_single_layer.log, "Device 0: additional_config=…"
 # + "Initializing a V1 LLM engine"), which mirrors the forge P150 spec in
 # workflows/model_specs/dev/cnn.yaml: b32, 32768 ctx, chunk 1024, gmu 0.35,
-# bfp8 weights+KV, opt=1, device sampling, trace, b1-prefill. NUM_HIDDEN_LAYERS
-# defaults to 1 here (the single-layer debug hack) -- set to "" for full depth.
+# bfp8 weights+KV, opt=1, device sampling, trace, b1-prefill. Full model depth
+# by default; set NUM_HIDDEN_LAYERS=1 for the single-layer debug hack.
 #
 # WHAT IS DELIBERATELY *NOT* IDENTICAL (and why it matters for #4521-class hangs)
 #   - Driver. tt-media-server runs AsyncLLMEngine behind its own
@@ -86,8 +86,8 @@ ENABLE_TRACE="${ENABLE_TRACE:-true}"
 KV_CACHE_DTYPE="${KV_CACHE_DTYPE:-bfp_bf8}"
 WEIGHT_DTYPE="${WEIGHT_DTYPE:-bfp_bf8}"
 MIN_CONTEXT_LEN="${MIN_CONTEXT_LEN:-128}"
-# Debug hack: 1 decoder layer. Set NUM_HIDDEN_LAYERS="" for the full model.
-NUM_HIDDEN_LAYERS="${NUM_HIDDEN_LAYERS-1}"
+# Full model by default. Set NUM_HIDDEN_LAYERS=1 for the single-layer debug hack.
+NUM_HIDDEN_LAYERS="${NUM_HIDDEN_LAYERS-}"
 # Debug opt-in: disable vLLM's cross-request prefix caching entirely (default
 # on in production). Not a compile-time lever -- purely to see if it affects
 # the hang.
