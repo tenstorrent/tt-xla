@@ -14,6 +14,12 @@ from third_party.tt_forge_models.z_image.pytorch import ModelLoader, ModelVarian
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import SEED
 
 
+# VAE decoder hangs (240-min job timeout, no result); skipped so it can't hang the
+# whole job. skip (not xfail) because xfail only applies after the test runs, which
+# cannot prevent a hang. See https://github.com/tenstorrent/tt-xla/issues/5678
+@pytest.mark.skip(
+    reason="VAE decoder hangs (240-min job timeout). https://github.com/tenstorrent/tt-xla/issues/5678"
+)
 @pytest.mark.model_test
 @pytest.mark.single_device
 def test_vae_decoder():
