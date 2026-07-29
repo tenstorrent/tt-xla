@@ -303,6 +303,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
         self.use_flat_model_io = self.tt_config.flat_model_io
+        # Rank-2 shape to restore hidden states to when _prepare_inputs flattened
+        # the model inputs on the host; None when it did not.
+        self.flat_io_restore_shape = None
 
         # Data parallel execution
         self.num_additional_inputs = 0
@@ -965,8 +968,18 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 arange = torch.cat([arange, zero_rows], dim=0)
                 attn_mask_batch_size += self.num_additional_inputs
 
-        self.input_ids = self.input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
+        # Flattened model IO wants rank-1 inputs. Reshaping on the host keeps the
+        # pre-model eager region free of device ops, which otherwise compiles one
+        # reshape program per input-shape bucket. Data parallel marks sharding on
+        # the rank-2 tensors, so it keeps them and flattens on device later.
+        self.flat_io_restore_shape = None
+        if self.use_flat_model_io and not self.enable_data_parallel:
+            self.flat_io_restore_shape = self.input_ids_cpu.shape
+            self.input_ids = self.input_ids_cpu.reshape(-1).to(self.device)
+            self.position_ids = arange.reshape(-1).to(self.device)
+        else:
+            self.input_ids = self.input_ids_cpu.to(self.device)
+            self.position_ids = arange.to(self.device)
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -1006,7 +1019,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 seq_lens,
-                self.input_ids.shape[-1],
+                self.input_ids_cpu.shape[-1],
                 attn_mask_batch_size,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
@@ -1229,7 +1242,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not self.use_flat_model_io:
             return input_ids, positions, inputs_embeds, None
 
-        restore_shape: Optional[torch.Size] = None
+        # _prepare_inputs already flattened on the host where it could, in which
+        # case the reshapes below are no-ops and only the restore shape is needed.
+        restore_shape: Optional[torch.Size] = self.flat_io_restore_shape
 
         if input_ids is not None and input_ids.ndim > 1:
             restore_shape = input_ids.shape
@@ -1322,10 +1337,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=model_positions,
                     inputs_embeds=model_inputs_embeds,
                 )
+                # Restore on the host: an eager reshape of the device tensor would
+                # compile a program per input-shape bucket, and the result is bound
+                # for the CPU on the next line anyway.
+                hidden_states = hidden_states.to("cpu")
                 hidden_states = self._restore_model_hidden_states(
                     hidden_states, hidden_state_shape
                 )
-                hidden_states = hidden_states.to("cpu")
 
             # Split along batch dimension and remove the extra dimension
             hidden_states_list = [
@@ -1526,19 +1544,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.no_grad()
     def _dummy_run(self, num_reqs: int, num_tokens: int) -> None:
         torch._dynamo.config.dynamic_shapes = False
+        # Match the shape the real path feeds the model, so warmup compiles the
+        # programs execution will actually use rather than a rank-2 variant plus a
+        # reshape program per bucket.
+        flatten_io = self.use_flat_model_io and not self.enable_data_parallel
+        self.flat_io_restore_shape = (
+            torch.Size((num_reqs, num_tokens)) if flatten_io else None
+        )
+        ids_shape = (num_reqs * num_tokens,) if flatten_io else (num_reqs, num_tokens)
+
         if self.supports_mm_inputs:
             input_ids = None
             inputs_embeds = torch.zeros(
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
-            input_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
-                self.device
-            )
+            input_ids = torch.zeros(ids_shape, dtype=torch.int32).to(self.device)
             inputs_embeds = None
-        position_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
-            self.device
-        )
+        position_ids = torch.zeros(ids_shape, dtype=torch.int32).to(self.device)
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
@@ -1555,7 +1578,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 context_lens,
-                input_ids.shape[-1],
+                num_tokens,
                 num_reqs,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
