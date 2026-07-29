@@ -4,109 +4,83 @@ name: Update Test Durations
 # It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
 # calculates the test durations, and creates a pull request to update the `.test_durations` file.
 
+# Manual entry point for running tt-xla tests on the exabox Galaxy cluster
+# (Markham) via the ttop orchestration. Mirrors manual-test-single.yml:
+# build the docker image, build the wheel, turn the inputs into a one-entry test
+# matrix, then hand off to call-test-multihost.yml.
+
 on:
   workflow_dispatch:
+    inputs:
+      runs_on:
+        description: >-
+          Exabox hardware to allocate (sc1 = 1 Galaxy, sc4 = 4-Galaxy quad,
+          sc16 = 16-Galaxy SC16)
+        required: true
+        type: choice
+        default: 'sc1'
+        options:
+          - 'sc1'
+          - 'sc4'
+          - 'sc16'
+      dir:
+        description: 'Path passed to pytest'
+        required: true
+        default: './tests/torch/multi_host/experimental'
+        type: string
+      mark:
+        description: 'Mark passed to pytest (-m)'
+        required: false
+        type: string
 
 permissions:
-  actions: read
-  contents: write
-  issues: write
-  pull-requests: write
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+  id-token: write # the ttop actions mint an OIDC token for kubectl
+
+run-name: 'Test multihost ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
 
 jobs:
-  update_test_durations:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  generate-test-config:
+    needs: build-ttxla
     runs-on: ubuntu-latest
+    outputs:
+      test-config: ${{ steps.generate.outputs.test-config }}
     steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v6
-      - name: Process test durations from latest workflows
-        id: get-test-durations
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - id: generate
         run: |
-          repo="tenstorrent/tt-xla"
+          # "runs-on" carries the exabox hardware (sc1/sc4/sc16) rather than a
+          # runner label; call-test-multihost.yml turns it into an allocation spec.
+          TEST_CONFIG=$(jq -n \
+            --arg runs_on '${{ inputs.runs_on }}' \
+            --arg dir '${{ inputs.dir }}' \
+            --arg mark '${{ inputs.mark }}' \
+            '[{"runs-on": $runs_on,"name": "Multihost test","dir": $dir,"test-mark": $mark,"multihost": true}]')
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+          echo $TEST_CONFIG
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
 
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
-
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
-
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
-
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
-
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
-
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
-        id: create-pr
-        with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ github.token }}
-
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Generate Summary
-        run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+  test:
+    uses: ./.github/workflows/call-test-multihost.yml
+    needs: [ build-image, build-ttxla, generate-test-config ]
+    secrets: inherit
+    with:
+      test_suite: 'Custom'
+      test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
