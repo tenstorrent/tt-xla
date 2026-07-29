@@ -3093,7 +3093,7 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_NumPartitions);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_NumOutputs);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Executable_SizeOfGeneratedCodeInBytes);
+  _PJRT_API_STRUCT_FIELD(PJRT_Executable_SizeOfGeneratedCodeInBytes);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_GetCostAnalysis);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_OutputMemoryKinds);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_OptimizedProgram);
@@ -3102,7 +3102,7 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_GetExecutable);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_AddressableDevices);
+  _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_AddressableDevices);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_Delete);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_IsDeleted);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_Execute);
@@ -3126,11 +3126,11 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Buffer_ReadyEvent);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Buffer_UnsafePointer);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Buffer_IncreaseExternalReferenceCount);
+  _PJRT_API_STRUCT_FIELD(PJRT_Buffer_IncreaseExternalReferenceCount);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Buffer_DecreaseExternalReferenceCount);
+  _PJRT_API_STRUCT_FIELD(PJRT_Buffer_DecreaseExternalReferenceCount);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Buffer_OpaqueDeviceMemoryDataPointer);
+  _PJRT_API_STRUCT_FIELD(PJRT_Buffer_OpaqueDeviceMemoryDataPointer);
 
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_CopyToDeviceStream_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_CopyToDeviceStream_AddChunk);
@@ -3142,9 +3142,9 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_PlatformName);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_PlatformVersion);
+  _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_PlatformVersion);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_GetDeviceDescriptions);
+  _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_GetDeviceDescriptions);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_Serialize);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_Attributes);
 
@@ -3164,7 +3164,7 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_TopologyDescription);
 
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Executable_GetCompiledMemoryStats);
+  _PJRT_API_STRUCT_FIELD(PJRT_Executable_GetCompiledMemoryStats);
 
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Memory_Kind_Id);
 
@@ -3172,23 +3172,23 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_ExecuteContext_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Buffer_CopyRawToHost);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_Destroy);
+  _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(
       PJRT_AsyncHostToDeviceTransferManager_TransferData);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Client_CreateBuffersForAsyncHostToDevice);
+  _PJRT_API_STRUCT_FIELD(PJRT_Client_CreateBuffersForAsyncHostToDevice);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(
       PJRT_AsyncHostToDeviceTransferManager_RetrieveBuffer);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_Device);
+  _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_Device);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_BufferCount);
+  _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_BufferCount);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
+  _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_BufferSize);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(
       PJRT_AsyncHostToDeviceTransferManager_SetBufferError);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
+  _PJRT_API_STRUCT_FIELD(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_DmaMap);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_DmaUnmap);
 
@@ -3198,7 +3198,7 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_CreateAliasBuffer);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_FulfillAliasBuffer);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_GetDeviceAssignment);
+  _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_GetDeviceAssignment);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_CreateErrorBuffer);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(
       PJRT_AsyncHostToDeviceTransferManager_TransferLiteral);
@@ -3208,14 +3208,14 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_AsyncTrackingEvent_Destroy);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Executable_GetCompileOptions);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_Buffer_DonateWithControlDependency);
+  _PJRT_API_STRUCT_FIELD(PJRT_Buffer_DonateWithControlDependency);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Event_Create);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Event_Set);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Device_GetAttributes);
 
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Client_Load);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
+  _PJRT_API_STRUCT_FIELD(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Buffer_Bitcast);
 
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(PJRT_Error_ForEachPayload);
@@ -3225,7 +3225,7 @@ typedef struct PJRT_Api {
   PJRT_NO_DISCARD _PJRT_API_STRUCT_FIELD(
       PJRT_TopologyDescription_MakeCanonicalShapeForMemorySpace);
   PJRT_NO_DISCARD
-      _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_GetMemorySpaceKindIds);
+  _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_GetMemorySpaceKindIds);
 } PJRT_Api;
 
 enum {
