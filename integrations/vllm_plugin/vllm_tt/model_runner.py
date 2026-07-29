@@ -454,6 +454,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             min_token_size=self.tt_config.min_context_len,
             max_token_size=self.prefill_chunk_budget,
         )
+        # Debug-only: compile extra bucket sizes that real traffic can never
+        # reach (chunked prefill caps every step at prefill_chunk_budget), to
+        # test whether resident graph/DRAM footprint alone -- independent of
+        # anything actually being exercised at request time -- affects the
+        # hang under investigation. Comma-separated token counts, e.g. "2048,4096".
+        decoy_paddings = os.environ.get("TTXLA_WARMUP_DECOY_PADDINGS")
+        self._decoy_num_tokens: set[int] = set()
+        if decoy_paddings:
+            extra = sorted(int(x) for x in decoy_paddings.split(",") if x.strip())
+            logger.warning(
+                "TTXLA_WARMUP_DECOY_PADDINGS set: compiling %d extra "
+                "unreachable bucket(s) %s at num_reqs=1 only (transient "
+                "compile memory scales with num_reqs, so this avoids the "
+                "num_reqs=32 pairing that OOMs even at modest token counts) "
+                "purely to inflate resident graph/DRAM footprint for "
+                "debugging -- real traffic cannot reach these (every step "
+                "is capped at prefill_chunk_budget=%d).",
+                len(extra),
+                extra,
+                self.prefill_chunk_budget,
+            )
+            self._decoy_num_tokens = set(extra)
+            self.num_tokens_paddings = sorted(
+                set(self.num_tokens_paddings) | set(extra)
+            )
         if self.tt_config.decode_only:
             # Restrict all num_tokens bucketing to the decode shape so every
             # precompile pass (and anything else that reads
@@ -2619,6 +2644,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             {self.min_num_reqs, self.max_prefill_num_reqs, self.max_num_reqs}
         )
 
+        # Debug-only: compile extra prefill batch sizes that AscendScheduler
+        # never dispatches at (it only ever schedules num_reqs in
+        # {min_num_reqs, max_prefill_num_reqs}), at the same real token-bucket
+        # sizes -- inflates resident graph/DRAM footprint via the num_reqs
+        # axis instead of num_tokens, so no oversized transient compile
+        # buffers (unlike large token-count decoys). Comma-separated, e.g. "2,4,8,16".
+        decoy_num_reqs = os.environ.get("TTXLA_WARMUP_DECOY_NUM_REQS")
+        if decoy_num_reqs:
+            extra = sorted(int(x) for x in decoy_num_reqs.split(",") if x.strip())
+            logger.warning(
+                "TTXLA_WARMUP_DECOY_NUM_REQS set: compiling %d extra "
+                "unreachable batch size(s) %s purely to inflate resident "
+                "graph/DRAM footprint for debugging -- AscendScheduler never "
+                "dispatches at these sizes (only %s).",
+                len(extra),
+                extra,
+                num_reqs_options,
+            )
+            num_reqs_options = sorted(set(num_reqs_options) | set(extra))
+
         # Compile the cached-prefix (chunked SDPA op) graph in addition to the
         # standard one, but only when the op is usable; otherwise the first
         # continuation chunk would compile mid-serving (or hit the ttnn
@@ -2649,6 +2694,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # The cached-prefix variant only applies to prefill buckets; the
             # decode bucket (num_tokens == 1) always takes the standard path.
             if not (prefix_chunk and num_tokens == 1)
+            # Decoy token buckets (TTXLA_WARMUP_DECOY_PADDINGS) only at
+            # num_reqs=1 -- transient compile memory scales with num_reqs, so
+            # pairing a decoy with the full batch size can OOM even at modest
+            # token counts well within what real num_reqs=1 traffic handles.
+            if not (num_tokens in self._decoy_num_tokens and num_reqs != 1)
         ]
 
         # Compile largest buckets first so the biggest pinned trace buffers get a
