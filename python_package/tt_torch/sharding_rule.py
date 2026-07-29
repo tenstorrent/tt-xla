@@ -89,8 +89,7 @@ def _factor_indices(
             raise ValueError(f"duplicate factor {name!r} in {keyword} list")
         if name not in name_to_index:
             raise ValueError(
-                f"factor {name!r} in {keyword} list is not declared in "
-                "factor_sizes"
+                f"factor {name!r} in {keyword} list is not declared in " "factor_sizes"
             )
         seen.add(name)
         indices.append(name_to_index[name])
@@ -252,9 +251,7 @@ def make_fully_replicated_sharding_rule(
         return mapping
 
     in_mappings = [
-        mapping_for(shape)
-        for i, shape in enumerate(operand_shapes)
-        if i not in out_set
+        mapping_for(shape) for i, shape in enumerate(operand_shapes) if i not in out_set
     ]
     if not in_mappings:
         raise ValueError(

@@ -25,10 +25,9 @@ does not affect the Python-only tests.)
 import pytest
 import torch
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.tt_lang_op
+import ttl
 from jaxlib.mlir import ir
 from jaxlib.mlir.dialects import sdy
-
-import ttl
 from tt_torch import make_sharding_rule
 from tt_torch import tt_lang as tt_lang_mod
 from tt_torch.sharding_rule import make_fully_replicated_sharding_rule
