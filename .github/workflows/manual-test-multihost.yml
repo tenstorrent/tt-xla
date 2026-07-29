@@ -1,0 +1,82 @@
+name: Run Test Multihost
+
+# Manual entry point for running tt-xla tests on the exabox Galaxy cluster
+# (Markham) via the ttop orchestration. Mirrors manual-test-single.yml:
+# build the docker image, build the wheel, turn the inputs into a one-entry test
+# matrix, then hand off to call-test-multihost.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs_on:
+        description: >-
+          Exabox hardware to allocate (sc1 = 1 Galaxy, sc4 = 4-Galaxy quad,
+          sc16 = 16-Galaxy SC16)
+        required: true
+        type: choice
+        default: 'sc1'
+        options:
+          - 'sc1'
+          - 'sc4'
+          - 'sc16'
+      dir:
+        description: 'Path passed to pytest'
+        required: true
+        default: './tests/torch/multi_host/experimental'
+        type: string
+      mark:
+        description: 'Mark passed to pytest (-m)'
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+  id-token: write # the ttop actions mint an OIDC token for kubectl
+
+run-name: 'Test multihost ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  generate-test-config:
+    needs: build-ttxla
+    runs-on: ubuntu-latest
+    outputs:
+      test-config: ${{ steps.generate.outputs.test-config }}
+    steps:
+      - id: generate
+        run: |
+          # "runs-on" carries the exabox hardware (sc1/sc4/sc16) rather than a
+          # runner label; call-test-multihost.yml turns it into an allocation spec.
+          TEST_CONFIG=$(jq -n \
+            --arg runs_on '${{ inputs.runs_on }}' \
+            --arg dir '${{ inputs.dir }}' \
+            --arg mark '${{ inputs.mark }}' \
+            '[{"runs-on": $runs_on,"name": "Multihost test","dir": $dir,"test-mark": $mark,"multihost": true}]')
+
+          echo $TEST_CONFIG
+
+          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
+
+  test:
+    uses: ./.github/workflows/call-test-multihost.yml
+    needs: [ build-image, build-ttxla, generate-test-config ]
+    secrets: inherit
+    with:
+      test_suite: 'Custom'
+      test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
