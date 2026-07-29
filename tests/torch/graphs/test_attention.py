@@ -2599,6 +2599,8 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch, request):
     config = loader.load_config()
     config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
+    # sinks is nn.Parameter(torch.empty(...)) — uninitialized bits → bfloat16 NaN
+    attention.sinks.data.zero_()
     batch_size = 1
 
     if arch in ("llmbox", "galaxy"):
@@ -2622,6 +2624,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch, request):
             shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
             shard_specs[attention.o_proj.bias] = ("batch",)
+            shard_specs[attention.sinks] = ("model",)
             return shard_specs
 
     else:
