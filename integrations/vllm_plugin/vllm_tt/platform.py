@@ -336,6 +336,13 @@ class TTPlatform(Platform):
         return vm.available, vm.total
 
     @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        # Emit per-attention-type kv_cache_groups (like every other platform);
+        # the base default False downgrades sliding-window layers to full
+        # attention, making them pay the full max_model_len KV cost.
+        return True
+
+    @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
         return False
 
