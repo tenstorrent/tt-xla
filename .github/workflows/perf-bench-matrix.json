@@ -167,8 +167,8 @@
       {
         "name": "gpt_oss_120b_tp_moe_fused_galaxy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_moe_fused_galaxy",
-        "runs-on": "galaxy-bh",
-        "skip": true
+        "runs-on": ["galaxy-bh", "galaxy-wh-6u"],
+        "skip": false
       },
       {
         "name": "gpt_oss_120b_tp_qb2",
