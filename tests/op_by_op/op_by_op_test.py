@@ -220,6 +220,7 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
         compile_only=compile_only,
         debug_print=debug_print,
         failed_ops_folder=failed_ops_folder,
+        frontend="tt-xla",
     )
 
     for result in results:

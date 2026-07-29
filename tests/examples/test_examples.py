@@ -19,6 +19,20 @@ XFAIL_DIRS: dict[str, str] = {
     "vllm": "vLLM examples require server setup and are not suitable for automated testing",
 }
 
+# Examples that need specific hardware. Tagged with markers (must be registered
+# in pytest.ini) so a matching CI job runs them on the right runner and the
+# default Wormhole examples job skips them.
+HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/hunyuan_image_2_1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/diffusiongemma.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+}
+
 # Specific files with known issues - tests will be marked as xfail with the given reason
 XFAIL_FILES: dict[str, str] = {
     "pytorch/gpt_oss_20b.py": "Gpt-oss example requires llmbox or galaxy",
@@ -140,12 +154,19 @@ def test_pytest_examples(script: Path):
         )
 
 
+def _script_example_params() -> list:
+    """Parametrize script examples, tagging hardware-specific ones
+    (HARDWARE_MARKS) with markers so CI routes them to the matching runner."""
+    params = []
+    for p in _discover_script_examples():
+        rel = str(p.relative_to(EXAMPLES_DIR))
+        marks = [getattr(pytest.mark, m) for m in HARDWARE_MARKS.get(rel, [])]
+        params.append(pytest.param(p, marks=marks, id=rel))
+    return params
+
+
 @pytest.mark.push
-@pytest.mark.parametrize(
-    "script",
-    _discover_script_examples(),
-    ids=lambda p: str(p.relative_to(EXAMPLES_DIR)),
-)
+@pytest.mark.parametrize("script", _script_example_params())
 def test_script_examples(script: Path):
     """Run example files that have a main block as standalone scripts."""
     xfail_reason = _get_xfail_reason(script)

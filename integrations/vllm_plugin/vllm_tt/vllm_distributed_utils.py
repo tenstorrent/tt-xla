@@ -80,6 +80,31 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
+def kv_cache_shard_factor(runner) -> int:
+    """How many ways the KV cache is actually sharded across the mesh.
+
+    Only the "model" axis shards KV heads, so this is that axis' size — 1 when
+    the cache ends up replicated on every chip instead. Callers use it to
+    reconcile vLLM's TP-unaware block budget (which always assumes the full,
+    un-sharded num_kv_heads) with what each chip really holds.
+
+    Must stay in sync with the mark_sharding call in
+    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
+    because that path deliberately leaves the cache un-annotated.
+    """
+    if not runner.enable_tensor_parallel:
+        return 1
+    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+        # DP+TP leaves the cache replicated, so per-chip usage already equals
+        # the full budget — no reconciliation to do. Sharding it properly
+        # (heads on "model", blocks on "batch") is tracked in #5796.
+        return 1
+    mesh = runner.mesh
+    if hasattr(mesh, "shape"):
+        return mesh.shape()["model"]
+    return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
+
+
 class XlaMergedColumnParallelLinear(nn.Module):
 
     def __init__(
@@ -355,13 +380,13 @@ def partition_fused_moe(
     mesh (see below), independent of the DP/TP weight-sharding flag.
 
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
-    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
-    path on a genuine 2D mesh (both axes > 1), where experts are distributed
-    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
-    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
-    the dense bmm path, which needs the full expert set on every device, so
-    leave the expert weights replicated (mirrors the is_2d guard in
-    layers/fused_moe.py)."""
+    [E, H, I] on the RoutedExperts submodule. The TT MoE path only takes the
+    expert-parallel (tt_experts_forward) path on a genuine 2D mesh (both axes >
+    1), where experts are distributed across *all* devices via a compound
+    sharding over both axes (e.g. (2,2) -> 4-way split of E). On a 1D /
+    degenerate / single-chip mesh it uses the dense bmm path, which needs the
+    full expert set on every device, so leave the expert weights replicated
+    (mirrors the is_2d guard in TTRoutedExperts.forward_native)."""
     mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
     if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
         logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
@@ -387,8 +412,12 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
-        ("TTFusedMoE", partition_fused_moe),
-        ("TTSharedFusedMoE", partition_fused_moe),
+        # vLLM 0.25.1 moved the stacked expert weights (w13_weight/w2_weight)
+        # from the old monolithic TTFusedMoE module onto the RoutedExperts
+        # submodule; TT injects TTRoutedExperts there (see layers/fused_moe.py).
+        # partition_fused_moe reads w13_weight/w2_weight, so it must match that
+        # class. Only fires on MoE + genuine 2D mesh (expert parallelism).
+        ("TTRoutedExperts", partition_fused_moe),
     ]
 )
 
