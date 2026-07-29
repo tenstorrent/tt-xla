@@ -31,6 +31,34 @@ def test_embedding_push(model_name: str, baseline_path, max_model_len: int):
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.parametrize(
+    ["model_name", "baseline_path", "max_model_len"],
+    [
+        pytest.param(
+            "Qwen/Qwen3-Embedding-0.6B",
+            "baseline/qwen3_embedding_0.6B_baseline.pt",
+            32,
+        ),
+    ],
+)
+def test_embedding_flat_model_io(model_name: str, baseline_path, max_model_len: int):
+    """Flattened model IO must match the same baseline as the batched path.
+
+    Flattening hands the model rank-2 activations, which lower through a
+    different set of aten ops than rank-3 does. Refs: tt-xla #5756.
+    """
+    run_pooling_test(
+        model_name,
+        baseline_path,
+        max_model_len,
+        max_num_reqs=1,
+        min_context_len=32,
+        flat_model_io=True,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
 def test_embed_qwen3_reduced_dims():
     prompts = [
         "Hello, my name is",
