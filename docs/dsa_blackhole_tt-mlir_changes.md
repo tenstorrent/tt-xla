@@ -1,43 +1,42 @@
-# DSA on Blackhole — tt-mlir / tt-metal submodule changes
+# DSA on Blackhole — tt-mlir changes
 
-Every change made below the tt-xla source tree to get DeepSeek Sparse Attention running
-on **real Blackhole TTNN kernels** on `bh-rb-01-...` (single host, 8 × p150,
+Changes made in the **tt-mlir** checkout to get DeepSeek Sparse Attention running on
+**real Blackhole TTNN kernels** on `bh-rb-01-...` (single host, 8 × p150,
 `ClusterType::P150_X8`, mesh `[2, 4]`).
 
-| # | repo | file | kind | state |
-|---|---|---|---|---|
-| [1](#1-fabric_1d_ring-drops-wrap-edges) | tt-mlir | `runtime/lib/common/mesh_fabric_config.cpp` | workaround for a tt-metal bug | committed `4c6f88a08e` |
-| [2](#2-p150_x8-mesh-graph-descriptor-understates-the-box) | tt-metal | `tt_metal/fabric/mesh_graph_descriptors/p150_x8_mesh_graph_descriptor.textproto` | descriptor fix (prereq for 1) | ⚠️ **uncommitted** |
-| [3](#3-sdyall_slice-is-a-delta-not-an-absolute-sharding) | tt-mlir | `lib/Conversion/StableHLOToTTIR/StableHLOLegalizeCompositePass.cpp` | **upstream bug fix** | committed `4f5bc20e78` |
-| [4](#4-indexer_score_dsa-forbade-the-only-layout-its-kernel-accepts) | tt-mlir | `lib/Dialect/StableHLO/Transforms/RegisterCustomShardingRule.cpp` | **upstream bug fix** | committed `4949466d43` |
+The **tt-metal** side — one descriptor edit, plus the tt-metal issues found here and not
+fixed — lives in [`dsa_blackhole_tt-metal_changes.md`](./dsa_blackhole_tt-metal_changes.md).
 
-Changes 1, 3 and 4 are committed on tt-mlir branch `hshah/all-dsa-ops`, which is what
-tt-xla's `third_party/CMakeLists.txt` pins (`TT_MLIR_VERSION "hshah/all-dsa-ops"` — a
-branch, not a SHA, so a push updates every build of this tt-xla revision). **They are not
-pushed yet.** Changes 3 and 4 are independent upstream bug fixes and are worth separate
-PRs to tt-mlir `main`.
+| # | file | kind | state |
+|---|---|---|---|
+| [1](#1-fabric_1d_ring-drops-wrap-edges) | `runtime/lib/common/mesh_fabric_config.cpp` | workaround for a tt-metal bug | pushed `4c6f88a08e` |
+| [3](#3-sdyall_slice-is-a-delta-not-an-absolute-sharding) | `lib/Conversion/StableHLOToTTIR/StableHLOLegalizeCompositePass.cpp` | **upstream bug fix** | pushed `4f5bc20e78` |
+| [4](#4-indexer_score_dsa-forbade-the-only-layout-its-kernel-accepts) | `lib/Dialect/StableHLO/Transforms/RegisterCustomShardingRule.cpp` | **upstream bug fix** | pushed `4949466d43` |
 
-Change 2 is still an **uncommitted working-tree edit** in the tt-metal checkout and will be
-lost by anything that re-checks-out tt-metal. It cannot ride along with the tt-mlir commits:
-tt-metal is a separate repo (a submodule of tt-mlir, pinned by SHA), so landing it means a
-branch/PR in tt-metal plus a submodule-pointer bump in tt-mlir. Until then, change 1 has no
-effect on a fresh build, because `requires_more_connectivity()` rejects a TORUS_X request
-against a descriptor that declares no `dim_types` — **so the 2D-mesh fabric fix is only half
-landed.** See §2 for the three on-disk copies and which one the runtime reads.
+(Numbering keeps its original scheme; **change 2 is the tt-metal descriptor edit**, now in
+the companion doc.)
 
-Baselines: tt-mlir at `121f69fa34` (branch `hshah/all-dsa-ops`; that commit is the earlier
-`sparse_sdpa` scatter-decomposition work and is **already committed**, not part of this
-diff). tt-metal at `f1f4ff75579` (`v0.75.0-dev20260717-29`).
+All three are pushed to tt-mlir branch `hshah/all-dsa-ops`, which is what tt-xla's
+`third_party/CMakeLists.txt` pins (`TT_MLIR_VERSION "hshah/all-dsa-ops"` — a branch, not a
+SHA, so the push updates every build of tt-xla `ec76b1826`). Changes 3 and 4 are
+independent upstream bug fixes and are worth separate PRs to tt-mlir `main`.
+
+⚠️ **Change 1 is only half landed.** It needs the tt-metal descriptor to declare
+`dim_types: [ LINE, RING ]`, or `requires_more_connectivity()` rejects the TORUS_X request —
+and that edit is still an uncommitted working-tree change in a separate repo. So 2D-mesh TP
+on an 8 × p150 box does **not** work from a fresh checkout; this machine works only because
+of that local edit. Changes 3 and 4 — the DSA prefill kernel path — are unaffected and fully
+landed. Details in the companion doc.
+
+Baseline: tt-mlir `121f69fa34` (the earlier `sparse_sdpa` scatter-decomposition work, already
+on the branch before this). tt-metal `f1f4ff75579` (`v0.75.0-dev20260717-29`).
 
 ```
-tt-mlir  git diff --stat
+git diff --stat 121f69fa34..4c6f88a08e
  .../StableHLOLegalizeCompositePass.cpp        | 59 ++++++++++++++++
  .../Transforms/RegisterCustomShardingRule.cpp | 29 ++++++---
  runtime/lib/common/mesh_fabric_config.cpp     | 34 ++++++++++
  3 files changed, 115 insertions(+), 7 deletions(-)
-
-tt-metal git diff --stat
- .../p150_x8_mesh_graph_descriptor.textproto   |  2 +-
 ```
 
 ---
@@ -185,39 +184,19 @@ Full analysis, including four suggested tt-metal-side fixes and the things that 
 work (`TT_MESH_GRAPH_DESC_PATH` is test-only; `TT_VISIBLE_DEVICES` cannot reorder chips):
 [`fabric-1d-ring-torus-mismatch.md`](./fabric-1d-ring-torus-mismatch.md).
 
-## 2. `p150_x8` mesh graph descriptor understates the box
+## 2. `p150_x8` mesh graph descriptor understates the box → moved
 
-`tt_metal/fabric/mesh_graph_descriptors/p150_x8_mesh_graph_descriptor.textproto`
+This is the tt-metal change and now lives in
+[`dsa_blackhole_tt-metal_changes.md` §1](./dsa_blackhole_tt-metal_changes.md#1-the-one-change--and-it-is-not-committed),
+together with the `system_health` topology evidence, the three on-disk copies and which one
+the runtime actually reads, and the tt-metal-side upstream asks.
 
-```diff
--  device_topology { dims: [ 2, 4 ] }
-+  device_topology { dims: [ 2, 4 ] dim_types: [ LINE, RING ] }
-```
-
-Without `dim_types` both dims default to LINE, and change 1 then fails
-`requires_more_connectivity(TORUS_X, MESH, [2,4])` — a 4-wide wrap is not degenerate, so
-the request is rejected. Only the 4-wide dimension is declared RING; `RING` on the 2-wide
-dimension would be degenerate.
-
-**This edit is inert on its own** — verified across three runs with all three on-disk
-copies patched, producing an identical abort. `mesh_graph.cpp:413` overwrites
-`mgd_fabric_type` with the requested type, so the descriptor only raises the *ceiling*;
-change 1 is what takes effect.
-
-There are **three** copies on disk and the live one is the tt-mlir install tree (the plugin
-loads `third_party/tt-mlir/install/lib/_ttnncpp.so`):
-
-```
-third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/fabric/mesh_graph_descriptors/   # source
-  ...same.../build_Release/libexec/tt-metalium/tt_metal/fabric/mesh_graph_descriptors/                      # build
-third_party/tt-mlir/install/tt-metal/tt_metal/fabric/mesh_graph_descriptors/                                # LIVE
-```
-
-A rebuild reinstalls from the source copy, so patching source keeps it after builds.
-
-Upstream should register a torus variant for `P150_X8`: `mesh_graph.cpp:94-105` maps
-`FabricType` → `ClusterType` → filename, and `TORUS_X`/`TORUS_Y`/`TORUS_XY` currently have
-entries **only** for `GALAXY` and `BLACKHOLE_GALAXY` — `P150_X8` has no torus variant at all.
+Short version, because change 1 depends on it: without
+`dim_types: [ LINE, RING ]` both dims default to `LINE`, and change 1 then fails
+`requires_more_connectivity(TORUS_X, MESH, [2,4])` — a 4-wide wrap is not degenerate, so the
+request is rejected. The descriptor edit is **inert on its own** (`mesh_graph.cpp:413`
+overwrites `mgd_fabric_type` with the requested type, so it only raises the ceiling), and it
+is still **uncommitted**, in a separate repo. The two are strictly a pair.
 
 ## 3. `sdy.all_slice` is a delta, not an absolute sharding
 
