@@ -4,6 +4,7 @@ permissions:
   contents: write
   actions:  write
   checks:   write
+  id-token: write   # Tailscale OIDC handshake in claude-fix
 
 on:
   workflow_call:
@@ -158,6 +159,10 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ inputs.docker_image }}
+      # Tailscale needs kernel networking to route Anthropic traffic through
+      # the on-prem app connectors. A host runner has NET_ADMIN and a TUN
+      # device already; a container job starts without them.
+      options: --cap-add=NET_ADMIN --cap-add=NET_RAW --device=/dev/net/tun
     steps:
       - name: Mark repo as safe for git
         run: |
@@ -193,6 +198,36 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+
+      # ---- Tailscale: route Anthropic traffic via the on-prem connectors ----
+      # Must precede the Claude CLI install; downloads.claude.ai is one of the
+      # domains the app connectors handle.
+      - name: Install Tailscale prerequisites
+        shell: bash
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq iptables iproute2
+
+      - name: Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_GHA_PUBLIC_INTERNET_CLIENT_ID }}
+          audience: ${{ vars.TS_GHA_PUBLIC_INTERNET_AUDIENCE }}
+          tags: tag:tt-github-actions-public-internet-outbound
+
+      - name: Verify Anthropic egress routes over the tailnet
+        shell: bash
+        run: |
+          # The connectors advertise /32 + /128 routes for Anthropic only, so
+          # a generic egress check (ifconfig.me) proves nothing — it correctly
+          # goes direct. Assert on the route for api.anthropic.com itself.
+          IP=$(getent ahostsv4 api.anthropic.com | awk 'NR==1{print $1}')
+          echo "api.anthropic.com -> ${IP:-(unresolved)}"
+          if [[ -n "$IP" ]] && ip route get "$IP" | grep -q tailscale0; then
+            echo "Anthropic traffic is routed over the tailnet."
+          else
+            echo "::warning::api.anthropic.com (${IP:-unresolved}) is NOT routed via tailscale0 — Anthropic traffic is egressing directly from this runner"
+          fi
 
       - name: Install Claude Code CLI
         shell: bash
@@ -267,3 +302,8 @@ jobs:
             git commit "${COMMIT_FLAG[@]}"
             git push origin "$BRANCH"
           fi
+
+      - name: Tailscale logout
+        if: always()
+        shell: bash
+        run: command -v tailscale >/dev/null && tailscale logout || true
