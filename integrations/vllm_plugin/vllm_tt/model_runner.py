@@ -2617,11 +2617,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, req_id in zip(range(num_reqs), self.input_batch.req_ids):
             assert req_id is not None
             req_state = self.requests[req_id]
-            seq_len = (
-                req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens.get(req_id, 0)
-            )
-            if seq_len >= req_state.num_tokens:
+            num_sched = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            seq_len = req_state.num_computed_tokens + num_sched
+            if num_sched == 0:
+                # Row scheduled no tokens this step, so it produced no real
+                # logits: logits_indices is num_scheduled - 1 == -1, which
+                # gathers the last padded position (zeros) and samples token 0.
+                # Under DP such rows are retained rather than removed, and any
+                # already-prefilled row idles while others finish their prefill
+                # chunks, so without this its bogus token would be appended.
+                discard_sampled_tokens_req_indices.append(i)
+            elif seq_len >= req_state.num_tokens:
                 request_seq_lens.append((i, req_state, seq_len))
             else:
                 # Ignore the sampled token from the partial request.
