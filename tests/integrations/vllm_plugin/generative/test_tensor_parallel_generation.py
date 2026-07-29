@@ -474,6 +474,15 @@ def _exported_ir(export_dir: str, stage: str) -> str:
         # the indexer picks k_chunk_size=128 so tt.sparse_sdpa's
         # topk % k_chunk_size == 0 holds. index_topk affects no weight shape.
         pytest.param(128, 256, CHUNKED_PREFILL_PROMPT, id="sparse-topk128"),
+        # Same sparse path at a bucket that does NOT divide into tile-aligned
+        # per-device shards: on 8 devices the indexer query split needs a multiple
+        # of 32 * 8 = 256, and 128 / 8 = 16 is half a tile. 128 >= index_topk 128
+        # still clears dsa_prefill_uses_sparse, so this is a real reachable config,
+        # and TTIndexer pads the query up to 256 rather than falling back to a
+        # replicated query -- which would pass the TTNN verifier and then abort
+        # inside indexer_score_dsa on T >= (rank + 1) * Sq. Regression pin for that
+        # padding; the shortest bucket that exercises it.
+        pytest.param(128, 128, DSA_SHORT_PROMPT, id="sparse-topk128-unaligned"),
         # The model's real index_topk. 2048 sits at the top of
         # tt.topk_large_indices' k range and the indexer picks k_chunk_size=128,
         # so 2048 % 128 == 0 holds.

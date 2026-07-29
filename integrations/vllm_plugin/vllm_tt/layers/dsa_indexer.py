@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from tt_torch.custom_ops import (
     dsa_kernels_available,
@@ -456,44 +457,41 @@ class TTIndexer(nn.Module):
             return indices
         return topk_large_indices_mask_invalid_slots(indices, visible_count)
 
-    def _prefill_seq_shard_spec(self, seq_len: int):
-        """Partition spec splitting the indexer query's seq dim, or None.
+    def _prefill_seq_shard_plan(self, seq_len: int) -> tuple[Optional[tuple], int]:
+        """``(partition_spec, padded_seq_len)`` for splitting the indexer query.
 
-        None means "leave the query replicated", which is correct on a single
-        device and is the historical behaviour everywhere.
+        A ``None`` spec means "leave the query replicated", which is correct on a
+        single device (rank 0, so the op's per-device offset vanishes) and is the
+        historical behaviour.
 
-        Two divisibility conditions have to hold, and both are hard requirements
-        rather than perf heuristics:
+        On a mesh the query MUST be split: ``indexer_score_dsa`` derives a
+        per-device rank from q's device coords and requires
+        ``T >= (max_rank + 1) * Sq``, so a replicated query aborts at runtime.
+        Two divisibility conditions have to hold for a legal split:
           * ``seq_len % devices == 0`` -- the op derives one Sq for every rank, so
             a ragged split would misdescribe the tail device.
-          * ``Sq % 32 == 0`` -- Sq is a tile height, and chunk_start_idx must stay
-            tile-aligned (``chunk_start_idx % TILE_WIDTH == 0``).
-        Both hold for the shapes DSA runs at (seq_len >= 32 * devices); below that
-        the query stays replicated, which is fine because such a short prefill
-        cannot clear ``dsa_prefill_uses_sparse`` at production topk anyway.
+          * ``Sq % 32 == 0`` -- Sq is a tile height (the op asserts
+            ``Sq % TILE_HEIGHT == 0``).
+        Together: ``seq_len`` must be a multiple of ``32 * devices``.
+
+        Buckets that are not are **padded up**, never left replicated. Leaving them
+        replicated would emit an op that passes the TTNN verifier (the shapes are
+        fine) and then aborts inside the device op -- a hard crash rather than a
+        graceful degrade. Padding is not hypothetical: on 8 devices this requires
+        multiples of 256, so a 128-token bucket with ``index_topk=128`` clears
+        ``dsa_prefill_uses_sparse`` and would otherwise die.
 
         ``seq_len`` is a Python int at trace time, so this is a static branch: one
         graph per prefill bucket, same as the sparse predicates.
         """
         if self._mesh is None or self._mesh_devices <= 1:
-            return None
-        if (
-            seq_len % self._mesh_devices != 0
-            or (seq_len // self._mesh_devices) % 32 != 0
-        ):
-            logger.warning(
-                "[TT] DSA prefill: seq_len %d does not split into %d tile-aligned "
-                "shards; leaving the indexer query replicated. On Blackhole the "
-                "indexer_score_dsa kernel rejects that layout (it reads a "
-                "per-device rank off q and requires T >= (rank+1) * Sq).",
-                seq_len,
-                self._mesh_devices,
-            )
-            return None
+            return None, seq_len
+        align = 32 * self._mesh_devices
+        padded = ((seq_len + align - 1) // align) * align
         # Compound axis in mesh-axis order => row-major linearization over ALL
         # devices, which is what the op's seq_shard_axes=[] / cluster_axis=None
         # flat device rank assumes.
-        return (None, None, tuple(self._mesh.axis_names), None)
+        return (None, None, tuple(self._mesh.axis_names), None), padded
 
     def _forward_prefill(
         self, q_op, k_op, w_op, kv_cache, attn_metadata, users, seq_len
@@ -515,10 +513,25 @@ class TTIndexer(nn.Module):
         if not dsa_prefill_uses_sparse(seq_len, self.topk_tokens):
             return None
 
+        seq_spec, padded_len = self._prefill_seq_shard_plan(seq_len)
+        key_op = k_op
+        if padded_len != seq_len:
+            # Pad q/weights/key together along seq. Padding the key too is required,
+            # not cosmetic: the op checks max_cs + Sq <= T against the KEY length, so
+            # padding only the query would push the window past T and abort. Real row
+            # s still sees only keys [0, s] (chunk_start_idx == 0), and every padded
+            # key column t >= seq_len is causally visible ONLY to padded rows
+            # s >= t >= seq_len -- which are sliced off below. So the causal mask
+            # already isolates the padding; no extra masking is needed.
+            pad = padded_len - seq_len
+            q_op = F.pad(q_op, (0, 0, 0, pad))
+            w_op = F.pad(w_op, (0, 0, 0, pad))
+            key_op = F.pad(k_op, (0, 0, 0, pad))
+
         # Row s sees keys [0, s] (chunk_start_idx == 0), so its visible count is s+1.
         visible_count = (
-            torch.arange(seq_len, dtype=torch.int32, device=q_op.device) + 1
-        ).view(1, 1, seq_len, 1)
+            torch.arange(padded_len, dtype=torch.int32, device=q_op.device) + 1
+        ).view(1, 1, padded_len, 1)
 
         # Shard the query sequence across the mesh when it divides evenly. The
         # indexer_score_dsa kernel models q as sequence-parallel: it derives a
@@ -535,7 +548,6 @@ class TTIndexer(nn.Module):
         # traced graph, and mark_sharding/get_global_mesh reach into _XLAC, which
         # dynamo refuses to trace ("Attempted to call function marked as skipped").
         # It is functional, hence the reassignments.
-        seq_spec = self._prefill_seq_shard_spec(seq_len)
         if seq_spec is not None:
             q_op = sharding_constraint_tensor(q_op, self._mesh, seq_spec)
             w_op = sharding_constraint_tensor(w_op, self._mesh, seq_spec)
@@ -551,12 +563,12 @@ class TTIndexer(nn.Module):
         for u in range(users):
             score = torch.ops.tt.indexer_score_dsa(
                 query=q_op[u : u + 1],
-                key=k_op[u : u + 1],
+                key=key_op[u : u + 1],
                 weights=w_op[u : u + 1],
                 chunk_start_idx=0,
-            )  # [1, 1, seq_len/shards, seq_len]
+            )  # [1, 1, padded_len/shards, padded_len]
             per_user.append(self._select(score, visible_count))
-        indices = torch.cat(per_user, dim=0)  # [users, 1, seq_len, topk]
+        indices = torch.cat(per_user, dim=0)  # [users, 1, padded_len, topk]
 
         if seq_spec is not None:
             # sparse_sdpa is sharded on heads, not sequence, so every device needs
@@ -565,7 +577,9 @@ class TTIndexer(nn.Module):
             indices = sharding_constraint_tensor(
                 indices, self._mesh, (None, None, None, None)
             )
-        return indices
+        # Drop the padded rows. Done after the gather so the slice is on a replicated
+        # tensor rather than across the sharded seq dim.
+        return indices[:, :, :seq_len, :]
 
     def _forward_decode(self, q_op, k_op, w_op, kv_cache, attn_metadata, users):
         # Append this token's indexer K at the current position.
