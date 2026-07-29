@@ -6,7 +6,7 @@ import pytest
 import torch
 from infra import ComparisonConfig, RunMode
 from infra.evaluators import PccConfig
-from utils import BringupStatus, Category, failed_ttmlir_compilation
+from utils import BringupStatus, Category, failed_ttmlir_compilation, incorrect_result
 
 from third_party.tt_forge_models.whisper.pytorch import ModelLoader, ModelVariant
 
@@ -52,6 +52,20 @@ def _variant_param(v):
             pytest.mark.xfail(
                 reason=failed_ttmlir_compilation(
                     "RuntimeError: Not enough space to allocate 6710886400 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/1886"
+                )
+            )
+        )
+    elif v == ModelVariant.WHISPER_LARGE_V3:
+        # PCC has drifted below the already-lowered 0.5 float16 floor
+        # (~0.533 -> 0.4755), tracking HF checkpoint drift rather than a
+        # tt-xla/tt-mlir code change. See issue below.
+        bringup_status = BringupStatus.INCORRECT_RESULT
+        marks.append(
+            pytest.mark.xfail(
+                reason=incorrect_result(
+                    "PCC comparison failed (calculated pcc=0.4755, required pcc=0.5); "
+                    "drifted below the float16 floor due to HF checkpoint drift - "
+                    "https://github.com/tenstorrent/tt-xla/issues/5805"
                 )
             )
         )

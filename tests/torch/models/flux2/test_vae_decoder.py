@@ -14,6 +14,12 @@ from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 from . import skip_on_wormhole
 
 
+# VAE decoder hangs (240-min job timeout, no result); skipped so it can't hang the
+# whole job. skip (not xfail) because xfail only applies after the test runs, which
+# cannot prevent a hang. See https://github.com/tenstorrent/tt-xla/issues/5678
+@pytest.mark.skip(
+    reason="VAE decoder hangs (240-min job timeout). https://github.com/tenstorrent/tt-xla/issues/5678"
+)
 @pytest.mark.single_device
 @pytest.mark.nightly
 @pytest.mark.model_test
