@@ -205,12 +205,20 @@ class TTRoutedExperts(RoutedExperts):
             )
         else:
             # The plain softmax top-k below does not implement the extra router
-            # features vLLM 0.25.1 exposes on RoutedExperts (grouped top-k,
-            # non-softmax scoring, e_score correction bias, router-weight-on-input).
-            # Models needing these (e.g. DeepSeek, Kimi, GLM) must run via the HF
+            # features vLLM 0.25.1 exposes on RoutedExperts (real multi-group
+            # top-k, non-softmax scoring, e_score correction bias,
+            # router-weight-on-input). A single-group config (num_expert_group<=1
+            # and topk_group<=1) is exempted: vLLM's grouped_topk degenerates to
+            # plain top-k over all experts in that case (one group spanning every
+            # expert, always selected), which is exactly what DeepSeek-V2-Lite
+            # uses (n_group=1, topk_group=1). Models with real multi-group
+            # routing (e.g. DeepSeek-V3, Kimi, GLM) must run via the HF
             # moe_backend; fail loudly rather than silently mis-routing. See #5610.
+            uses_real_grouped_topk = self.use_grouped_topk and (
+                (self.num_expert_group or 1) > 1 or (self.topk_group or 1) > 1
+            )
             if (
-                self.use_grouped_topk
+                uses_real_grouped_topk
                 or self.scoring_func != "softmax"
                 or self.e_score_correction_bias is not None
                 or self.apply_router_weight_on_input
@@ -218,7 +226,8 @@ class TTRoutedExperts(RoutedExperts):
                 raise NotImplementedError(
                     "TT vLLM FusedMoE forward_native only supports plain softmax "
                     "top-k. (use_grouped_topk="
-                    f"{self.use_grouped_topk}, scoring_func={self.scoring_func!r}, "
+                    f"{self.use_grouped_topk}, num_expert_group={self.num_expert_group}, "
+                    f"topk_group={self.topk_group}, scoring_func={self.scoring_func!r}, "
                     f"e_score_correction_bias={self.e_score_correction_bias is not None}, "
                     f"apply_router_weight_on_input={self.apply_router_weight_on_input}). "
                     "For models using these router features, please run with the HF "
