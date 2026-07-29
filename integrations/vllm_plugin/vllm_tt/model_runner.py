@@ -2587,6 +2587,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            self.mark_sampling_metadata_sharding(sampling_metadata, target_num_reqs)
             apply_grammar = grammar_output is not None
             # Applying grammar to speculative decoding is not supported yet.
             # [TODO] https://github.com/tenstorrent/tt-xla/issues/5701
@@ -3039,7 +3040,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.info("Applied %d per-tensor weight dtype override(s)", len(applied))
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = Sampler()
+        self.sampler = Sampler(dp_size=self.dp_size)
         self.rejection_sampler = RejectionSampler(self.sampler)
         logger.info(f"Compiled model: \n{self.model}")
 
@@ -3654,6 +3655,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.vocab_size,
         )
         dummy_sampling_metadata.all_greedy = all_greedy
+        self.mark_sampling_metadata_sharding(dummy_sampling_metadata, num_reqs)
 
         dummy_require_struct_decoding = None
         dummy_grammar_bitmask = None
@@ -4036,7 +4038,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         dummy_hidden = dummy_hidden.to(self.device)
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
+            # Match the producer; a replicated input here would all-gather the
+            # hidden states and run the LM head redundantly on every replica.
+            safe_mark_sharding(dummy_hidden, self.mesh, self.logits_partition_spec)
 
         self.compute_logits_compiled(dummy_hidden)
 
@@ -4095,6 +4099,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (self.max_num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
+            # Warm up the shape the real graph hands the sampler. Guarded on
+            # dp_size because self.mesh only exists for a parallel mode.
+            if self.dp_size > 1:
+                safe_mark_sharding(dummy_logits, self.mesh, self.logits_partition_spec)
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -4104,6 +4112,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vocab_size=self.vocab_size,
             )
             sampling_metadata.all_greedy = all_greedy
+            self.mark_sampling_metadata_sharding(sampling_metadata, self.max_num_reqs)
             with (
                 self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
@@ -4542,14 +4551,61 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Compiled wrapper for vocab-logit computation warmup and reuse."""
         return self.compute_logits(sample_hidden_states)
 
+    @property
+    def logits_partition_spec(self) -> tuple:
+        """Partition spec for the [batch, vocab] logits tensor.
+
+        Vocab stays replicated: sampling and greedy argmax need whole rows.
+        Batch stays sharded under DP so each replica samples only its own rows,
+        which keeps the ttnn.sampling kernel within its per-device row limit and
+        avoids all-gathering the logits every step.
+        """
+        return ("batch", None) if self.dp_size > 1 else (None, None)
+
+    # Batch-major sampling tensors. They enter the graph as arguments, so an
+    # unannotated one is pinned replicated and fights the logits sharding.
+    _BATCH_MAJOR_SAMPLING_FIELDS = (
+        "temperature",
+        "min_p",
+        "top_k",
+        "top_p",
+        "presence_penalties",
+        "frequency_penalties",
+        "repetition_penalties",
+        "output_token_counts",
+        "prompt_token_mask",
+        "logit_bias_tensor",
+        "bad_words_mask",
+        "allowed_token_ids_mask",
+        "allowed_token_ids_additive_mask",
+        "q_samples",
+    )
+
+    def mark_sampling_metadata_sharding(
+        self, sampling_metadata: XLASupportedSamplingMetadata, num_reqs: int
+    ) -> None:
+        """Pin the per-request sampling tensors to the logits batch sharding."""
+        if self.dp_size <= 1 or self.tt_config.cpu_sampling:
+            return
+        for name in self._BATCH_MAJOR_SAMPLING_FIELDS:
+            tensor = getattr(sampling_metadata, name, None)
+            if not isinstance(tensor, torch.Tensor) or tensor.ndim < 1:
+                continue
+            if tensor.shape[0] != num_reqs:
+                continue
+            spec = ("batch",) + (None,) * (tensor.ndim - 1)
+            safe_mark_sharding(tensor, self.mesh, spec)
+
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
+        # Constrain logits for SPMD. Hooks can't reach ParallelLMHead
         # (quant_method.apply bypasses __call__) and all_gather is a
         # no-op (world_size=1). Must be inside the compiled graph —
         # external sharding_constraint between compiled functions breaks.
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+            logits = sharding_constraint_tensor(
+                logits, self.mesh, self.logits_partition_spec
+            )
         return logits
 
     def sample_from_logits(
