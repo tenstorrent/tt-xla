@@ -2299,11 +2299,13 @@ def tt_lang_op(
 ) -> List[torch.Tensor]:
     """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
 
-    Emits ``stablehlo.custom_call @tt.tt_lang_op`` with
-    ``kernel_id`` / ``arg_roles`` / ``version_tag`` / ``shard_spec`` in
-    ``frontend_attributes``. The custom call's results mirror the
-    ``out``-tagged input tensors in shape and dtype, so the plugin sees
-    the real (post-Shardy) types.
+    Emits a *functional* ``stablehlo.custom_call @tt.tt_lang_op``: the
+    operands are the ``in``-tagged tensors, the results mirror
+    the ``out``-tagged tensors in shape and dtype. The logical DPS ``arg_roles`` (``out``
+    included) rides in ``frontend_attributes`` next to ``kernel_id`` /
+    ``version_tag`` / ``shard_spec``, so StableHLO->TTIR can reintroduce a
+    matching destination buffer per result once Shardy has refined the
+    result types.
 
     The op is registered only for the XLA dispatch key; calling it on a
     CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
@@ -2315,6 +2317,18 @@ def tt_lang_op(
     if not tensors:
         raise ValueError("tt::tt_lang_op requires at least one tensor operand.")
     _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+
+    # The "out" tensors are still needed to derive the result shapes/dtypes,
+    # but they must not become custom_call operands: StableHLO->TTIR expects
+    # #operands == #"in" roles and builds its own DPS destination per result.
+    out_set = set(out_indices)
+    in_tensors = [t for i, t in enumerate(tensors) if i not in out_set]
+    if not in_tensors:
+        raise ValueError(
+            "tt::tt_lang_op requires at least one 'in' tensor; the "
+            "stablehlo.custom_call is functional (ins only), so a pure-out "
+            "kernel has no operands to emit."
+        )
 
     output_shapes = [list(tensors[i].shape) for i in out_indices]
     output_dtypes = [tensors[i].dtype for i in out_indices]
@@ -2328,7 +2342,7 @@ def tt_lang_op(
         frontend_attributes["shard_spec"] = shard_spec
 
     result = stablehlo_custom_call.stablehlo_custom_call(
-        list(tensors),
+        in_tensors,
         "tt.tt_lang_op",
         output_shapes,
         output_dtypes,

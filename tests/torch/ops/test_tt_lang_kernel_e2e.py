@@ -302,3 +302,196 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
     comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(result, golden)
+
+
+# ---------------------------------------------------------------------------
+# Multi-output kernel under test: two "out" operands from a single kernel.
+#
+# The single-output eltwise kernel above never exercises the paths that only
+# appear once a tt-lang op has >=2 "out" operands. This kernel does, and a
+# matmul (rather than a plain eltwise) additionally forces the compiler to
+# allocate scratch circular buffers. Between them, one kernel exercises:
+#
+#   * Shardy tuple decomposition -- a >=2-output op is emitted as a
+#     tuple-result ``stablehlo.custom_call``; without the extended
+#     ``DecomposeCustomCallTuplesPass`` compilation dies with
+#     "Shardy propagation doesn't support tuples".
+#   * Multi-output result de-aliasing -- both "out" operands must get their
+#     own device buffer (fresh ``ttnn.empty`` per result in
+#     ``TTNNLowerTTLangToGeneric``); the bug collapsed them so both results
+#     read back identical (== the LAST output).
+#   * ``dfb_index`` CB serialization -- the matmul's compiler-allocated
+#     scratch CB carries its index on ``dfb_index`` (not ``_cb_index``);
+#     mis-reading it serialized ``buffer_index = -1``, which the flatbuffer
+#     emitter rejects ("out of range for uint32_t").
+#
+# ``out0 = a @ b`` and ``out1 = -(a @ b)`` -- two distinct outputs from one
+# accumulation, so a de-aliasing regression (out0 == out1) is detectable.
+# ---------------------------------------------------------------------------
+
+
+def _make_matmul_multi_output_operation(operation_id: str):
+    """Build a 2-input / 2-output tt-lang matmul: (a@b, -(a@b)).
+
+    grid=(1,1) keeps the tiling trivial (single core); the K-loop accumulates
+    into a compiler-allocated ``dst`` scratch CB. Both outputs are written from
+    the same accumulator so the writer stages two "out" DFBs.
+    """
+
+    @ttl.operation(grid=(1, 1), fp32_dest_acc_en=True)
+    def _ttl_matmul2(a, b, pos_out, neg_out):
+        M, K, N = a.shape[0], a.shape[1], b.shape[1]
+        Mt, Kt, Nt = M // TILE_SIZE, K // TILE_SIZE, N // TILE_SIZE
+
+        a_dfb = ttl.make_dataflow_buffer_like(a, shape=(1, 1), block_count=2)
+        b_dfb = ttl.make_dataflow_buffer_like(b, shape=(1, 1), block_count=2)
+        pos_dfb = ttl.make_dataflow_buffer_like(pos_out, shape=(1, 1), block_count=2)
+        neg_dfb = ttl.make_dataflow_buffer_like(neg_out, shape=(1, 1), block_count=2)
+
+        @ttl.compute()
+        def compute():
+            for _ in range(Mt):
+                for _ in range(Nt):
+                    with pos_dfb.reserve() as p, neg_dfb.reserve() as q:
+                        acc = ttl.block.fill(0, shape=p.shape)
+                        for _ in range(Kt):
+                            with a_dfb.wait() as a_blk, b_dfb.wait() as b_blk:
+                                acc += a_blk @ b_blk
+                        p.store(acc)
+                        q.store(ttl.block.fill(0, shape=q.shape) - acc)
+
+        @ttl.datamovement()
+        def read():
+            for m in range(Mt):
+                for n in range(Nt):
+                    for k in range(Kt):
+                        with a_dfb.reserve() as a_blk, b_dfb.reserve() as b_blk:
+                            tx_a = ttl.copy(a[m, k], a_blk)
+                            tx_b = ttl.copy(b[k, n], b_blk)
+                            tx_a.wait()
+                            tx_b.wait()
+
+        @ttl.datamovement()
+        def write():
+            for m in range(Mt):
+                for n in range(Nt):
+                    with pos_dfb.wait() as p, neg_dfb.wait() as q:
+                        tx_p = ttl.copy(p, pos_out[m, n])
+                        tx_q = ttl.copy(q, neg_out[m, n])
+                        tx_p.wait()
+                        tx_q.wait()
+
+    @tt_lang_operation(
+        operation_id=operation_id,
+        arg_roles=("in", "in", "out", "out"),
+        version_tag="e2e-multi-v1",
+    )
+    def matmul2_op(a, b, pos_out, neg_out):
+        return _ttl_matmul2(a, b, pos_out, neg_out)
+
+    return matmul2_op
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "mkn", [(64, 64, 64), (64, 128, 96)], ids=lambda v: f"{v[0]}x{v[1]}x{v[2]}"
+)
+def test_tt_lang_multi_output_e2e(mkn, request):
+    """A tt-lang kernel with two 'out' operands, executed on device.
+
+    Gates the multi-output pipeline that the single-output eltwise test cannot
+    reach: Shardy tuple decomposition, per-result buffer de-aliasing, and the
+    matmul scratch CB's ``dfb_index`` serialization (see the builder docstring).
+
+    Asserts each output matches its own golden AND that the two outputs are
+    distinct -- a de-aliasing regression makes out0 == out1 (both == the last
+    output), which the per-output PCC alone would not catch.
+    """
+    m, k, n = mkn
+    a_cpu = torch.randn(m, k, dtype=torch.bfloat16)
+    b_cpu = torch.randn(k, n, dtype=torch.bfloat16)
+
+    operation_id = f"tt_xla.e2e.matmul2.{m}x{k}x{n}.v1"
+    op = _make_matmul_multi_output_operation(operation_id)
+
+    pos_golden = a_cpu.float() @ b_cpu.float()
+    neg_golden = -pos_golden
+
+    device = xm.xla_device()
+    a_xla = a_cpu.to(device)
+    b_xla = b_cpu.to(device)
+    pos_xla = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+    neg_xla = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+
+    ret = op(a_xla, b_xla, pos_xla, neg_xla)
+    xm.mark_step()
+    pos = ret[0].to("cpu")
+    neg = ret[1].to("cpu")
+
+    assert pos.shape == pos_golden.shape
+
+    # bf16 matmul (fp32 accumulate): compare each output with PCC.
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(pos, pos_golden.to(torch.bfloat16))
+    comparator.evaluate(neg, neg_golden.to(torch.bfloat16))
+
+    # De-aliasing regression guard: the two outputs must not collapse onto one
+    # device buffer. For non-degenerate inputs out0 (a@b) and out1 (-(a@b))
+    # differ everywhere; equality here means both results aliased the same
+    # buffer (the multi-output write-back bug).
+    frac_equal = torch.eq(pos, neg).float().mean().item()
+    assert frac_equal < 0.5, (
+        f"multi-output aliasing regressed: out0 == out1 for "
+        f"{frac_equal:.1%} of elements (expected two distinct buffers)"
+    )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_tt_lang_multi_output_reused_signature_e2e(request):
+    """Call the *same* multi-output op twice with the same operand signature in
+    one XLA program.
+
+    tt-lang memoizes each compiled kernel in a per-operation cache and, on a
+    hit, returns without re-running its ``_compile_kernel`` -- the only point
+    the bridge captures the artifact. A process-wide operation object resolved
+    twice for the same signature (e.g. a model reusing one norm/matmul width)
+    therefore leaves the second resolve with nothing captured. The bridge's
+    mirror cache serves the earlier artifact; without it the second resolve
+    raises "tt-lang compile did not produce a CompiledTTNNKernel".
+
+    Two chained calls of one op on identically-shaped operands force exactly
+    that second same-signature resolve. Passing this test means the mirror
+    cache recovered the artifact and both invocations ran correctly.
+    """
+    m = k = n = 64
+    a_cpu = torch.randn(m, k, dtype=torch.bfloat16)
+    b_cpu = torch.randn(k, n, dtype=torch.bfloat16)
+
+    # ONE operation object, resolved twice below -> exercises tt-lang's per-op
+    # cache-hit path on the second resolve.
+    op = _make_matmul_multi_output_operation("tt_xla.e2e.matmul2.reused.v1")
+
+    device = xm.xla_device()
+    a_xla = a_cpu.to(device)
+    b_xla = b_cpu.to(device)
+
+    pos1 = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+    neg1 = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+    ret1 = op(a_xla, b_xla, pos1, neg1)  # resolve #1 (tt-lang cache miss)
+
+    pos2 = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+    neg2 = torch.zeros(m, n, dtype=torch.bfloat16).to(device)
+    ret2 = op(ret1[0], b_xla, pos2, neg2)  # resolve #2, SAME signature (cache hit)
+
+    xm.mark_step()
+
+    golden1 = a_cpu.float() @ b_cpu.float()
+    golden2 = ret1[0].to("cpu").float() @ b_cpu.float()
+
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.99))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(ret1[0].to("cpu"), golden1.to(torch.bfloat16))
+    comparator.evaluate(ret2[0].to("cpu"), golden2.to(torch.bfloat16))

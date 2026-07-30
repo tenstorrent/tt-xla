@@ -533,6 +533,41 @@ def _make_deviceless_ttnn_args(
 
 _DRIVE_LOCK = threading.Lock()
 
+# Process-level cache of captured ``CompiledTTNNKernel``s, keyed by operation
+# identity + operand signature. tt-lang's ``@ttl.operation`` wrapper memoizes
+# each compiled kernel in a closure-local dict and, on a cache hit, returns it
+# WITHOUT calling ``_compile_kernel`` -- the only point at which we capture (in
+# compile-only mode the wrapper returns ``None``, so the kernel is never on the
+# return path). Because operation objects are typically process-wide singletons,
+# the compile pipeline resolving the same signature more than once (e.g. a model
+# that reuses a norm width) would hit tt-lang's cache and leave our per-drive
+# capture empty. Rather than defeat tt-lang's cache, we mirror it: store every
+# kernel we capture and, when a drive captures nothing (a tt-lang cache hit),
+# return the kernel captured for the same key on the earlier miss. The key
+# granularity matches tt-lang's own -- per operation, tt-lang's key varies only
+# by operand shape/dtype/layout/memory (the fp32/dst-sync flags, target arch and
+# compiler options are fixed) -- so a tt-lang hit always corresponds to a hit
+# here.
+_COMPILED_KERNEL_CACHE: dict = {}
+
+
+def _kernel_cache_key(entry: "OperationEntry", mock_args: Sequence[Any]) -> tuple:
+    """Stable per-(operation, operand-signature) key for the mirror cache.
+
+    Derived from the same operand properties tt-lang's own cache key uses, so
+    the two caches hit and miss in lockstep.
+    """
+    operands = tuple(
+        (
+            tuple(int(s) for s in getattr(a, "shape", ())),
+            str(getattr(a, "dtype", "")),
+            str(getattr(a, "layout", "")),
+            str(a.memory_config().buffer_type) if hasattr(a, "memory_config") else "",
+        )
+        for a in mock_args
+    )
+    return (entry.operation_id, entry.version_tag, operands)
+
 
 def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
     """Run tt-lang's compile path for ``entry.impl`` and capture the
@@ -617,6 +652,7 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
 
     # TODO: See if there is a proper way to invoke the tt-lang compiler for
     # compile only intead of setting and unsetting an environment variable.
+    cache_key = _kernel_cache_key(entry, mock_args)
     prev_env = os.environ.get("TTLANG_COMPILE_ONLY")
     with _DRIVE_LOCK:
         _ttl_api._compile_kernel = _capturing_compile  # type: ignore[attr-defined]
@@ -638,16 +674,30 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
             else:
                 os.environ["TTLANG_COMPILE_ONLY"] = prev_env
 
-    if not captured or captured[0] is None:
-        raise TTLangError(
-            f"tt-lang compile did not produce a CompiledTTNNKernel for "
-            f"operation_id={entry.operation_id!r}. The operation may have hit "
-            f"a compile error (check stderr for tt-lang diagnostics)."
-        )
-    # `entry.impl` may end up triggering multiple compiles (e.g. nested
-    # @ttl.operation calls in unusual operations); we take the last one,
-    # which is the outermost-finishing compile.
-    return captured[-1]
+    if captured and captured[-1] is not None:
+        # Fresh compile (tt-lang cache miss). `entry.impl` may trigger multiple
+        # compiles (e.g. nested @ttl.operation calls in unusual operations); we
+        # take the last one, which is the outermost-finishing compile. Record it
+        # so a later resolve of the same signature -- served from tt-lang's own
+        # in-process cache without re-running _compile_kernel -- can recover it.
+        compiled = captured[-1]
+        with _DRIVE_LOCK:
+            _COMPILED_KERNEL_CACHE[cache_key] = compiled
+        return compiled
+
+    # Nothing compiled this drive -> tt-lang served this signature from its own
+    # in-process cache. Return the kernel we captured for the same key earlier.
+    with _DRIVE_LOCK:
+        cached = _COMPILED_KERNEL_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    raise TTLangError(
+        f"tt-lang compile did not produce a CompiledTTNNKernel for "
+        f"operation_id={entry.operation_id!r} and none was cached from an "
+        f"earlier resolve. The operation may have hit a compile error "
+        f"(check stderr for tt-lang diagnostics)."
+    )
 
 
 # Mapping from a tt-metal/ttnn DataType (or torch dtype) to the ttcore
@@ -824,8 +874,16 @@ def _serialize_cb_config(cb: Any) -> dict:
             ) from e
         page_size = _tile_bytes_from_dtype_name(data_format)
         total_size = int(cb.num_tiles) * int(cb.block_count) * page_size
+        # ttl <=1.1.x stored the CB index on ``_cb_index``; ttl 1.1.5's
+        # ``CompilerAllocatedDFBConfig`` exposes it as ``dfb_index`` instead
+        # (continuing the same CB-index space after the user DataflowBuffers).
+        # Prefer the current name, falling back to the old one, so a missing
+        # index surfaces as the emitter's range error rather than silently.
+        compiler_cb_index = getattr(cb, "dfb_index", None)
+        if compiler_cb_index is None:
+            compiler_cb_index = getattr(cb, "_cb_index", -1)
         return {
-            "buffer_index": int(getattr(cb, "_cb_index", -1)),
+            "buffer_index": int(compiler_cb_index),
             "data_format": data_format,
             "page_size": page_size,
             "total_size": total_size,
