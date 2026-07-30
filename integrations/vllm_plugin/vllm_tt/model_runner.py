@@ -3947,11 +3947,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: shard KV heads on "model" axis (TP dimension). Blocks
-            # stay replicated across DP to avoid replica-aware block allocation.
-            # Each device holds [num_blocks, num_kv_heads/tp_size, block_size,
-            # head_size] instead of the full [num_blocks, num_kv_heads, ...].
-            # Must update kv_cache_shard_factor() to return tp_size (line ~124).
+            # DP+TP: shard KV heads on "model" axis (TP) and blocks on "batch"
+            # axis (DP). Each device holds [num_blocks/dp_size, num_kv_heads/tp_size,
+            # block_size, head_size] instead of the full replicated cache.
+            # Block ID remapping handled by ReplicaAwareBlockAllocator.
+            # kv_cache_shard_factor() returns tp_size * dp_size.
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
                 caches = entry if is_pair else [entry]
@@ -3959,13 +3959,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
                     if is_pair:
                         safe_mark_sharding(
-                            cache, self.mesh, (None, "model", None, None)
+                            cache, self.mesh, ("batch", "model", None, None)
                         )
                     else:
                         # Replicate the MLA latent KV cache tensor
                         xs.mark_sharding(cache, self.mesh, (None, None, None, None))
         elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache].
+            # TP-only: shard KV heads on "model" axis. Blocks replicated.
+            # Each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size].
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
                 caches = entry if is_pair else [entry]
