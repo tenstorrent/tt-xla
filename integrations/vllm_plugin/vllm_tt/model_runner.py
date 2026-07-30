@@ -668,7 +668,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._group_is_sliding: list[bool] = [False]
         self._group_window_blocks: list[int] = [0]
         self.query_start_loc_cpu = torch.zeros(
-            self.max_num_tokens + 1,
+            self.max_num_reqs + 1,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
@@ -676,7 +676,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np = self.query_start_loc_cpu.numpy()
 
         self.seq_lens_cpu = torch.zeros(
-            self.max_num_tokens,
+            self.max_num_reqs,
             dtype=torch.int32,
             device="cpu",
             pin_memory=self.pin_memory,
