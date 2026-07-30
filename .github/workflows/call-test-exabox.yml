@@ -1,0 +1,388 @@
+name: Test Exabox (call)
+
+# Runs tt-xla tests on the exabox Galaxy cluster via ttop: allocate hosts, bring up
+# an SSH worker environment from the tt-xla base image, dispatch every command into
+# the worker pods with `mpirun --pernode`, then always tear the allocation down.
+#
+# Scoped to sc1 (one Galaxy). tt-xla's distributed runtime is not configured here,
+# so a multi-host allocation would run the whole suite once per host independently.
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write # ttop actions mint an OIDC token for kubectl
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image used as the ttop worker image (tt-xla base image)'
+        required: true
+        type: string
+      artifact_release_run_id:
+        description: 'Run ID of the artifacts (release)'
+        required: true
+        type: string
+      artifact_suffix:
+        description: 'Suffix for the artifact name'
+        required: false
+        type: string
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: string
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
+        type: string
+      forge_models_override:
+        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+        required: false
+        type: string
+        default: ''
+
+env:
+  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
+  # Keep in sync with the pinned SHA on the ttop-* `uses:` lines below.
+  TT_METAL_TTOP_REF: 0b0d71bbee030c636a7fff7054de29f3a68e093e
+
+jobs:
+  generate-matrix-test:
+    uses: ./.github/workflows/call-generate-matrix.yml
+    secrets: inherit
+    with:
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
+
+  run-tests:
+    needs: generate-matrix-test
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
+
+    # `matrix.build.runs-on` is the hardware to allocate, not a runner label.
+    runs-on:
+      - exabox-multihost-with-nfs
+
+    name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
+
+    env:
+      ALLOCATION_NAME: ci-xla-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+      RUN_DIR: /ci/xla
+      TTOP_DIR: /etc/ttop
+      # Identical on every host: the tt-xla venv bakes in its absolute path.
+      WORKER_SRC: /home/user/tt-xla
+
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+        sparse-checkout-cone-mode: false
+        sparse-checkout: |
+          .github/scripts/
+          .gitmodules
+          .test_durations
+          pjrt_implementation/
+          third_party/pjrt_c_api/
+          pytest.ini
+          python_package/requirements.txt
+          integrations/vllm_plugin/requirements-vllm-plugin.txt
+          tests/
+          venv/
+          examples/
+          scripts/
+          mixed_precision/
+
+    - name: Override tt_forge_models ref
+      if: ${{ inputs.forge_models_override != '' }}
+      shell: bash
+      run: |
+        # Resolve short SHAs/refs via GitHub API, fall back to raw input
+        REF="${{ inputs.forge_models_override }}"
+        RESOLVED=$(gh api repos/tenstorrent/tt-forge-models/commits/$REF --jq .sha 2>/dev/null || echo "$REF")
+        cd third_party/tt_forge_models
+        git fetch --depth=1 origin $RESOLVED
+        git checkout FETCH_HEAD
+        echo "tt_forge_models checked out at $(git rev-parse HEAD)"
+
+    - name: Resolve allocation spec for ${{ matrix.build.runs-on }}
+      id: sku
+      shell: bash
+      env:
+        HARDWARE: ${{ matrix.build.runs-on }}
+      run: |
+        set -euo pipefail
+
+        case "$HARDWARE" in
+          sc1)
+            COUNT=1; TOPOLOGY_KEY="" ;;
+          sc4)
+            COUNT=4; TOPOLOGY_KEY="exabox.tenstorrent.com/quad" ;;
+          sc16)
+            COUNT=16; TOPOLOGY_KEY="exabox.tenstorrent.com/SC16" ;;
+          *)
+            echo "::error::Unknown hardware '$HARDWARE' (expected sc1, sc4 or sc16)"
+            exit 1 ;;
+        esac
+
+        if [[ "$COUNT" -gt 1 ]]; then
+          echo "::warning::$HARDWARE allocates $COUNT Galaxies; the suite will run once per host independently, not once across the cluster. Use sc1."
+        fi
+
+        {
+          echo "allocationType: Count"
+          echo "count: ${COUNT}"
+          if [[ -n "$TOPOLOGY_KEY" ]]; then
+            echo "topologyKeys:"
+            echo "  - ${TOPOLOGY_KEY}"
+          fi
+        } > /tmp/allocation_spec.yaml
+
+        echo "Resolved allocation spec for $HARDWARE:"
+        cat /tmp/allocation_spec.yaml
+        {
+          echo "allocation_spec<<SPEC_EOF"
+          cat /tmp/allocation_spec.yaml
+          echo "SPEC_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    # The ttop chart takes repository and tag separately.
+    - name: Parse worker image
+      id: worker-image
+      shell: bash
+      run: |
+        IMAGE="${{ inputs.docker_image }}"
+        echo "repository=${IMAGE%:*}" >> "$GITHUB_OUTPUT"
+        echo "tag=${IMAGE##*:}" >> "$GITHUB_OUTPUT"
+
+    - name: Fetch ttop helpers from tt-metal
+      # metal's ttop-* composites resolve ./.github/actions/ttop-await-resource and
+      # .github/scripts/environment-ssh-setup.sh against THIS workspace.
+      uses: actions/checkout@v6
+      with:
+        repository: tenstorrent/tt-metal
+        ref: ${{ env.TT_METAL_TTOP_REF }}
+        sparse-checkout: |
+          .github/scripts/environment-ssh-setup.sh
+          .github/actions/ttop-await-resource
+        sparse-checkout-cone-mode: false
+        path: _tt-metal
+        persist-credentials: false
+
+    - name: Install ttop helpers from tt-metal
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p .github/scripts .github/actions
+        cp _tt-metal/.github/scripts/environment-ssh-setup.sh .github/scripts/
+        chmod +x .github/scripts/environment-ssh-setup.sh
+        cp -R _tt-metal/.github/actions/ttop-await-resource .github/actions/
+        rm -rf _tt-metal
+
+    - name: Create allocation
+      uses: tenstorrent/tt-metal/.github/actions/ttop-create-allocation@0b0d71bbee030c636a7fff7054de29f3a68e093e
+      timeout-minutes: 120
+      with:
+        allocationName: ${{ env.ALLOCATION_NAME }}
+        namespace: ttop-ci
+        spec: ${{ steps.sku.outputs.allocation_spec }}
+
+    - name: Get allocation configs
+      uses: tenstorrent/tt-metal/.github/actions/ttop-get-allocation-data@0b0d71bbee030c636a7fff7054de29f3a68e093e
+      with:
+        allocationName: ${{ env.ALLOCATION_NAME }}
+        allocationNamespace: ttop-ci
+        path: /etc/ttop
+
+    - name: Create test environment
+      uses: tenstorrent/tt-metal/.github/actions/ttop-create-environment@0b0d71bbee030c636a7fff7054de29f3a68e093e
+      timeout-minutes: 30
+      with:
+        environmentName: ${{ env.ALLOCATION_NAME }}
+        allocationName: ${{ env.ALLOCATION_NAME }}
+        allocationNamespace: ttop-ci
+        workerRepository: ${{ steps.worker-image.outputs.repository }}
+        workerTag: ${{ steps.worker-image.outputs.tag }}
+        useDevHostMount: "true"
+        sharedVolumeEnabled: "true"
+        path: /etc/ttop
+        # Default is 300s, too short for a cold pull of the tt-xla base image.
+        timeoutSeconds: "1800"
+
+    - name: Download tt-xla wheel
+      uses: actions/download-artifact@v8
+      with:
+        name: xla-whl-release${{ inputs.artifact_suffix }}
+        path: /ci/artifacts
+        run-id: ${{ inputs.artifact_release_run_id }}
+        github-token: ${{ github.token }}
+
+    - name: Stage workspace and install wheel on every host
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Stage once on the shared volume, then every host copies from there.
+        rm -rf "$RUN_DIR"
+        mkdir -p "$RUN_DIR"
+        cp -r "$GITHUB_WORKSPACE" "$RUN_DIR/tt-xla"
+
+        shopt -s nullglob
+        WHEELS=(/ci/artifacts/*.whl)
+        if [[ ${#WHEELS[@]} -eq 0 ]]; then
+          echo "::error::No tt-xla wheel found under /ci/artifacts"
+          ls -R /ci/artifacts || true
+          exit 1
+        fi
+        echo "Installing wheel(s): ${WHEELS[*]}"
+
+        mpirun --pernode --tag-output bash -lc '
+          set -euo pipefail
+          rm -rf '"$WORKER_SRC"'
+          cp -r '"$RUN_DIR"'/tt-xla '"$WORKER_SRC"'
+          echo "$(hostname): workspace staged at '"$WORKER_SRC"'"
+        '
+
+        # venv/activate creates the venv on first use. No `set -u`: it dereferences
+        # optional vars such as SYSTEM_DIST_PACKAGES and LD_LIBRARY_PATH.
+        mpirun --pernode --tag-output bash -lc '
+          set -eo pipefail
+          cd '"$WORKER_SRC"'
+          source venv/activate
+          uv pip install '"${WHEELS[*]}"'
+          echo "$(hostname): wheel installed"
+        '
+
+    - name: Reset cards and check cluster health
+      working-directory: /tmp
+      timeout-minutes: 45
+      shell: bash
+      run: |
+        set -uo pipefail
+        MAX_RECOVERY_ATTEMPTS=10
+
+        echo "--- Pre-check: tt-smi visibility on all hosts ---"
+        mpirun --pernode --tag-output bash -lc '
+          snapshot=$(tt-smi --snapshot_no_tty --snapshot)
+          driver=$(jq -r ".host_info.Driver // \"unknown\"" <<< "$snapshot")
+          tt_smi=$(jq -r ".host_sw_vers.tt_smi // \"unknown\"" <<< "$snapshot")
+          echo "$(hostname): Driver=${driver} tt_smi=${tt_smi}"
+        ' || true
+
+        for attempt in $(seq 1 "$MAX_RECOVERY_ATTEMPTS"); do
+          echo "=== Reset attempt $attempt of $MAX_RECOVERY_ATTEMPTS ==="
+          if ! mpirun --pernode --tag-output tt-smi -glx_reset; then
+            echo "WARNING: -glx_reset failed on attempt $attempt, trying tt-smi -r"
+            if ! mpirun --pernode --tag-output tt-smi -r; then
+              echo "WARNING: reset failed on attempt $attempt"
+              sleep 30
+              continue
+            fi
+          fi
+
+          echo "--- Sleeping 5s after reset to allow links/services to settle ---"
+          sleep 5
+
+          echo "--- Post-reset tt-smi snapshot on all hosts ---"
+          if mpirun --pernode --tag-output tt-smi --snapshot_no_tty --snapshot; then
+            echo "SUCCESS: reset and health check passed on attempt $attempt"
+            exit 0
+          fi
+
+          echo "WARNING: health check failed on attempt $attempt"
+          sleep 30
+        done
+
+        echo "::error::Card reset / health check failed after $MAX_RECOVERY_ATTEMPTS attempts"
+        exit 1
+
+    - name: Set pytest command
+      shell: bash
+      env:
+        FORKED: ${{ matrix.build.forked }}
+        TEST_DIR: ${{ matrix.build.dir }}
+        TEST_MARK: ${{ matrix.build.test-mark }}
+        TEST_CONTAINS: ${{ matrix.build.contains }}
+        TEST_ARGS: ${{ matrix.build.args }}
+        PARALLEL_GROUPS: ${{ matrix.build.parallel-groups || 1 }}
+        GROUP_ID: ${{ matrix.build.group-id || 1 }}
+      run: |
+        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
+        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        PYTEST_FORKED=""
+        if [[ "$FORKED" == "true" ]]; then
+          PYTEST_FORKED="--forked"
+        fi
+
+        # -vv when forking to get progress percentage
+        if [[ -n "$PYTEST_FORKED" ]]; then
+          VERBOSITY="-vv"
+        else
+          VERBOSITY="-sv"
+        fi
+
+        # Add -m/-k only when provided to avoid empty-argument parsing issues.
+        MARKS_ARG=""
+        if [[ -n "$TEST_MARK" ]]; then
+          MARKS_ARG="-m '$TEST_MARK'"
+        fi
+
+        CONTAINS_ARG=""
+        if [[ -n "$TEST_CONTAINS" ]]; then
+          CONTAINS_ARG="-k '$TEST_CONTAINS'"
+        fi
+
+        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
+          --durations=0 \
+          $TEST_DIR \
+          $MARKS_ARG $TEST_ARGS \
+          $CONTAINS_ARG \
+          --splits $PARALLEL_GROUPS \
+          --group $GROUP_ID \
+          --splitting-algorithm least_duration"
+
+        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
+        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+
+    # The pytest command is written to a script on the shared volume rather than
+    # inlined into mpirun, so its quoting survives to the remote shell verbatim.
+    # Heredoc bodies sit at the shell block's base indentation on purpose.
+    - name: Run tests
+      timeout-minutes: 240
+      shell: bash
+      run: |
+        set -euo pipefail
+        cat > "$RUN_DIR/run_tests.sh" <<EOF
+        #!/usr/bin/env bash
+        set -eo pipefail
+        cd $WORKER_SRC
+        source venv/activate
+        export TT_XLA_CI=1
+        export ENABLE_BRINGUP_STAGE_LOGGING=1
+        export TT_METAL_OPERATION_TIMEOUT_SECONDS=$TT_METAL_OPERATION_TIMEOUT_SECONDS
+        export TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE="/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
+        export HF_HOME=/ci/cache/huggingface
+        export TORCH_HOME=/ci/cache/torchhub
+        python -m pytest $VERBOSITY $BASE_PYTEST_CMD
+        EOF
+
+        echo "=== Test command ==="
+        cat "$RUN_DIR/run_tests.sh"
+        echo "===================="
+        mpirun --pernode --tag-output bash "$RUN_DIR/run_tests.sh"
+
+    - name: Delete test environment
+      if: always()
+      uses: tenstorrent/tt-metal/.github/actions/ttop-delete-environment@0b0d71bbee030c636a7fff7054de29f3a68e093e
+      with:
+        environmentName: ${{ env.ALLOCATION_NAME }}
+        namespace: ttop-ci
+
+    - name: Delete allocation
+      if: always()
+      uses: tenstorrent/tt-metal/.github/actions/ttop-delete-allocation@0b0d71bbee030c636a7fff7054de29f3a68e093e
+      with:
+        allocationName: ${{ env.ALLOCATION_NAME }}
+        namespace: ttop-ci
