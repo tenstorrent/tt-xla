@@ -659,7 +659,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "vllm.distributed.device_communicators.tpu_communicator.TpuCommunicator"  # noqa
+        return "vllm_tt.distributed.tpu_communicator.TpuCommunicator"
 
     @classmethod
     def validate_request(

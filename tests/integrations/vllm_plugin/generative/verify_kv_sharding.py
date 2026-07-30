@@ -64,6 +64,8 @@ def verify_kv_cache_sharding(export_dir="/tmp/ir"):
             tensor_parallel_size=2,
             pipeline_parallel_size=1,
             max_model_len=512,
+            max_num_seqs=4,
+            max_num_batched_tokens=2048,
             enable_prefix_caching=False,
             additional_config=additional_config,
         )
