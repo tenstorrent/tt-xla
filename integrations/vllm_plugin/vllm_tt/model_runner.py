@@ -4072,12 +4072,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # We gather (rather than stay vocab-sharded like the sampling path
                 # below) because the distributed sharded argmax mis-executes at
                 # runtime here, and greedy steps are host/dispatch-bound so it
-                # would be no faster even if correct. torch.argmax still lowers to
-                # composite_argmax, but on the replicated tensor that's a local
-                # reduction over the full vocab, giving the correct global index.
-                logits_full = sharding_constraint_tensor(
-                    logits, self.mesh, (None, None)
-                )
+                # would be no faster even if correct. Use explicit JAX collective
+                # (all_gather) instead of compiler-inferred gather from sharding
+                # constraint change, which generates stablehlo.reduce that tt-mlir
+                # cannot legalize.
+                import jax.lax as lax
+
+                logits_full = lax.all_gather(logits, axis_name="model")
                 out_tokens = torch.argmax(logits_full, dim=-1, keepdim=True)
             else:
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
