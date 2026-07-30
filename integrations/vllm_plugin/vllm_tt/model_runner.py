@@ -119,6 +119,7 @@ from .swa_cache_utils import (
     sliding_ring_phys_blocks,
     sliding_window_blocks,
 )
+from .telemetry import RunnerTelemetry, resolve_config
 from .vllm_distributed_utils import (
     ParallelismMode,
     kv_cache_shard_factor,
@@ -240,7 +241,60 @@ def generate_attn_mask(
 # The dummy_run should be comprehensive, ensuring all potential input shapes and
 # branch predictions are included as subgraph inputs to facilitate
 # pre-compilation.
+class _V1SlotView:
+    """Adapter presenting ``InputBatch`` rows the way RunnerTelemetry reads slots.
+
+    RunnerTelemetry is written against the v2 persistent slot table
+    (``TTRequestState``): ``req_id_to_index`` / ``free_indices`` plus per-slot
+    ``num_computed_tokens`` / ``prefill_len`` / ``total_len``. v1 keeps the same
+    information in a *condensing* ``InputBatch`` (rows compact on removal, so a
+    row index is not a stable identity across steps) with different names, and
+    the prefill boundary lives on ``CachedRequestState.num_prompt_tokens``
+    rather than in a per-slot array.
+
+    Building this view per step keeps telemetry.py identical across v1 and v2 --
+    one record schema, one visualizer. It is constructed only when telemetry is
+    enabled, and is O(active rows).
+    """
+
+    __slots__ = (
+        "req_id_to_index",
+        "free_indices",
+        "num_computed_tokens",
+        "prefill_len",
+        "total_len",
+    )
+
+    def __init__(self, input_batch, requests, scheduler_output) -> None:
+        num_reqs = input_batch.num_reqs
+        self.req_id_to_index = dict(input_batch.req_id_to_index)
+        # v1 has no free list: unoccupied rows are simply the tail of the batch.
+        self.free_indices = range(num_reqs, input_batch.max_num_reqs)
+        self.num_computed_tokens = {}
+        self.prefill_len = {}
+        self.total_len = {}
+        for req_id, slot in self.req_id_to_index.items():
+            req_state = requests.get(req_id)
+            if req_state is None:
+                # on_step swallows exceptions: an unpopulated slot drops the
+                # whole step record, so zero-fill instead.
+                self.num_computed_tokens[slot] = 0
+                self.prefill_len[slot] = 0
+                self.total_len[slot] = 0
+                continue
+            scheduled = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            # Must match sample_tokens' prefill test.
+            self.num_computed_tokens[slot] = int(req_state.num_computed_tokens) + int(
+                scheduled
+            )
+            self.prefill_len[slot] = int(req_state.num_prompt_tokens)
+            self.total_len[slot] = int(req_state.num_tokens)
+
+
 class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
+    # Instances built without __init__ read this; disabled opens no files.
+    _telemetry = RunnerTelemetry(False, "", 1.0)
+
     def __init__(
         self,
         vllm_config: VllmConfig,
@@ -558,6 +612,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kernel_block_sizes=[self.block_size],
             is_pooling_model=False,
         )
+
+        # Gating resolved in TTPlatform.check_and_update_config.
+        tele_enabled, tele_dir, tele_flush_s = resolve_config(
+            enabled=getattr(self.tt_config, "telemetry_enabled", False),
+            directory=getattr(self.tt_config, "telemetry_dir", None),
+            flush_ms=getattr(self.tt_config, "telemetry_flush_ms", None),
+        )
+        self._telemetry = RunnerTelemetry(tele_enabled, tele_dir, tele_flush_s)
 
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
@@ -931,6 +993,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         # Remove finished requests from the cached states.
         for req_id in scheduler_output.finished_req_ids:
+            if self._telemetry.enabled:
+                # Read before the state is dropped.
+                done = self.requests.get(req_id)
+                if done is not None:
+                    self._telemetry.on_request_completed(
+                        req_id,
+                        self.input_batch.req_id_to_index.get(req_id, -1),
+                        int(done.num_prompt_tokens),
+                        len(done.output_token_ids),
+                    )
             self.requests.pop(req_id, None)
             self.num_prompt_logprobs.pop(req_id, None)
 
@@ -1055,11 +1127,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Add the new or resumed requests to the persistent batch.
         # The smaller empty indices are filled first.
         removed_req_indices = sorted(removed_req_indices, reverse=True)
+        # Only genuinely new requests appear in scheduled_new_reqs.
+        tele_new_req_ids = (
+            {new.req_id for new in scheduler_output.scheduled_new_reqs}
+            if self._telemetry.enabled
+            else frozenset()
+        )
         for req_id in req_ids_to_add:
             req_state = self.requests[req_id]
             # Fill the empty index or append to the end
             req_index = removed_req_indices.pop() if removed_req_indices else None
             self.input_batch.add_request(req_state, req_index)
+            if self._telemetry.enabled:
+                # req_index is None for an appended row, so read back the
+                # assigned index. A prefix-cache hit shows as nonzero cached tokens.
+                self._telemetry.on_request_admitted(
+                    req_id,
+                    self.input_batch.req_id_to_index.get(req_id, -1),
+                    int(req_state.num_prompt_tokens),
+                    int(req_state.num_prompt_tokens),
+                    num_cached_tokens=int(req_state.num_computed_tokens),
+                    readmission=req_id not in tele_new_req_ids,
+                )
 
         # Condense the batched states if there are empty indices.
         if removed_req_indices:
@@ -2428,6 +2517,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # batch index.  Only populated for requests that need prompt logprobs.
         prompt_lp_hs: dict[int, torch.Tensor] = {}
 
+        # Telemetry: per-step pass split, counted per chunk below.
+        tele_on = self._telemetry.enabled
+        tele_prefill_passes = 0
+        tele_decode_passes = 0
+
         while start_index < self.input_batch.num_reqs:
             (
                 attn_metadata,
@@ -2487,6 +2581,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     grammar_output, target_num_reqs
                 )
             torch_xla.sync(wait=False)
+
+            if tele_on:
+                # Tokens-per-row and the graph's seq dim both exceed 1 for a
+                # spec-decode verification pass, so neither identifies prefill.
+                pass_prefill = False
+                for tele_rid in self.input_batch.req_ids[start_index:end_index]:
+                    tele_rs = self.requests.get(tele_rid)
+                    if (
+                        tele_rs is not None
+                        and tele_rs.num_computed_tokens < tele_rs.num_prompt_tokens
+                    ):
+                        pass_prefill = True
+                        break
+                if pass_prefill:
+                    tele_prefill_passes += 1
+                else:
+                    tele_decode_passes += 1
 
             if self.tt_config.cpu_sampling:
                 hidden_states, logits, selected_token_ids, kv_connector_output = (
@@ -2674,6 +2785,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     valid_sampled_token_ids[i]
                 )
                 req_state.output_token_ids.extend(valid_sampled_token_ids[i])
+
+        if tele_on:
+            # len() per row keeps this accepted tokens/step under spec decode.
+            tele_emitted_tokens = sum(
+                len(valid_sampled_token_ids[i]) for i, _, _ in request_seq_lens
+            )
+            self._telemetry.on_step(
+                _V1SlotView(self.input_batch, self.requests, scheduler_output),
+                prefill_passes=tele_prefill_passes,
+                decode_passes=tele_decode_passes,
+                emitted_tokens=tele_emitted_tokens,
+            )
 
         model_runner_output = ModelRunnerOutput(
             req_ids=req_ids,
