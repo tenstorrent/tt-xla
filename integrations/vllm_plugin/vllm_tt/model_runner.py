@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
@@ -1724,6 +1725,64 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # page_table, else the SDPA op rejects a mask whose batch differs
                 # from the per-device query batch under DP.
                 safe_mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
+
+        if os.environ.get("TTXLA_DP_DEBUG") and self.dp_size > 1:
+            _dbg_pt = page_table.cpu() if hasattr(page_table, "cpu") else page_table
+            _dbg_fpt = (
+                fill_page_table.cpu()
+                if hasattr(fill_page_table, "cpu")
+                else fill_page_table
+            )
+            _local = max(1, self.max_num_reqs // self.dp_size)
+            logger.warning(
+                "[DP-DEBUG] step: num_reqs=%d target=%d tokens=%d dp=%d local_batch=%d",
+                num_reqs,
+                target_num_reqs,
+                padded_total_num_scheduled_tokens,
+                self.dp_size,
+                _local,
+            )
+            logger.warning(
+                "[DP-DEBUG]   num_computed per row = %s  (equal across rows: %s)",
+                list(np.asarray(num_computed_for_reqs).tolist()),
+                bool(len(set(np.asarray(num_computed_for_reqs).tolist())) <= 1),
+            )
+            logger.warning(
+                "[DP-DEBUG]   scheduled tokens per row = %s",
+                list(np.asarray(num_scheduled_tokens_per_req).tolist()),
+            )
+            logger.warning(
+                "[DP-DEBUG]   chunk_start_idx = %s  (shared offset taken from row 0)",
+                (
+                    "None"
+                    if chunk_start_idx is None
+                    else int(np.asarray(chunk_start_idx.cpu()).reshape(-1)[0])
+                ),
+            )
+            for _r in range(min(int(target_num_reqs), 4)):
+                logger.warning(
+                    "[DP-DEBUG]   row %d replica=%d page_table[:6]=%s "
+                    "fill_page_table[:6]=%s",
+                    _r,
+                    _r // _local,
+                    list(np.asarray(_dbg_pt[_r][:6]).tolist()),
+                    list(np.asarray(_dbg_fpt[_r][:6]).tolist()),
+                )
+            if attn_mask is not None:
+                # Per row: how many KV columns are unmasked. Should equal
+                # num_computed[row] + suffix_len for that row; a wrong value means
+                # the row attends the wrong prefix range.
+                _m = attn_mask.cpu().float()
+                for _r in range(min(_m.shape[0], 4)):
+                    _unmasked = int((_m[_r, 0, 0] > -1e30).sum().item())
+                    logger.warning(
+                        "[DP-DEBUG]   row %d mask row0 unmasked_kv_cols=%d "
+                        "(expect num_computed+1 .. +suffix)",
+                        _r,
+                        _unmasked,
+                    )
+            else:
+                logger.warning("[DP-DEBUG]   attn_mask = None (cold/decode path)")
 
         attn_metadata = TTMetadata(
             page_table=page_table,
