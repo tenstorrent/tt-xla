@@ -4143,10 +4143,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 block_sizes=block_sizes,
                 kernel_block_sizes=block_sizes,
                 max_num_blocks_per_req=[
-                    cdiv(
-                        self.max_model_len,
-                        block_sizes,
-                    )
+                    cdiv(self.max_model_len, bs) for bs in block_sizes
                 ],
                 is_pooling_model=False,
             )
