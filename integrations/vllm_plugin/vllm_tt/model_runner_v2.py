@@ -1100,10 +1100,28 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # real KV with padding; redirect its fill to the null block. The read
         # path keeps the real blocks.
         zero_rows = np.nonzero(num_scheduled_tokens[:num_reqs] == 0)[0]
-        if len(zero_rows) > 0:
+
+        # DiffusionGemma gap 3: decoder phase is read-only (denoise re-reads encoder KV).
+        # Zero fill_page_table for decoder requests to prevent KV writes, and adjust
+        # cache_position to point to encoder KV (not including canvas tokens).
+        from .diffusion_gemma import TTDiffusionGemmaModelState
+        decoder_rows = []
+        if isinstance(self.model_state, TTDiffusionGemmaModelState):
+            for b in range(num_reqs):
+                slot = int(idx_mapping_np[b])
+                # is_encoder_phase=True means prefill/commit, False means denoise (decode)
+                if not self.model_state.diffusion_states.is_encoder_phase[slot]:
+                    decoder_rows.append(b)
+                    # Decoder phase: use encoder KV length, not total with canvas
+                    encoder_len = int(self.req_states.num_computed_tokens[slot])
+                    cache_position[b] = encoder_len - 1
+
+        # Combine zero-scheduled rows and decoder rows (all read-only)
+        readonly_rows = np.union1d(zero_rows, decoder_rows)
+        if len(readonly_rows) > 0:
             if fill_page_table is page_table:
                 fill_page_table = page_table.copy()
-            fill_page_table[zero_rows, :] = 0
+            fill_page_table[readonly_rows, :] = 0
 
         return page_table, fill_page_table, cache_position
 
