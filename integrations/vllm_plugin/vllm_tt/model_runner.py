@@ -1355,6 +1355,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
+    def _spec_prefix_rows(self) -> bool:
+        """Whether this run can produce speculative multi-token rows.
+
+        Those are the only rows that start mid block and so need the block
+        alignment handling; everything else reaches _prepare_inputs unchanged.
+        """
+        return bool(self.num_spec_tokens) and self._prefix_sdpa_usable
+
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -1400,13 +1408,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # multi-pass loop picks the rest up next iteration. Without this a mixed
         # batch would write each row's K/V at its own block start while the shared
         # read offset matched only the first row.
-        if self._prefix_sdpa_usable and max(num_scheduled_tokens_per_req) > 1:
+        # Only speculative rows need this: a prefill chunk is block aligned by
+        # construction, so its lead is already 0 and one shared offset describes
+        # the whole pass. Gating on spec decode keeps every other path byte
+        # identical to before.
+        if self._spec_prefix_rows() and max(num_scheduled_tokens_per_req) > 1:
             same_run = _same_block_run(
                 self.input_batch.num_computed_tokens_cpu[start_index:end_index],
                 self.block_size,
             )
-            if same_run < len(num_scheduled_tokens_per_req):
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:same_run]
+            trimmed = num_scheduled_tokens_per_req[:same_run]
+            # Under DP the pass can start with zero-token padding rows. Trimming
+            # to a run of those would leave nothing scheduled and trip the
+            # assert below, so only take the trim when it keeps real work.
+            if same_run < len(num_scheduled_tokens_per_req) and max(trimmed) > 0:
+                num_scheduled_tokens_per_req = trimmed
                 end_index = start_index + same_run
 
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
@@ -1447,16 +1463,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # between. They are already computed, so rewriting their K/V is a no-op,
         # and the row is padded to a bucket anyway so it is usually free.
         row_lead = np.zeros(len(num_scheduled_tokens_per_req), dtype=np.int32)
-        if self._prefix_sdpa_usable and max_num_scheduled_tokens_all_reqs > 1:
+        if self._spec_prefix_rows() and max_num_scheduled_tokens_all_reqs > 1:
             computed = self.input_batch.num_computed_tokens_cpu[req_slice]
             row_lead = _row_lead(computed, self.block_size)
             # The pass was trimmed to a single block boundary above, so one shared
-            # chunk_start_idx describes every row. Assert rather than silently
-            # fall back: zeroing row_lead here would restore the write/read
-            # mismatch and emit wrong tokens.
-            assert len(np.unique(computed - row_lead)) <= 1, (
-                "spec/prefix pass spans multiple block boundaries: "
-                f"{(computed - row_lead).tolist()}"
+            # chunk_start_idx describes every row. Rows scheduled 0 tokens (DP
+            # padding) are not read, so exclude them from the check.
+            active = num_scheduled_tokens_per_req > 0
+            starts = (computed - row_lead)[active]
+            assert len(np.unique(starts)) <= 1, (
+                "spec pass spans multiple block boundaries: " f"{starts.tolist()}"
             )
 
         # Compute the padded total number of scheduled tokens so that all requests
@@ -1701,7 +1717,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             np.any(num_computed_for_reqs > 0)
         )
         chunk_start_idx = None
-        if prefix_chunk_step and self._prefix_sdpa_usable:
+        if prefix_chunk_step and (
+            self._chunked_sdpa_active or self._spec_prefix_rows()
+        ):
             # Same-stage batching => one shared [1] prefix offset; the op masks
             # causally and applies it internally (no host attn_mask). row_lead
             # moved the row back to its block boundary, so the read offset must
