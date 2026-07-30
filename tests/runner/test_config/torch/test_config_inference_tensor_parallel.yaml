@@ -124,6 +124,28 @@ test_config:
     status: EXPECTED_PASSING
     markers: [extended]
 
+  qwen_3_5/causal_lm/pytorch-122B_A10B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+
+  qwen_3_5/multimodal/pytorch-Qwen/Qwen3.5-122B-A10B-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+
+  qwen_3_5/causal_lm/pytorch-397B_A17B-tensor_parallel-inference:
+    supported_archs: [galaxy-bh]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
+  qwen_3_5/multimodal/pytorch-Qwen/Qwen3.5-397B-A17B-tensor_parallel-inference:
+    supported_archs: [galaxy-bh]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
   mistral/pytorch-Ministral_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
