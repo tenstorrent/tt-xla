@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from infra import random_tensor, run_op_test
-from utils import Category, failed_ttmlir_compilation
+from utils import Category
 
 
 @pytest.mark.push
@@ -23,12 +23,6 @@ from utils import Category, failed_ttmlir_compilation
         [(64, 64)],
     ],
     ids=lambda val: f"{val}",
-)
-@pytest.mark.xfail(
-    reason=failed_ttmlir_compilation(
-        "failed to legalize operation 'ttir.reverse "
-        "https://github.com/tenstorrent/tt-xla/issues/503"
-    )
 )
 def test_reverse(shape: tuple):
     def reverse(a: jax.Array) -> jax.Array:

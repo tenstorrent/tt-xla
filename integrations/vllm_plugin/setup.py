@@ -51,9 +51,8 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.20.2",
-        "transformers==5.5.1",
-        "fastapi[standard] >= 0.133.0, < 0.137.0",
+        "vllm==0.25.1",
+        "transformers==5.14.1",
     ],
     python_requires=">=3.12, <3.13",
     license="Apache-2.0",

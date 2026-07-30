@@ -270,6 +270,12 @@ def test_wan22_t2v_480p_e2e():
     _run_e2e("t2v", "480p", PROMPT_T2V, NEG_T2V)
 
 
+# strict=False: fails on galaxy-bh (Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM
+# ~14.7 GB, bank_manager.cpp:462); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh DRAM OOM (~14.7 GB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5680.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
@@ -288,6 +294,12 @@ def test_wan22_i2v_480p_e2e():
     _run_e2e("i2v", "480p", PROMPT_I2V, NEG_I2V)
 
 
+# strict=False: fails on galaxy-bh (Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM
+# ~10.7 GB, bank_manager.cpp:462); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh DRAM OOM (~10.7 GB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5680.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole

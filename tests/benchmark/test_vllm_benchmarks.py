@@ -20,7 +20,7 @@ from utils import resolve_display_name, sanitize_model_name
 #   TT_BENCHMARK_TEMPERATURE=<float>      default 0.0 (greedy)
 #   TT_BENCHMARK_CPU_SAMPLING=1           default 0 (device sampling)
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
-#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     default "" (e.g. bfp_bf8, bfp_bf4)
+#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test kv cache dtype)
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
 #   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
 #   TT_BENCHMARK_WEIGHT_OVERRIDES=<path>  JSON file of {glob: dtype} per-tensor mixed-precision overrides
@@ -30,7 +30,7 @@ from utils import resolve_display_name, sanitize_model_name
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
-_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE", "")
+_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE")
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
@@ -50,7 +50,11 @@ def _config(
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
-    fp32_dest_acc_en: bool | None = False,
+    experimental_kv_cache_dtype: str = "bfp_bf8",
+    # None => leave the compute-kernel-config knob unset so compiler
+    # can set the default value or leave it up to ttnn.
+    # Only set this deliberately, never as a frontend default.
+    fp32_dest_acc_en: bool | None = None,
     **additional_config_extra,
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
@@ -62,19 +66,19 @@ def _config(
     additional = {"enable_trace": True}
     if experimental_weight_dtype:
         additional["experimental_weight_dtype"] = experimental_weight_dtype
+    if experimental_kv_cache_dtype:
+        additional["experimental_kv_cache_dtype"] = experimental_kv_cache_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level:
         additional["optimization_level"] = optimization_level
-        # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
-        additional["cpu_sampling"] = True
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
-    if _BENCH_KV_CACHE_DTYPE:
-        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     additional.update(additional_config_extra)
     if _BENCH_WEIGHT_DTYPE is not None:
         additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
+    if _BENCH_KV_CACHE_DTYPE is not None:
+        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     if _BENCH_WEIGHT_OVERRIDES is not None:
         # Path to a JSON {glob: dtype} file; loaded plugin-side by
         # apply_weight_dtype_overrides. Takes precedence over the uniform dtype.
@@ -110,18 +114,20 @@ def _tp_config(
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
-    # Allow callers to override weight dtype without passing the same keyword
-    # twice to _config (once explicitly and once via **tp_defaults).
+    # Allow callers to override weight/kv-cache dtype without passing the same
+    # keyword twice to _config (once explicitly and once via **tp_defaults).
     experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "")
+    experimental_kv_cache_dtype = tp_defaults.pop("experimental_kv_cache_dtype", "")
     fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", None)
     return _config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
         optimization_level=optimization_level,
-        # Keep TP configs as-is: the single-device alignment defaults
-        # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
+        # Keep TP configs as-is: the single-device alignment default
+        # (bfp_bf8 weight dtype) does not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
     )
@@ -133,8 +139,11 @@ def _gemma4_tp_config(model: str, batch_size: int):
     # ::test_tensor_parallel_generation_gemma4_31b:
     #   - limit_mm_per_prompt zeroed so the vision/audio tower never compiles
     #   - max_num_batched_tokens floored at 2560 (MultiModalBudget video floor)
-    #   - flat_model_io for Gemma-4's PLE forward; default mesh_shape=None ->
-    #     1D mesh (gemma4 TP runs on qb2-blackhole)
+    #   - flat_model_io for Gemma-4's PLE forward; use_2d_mesh=False -> 1D mesh
+    #     (gemma4 TP runs on qb2-blackhole). mesh_shape=None alone is NOT
+    #     enough for a 1D mesh -- TTConfig.use_2d_mesh defaults to True, so
+    #     without this explicit False, determine_mesh_shape() picks a 2D
+    #     (2, 2) mesh for 4 devices instead of the intended 1D (1, 4).
     cfg = _config(
         model,
         batch_size,
@@ -142,9 +151,11 @@ def _gemma4_tp_config(model: str, batch_size: int):
         # opt-level 2 fails with an L1 out-of-memory TT_FATAL; see #5440.
         optimization_level=1,
         enable_tensor_parallel=True,
+        use_2d_mesh=False,
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",
+        experimental_kv_cache_dtype="",
         cpu_sampling=False,
         flat_model_io=True,
     )
@@ -161,12 +172,12 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     # text-only (limit_mm_per_prompt zeroed so the vision tower never compiles),
     # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u in a 8x4 mesh.
     #
-    # Validated max_model_len of 8192 at GMU of 0.65, but the current default
+    # Validated max_model_len of 8192 at GMU of 0.16, but the current default
     # of max_model_len is 128, so it needs to be overriden through the env. var.
     cfg = _config(
         model,
         batch_size,
-        gpu_memory_utilization=0.65,
+        gpu_memory_utilization=0.16,
         optimization_level=1,
         experimental_weight_dtype="bfp_bf8",
         experimental_kv_cache_dtype="bfp_bf8",
@@ -190,12 +201,13 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
-    pytest.param(_config("meta-llama/Llama-3.2-3B-Instruct"), id="llama-3.2-3b"),
-    # opt-level 2 (the default since #5410) OOMs DRAM on n150. See https://github.com/tenstorrent/tt-xla/issues/5494.
+    # BFP8 KV cache breaks n150 compile (L1-spill layout mismatch); see tt-mlir#9094.
     pytest.param(
-        _config("meta-llama/Llama-3.1-8B-Instruct", optimization_level=0),
-        id="llama-3.1-8b",
+        _config("meta-llama/Llama-3.2-3B-Instruct", experimental_kv_cache_dtype=""),
+        id="llama-3.2-3b",
     ),
+    # opt-level 2 (the default since #5410) OOMs DRAM on n150. See https://github.com/tenstorrent/tt-xla/issues/5494.
+    pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
     # Qwen 2.5
     pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
@@ -216,8 +228,15 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("microsoft/phi-2", gpu_memory_utilization=0.30), id="phi-2"),
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
-    pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
-    pytest.param(_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-base"),
+    # BFP8 KV cache breaks n150 compile (L1-spill layout mismatch); see tt-mlir#9094.
+    pytest.param(
+        _config("tiiuae/Falcon3-3B-Base", experimental_kv_cache_dtype=""),
+        id="falcon3-3b-base",
+    ),
+    pytest.param(
+        _config("tiiuae/Falcon3-7B-Base", experimental_kv_cache_dtype=""),
+        id="falcon3-7b-base",
+    ),
     # Mistral
     pytest.param(
         _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
@@ -332,6 +351,60 @@ EMBEDDING_CONFIGS = [
 ]
 
 
+def _dp_embedding_config(
+    model: str,
+    batch_size: int = 32,
+    *,
+    max_model_len: int = 512,
+    gpu_memory_utilization: float = 0.05,
+    optimization_level: int = 1,
+    experimental_weight_dtype: str = "",
+    enable_trace: bool = True,
+    **additional_config_extra,
+):
+    additional = {
+        "enable_data_parallel": True,
+        "optimization_level": optimization_level,
+        "enable_trace": enable_trace,
+    }
+    if experimental_weight_dtype:
+        additional["experimental_weight_dtype"] = experimental_weight_dtype
+    additional.update(additional_config_extra)
+    return VLLMEmbeddingBenchmarkConfig(
+        model=model,
+        batch_size=batch_size,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=gpu_memory_utilization,
+        additional_config=additional,
+    )
+
+
+DP_EMBEDDING_CONFIGS = [
+    pytest.param(
+        _dp_embedding_config(
+            "Qwen/Qwen3-Embedding-0.6B",
+            32,
+            max_model_len=128,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="qwen3-embedding-0.6b-dp-batch32",
+    ),
+    pytest.param(
+        _dp_embedding_config(
+            "Qwen/Qwen3-Embedding-4B",
+            32,
+            max_model_len=128,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="qwen3-embedding-4b-dp-batch32",
+    ),
+    pytest.param(
+        _dp_embedding_config("BAAI/bge-m3", 32, experimental_weight_dtype="bfp_bf8"),
+        id="bge-m3-dp-batch32",
+    ),
+]
+
+
 def _run_vllm_embedding_benchmark(config, output_file, request):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
@@ -360,4 +433,9 @@ def test_vllm_tp_benchmark(config, output_file, request):
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)
 def test_vllm_embedding_benchmark(config, output_file, request):
+    _run_vllm_embedding_benchmark(config, output_file, request)
+
+
+@pytest.mark.parametrize("config", DP_EMBEDDING_CONFIGS)
+def test_vllm_embedding_dp_benchmark(config, output_file, request):
     _run_vllm_embedding_benchmark(config, output_file, request)

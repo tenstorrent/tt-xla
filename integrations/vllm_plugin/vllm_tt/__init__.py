@@ -39,4 +39,14 @@ def register_oot_layers():
 
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
-    from .layers.fused_moe import TTFusedMoE  # noqa: F401
+
+    # Patch the FusedMoE factory for TT MoE.
+    from .layers.fused_moe import install_tt_fused_moe
+
+    install_tt_fused_moe()
+
+    # Gemma4's multimodal encoder queries torch.accelerator.get_memory_info(),
+    # which asserts on the TT device; route it to a host-memory estimate.
+    from .platform import install_tt_accelerator_memory_info
+
+    install_tt_accelerator_memory_info()

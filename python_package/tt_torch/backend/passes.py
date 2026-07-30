@@ -8,6 +8,7 @@ import torch
 from torch.export.graph_signature import InputKind, OutputKind
 from tt_torch import composite_ops
 from tt_torch.fusion_providers import FusionProvider
+from tt_torch.slice_bounds import clamp_neg_slice_key
 from ttxla_tools.logging import logger
 
 
@@ -350,6 +351,41 @@ def _replace_multi_output_op(gm, node, output_variants):
             gm.graph.erase_node(gi)
 
 
+def cast_bool_cumsum_to_int32(gm: torch.fx.GraphModule) -> None:
+    """Cast bool inputs of aten.cumsum to int32.
+
+    tt-metal's accumulation (cumsum) kernel `add_int` supports only Int32 /
+    UInt32 / UInt16 data formats; a bool tensor lowers to the UInt8 format and
+    fails to compile ("Unsupported data format for add_int"). torch lowers
+    `bool_tensor.cumsum(dim)` to an aten.cumsum over the bool tensor — e.g.
+    transformers' find_packed_sequence_indices does
+    `(position_diff != 1).cumsum(-1)`. Casting the input to int32 (the cumsum is
+    semantically a count) changes the device format UInt8 -> Int32 so the kernel
+    compiles; the cumsum output dtype (int64) is unchanged.
+    """
+    cumsum_targets = {torch.ops.aten.cumsum.default, torch.ops.aten.cumsum}
+    changed = False
+    for node in list(gm.graph.nodes):
+        if node.op != "call_function" or node.target not in cumsum_targets:
+            continue
+        inp = node.args[0]
+        val = inp.meta.get("val") if hasattr(inp, "meta") else None
+        if val is None or val.dtype != torch.bool:
+            continue
+        with gm.graph.inserting_before(node):
+            cast = gm.graph.call_function(
+                torch.ops.aten._to_copy.default,
+                args=(inp,),
+                kwargs={"dtype": torch.int32},
+            )
+            cast.meta["val"] = val.to(torch.int32)
+        node.update_arg(0, cast)
+        changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
@@ -588,6 +624,45 @@ def clamp_neg_slice_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
                 f"(dim {dim}, size {dim_size})"
             )
             node.args = tuple(new_args)
+            changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+    return gm
+
+
+def clamp_neg_getitem_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Pre-AOTAutograd clamp for OOB negative slices as ``operator.getitem`` nodes.
+
+    Must run before AOTAutograd so functionalization records the clamped view-meta
+    sequence; otherwise the runtime view-alias replay uses the original bound and
+    raises "Value out of range". Companion to clamp_neg_slice_bounds. Refs: #4465.
+    """
+    changed = False
+    for node in gm.graph.nodes:
+        if (
+            node.op != "call_function"
+            or node.target is not operator.getitem
+            or len(node.args) != 2
+        ):
+            continue
+        inp, key = node.args
+        if not isinstance(inp, torch.fx.Node):
+            continue
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        if not any(isinstance(k, slice) for k in key_tuple):
+            continue
+        shape = getattr(inp.meta.get("example_value"), "shape", None)
+        if shape is None:
+            shape = getattr(inp.meta.get("val"), "shape", None)
+        if shape is None:
+            continue
+        new_key, node_changed = clamp_neg_slice_key(shape, key)
+        if node_changed:
+            logger.debug(
+                f"clamp_neg_getitem_bounds: clamped {node.name} key {key} -> {new_key}"
+            )
+            node.args = (inp, new_key)
             changed = True
     if changed:
         gm.graph.lint()

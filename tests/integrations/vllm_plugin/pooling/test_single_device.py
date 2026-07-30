@@ -159,17 +159,15 @@ def test_embedding_nightly(
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize(
-    ["model_name", "baseline_path", "optimization_level"],
+    ["model_name", "baseline_path"],
     [
         pytest.param(
             "BAAI/bge-m3",
             "baseline/bge_m3_baseline.pt",
-            0,
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
-            1,
         ),
     ],
 )
@@ -183,7 +181,6 @@ def test_embedding_nightly(
 def test_batched_inference(
     model_name: str,
     baseline_path: str,
-    optimization_level: int,
     max_num_reqs: int,
     max_num_batched_tokens: int,
 ):
@@ -208,7 +205,6 @@ def test_batched_inference(
         max_model_len=64,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
-        optimization_level=optimization_level,
     )
 
 
