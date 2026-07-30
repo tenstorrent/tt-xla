@@ -362,6 +362,10 @@ jobs:
         #!/usr/bin/env bash
         set -eo pipefail
         export HOME=/home/user
+        # The exabox runner exports tt-metal paths for its own workflows and mpirun
+        # forwards them here, where they are dangling and shadow the wheel's own
+        # bundled tt-metal (setup_tt_metal_home treats a set value as an override).
+        unset TT_METAL_RUNTIME_ROOT TT_METAL_HOME LD_LIBRARY_PATH
         cd $WORKER_SRC
         source venv/activate
         export TT_XLA_CI=1
