@@ -2724,7 +2724,6 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
 
-  # XTTS-v2 (coqui/XTTS-v2) per-nn.Module component bring-up
   xtts_v2/pytorch-speaker_encoder-single_device-inference:
     status: EXPECTED_PASSING
 

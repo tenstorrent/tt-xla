@@ -41,12 +41,6 @@ _LOADER_PATH = str(
 # Cap on decode steps so the test stays bounded (each token is ~1024 output
 # samples @ 24 kHz); the property under test is that the chain runs end-to-end
 # and emits a valid waveform, not audio length.
-#
-# Kept well under the ~163 steps a full utterance takes because the CPU replay
-# below costs roughly O(cap^2) -- it runs one CPU forward per step over a static
-# cache sized prefix_len + cap. Measured warm-cache wall clock: 32 -> 79s,
-# 64 -> 374s. 64 still exercises the reuse property (compile count goes flat and
-# stays flat well before the tail).
 MAX_AUDIO_TOKENS = 64
 OUTPUT_SAMPLE_RATE = 24000
 
@@ -215,8 +209,6 @@ def test_xtts_v2_pipeline():
         if output_file.exists():
             output_file.unlink()
 
-        # Mirrors run_xtts_pipeline(), but with the measuring subclass so the
-        # decode loop can be checked while the real pipeline drives it.
         torch_xla.set_custom_compile_options({"optimization_level": 0})
         pipeline_cls = _make_pcc_pipeline_cls()
         pipeline = pipeline_cls(XTTSConfig(max_audio_tokens=MAX_AUDIO_TOKENS, seed=0))
