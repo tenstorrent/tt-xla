@@ -32,6 +32,7 @@ from vllm.platforms import current_platform
 from vllm.tasks import SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE, set_random_seed
+from vllm.v1.core.kv_cache_utils import unify_hybrid_kv_cache_specs
 from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
@@ -339,10 +340,26 @@ class TTWorker:
         # Reserve physical bytes for sliding-window layers' small ring buffers.
         # Every layer gets its own tensor (no byte-overlay on TT), so carving the
         # rings out here keeps the full-attention pool + rings within the budget.
+        #
+        # Reserve against the spec vLLM will actually group on, not the one we
+        # were handed: when the hybrid manager is disabled it first runs
+        # unify_hybrid_kv_cache_specs(), which rewrites SlidingWindowSpec to
+        # FullAttentionSpec so the runner allocates no rings at all -- reserving
+        # for them would strand the bytes (6.27 GiB of a 25.50 GiB budget for
+        # gemma-4-31B at max_model_len=128). Running vLLM's own function on a
+        # copy keeps the two in agreement by construction, including the case it
+        # deliberately leaves alone: an all-sliding (uniform) model keeps its
+        # SlidingWindowSpecs, so the rings are real and must still be reserved.
+        # NOTE: under pipeline parallelism this worker's spec is a subset of the
+        # merged spec vLLM unifies, so a stage holding only sliding layers can
+        # still disagree with the global decision.
+        effective_spec = dict(kv_cache_spec)
+        if self.scheduler_config.disable_hybrid_kv_cache_manager:
+            unify_hybrid_kv_cache_specs(effective_spec)
         max_num_reqs = self.model_runner.max_num_reqs
         sliding_reserve = 0
         num_sliding = 0
-        for layer_spec in kv_cache_spec.values():
+        for layer_spec in effective_spec.values():
             if isinstance(layer_spec, SlidingWindowSpec):
                 # Same helpers the model runner sizes the rings with, so the
                 # reservation here cannot drift from what it later allocates.

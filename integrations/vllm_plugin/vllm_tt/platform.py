@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
+from vllm.utils.math_utils import cdiv
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ else:
 from torch_xla import runtime as xrt
 
 from .logger import tt_init_logger
+from .swa_cache_utils import sliding_ring_is_profitable, sliding_window_blocks
 
 logger = tt_init_logger(__name__)
 
@@ -340,7 +342,82 @@ class TTPlatform(Platform):
         # Emit per-attention-type kv_cache_groups (like every other platform);
         # the base default False downgrades sliding-window layers to full
         # attention, making them pay the full max_model_len KV cost.
+        # NOTE: capability only. Whether it actually *pays off* for the current
+        # max_model_len is decided per-run by
+        # _maybe_disable_unprofitable_hybrid_kv_cache.
         return True
+
+    @classmethod
+    def _maybe_disable_unprofitable_hybrid_kv_cache(
+        cls, vllm_config: "VllmConfig"
+    ) -> None:
+        """Opt out of the sliding-window ring when it would cost MORE than
+        plain full attention.
+
+        On TT each sliding layer gets its own per-user ring buffer of
+        ``sliding_window_blocks()`` blocks (vLLM's byte-overlay across groups is
+        impossible here), so a sliding layer's per-user cost is that block count
+        rather than ``cdiv(max_model_len, block_size)``.
+
+        The ring only pays off once the window actually clips the context. At
+        ``max_model_len <= sliding_window`` the window never slides -- every
+        request's whole context already fits inside it -- yet the ring still pays
+        the ``+1`` straddle block and the 8-block page-table-stick round-up. For
+        gemma-4-31B (window 1024, block 32) at max_model_len=128 that is 8 blocks
+        per user per layer against 4 for full attention: a 2x regression across
+        50 sliding layers, which is what drops the reported KV pool/concurrency
+        below its pre-hybrid value.
+
+        So enable the hybrid path only when the ring is strictly smaller than its
+        full-attention equivalent; otherwise let vLLM unify the specs and put
+        every layer in the shared pool (pre-hybrid behavior). Long-context runs
+        -- the case the ring exists for -- are unaffected.
+
+        Two limits are inherent to deciding this at config time, before any model
+        or KV spec exists:
+          - the window comes from ``model_config.get_sliding_window()`` (the HF
+            config) rather than the per-layer specs the worker and runner
+            actually size against, so the two can disagree (e.g. a config
+            carrying ``sliding_window`` with sliding layers disabled). The
+            worker derives its reservation from the specs, so a mismatch here
+            costs nothing;
+          - the decision is model-wide, because vLLM's
+            ``disable_hybrid_kv_cache_manager`` is a single switch feeding
+            ``unify_hybrid_kv_cache_specs`` over the whole spec dict -- there is
+            no per-layer dial. TT does not support multiple window sizes yet
+            either (see the uniform-window assert in the model runner).
+        """
+        model_config = vllm_config.model_config
+        scheduler_config = vllm_config.scheduler_config
+        # Respect an explicit user choice (either direction).
+        if scheduler_config.disable_hybrid_kv_cache_manager is not None:
+            return
+        sliding_window = model_config.get_sliding_window()
+        # No sliding-window layers means nothing to trade off. max_model_len == -1
+        # means vLLM auto-fits it later from the KV budget, so the value here is a
+        # placeholder -- leave the ring enabled (auto-fit targets long contexts,
+        # where it wins).
+        if not sliding_window or model_config.original_max_model_len == -1:
+            return
+
+        max_model_len = model_config.max_model_len
+        block_size = vllm_config.cache_config.block_size
+        if sliding_ring_is_profitable(sliding_window, block_size, max_model_len):
+            return
+
+        scheduler_config.disable_hybrid_kv_cache_manager = True
+        logger.info(
+            "[TT] Disabling the hybrid KV cache manager: at max_model_len=%d "
+            "(sliding_window=%d, block_size=%d) a sliding-window ring costs %d "
+            "blocks per user per layer vs %d for full attention, so the ring "
+            "cannot pay for itself. Sliding layers will share the "
+            "full-attention pool.",
+            max_model_len,
+            sliding_window,
+            block_size,
+            sliding_window_blocks(sliding_window, block_size, max_model_len),
+            cdiv(max_model_len, block_size),
+        )
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -533,6 +610,8 @@ class TTPlatform(Platform):
         cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config
         )  # type: ignore[assignment]
+
+        cls._maybe_disable_unprofitable_hybrid_kv_cache(vllm_config)
 
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
