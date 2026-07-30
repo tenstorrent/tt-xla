@@ -1519,20 +1519,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #   [[3, 4, 0, 0, 0],
         #    [10,11,12,13,14],
         #    [5, 6, 7, 0, 0]]
-        # i is pass-relative (the list starts at start_index); input_batch is
-        # indexed globally, so reads need start_index + i.
-        for i, n in enumerate(num_scheduled_tokens_per_req):
-            lead = int(row_lead[i])
-            row_len = lead + n
-            positions = (
-                torch.arange(row_len, dtype=torch.int32)
-                + self.input_batch.num_computed_tokens_cpu[start_index + i]
-                - lead
-            )
-            if self.uses_mrope:
-                arange[:, i, :row_len] = positions
-            else:
-                arange[i, :row_len] = positions
+        _fill_pass_positions(
+            arange,
+            self.input_batch.num_computed_tokens_cpu,
+            num_scheduled_tokens_per_req,
+            row_lead,
+            start_index,
+            self.uses_mrope,
+        )
 
         # Allocate a zero-padded input_ids tensor of shape
         # [target_num_reqs, padded_total_num_scheduled_tokens].
@@ -1545,13 +1539,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Fill input_ids with the newly scheduled tokens for each request, starting
         # from the current computed token offset.
-        for i, n in enumerate(num_scheduled_tokens_per_req):
-            lead = int(row_lead[i])
-            req = start_index + i
-            start = self.input_batch.num_computed_tokens_cpu[req] - lead
-            input_ids_cpu[i, : lead + n] = self.input_batch.token_ids_cpu_tensor[
-                req, start : start + lead + n
-            ]
+        _fill_pass_input_ids(
+            input_ids_cpu,
+            self.input_batch.token_ids_cpu_tensor,
+            self.input_batch.num_computed_tokens_cpu,
+            num_scheduled_tokens_per_req,
+            row_lead,
+            start_index,
+        )
 
         # Move input_ids and position_ids to the target device for execution.
         # Reuse persistent device buffers and update in place via copy_ to
@@ -4933,6 +4928,57 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     index = bisect.bisect_left(paddings, x)
     assert index < len(paddings)
     return paddings[index]
+
+
+def _fill_pass_positions(
+    arange,
+    num_computed_tokens_cpu,
+    num_scheduled_tokens_per_req,
+    row_lead,
+    start_index: int,
+    uses_mrope: bool,
+) -> None:
+    """Write position ids for one pass into ``arange``.
+
+    The per-pass lists are 0-based while ``num_computed_tokens_cpu`` is indexed
+    globally, so row i belongs to request ``start_index + i``. Getting that wrong
+    silently gives a row another request's positions. row_lead extends a row back
+    to its KV block boundary, so its first position is ``num_computed - lead``.
+    """
+    for i, n in enumerate(num_scheduled_tokens_per_req):
+        lead = int(row_lead[i])
+        row_len = lead + int(n)
+        positions = (
+            torch.arange(row_len, dtype=torch.int32)
+            + int(num_computed_tokens_cpu[start_index + i])
+            - lead
+        )
+        if uses_mrope:
+            arange[:, i, :row_len] = positions
+        else:
+            arange[i, :row_len] = positions
+
+
+def _fill_pass_input_ids(
+    input_ids_cpu,
+    token_ids_cpu_tensor,
+    num_computed_tokens_cpu,
+    num_scheduled_tokens_per_req,
+    row_lead,
+    start_index: int,
+) -> None:
+    """Gather this pass's input token ids, one row per request.
+
+    Same pass-local vs global indexing as ``_fill_pass_positions``: row i reads
+    request ``start_index + i``, starting ``row_lead[i]`` tokens before its
+    computed position so the row begins on a KV block boundary.
+    """
+    for i, n in enumerate(num_scheduled_tokens_per_req):
+        lead = int(row_lead[i])
+        req = start_index + i
+        start = int(num_computed_tokens_cpu[req]) - lead
+        row_len = lead + int(n)
+        input_ids_cpu[i, :row_len] = token_ids_cpu_tensor[req, start : start + row_len]
 
 
 def _same_block_run(num_computed: np.ndarray, block_size: int) -> int:

@@ -20,6 +20,14 @@ prefix offset is one shared value per pass, so a batch spanning two boundaries h
 to be split across passes; without that one request's K/V is written at the wrong
 offset and its output drifts. Both runs use the same batch shape, leaving spec
 decode as the only variable.
+
+Repeated per parallelism mode, because the speculative row work touches page
+tables and cache positions, which is exactly what TP shards by head and DP shards
+by row (DP also pads the batch with zero-token rows).
+
+One engine at a time: two vllm.LLM instances alive together leave the first
+EngineCore holding /dev/tenstorrent and the second stalls, so each run shuts its
+engine down before the next is built.
 """
 
 import gc
@@ -27,7 +35,9 @@ import gc
 import pytest
 import vllm
 
-MODEL = "facebook/opt-125m"
+SINGLE_MODEL = "facebook/opt-125m"
+# Multichip runs use the model the other TP/DP tests use.
+MULTICHIP_MODEL = "Qwen/Qwen3-0.6B"
 
 # Repetitive text so the ngram proposer finds matches and actually drafts.
 _UNIT = "The cat sat on the mat. The dog sat on the log. "
@@ -53,16 +63,23 @@ def _shutdown(llm: vllm.LLM) -> None:
     gc.collect()
 
 
-def _generate(speculative: bool) -> dict[str, list[int]]:
+def _generate(
+    model: str,
+    speculative: bool,
+    extra_config: dict | None = None,
+    gpu_memory_utilization: float = 0.02,
+) -> dict[str, list[int]]:
+    additional_config = {"min_context_len": 32}
+    additional_config.update(extra_config or {})
     llm_args = {
-        "model": MODEL,
+        "model": model,
         "max_num_seqs": len(PROMPTS),
         "max_model_len": 256,
         # Spec decode requires max_num_batched_tokens >= max_model_len x
         # max_num_seqs, so scale it with the batch.
         "max_num_batched_tokens": 256 * len(PROMPTS),
-        "gpu_memory_utilization": 0.02,
-        "additional_config": {"min_context_len": 32},
+        "gpu_memory_utilization": gpu_memory_utilization,
+        "additional_config": additional_config,
     }
     if speculative:
         llm_args["speculative_config"] = {
@@ -83,23 +100,75 @@ def _generate(speculative: bool) -> dict[str, list[int]]:
         _shutdown(llm)
 
 
-@pytest.mark.push
-@pytest.mark.single_device
-def test_ngram_spec_decode_matches_greedy():
-    """Greedy plus spec decode must be token identical to plain greedy.
-
-    Covers a single request (the long prompt) and, in the same batch, rows whose
-    decode positions sit on different KV block boundaries.
-    """
-    baseline = _generate(speculative=False)
-    speculative = _generate(speculative=True)
+def _assert_spec_matches_greedy(mode: str, **kwargs) -> None:
+    baseline = _generate(speculative=False, **kwargs)
+    speculative = _generate(speculative=True, **kwargs)
 
     assert set(baseline) == set(PROMPTS)
     for prompt in PROMPTS:
         assert baseline[prompt], f"no tokens generated for {prompt!r}"
         assert speculative[prompt] == baseline[prompt], (
-            "greedy + ngram spec decode must be token identical to greedy\n"
+            f"greedy + ngram spec decode ({mode}) must be token identical\n"
             f"  prompt:      {prompt!r}\n"
             f"  baseline:    {baseline[prompt]}\n"
             f"  speculative: {speculative[prompt]}"
         )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_ngram_spec_decode_matches_greedy():
+    """Single device. Covers one request and, in the same batch, rows whose decode
+    positions sit on different KV block boundaries."""
+    _assert_spec_matches_greedy("single device", model=SINGLE_MODEL)
+
+
+@pytest.mark.push
+@pytest.mark.tensor_parallel
+@pytest.mark.dual_chip
+def test_ngram_spec_decode_matches_greedy_tensor_parallel():
+    """Tensor parallel, where the KV cache is sharded by head."""
+    _assert_spec_matches_greedy(
+        "tensor parallel",
+        model=MULTICHIP_MODEL,
+        extra_config={"enable_tensor_parallel": True},
+        gpu_memory_utilization=0.1,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.data_parallel
+@pytest.mark.dual_chip
+def test_ngram_spec_decode_matches_greedy_data_parallel():
+    """Data parallel, where rows are sharded across chips and the batch is padded
+    with zero-token rows, which is what the boundary trim has to cope with."""
+    _assert_spec_matches_greedy(
+        "data parallel",
+        model=MULTICHIP_MODEL,
+        extra_config={"enable_data_parallel": True},
+        gpu_memory_utilization=0.1,
+    )
+
+
+@pytest.mark.push
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+def test_ngram_spec_decode_matches_greedy_data_tensor_parallel():
+    """DP + TP together, one sentence per replica.
+
+    len(PROMPTS) == dp_size keeps this at per-device batch 1, matching
+    test_data_tensor_parallel_generation_push. Wide batch DP+TP has a separate
+    open correctness bug (first local user of each replica), so going wider here
+    would corrupt the baseline and make the comparison meaningless.
+
+    Per-device batch 1 means each pass carries one row, so this does not exercise
+    the boundary trim; it checks that spec decode works at all with the cache
+    sharded on both axes.
+    """
+    _assert_spec_matches_greedy(
+        "data + tensor parallel",
+        model=MULTICHIP_MODEL,
+        extra_config={"enable_tensor_parallel": True, "enable_data_parallel": True},
+        gpu_memory_utilization=0.1,
+    )

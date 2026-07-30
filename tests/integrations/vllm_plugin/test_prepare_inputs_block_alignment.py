@@ -19,7 +19,13 @@ these reachable. Device free.
 
 import numpy as np
 import pytest
-from vllm_tt.model_runner import _row_lead, _same_block_run
+import torch
+from vllm_tt.model_runner import (
+    _fill_pass_input_ids,
+    _fill_pass_positions,
+    _row_lead,
+    _same_block_run,
+)
 
 # Device free, but the vLLM push matrix only runs device-marked jobs; tag so the
 # single_device job collects these (they run in milliseconds).
@@ -87,3 +93,89 @@ def test_lead_and_run_agree_on_a_shared_boundary():
     lead = _row_lead(computed, BLOCK)
     starts = (computed - lead)[:run]
     assert len(set(starts.tolist())) == 1
+
+
+class TestPassRelativeIndexing:
+    """Rows must read the request they belong to, not the one at the same offset.
+
+    ``_prepare_inputs`` handles one pass at a time over global requests
+    ``[start_index, start_index + n)`` and builds 0-based per-pass lists, while
+    ``input_batch`` stays globally indexed. Every ``input_batch`` read therefore
+    has to offset by ``start_index``. It did not, so on any pass after the first a
+    row was built from another request's tokens, positions and page table. Latent
+    because a single request never leaves pass 0 and the row caps rarely split a
+    batch, so only multi-pass steps expose it.
+    """
+
+    # 3 requests; token ids chosen so each request's are unmistakable.
+    TOKENS = np.array(
+        [
+            [10, 11, 12, 13, 14, 15, 0, 0],
+            [20, 21, 22, 23, 24, 25, 0, 0],
+            [30, 31, 32, 33, 34, 35, 0, 0],
+        ],
+        dtype=np.int32,
+    )
+    COMPUTED = np.array([0, 3, 5], dtype=np.int32)
+
+    def _rows(self, start_index, num_scheduled, row_lead=None, rows=None, width=8):
+        n = len(num_scheduled)
+        lead = np.zeros(n, dtype=np.int32) if row_lead is None else np.asarray(row_lead)
+        ids = torch.zeros((rows or n, width), dtype=torch.int32)
+        pos = torch.zeros((rows or n, width), dtype=torch.int32)
+        _fill_pass_input_ids(
+            ids,
+            torch.from_numpy(self.TOKENS),
+            self.COMPUTED,
+            np.asarray(num_scheduled, dtype=np.int32),
+            lead,
+            start_index,
+        )
+        _fill_pass_positions(
+            pos,
+            self.COMPUTED,
+            np.asarray(num_scheduled, dtype=np.int32),
+            lead,
+            start_index,
+            False,
+        )
+        return ids, pos
+
+    def test_first_pass_reads_first_requests(self):
+        ids, pos = self._rows(start_index=0, num_scheduled=[2, 2])
+        # Request 0 computed 0 -> tokens 10,11 at positions 0,1.
+        assert ids[0, :2].tolist() == [10, 11]
+        assert pos[0, :2].tolist() == [0, 1]
+        # Request 1 computed 3 -> tokens 23,24 at positions 3,4.
+        assert ids[1, :2].tolist() == [23, 24]
+        assert pos[1, :2].tolist() == [3, 4]
+
+    def test_second_pass_reads_its_own_requests(self):
+        # The regression: row 0 of this pass is request 1, not request 0.
+        ids, pos = self._rows(start_index=1, num_scheduled=[2, 2])
+        assert ids[0, :2].tolist() == [23, 24], "row 0 must be request 1"
+        assert pos[0, :2].tolist() == [3, 4]
+        assert ids[1, :2].tolist() == [35, 0], "row 1 must be request 2"
+        assert pos[1, :2].tolist() == [5, 6]
+
+    def test_last_request_alone_in_its_own_pass(self):
+        ids, pos = self._rows(start_index=2, num_scheduled=[1])
+        assert ids[0, 0].item() == 35
+        assert pos[0, 0].item() == 5
+
+    def test_row_lead_extends_backwards_from_the_right_request(self):
+        # Request 2 computed 5, lead 2 -> row starts at token index 3.
+        ids, pos = self._rows(start_index=2, num_scheduled=[1], row_lead=[2])
+        assert ids[0, :3].tolist() == [33, 34, 35]
+        assert pos[0, :3].tolist() == [3, 4, 5]
+
+    def test_padding_rows_left_untouched(self):
+        # target_num_reqs can exceed the pass size; extra rows stay zero.
+        ids, pos = self._rows(start_index=1, num_scheduled=[1], rows=3)
+        assert ids[1].tolist() == [0] * 8
+        assert pos[2].tolist() == [0] * 8
+
+    def test_zero_scheduled_row_writes_nothing(self):
+        ids, _ = self._rows(start_index=0, num_scheduled=[0, 2])
+        assert ids[0].tolist() == [0] * 8
+        assert ids[1, :2].tolist() == [23, 24]
