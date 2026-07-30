@@ -319,9 +319,35 @@ Consequence in tt-xla: DSA **decode** cannot read the paged latent KV cache
 directly, so `TTMLAAttentionBackendImpl._forward_decode_sparse` gathers each user's
 cache into a dense buffer every step. The attention arithmetic is `O(top-k)` but the
 memory traffic is `O(context)`, making sparse decode *slower* than dense decode.
-Exposing this attribute (plus `block_cyclic_sp_axis` / `block_cyclic_chunk_local`
-for the SP-sharded case) removes the gather entirely and is the single change that
-makes DSA decode fast rather than merely correct.
+
+> ⚠️ **CORRECTION (verified against tt-metal `f1f4ff75579`).** The paragraph that
+> used to close this section claimed exposing `cache_batch_idx` "removes the gather
+> entirely and is the single change that makes DSA decode fast". **That is wrong** —
+> exposing it is necessary-at-best and on a paged cache buys nothing on its own. Two
+> constraints block it, neither in tt-mlir:
+>
+> 1. **`cache_batch_idx` assumes a batch-CONTIGUOUS cache.**
+>    `sparse_sdpa_device_operation.cpp` computes
+>    `kv_batch_page_offset = cache_batch_idx * T`, i.e. slot `b` must occupy rows
+>    `[b*T, (b+1)*T)`. vLLM's cache is paged and a request's blocks are deliberately
+>    scattered, so no flat per-slot offset can describe it.
+> 2. **A layout conflict that cannot be reconciled by exposing anything.**
+>    `sparse_sdpa` requires `TT_FATAL(kv.layout() == Layout::ROW_MAJOR)`, while
+>    `update_cache_device_operation.cpp:32` requires
+>    `input.layout() == TILE && cache.layout() == TILE`. The same tensor cannot be
+>    both, and converting per step is `O(cache)` -- strictly worse than the
+>    `O(context)` gather being removed. The tt-mlir ROW_MAJOR operand workaround
+>    therefore reflects the kernel faithfully; removing it just moves the failure.
+>
+> The idea underneath G1 is still right -- stop materializing the context -- but the
+> enabler is a **tt-metal capability**, not a tt-mlir attribute. See
+> [`dsa_blackhole_tt-metal_changes.md`](./dsa_blackhole_tt-metal_changes.md) §2.8 for
+> the concrete ask (make `sparse_sdpa` paged-aware like its dense sibling
+> `paged_flash_mla_decode` already is) and for the index-translation trick that
+> supplies the `O(top-k)` half once the layout question is settled.
+
+The traffic analysis in the addendum below still holds as *arithmetic* -- what changes
+is which layer has to deliver it.
 
 ### G2. `paged_flash_multi_latent_attention_decode` cannot be masked (correctness, upstream tt-metal)
 

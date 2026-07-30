@@ -428,6 +428,16 @@ Two `O(context)` gathers per layer per step: the MLA latent cache
 (`attention_mla.py:_forward_decode_sparse`) and the indexer K cache
 (`dsa_indexer.py:_forward_decode`), both because the ops need dense, batch-1 operands.
 
+> ⚠️ **CORRECTION.** The G1 summary below is wrong, and the correction matters because
+> it re-scopes the work from a tt-mlir one-liner to a tt-metal feature request.
+> Exposing `cache_batch_idx` does **not** remove the gather on a paged cache: the
+> parameter assumes a batch-contiguous cache (`kv_batch_page_offset = cache_batch_idx * T`),
+> and `sparse_sdpa` requires `kv` ROW_MAJOR while `update_cache` requires the same
+> tensor TILE. Details and the actual ask (make `sparse_sdpa` paged-aware, as
+> `paged_flash_mla_decode` already is) are in
+> [`dsa_blackhole_tt-metal_changes.md`](./dsa_blackhole_tt-metal_changes.md) §2.8, with
+> the corrected analysis in [`dsa-tt-mlir-changes.md`](./dsa-tt-mlir-changes.md) §G1.
+
 `dsa-tt-mlir-changes.md` §"G1/G2 addendum" has the full traffic comparison. Summary:
 **G1 (expose `cache_batch_idx` on `TTNN_SparseSdpaOp`) is the single change that makes
 DSA decode fast rather than merely correct** — it makes traffic proportional to

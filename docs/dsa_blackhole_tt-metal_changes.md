@@ -212,6 +212,69 @@ should not be invisible.
 influence mesh-coordinate assignment. Worth documenting, since the comma-separated list
 reads like an ordering.
 
+### 2.8 `sparse_sdpa` cannot read a paged KV cache, so DSA decode must gather
+
+This is the **highest-value performance ask** here, and it supersedes what the tt-xla
+handoff doc calls "G1".
+
+DSA decode selects `top-k` keys, so the attention arithmetic is `O(top-k)`. But
+`sparse_sdpa` cannot be pointed at vLLM's paged latent KV cache, so
+`TTMLAAttentionBackendImpl._forward_decode_sparse` gathers each user's whole context
+into a dense buffer every step:
+
+```python
+blocks = torch.index_select(kv_cache, 0, page_table[u].to(torch.int64))
+kv_u = blocks.reshape(1, 1, max_seq_len, head_dim)     # O(context) per layer per step
+```
+
+Memory traffic is therefore `O(context)` and grows with sequence length, which is what
+makes sparse decode *slower* than dense decode today. Two constraints cause it:
+
+**(a) `cache_batch_idx` assumes a batch-contiguous cache.** The header advertises it as
+selecting a batch slot in a shared `[B, 1, T, K_DIM]` cache, and the implementation is
+a flat offset:
+
+```cpp
+const uint32_t kv_batch_page_offset = attrs.cache_batch_idx.value() * T;
+```
+
+Slot `b` must occupy rows `[b*T, (b+1)*T)`. A paged cache scatters a request's blocks
+by design, so no per-slot offset can describe it. The parameter is genuinely useful for
+a batch-contiguous deployment; it just does not fit paging.
+
+**(b) A layout conflict between `sparse_sdpa` and the cache-write ops.**
+
+```cpp
+sparse_sdpa_device_operation.cpp: TT_FATAL(kv.layout() == Layout::ROW_MAJOR,
+                                          "sparse_sdpa kv must be ROW_MAJOR");
+update_cache_device_operation.cpp:32: TT_FATAL(input.layout() == TILE && cache.layout() == TILE,
+                                              "Inputs to update_cache must be tilized");
+```
+
+The same tensor would have to be ROW_MAJOR for `sparse_sdpa` and TILE for
+`paged_update_cache` / `paged_fill_cache`. Converting per step is `O(cache)` --
+strictly worse than the gather it replaces.
+
+**The ask, in preference order:**
+
+1. **Give `sparse_sdpa` a `page_table` operand**, so it resolves logical key positions
+   through a page table the way its dense sibling already does. The precedent is
+   in-tree: `paged_flash_multi_latent_attention_decode` is paged-aware, which is
+   exactly why *dense* MLA decode reads the cache directly and sparse cannot.
+   `sparse_sdpa` is the outlier among the MLA decode ops, and this would close the gap
+   for any paged deployment, not just DSA.
+2. **Failing that, accept a TILE `kv`** (constraint b alone). That plus the
+   index-translation trick below is sufficient, and is narrower kernel work.
+
+**The `O(top-k)` half is solvable caller-side once (b) is resolved** and needs no
+`cache_batch_idx` at all: translate each top-k index from a logical position to a
+physical cache position through the page table --
+`physical = page_table[u][p / block_size] * block_size + (p % block_size)` -- and pass
+the whole cache as `kv` with `B == 1`. That is an `O(top-k)` gather over the page table
+rather than an `O(context)` copy of the cache, and `0xFFFFFFFF` sentinels pass through
+untranslated. Worth noting so the request is understood as "let us address the cache in
+place", not "add another indexing mode".
+
 ---
 
 ## 3. How to land it
