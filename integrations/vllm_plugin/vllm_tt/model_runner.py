@@ -365,6 +365,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.use_2d_mesh = 1 not in mesh_shape
             xs.set_global_mesh(self.mesh)
 
+        # TEMP (TTXLA_DP_DEBUG): confirm the flag reached THIS process. The model
+        # runner lives in the spawned EngineCore, so absence of this line means
+        # the env var did not propagate -- distinct from the per-step block below
+        # never being reached.
+        logger.warning(
+            "[DP-DEBUG] flag=%s dp_size=%d parallel_mode=%s",
+            os.environ.get("TTXLA_DP_DEBUG", "<unset>"),
+            self.dp_size,
+            self.parallel_mode,
+        )
+
         if self.enable_data_parallel and self.dp_size > 1:
             remainder = self.max_num_reqs % self.dp_size
             if remainder != 0:
