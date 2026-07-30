@@ -70,7 +70,9 @@ jobs:
 
     env:
       ALLOCATION_NAME: ci-xla-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      RUN_DIR: /ci/xla
+      # On the NFS volume shared between this runner and every worker pod.
+      STAGE_DIR: /ci/tt-xla
+      RUN_SCRIPT: /ci/run_tests.sh
       TTOP_DIR: /etc/ttop
       # Identical on every host: the tt-xla venv bakes in its absolute path.
       WORKER_SRC: /home/user/tt-xla
@@ -225,9 +227,8 @@ jobs:
       run: |
         set -euo pipefail
         # Stage once on the shared volume, then every host copies from there.
-        rm -rf "$RUN_DIR"
-        mkdir -p "$RUN_DIR"
-        cp -r "$GITHUB_WORKSPACE" "$RUN_DIR/tt-xla"
+        rm -rf "$STAGE_DIR"
+        cp -r "$GITHUB_WORKSPACE" "$STAGE_DIR"
 
         shopt -s nullglob
         WHEELS=(/ci/artifacts/*.whl)
@@ -241,14 +242,17 @@ jobs:
         mpirun --pernode --tag-output bash -lc '
           set -euo pipefail
           rm -rf '"$WORKER_SRC"'
-          cp -r '"$RUN_DIR"'/tt-xla '"$WORKER_SRC"'
+          cp -r '"$STAGE_DIR"' '"$WORKER_SRC"'
           echo "$(hostname): workspace staged at '"$WORKER_SRC"'"
         '
 
-        # venv/activate creates the venv on first use. No `set -u`: it dereferences
-        # optional vars such as SYSTEM_DIST_PACKAGES and LD_LIBRARY_PATH.
+        # mpirun forwards the runner's env to the pods, where HOME=/home/runner does
+        # not exist - uv would fail to create its cache under it.
+        # No `set -u`: venv/activate dereferences optional vars such as
+        # SYSTEM_DIST_PACKAGES and LD_LIBRARY_PATH.
         mpirun --pernode --tag-output bash -lc '
           set -eo pipefail
+          export HOME=/home/user
           cd '"$WORKER_SRC"'
           source venv/activate
           uv pip install '"${WHEELS[*]}"'
@@ -354,9 +358,10 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        cat > "$RUN_DIR/run_tests.sh" <<EOF
+        cat > "$RUN_SCRIPT" <<EOF
         #!/usr/bin/env bash
         set -eo pipefail
+        export HOME=/home/user
         cd $WORKER_SRC
         source venv/activate
         export TT_XLA_CI=1
@@ -369,9 +374,9 @@ jobs:
         EOF
 
         echo "=== Test command ==="
-        cat "$RUN_DIR/run_tests.sh"
+        cat "$RUN_SCRIPT"
         echo "===================="
-        mpirun --pernode --tag-output bash "$RUN_DIR/run_tests.sh"
+        mpirun --pernode --tag-output bash "$RUN_SCRIPT"
 
     - name: Delete test environment
       if: always()
