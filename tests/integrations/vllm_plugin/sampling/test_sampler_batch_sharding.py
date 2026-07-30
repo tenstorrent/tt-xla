@@ -9,7 +9,6 @@ bookkeeping and the padding contract, not sampling semantics.
 
 import pytest
 import torch
-from tt_torch.custom_ops import _sampling_sharding_rule
 from vllm_tt.metadata import XLASupportedSamplingMetadata
 from vllm_tt.sampler import (
     _TTNN_SAMPLING_BATCH_SIZE,
@@ -120,32 +119,3 @@ def test_chunked_topk_preserves_row_count():
         values, indices = chunked_topk_candidates(torch.randn(batch, VOCAB), dp_size)
         assert values.shape[0] == batch
         assert indices.shape[0] == batch
-
-
-def test_sharding_rule_ranks_match_operands():
-    """tt-mlir hard-errors on a rule whose ranks do not match the operands."""
-    rule = _sampling_sharding_rule(
-        torch.zeros(64, 256),
-        torch.zeros(64, 256, dtype=torch.int32),
-        torch.zeros(64, dtype=torch.int32),
-        torch.zeros(64),
-        torch.zeros(64),
-    )
-
-    assert rule == (
-        "#sdy.op_sharding_rule<([i, j], [i, j], [i], [i], [i])->([i]) "
-        "{i=64, j=256} need_replication={j}, custom>"
-    )
-
-
-def test_sharding_rule_omitted_for_unexpected_ranks():
-    """An unrecognized shape yields no rule rather than an invalid one."""
-    rule = _sampling_sharding_rule(
-        torch.zeros(1, 64, 256),
-        torch.zeros(1, 64, 256, dtype=torch.int32),
-        torch.zeros(64, dtype=torch.int32),
-        torch.zeros(64),
-        torch.zeros(64),
-    )
-
-    assert rule == ""

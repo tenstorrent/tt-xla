@@ -2224,33 +2224,6 @@ def moe_expert_token_remap_fake(
     return mapping, reduced
 
 
-def _sampling_sharding_rule(
-    input_values: torch.Tensor,
-    input_indices: torch.Tensor,
-    k: torch.Tensor,
-    p: torch.Tensor,
-    temp: torch.Tensor,
-) -> str:
-    """Sharding rule letting Shardy shard tt.sampling on the batch dim.
-
-    Batch factor i is pass-through; candidate factor j must stay whole for
-    softmax / top-k / multinomial. Returns "" for unrecognized shapes, which
-    tt-mlir treats as no rule.
-
-    TODO: @ssaliceTT: Remove when issue #9136 in tt-mlir is fixed.
-    """
-    if input_values.ndim != 2 or input_indices.ndim != 2:
-        return ""
-    if k.ndim != 1 or p.ndim != 1 or temp.ndim != 1:
-        return ""
-
-    batch, width = input_values.shape
-    return (
-        "#sdy.op_sharding_rule<([i, j], [i, j], [i], [i], [i])->([i]) "
-        f"{{i={batch}, j={width}}} need_replication={{j}}, custom>"
-    )
-
-
 @torch.library.custom_op("tt::sampling", mutates_args=[], device_types=["xla", "cpu"])
 def sampling(
     input_values: torch.Tensor,
@@ -2264,16 +2237,12 @@ def sampling(
     if device.type == "xla":
         # seed=0 signals the kernel to skip rand_tile_init so the hardware
         # RNG advances naturally each step.
-        frontend_attributes = {"seed": "0"}
-        sharding_rule = _sampling_sharding_rule(input_values, input_indices, k, p, temp)
-        if sharding_rule:
-            frontend_attributes["xla.sdy.custom_sharding_rule"] = sharding_rule
         return stablehlo_custom_call.stablehlo_custom_call(
             [input_values, input_indices, k, p, temp],
             "tt.sampling",
             [(batch,)],
             [torch.int32],
-            frontend_attributes=frontend_attributes,
+            frontend_attributes={"seed": "0"},
         )
     logits = input_values.float()
     temperature = temp.float().unsqueeze(-1).clamp(min=1e-6)
