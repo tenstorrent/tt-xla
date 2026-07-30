@@ -368,8 +368,8 @@ jobs:
         export ENABLE_BRINGUP_STAGE_LOGGING=1
         export TT_METAL_OPERATION_TIMEOUT_SECONDS=$TT_METAL_OPERATION_TIMEOUT_SECONDS
         export TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE="/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
-        export HF_HOME=/ci/cache/huggingface
-        export TORCH_HOME=/ci/cache/torchhub
+        export HF_HOME=/mnt/models/huggingface
+        export TORCH_HOME=/mnt/models/torchhub
         python -m pytest $VERBOSITY $BASE_PYTEST_CMD
         EOF
 
