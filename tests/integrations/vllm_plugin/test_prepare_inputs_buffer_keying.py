@@ -5,8 +5,8 @@
 
 ``TTModelRunner`` preallocates per-batch device buffers keyed by request-count
 buckets; ``_prepare_inputs`` looks them up by a per-step ``target_num_reqs``
-clamped to the active path's SMEM seq limit (``num_reqs_max_model_len`` /
-``num_reqs_most_model_len``), which drops below ``max_num_seqs`` at long context.
+clamped to the active path's SMEM seq limit (``num_reqs_max_model_len``),
+which drops below ``max_num_seqs`` at long context.
 Pre-fix the shared buffers were keyed by ``max_num_reqs`` while the page tables
 and warmup used the clamped count, so decode ran at the wrong row count and a
 distinct ``max_prefill_num_reqs`` hit a ``KeyError``.
@@ -31,59 +31,52 @@ def _all_reachable_targets(
     min_num_reqs,
     max_prefill_num_reqs,
     num_reqs_max_model_len,
-    num_reqs_most_model_len,
 ):
     """Every ``target_num_reqs`` ``_prepare_inputs`` can produce for a config.
 
-    Enumerates both attention paths, decode + prefill, and every possible
-    ``actual_num_reqs`` (already truncated to the path limit upstream).
+    Enumerates decode + prefill, and every possible ``actual_num_reqs``
+    (already truncated to the path limit upstream).
     """
     targets = set()
-    paths = [num_reqs_max_model_len]
-    if num_reqs_most_model_len is not None:
-        paths.append(num_reqs_most_model_len)
-    for path_max in paths:
-        for is_decode in (True, False):
-            for actual in range(1, path_max + 1):
-                targets.add(
-                    _select_target_num_reqs(
-                        min_num_reqs,
-                        max_prefill_num_reqs,
-                        path_max,
-                        is_decode,
-                        actual,
-                    )
+
+    for is_decode in (True, False):
+        for actual in range(1, num_reqs_max_model_len + 1):
+            targets.add(
+                _select_target_num_reqs(
+                    min_num_reqs,
+                    max_prefill_num_reqs,
+                    num_reqs_max_model_len,
+                    is_decode,
+                    actual,
                 )
+            )
     return targets
 
 
-# (min_num_reqs, max_prefill_num_reqs, max_num_reqs, N_max, N_most)
-# Invariants: N_max <= N_most <= max_num_reqs; max_prefill_num_reqs <= max_num_reqs.
+# (min_num_reqs, max_prefill_num_reqs, max_num_reqs, N_max)
+# Invariants: max_prefill_num_reqs <= max_num_reqs.
 _CONFIGS = [
-    # Common case: SMEM limit >= max_num_seqs, so no clamp (all counts equal).
-    (32, 32, 32, 32, None),
-    (32, 32, 32, 32, 32),
+    # Common case: SMEM limit >= max_num_seqs, so no clamp.
+    (32, 32, 32, 32),
     # min_num_seqs feature: distinct small prefill bucket, no clamp.
-    (4, 32, 32, 32, 32),
+    (4, 32, 32, 32),
     # max_prefill feature: prefill capped below decode, no clamp.
-    (4, 16, 32, 32, None),
-    # Long context: SMEM limit below max_num_seqs (the #5416 trigger), feature off.
-    (32, 32, 32, 16, None),
-    (32, 32, 32, 8, 16),
+    (4, 16, 32, 32),
+    # Long context: SMEM limit below max_num_seqs (the #5416 trigger).
+    (32, 32, 32, 16),
     # Long context + min_num_seqs feature.
-    (4, 32, 32, 16, 24),
+    (4, 32, 32, 16),
     # Long context + max_prefill below the SMEM limit (three distinct buckets).
-    (4, 16, 32, 24, None),
+    (4, 16, 32, 24),
     # Long context clamps the prefill bucket too (max_prefill > SMEM limit).
-    (4, 16, 32, 8, None),
+    (4, 16, 32, 8),
     # Extreme clamp: only one sequence fits in SMEM.
-    (32, 32, 32, 1, None),
+    (32, 32, 32, 1),
 ]
 
 
 @pytest.mark.parametrize(
-    "min_num_reqs,max_prefill_num_reqs,max_num_reqs,num_reqs_max_model_len,"
-    "num_reqs_most_model_len",
+    "min_num_reqs,max_prefill_num_reqs,max_num_reqs,num_reqs_max_model_len",
     _CONFIGS,
 )
 def test_every_target_num_reqs_has_a_buffer_key(
@@ -91,20 +84,17 @@ def test_every_target_num_reqs_has_a_buffer_key(
     max_prefill_num_reqs,
     max_num_reqs,
     num_reqs_max_model_len,
-    num_reqs_most_model_len,
 ):
     """Buffers keyed by ``_reachable_num_reqs`` cover every requestable target."""
     keys = _reachable_num_reqs(
         min_num_reqs,
         max_prefill_num_reqs,
         num_reqs_max_model_len,
-        num_reqs_most_model_len,
     )
     targets = _all_reachable_targets(
         min_num_reqs,
         max_prefill_num_reqs,
         num_reqs_max_model_len,
-        num_reqs_most_model_len,
     )
     missing = targets - keys
     assert not missing, (
@@ -114,8 +104,7 @@ def test_every_target_num_reqs_has_a_buffer_key(
 
 
 @pytest.mark.parametrize(
-    "min_num_reqs,max_prefill_num_reqs,max_num_reqs,num_reqs_max_model_len,"
-    "num_reqs_most_model_len",
+    "min_num_reqs,max_prefill_num_reqs,max_num_reqs,num_reqs_max_model_len",
     _CONFIGS,
 )
 def test_reachable_key_set_has_no_unused_keys(
@@ -123,20 +112,17 @@ def test_reachable_key_set_has_no_unused_keys(
     max_prefill_num_reqs,
     max_num_reqs,
     num_reqs_max_model_len,
-    num_reqs_most_model_len,
 ):
     """No allocated buffer key is unreachable, so the key set stays minimal."""
     keys = _reachable_num_reqs(
         min_num_reqs,
         max_prefill_num_reqs,
         num_reqs_max_model_len,
-        num_reqs_most_model_len,
     )
     targets = _all_reachable_targets(
         min_num_reqs,
         max_prefill_num_reqs,
         num_reqs_max_model_len,
-        num_reqs_most_model_len,
     )
     assert keys == targets
 
@@ -157,7 +143,7 @@ def test_decode_target_is_clamped_to_smem_limit():
     )
     assert decode_target == num_reqs_max_model_len
     assert decode_target in _reachable_num_reqs(
-        min_num_reqs, max_prefill_num_reqs, num_reqs_max_model_len, None
+        min_num_reqs, max_prefill_num_reqs, num_reqs_max_model_len
     )
 
 
