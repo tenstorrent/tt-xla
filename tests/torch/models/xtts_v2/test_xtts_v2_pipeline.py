@@ -38,10 +38,16 @@ _LOADER_PATH = str(
     _REPO_ROOT / "third_party" / "tt_forge_models" / "xtts_v2" / "pytorch" / "loader.py"
 )
 
-# Small cap so the single-compile decode loop stays test-sized (each token is
-# ~1024 output samples @ 24 kHz); the property under test is that the chain runs
-# end-to-end and emits a valid waveform, not audio length.
-MAX_AUDIO_TOKENS = 32
+# Cap on decode steps so the test stays bounded (each token is ~1024 output
+# samples @ 24 kHz); the property under test is that the chain runs end-to-end
+# and emits a valid waveform, not audio length.
+#
+# Kept well under the ~163 steps a full utterance takes because the CPU replay
+# below costs roughly O(cap^2) -- it runs one CPU forward per step over a static
+# cache sized prefix_len + cap. Measured warm-cache wall clock: 32 -> 79s,
+# 64 -> 374s. 64 still exercises the reuse property (compile count goes flat and
+# stays flat well before the tail).
+MAX_AUDIO_TOKENS = 64
 OUTPUT_SAMPLE_RATE = 24000
 
 # Per-step correlation floor between the TT decode logits and the CPU replay.
