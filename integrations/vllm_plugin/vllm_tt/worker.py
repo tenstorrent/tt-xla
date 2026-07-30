@@ -241,6 +241,27 @@ class TTWorker:
             "mesh_shape": mesh_shape,
         }
 
+    def _trace_reserve_bytes(self) -> int:
+        """Per-chip DRAM to withhold from the KV-cache budget for trace buffers.
+
+        With ``enable_trace`` the captured trace needs on-device DRAM, but vLLM
+        sizes the KV cache from the full chip and is unaware of it. At high GMU
+        the KV cache fills DRAM and the trace buffer has nowhere to go: dynamic
+        mode (``trace_region_size=0``) hits "trace buffer overlaps with DRAM
+        activity", reserved mode can't carve its region. Withholding headroom
+        here lets KV coexist with the trace without hand-tuning GMU down.
+
+        Value: ``TT_KV_TRACE_RESERVE_BYTES`` (bytes) if set, else 0 (unchanged
+        behavior). 0 whenever trace is disabled. A future default should scale
+        with ``max_model_len`` (trace embeds block-table bookkeeping).
+        """
+        if not self.tt_config.enable_trace:
+            return 0
+        env = os.environ.get("TT_KV_TRACE_RESERVE_BYTES")
+        if env is not None:
+            return max(int(env), 0)
+        return 0
+
     def determine_available_memory(self) -> int:
         if self.model_config.runner_type == "pooling":
             return int(11596411699)
@@ -316,6 +337,18 @@ class TTWorker:
         usable_memory_size = int(
             total_memory_size * self.cache_config.gpu_memory_utilization
         )
+        # Withhold per-chip DRAM for trace buffers before the shard-factor
+        # multiply, so the on-device KV cache is sized to leave exactly
+        # trace_reserve bytes/chip free for the captured trace. Applied here
+        # (post-GMU, pre-shard-factor) because the per-chip device KV footprint
+        # tracks this pre-shard value. See _trace_reserve_bytes.
+        trace_reserve = self._trace_reserve_bytes()
+        if trace_reserve > 0:
+            usable_memory_size = max(usable_memory_size - trace_reserve, 0)
+            logger.info(
+                "Reserving %d MiB/chip for trace buffers (enable_trace)",
+                trace_reserve // 1024**2,
+            )
         # vLLM's KV-cache budget math (max_memory_usage_bytes) uses the full,
         # un-sharded num_kv_heads with no TP awareness, even though the cache
         # tensor is already correctly sharded tp_size-ways via mark_sharding
