@@ -1401,13 +1401,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # batch would write each row's K/V at its own block start while the shared
         # read offset matched only the first row.
         if self._prefix_sdpa_usable and max(num_scheduled_tokens_per_req) > 1:
-            boundary = (
-                self.input_batch.num_computed_tokens_cpu[start_index:end_index]
-                // self.block_size
+            same_run = _same_block_run(
+                self.input_batch.num_computed_tokens_cpu[start_index:end_index],
+                self.block_size,
             )
-            differs = np.flatnonzero(boundary != boundary[0])
-            if differs.size:
-                same_run = int(differs[0])
+            if same_run < len(num_scheduled_tokens_per_req):
                 num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:same_run]
                 end_index = start_index + same_run
 
@@ -1451,7 +1449,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         row_lead = np.zeros(len(num_scheduled_tokens_per_req), dtype=np.int32)
         if self._prefix_sdpa_usable and max_num_scheduled_tokens_all_reqs > 1:
             computed = self.input_batch.num_computed_tokens_cpu[req_slice]
-            row_lead = (computed % self.block_size).astype(np.int32)
+            row_lead = _row_lead(computed, self.block_size)
             # The pass was trimmed to a single block boundary above, so one shared
             # chunk_start_idx describes every row. Assert rather than silently
             # fall back: zeroing row_lead here would restore the write/read
@@ -4917,6 +4915,31 @@ def _get_padded_token_len(paddings: list[int], x: int) -> int:
     index = bisect.bisect_left(paddings, x)
     assert index < len(paddings)
     return paddings[index]
+
+
+def _same_block_run(num_computed: np.ndarray, block_size: int) -> int:
+    """Length of the leading run of requests sharing one KV block boundary.
+
+    ``paged_fill_cache`` writes from the start of a block while the chunked SDPA
+    read offsets by an exact token position, and that offset is a single value
+    shared by the whole pass. So a multi-token pass may only carry rows whose
+    ``num_computed`` falls in the same block. Callers trim to this run and pick
+    the rest up on the next pass.
+    """
+    if num_computed.size == 0:
+        return 0
+    boundary = num_computed // block_size
+    differs = np.flatnonzero(boundary != boundary[0])
+    return int(differs[0]) if differs.size else int(num_computed.size)
+
+
+def _row_lead(num_computed: np.ndarray, block_size: int) -> np.ndarray:
+    """Tokens to re-feed so each row starts on its KV block boundary.
+
+    Zero when already aligned, which is always true of prefill chunks and never
+    of a speculative decode row.
+    """
+    return (num_computed % block_size).astype(np.int32)
 
 
 def _bucket_num_reqs(
