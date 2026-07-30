@@ -115,15 +115,10 @@ def kv_cache_shard_factor(runner) -> int:
     un-sharded num_kv_heads) with what each chip really holds.
 
     Must stay in sync with the mark_sharding call in
-    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
-    because that path deliberately leaves the cache un-annotated.
+    ``TTModelRunner.initialize_kv_cache``; KV heads are now sharded on "model"
+    for both TP-only and DP+TP modes (blocks stay replicated).
     """
     if not runner.enable_tensor_parallel:
-        return 1
-    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-        # DP+TP leaves the cache replicated, so per-chip usage already equals
-        # the full budget — no reconciliation to do. Sharding it properly
-        # (heads on "model", blocks on "batch") is tracked in #5796.
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):
