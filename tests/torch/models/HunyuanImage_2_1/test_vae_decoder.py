@@ -16,16 +16,16 @@ from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
 )
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 12 banks, where each bank needs to store 715829248 B, but bank size is 1071821792 B  - https://github.com/tenstorrent/tt-xla/issues/4781"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 12 banks, where each bank needs to store 715829248 B, but bank size is 1071821792 B  - https://github.com/tenstorrent/tt-xla/issues/4781"
+# )
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)
 
     loader = ModelLoader(ModelVariant.VAE)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     run_graph_test(
         model,
