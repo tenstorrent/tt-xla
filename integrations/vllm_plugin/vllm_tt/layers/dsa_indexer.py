@@ -457,41 +457,52 @@ class TTIndexer(nn.Module):
             return indices
         return topk_large_indices_mask_invalid_slots(indices, visible_count)
 
-    def _prefill_seq_shard_plan(self, seq_len: int) -> tuple[Optional[tuple], int]:
-        """``(partition_spec, padded_seq_len)`` for splitting the indexer query.
+    def _prefill_seq_shard_plan(
+        self, seq_len: int
+    ) -> tuple[Optional[tuple], int, Optional[int]]:
+        """``(partition_spec, padded_seq_len, cluster_axis)`` for the query split.
 
         A ``None`` spec means "leave the query replicated", which is correct on a
-        single device (rank 0, so the op's per-device offset vanishes) and is the
-        historical behaviour.
+        single device (rank 0, so the op's per-device offset vanishes).
 
         On a mesh the query MUST be split: ``indexer_score_dsa`` derives a
-        per-device rank from q's device coords and requires
-        ``T >= (max_rank + 1) * Sq``, so a replicated query aborts at runtime.
-        Two divisibility conditions have to hold for a legal split:
-          * ``seq_len % devices == 0`` -- the op derives one Sq for every rank, so
-            a ragged split would misdescribe the tail device.
-          * ``Sq % 32 == 0`` -- Sq is a tile height (the op asserts
-            ``Sq % TILE_HEIGHT == 0``).
-        Together: ``seq_len`` must be a multiple of ``32 * devices``.
+        per-device rank and requires ``T >= (max_rank + 1) * Sq``, so a replicated
+        query aborts at runtime. The split goes on the **model axis only**, and
+        that axis is named to the op via ``cluster_axis``.
 
-        Buckets that are not are **padded up**, never left replicated. Leaving them
-        replicated would emit an op that passes the TTNN verifier (the shapes are
-        fine) and then aborts inside the device op -- a hard crash rather than a
-        graceful degrade. Padding is not hypothetical: on 8 devices this requires
-        multiples of 256, so a 128-token bucket with ``index_topk=128`` clears
-        ``dsa_prefill_uses_sparse`` and would otherwise die.
+        Naming one axis rather than sharding over a compound of all of them is
+        deliberate. With ``cluster_axis`` unset the op enumerates q's devices
+        flatly, which only matches reality when the sequence is sharded across
+        every device -- so anything else sharded on a separate axis (the head dim
+        is ``kReduction`` in the op's Shardy rule, hence legal to shard) would make
+        the flat rank over-count the sequence shards and give devices holding the
+        SAME rows different causal windows. Naming the axis makes the rank exact,
+        frees the batch axis, and needs less padding (align to 32 * model_size
+        rather than 32 * total_devices).
 
-        ``seq_len`` is a Python int at trace time, so this is a static branch: one
-        graph per prefill bucket, same as the sparse predicates.
+        Padding: ``seq_len`` is rounded up to a multiple of ``32 * model_size``
+        (``Sq`` is a tile height, and each rank needs an equal ``Sq``). Buckets
+        that do not divide are padded, never left replicated -- that would emit an
+        op which passes the TTNN verifier and then aborts in the device op.
+
+        ``seq_len`` is a Python int at trace time, so this is a static branch.
         """
         if self._mesh is None or self._mesh_devices <= 1:
-            return None, seq_len
-        align = 32 * self._mesh_devices
+            return None, seq_len, None
+        axis_names = tuple(self._mesh.axis_names)
+        try:
+            model_axis = axis_names.index("model")
+        except ValueError:
+            model_axis = len(axis_names) - 1
+        model_size = self._mesh.mesh_shape[model_axis]
+        if model_size <= 1:
+            # Nothing to shard the sequence over; a size-1 axis leaves rank 0,
+            # which is the replicated-but-correct case.
+            return None, seq_len, model_axis
+        align = 32 * model_size
         padded = ((seq_len + align - 1) // align) * align
-        # Compound axis in mesh-axis order => row-major linearization over ALL
-        # devices, which is what the op's seq_shard_axes=[] / cluster_axis=None
-        # flat device rank assumes.
-        return (None, None, tuple(self._mesh.axis_names), None), padded
+        spec = tuple(axis_names[model_axis] if d == 2 else None for d in range(4))
+        return spec, padded, model_axis
 
     def _forward_prefill(
         self, q_op, k_op, w_op, kv_cache, attn_metadata, users, seq_len
@@ -513,7 +524,7 @@ class TTIndexer(nn.Module):
         if not dsa_prefill_uses_sparse(seq_len, self.topk_tokens):
             return None
 
-        seq_spec, padded_len = self._prefill_seq_shard_plan(seq_len)
+        seq_spec, padded_len, cluster_axis = self._prefill_seq_shard_plan(seq_len)
         key_op = k_op
         if padded_len != seq_len:
             # Pad q/weights/key together along seq. Padding the key too is required,
@@ -566,7 +577,8 @@ class TTIndexer(nn.Module):
                 key=key_op[u : u + 1],
                 weights=w_op[u : u + 1],
                 chunk_start_idx=0,
-            )  # [1, 1, padded_len/shards, padded_len]
+                cluster_axis=cluster_axis,
+            )  # [1, 1, padded_len/model_size, padded_len]
             per_user.append(self._select(score, visible_count))
         indices = torch.cat(per_user, dim=0)  # [users, 1, padded_len, topk]
 

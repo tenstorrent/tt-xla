@@ -690,6 +690,7 @@ def indexer_score_dsa(
     key: torch.Tensor,
     weights: torch.Tensor,
     chunk_start_idx: int = 0,
+    cluster_axis: Optional[int] = None,
 ) -> torch.Tensor:
     """
     DeepSeek Sparse Attention (DSA) "lightning indexer" scorer, mirroring
@@ -708,6 +709,13 @@ def indexer_score_dsa(
         key:     [b, 1, t, index_head_dim]   (MQA: one shared index key head)
         weights: [b, num_index_heads, sq, 1] (per-head gate)
     Args:
+        cluster_axis: mesh axis the query sequence is sharded over. ``None``
+            leaves the kernel on a flat row-major enumeration of every device
+            holding ``query``, which is only correct when the sequence is sharded
+            across ALL of them -- if any other dim (e.g. heads) is sharded on a
+            separate axis, that enumeration over-counts the sequence shards and
+            the per-device causal windows come out wrong. Naming the axis makes
+            the rank derivation exact and leaves the other axes free.
         chunk_start_idx: absolute position of the first query token, i.e. the
                          number of already-cached tokens. Compile-time constant.
     Returns:
@@ -746,6 +754,9 @@ def indexer_score_dsa(
     assert (
         isinstance(chunk_start_idx, int) and chunk_start_idx >= 0
     ), f"chunk_start_idx must be a non-negative int, got {chunk_start_idx}."
+    assert cluster_axis is None or (
+        isinstance(cluster_axis, int) and cluster_axis >= 0
+    ), f"cluster_axis must be None or a non-negative int, got {cluster_axis}."
 
     if batch != 1:
         _warn_no_kernel("indexer_score_dsa", f"batch size is {batch}, must be 1")
@@ -759,7 +770,14 @@ def indexer_score_dsa(
             "tt.indexer_score_dsa",
             [output_shape],
             [query.dtype],
-            frontend_attributes={"chunk_start_idx": str(chunk_start_idx)},
+            frontend_attributes=(
+                {"chunk_start_idx": str(chunk_start_idx)}
+                if cluster_axis is None
+                else {
+                    "chunk_start_idx": str(chunk_start_idx),
+                    "cluster_axis": str(cluster_axis),
+                }
+            ),
         )
 
     elif query.device.type == "cpu":
@@ -793,6 +811,7 @@ def indexer_score_dsa_fake(
     key: torch.Tensor,
     weights: torch.Tensor,
     chunk_start_idx: int = 0,
+    cluster_axis: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros(
         (query.shape[0], 1, query.shape[2], key.shape[2]),
