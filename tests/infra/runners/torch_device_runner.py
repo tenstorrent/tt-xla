@@ -6,11 +6,13 @@ import copy
 import inspect
 
 import torch
+import torch.nn.utils.parametrize as parametrize
 import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector, DeviceType
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
+from loguru import logger
 from torch.utils._pytree import tree_map
 
 from .device_runner import DeviceRunner
@@ -181,6 +183,47 @@ class TorchDeviceRunner(DeviceRunner):
                 compiler_options=compiler_options,
             )
 
+    @staticmethod
+    def _apply_weight_dtype_overrides(model: torch.nn.Module, config) -> bool:
+        """Register the weight-dtype parametrization on `model`, once.
+
+        Returns True if the model carries the weight-dtype parametrization when
+        this returns -- either because it was already registered by an earlier
+        device placement, or because it was registered here.
+
+        The "already registered" check looks for WeightDtypeParametrization
+        specifically rather than for any parametrization: models may ship with
+        their own (e.g. nn.utils.parametrizations.weight_norm / orthogonal), and
+        treating those as ours would silently skip the override.
+        """
+        from tt_torch.weight_dtype import (
+            WeightDtypeParametrization,
+            apply_weight_dtype_overrides,
+        )
+
+        already_applied = any(
+            isinstance(p, WeightDtypeParametrization)
+            for m in model.modules()
+            if parametrize.is_parametrized(m)
+            for param_list in m.parametrizations.values()
+            for p in param_list
+        )
+        if already_applied:
+            return True
+
+        applied = apply_weight_dtype_overrides(model, config)
+        if not applied:
+            # The config resolved to no parameters. Report it loudly: silently
+            # continuing would drop the dtype override *and* the weight tying.
+            logger.warning(
+                f"Weight dtype config {config} matched no parameters on "
+                f"{type(model).__name__}; running without dtype overrides."
+            )
+            return False
+
+        logger.info(f"Applied {len(applied)} weight dtype overrides from {config}")
+        return True
+
     # @override
     def _safely_put_workload_on_device(
         self, workload: Workload, device: Device
@@ -202,29 +245,30 @@ class TorchDeviceRunner(DeviceRunner):
             workload.model = workload.model.to(device)
 
             weight_dtype_config = getattr(workload, "weight_dtype_config", None)
+            parametrized = False
             if weight_dtype_config is not None and device.type != "cpu":
                 # Inference weight-dtype overrides parametrize the model's
                 # weights so a bfp8 custom_call is emitted into the on-device
                 # trace. This must run AFTER device placement so the
                 # parametrization is alive and on-device when torch.compile
-                # traces (that is what emits the annotation). It is mutually
-                # exclusive with tie_weights() -- a parametrized weight cannot
-                # be reassigned -- so we skip the re-tie: for forward-only
-                # inference the untied weights hold identical values, leaving
-                # numerics unchanged. Placement runs on every invocation, so
-                # guard against re-registering the parametrization.
-                import torch.nn.utils.parametrize as parametrize
-
-                from tt_torch.weight_dtype import apply_weight_dtype_overrides
-
-                already_applied = any(
-                    parametrize.is_parametrized(m) for m in workload.model.modules()
+                # traces (that is what emits the annotation). Placement runs on
+                # every invocation, so guard against re-registering.
+                parametrized = self._apply_weight_dtype_overrides(
+                    workload.model, weight_dtype_config
                 )
-                if not already_applied:
-                    apply_weight_dtype_overrides(workload.model, weight_dtype_config)
+
             # We need to tie weights for the model after moving it to the device.
             # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
-            elif hasattr(workload.model, "tie_weights"):
+            #
+            # Tying is mutually exclusive with the weight-dtype parametrization:
+            # `weight` is no longer a Parameter, so tie_weights() would route
+            # through the parametrization's right_inverse and copy values
+            # instead of aliasing. Skip the re-tie only when the model really is
+            # parametrized -- for forward-only inference the untied weights hold
+            # identical values, leaving numerics unchanged. If the override did
+            # not apply (no matching weights, or a config that resolved to
+            # nothing), we must still tie.
+            if not parametrized and hasattr(workload.model, "tie_weights"):
                 workload.model.tie_weights()
 
         is_multichip = (
