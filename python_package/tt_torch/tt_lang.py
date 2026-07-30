@@ -205,6 +205,7 @@ def tt_lang_operation(
     operation_id: str,
     arg_roles: Sequence[str],
     shard_spec: str = "",
+    sharding_rule: str = "",
     version_tag: Optional[str] = None,
 ) -> Callable[[Callable], Callable]:
     """Register a tt-lang operation with torch and emit a ``stablehlo.custom_call`` on XLA.
@@ -232,6 +233,18 @@ def tt_lang_operation(
     shard_spec:
         Optional opaque sharding hint, passed through verbatim as a
         ``frontend_attribute``.
+    sharding_rule:
+        Optional Shardy sharding rule for this operation as raw MLIR text
+        (e.g. ``"#sdy.op_sharding_rule<([i, j], [j, k])->([i, k]) {i=8, j=16, k=32}, custom>"``).
+        Build it with :func:`tt_torch.make_sharding_rule` (which returns
+        such a string with the ``custom`` marker) or pass your own.
+        Emitted as the ``xla.sdy.custom_sharding_rule`` ``frontend_attribute``
+        on the underlying ``stablehlo.custom_call`` and recognized by
+        tt-mlir's ``register-user-sharding-rule`` pass, which parses it into
+        a real ``sdy.op_sharding_rule`` handed to Shardy propagation. When
+        omitted (or ``""``), ``tt_lang_op`` synthesizes an explicit
+        full-replication rule from the call-site tensor shapes so every
+        tt-lang op carries a rule.
     version_tag:
         Cache-busting tag. Defaults to a short hash of the operation source.
 
@@ -306,6 +319,7 @@ def tt_lang_operation(
                 version_tag=vt,
                 shard_spec=shard_spec,
                 out_indices=out_indices,
+                sharding_rule=sharding_rule,
             )
             # Mutation-style API: write the functional results back into
             # the caller's pre-allocated outputs.
@@ -314,7 +328,10 @@ def tt_lang_operation(
                     tensors[idx].copy_(result)
             return outputs[0] if len(outputs) == 1 else tuple(outputs)
 
+        # Debug/testing hook: Attach attributes to the wrapper function.
+        # This is used to test the attributes are attached properly.
         wrapper._tt_lang_operation_entry = entry  # type: ignore[attr-defined]
+        wrapper._tt_lang_sharding_rule = sharding_rule  # type: ignore[attr-defined]
         return wrapper
 
     return decorator
