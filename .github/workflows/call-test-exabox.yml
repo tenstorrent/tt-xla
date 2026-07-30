@@ -382,8 +382,6 @@ jobs:
         echo "=== Test command ==="
         cat "$RUN_SCRIPT"
         echo "===================="
-        # HF_TOKEN is forwarded with -x rather than written into the script, which
-        # lives on the shared volume.
         mpirun -x HF_TOKEN --pernode --tag-output bash "$RUN_SCRIPT"
 
     - name: Delete test environment
