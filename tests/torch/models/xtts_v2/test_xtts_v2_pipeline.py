@@ -18,6 +18,7 @@ wrapped here, because the PCC comparison and the compile accounting have to
 interleave with it. Needs coqui-tts, weights, and a TT device.
 """
 
+import inspect
 import os
 from pathlib import Path
 
@@ -26,17 +27,14 @@ from infra import RunMode
 from loguru import logger
 from utils import BringupStatus, Category, ModelGroup
 
+import third_party.tt_forge_models.xtts_v2.pytorch.loader as xtts_loader
+
 pytestmark = [
     pytest.mark.nightly,
     pytest.mark.model_test,
     pytest.mark.single_device,
     pytest.mark.large,
 ]
-
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_LOADER_PATH = str(
-    _REPO_ROOT / "third_party" / "tt_forge_models" / "xtts_v2" / "pytorch" / "loader.py"
-)
 
 # Cap on decode steps so the test stays bounded (each token is ~1024 output
 # samples @ 24 kHz); the property under test is that the chain runs end-to-end
@@ -187,7 +185,8 @@ def test_xtts_v2_pipeline():
     from tests.runner.requirements import RequirementsManager
 
     RequirementsManager.capture_golden_state()
-    with RequirementsManager.for_loader(_LOADER_PATH, framework="torch"):
+    loader_path = inspect.getsourcefile(xtts_loader)
+    with RequirementsManager.for_loader(loader_path, framework="torch"):
         # Probe torchaudio inside the manager (after install); TTS is imported
         # lazily by the loader (its import chain needs the isin_mps_friendly shim
         # the loader installs first).
@@ -222,7 +221,7 @@ def test_xtts_v2_pipeline():
             raise
         save_wav(wav, output_path)
 
-        # 1) Output artifact validity (mirrors the SDXL-Lightning e2e test).
+        # 1) Output artifact validity.
         assert output_file.exists(), f"Output WAV {output_path} was not created"
         assert (
             wav.ndim == 3 and wav.shape[0] == 1
