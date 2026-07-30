@@ -214,10 +214,19 @@ jobs:
         # Default is 300s, too short for a cold pull of the tt-xla base image.
         timeoutSeconds: "1800"
 
+    # Both land in /ci/artifacts, which the install step globs.
     - name: Download tt-xla wheel
       uses: actions/download-artifact@v8
       with:
         name: xla-whl-release${{ inputs.artifact_suffix }}
+        path: /ci/artifacts
+        run-id: ${{ inputs.artifact_release_run_id }}
+        github-token: ${{ github.token }}
+
+    - name: Download vllm-tt wheel
+      uses: actions/download-artifact@v8
+      with:
+        name: vllm-tt-whl-release${{ inputs.artifact_suffix }}
         path: /ci/artifacts
         run-id: ${{ inputs.artifact_release_run_id }}
         github-token: ${{ github.token }}
