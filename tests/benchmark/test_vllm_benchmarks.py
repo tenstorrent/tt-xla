@@ -41,6 +41,9 @@ _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
 # compile time + peak prefill DRAM are bounded by the chunk size, not
 # max_model_len. 0 / unset = disabled (unchanged behavior).
 _BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
+# EXPERIMENT (local sweep, uncommitted): b1-prefill knobs — no CI use.
+_BENCH_PREFILL_BATCH_THRESHOLD = os.environ.get("TT_BENCHMARK_PREFILL_BATCH_THRESHOLD")
+_BENCH_MIN_NUM_SEQS = os.environ.get("TT_BENCHMARK_MIN_NUM_SEQS")
 
 
 def _config(
@@ -87,6 +90,10 @@ def _config(
         additional["enable_trace"] = _BENCH_TRACE == "1"
     if _BENCH_PREFILL_CHUNK_SIZE is not None:
         additional["prefill_chunk_size"] = int(_BENCH_PREFILL_CHUNK_SIZE)
+    if _BENCH_PREFILL_BATCH_THRESHOLD is not None:
+        additional["prefill_batch_threshold"] = int(_BENCH_PREFILL_BATCH_THRESHOLD)
+    if _BENCH_MIN_NUM_SEQS is not None:
+        additional["min_num_seqs"] = int(_BENCH_MIN_NUM_SEQS)
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
