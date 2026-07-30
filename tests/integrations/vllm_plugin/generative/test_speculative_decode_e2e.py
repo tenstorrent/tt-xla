@@ -25,6 +25,12 @@ Repeated per parallelism mode, because the speculative row work touches page
 tables and cache positions, which is exactly what TP shards by head and DP shards
 by row (DP also pads the batch with zero-token rows).
 
+Only the single device case is on push, at about three minutes. Each multichip
+mode costs two multichip engine startups, nine to twelve minutes, so they run
+nightly. Push still covers the boundary trim (single device runs two rows at
+different boundaries) and DP more broadly via
+test_data_parallel_generation.py::test_data_parallel_chunked_prefill_n300.
+
 One engine at a time: two vllm.LLM instances alive together leave the first
 EngineCore holding /dev/tenstorrent and the second stalls, so each run shuts its
 engine down before the next is built.
@@ -123,7 +129,7 @@ def test_ngram_spec_decode_matches_greedy():
     _assert_spec_matches_greedy("single device", model=SINGLE_MODEL)
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
 def test_ngram_spec_decode_matches_greedy_tensor_parallel():
@@ -136,7 +142,7 @@ def test_ngram_spec_decode_matches_greedy_tensor_parallel():
     )
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.dual_chip
 def test_ngram_spec_decode_matches_greedy_data_parallel():
@@ -150,7 +156,7 @@ def test_ngram_spec_decode_matches_greedy_data_parallel():
     )
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
