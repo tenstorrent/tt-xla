@@ -29,7 +29,8 @@ pytestmark = [pytest.mark.push, pytest.mark.cpu]
     [(1024, 32), (4096, 32), (512, 64), (1, 32), (8192, 128), (1023, 32)],
 )
 def test_sliding_window_blocks_alignment_and_slack(window, block_size):
-    wb = sliding_window_blocks(window, block_size)
+    # max_model_len far above window: not clamped, same math as before.
+    wb = sliding_window_blocks(window, block_size, max_model_len=1_000_000)
     # stick alignment: window_blocks int32 ids must be a 32-byte multiple
     assert wb % PAGE_TABLE_STICK_BLOCK_ALIGNMENT == 0
     assert wb * 4 % 32 == 0
@@ -41,7 +42,18 @@ def test_sliding_window_blocks_alignment_and_slack(window, block_size):
 
 def test_sliding_window_blocks_gemma4_case():
     # gemma-4: 1024-token window, 32-token blocks -> 33 needed -> 40 aligned
-    assert sliding_window_blocks(1024, 32) == 40
+    assert sliding_window_blocks(1024, 32, max_model_len=1_000_000) == 40
+
+
+def test_sliding_window_blocks_capped_by_shorter_max_model_len():
+    # max_model_len (128) well below the layer's static sliding_window
+    # (1024): no request can ever need more than max_model_len tokens, so
+    # the ring must size off 128, not 1024 -> 5 needed -> 8 aligned.
+    assert sliding_window_blocks(1024, 32, max_model_len=128) == 8
+    # equal to the uncapped case once max_model_len reaches the window.
+    assert sliding_window_blocks(1024, 32, max_model_len=1024) == sliding_window_blocks(
+        1024, 32, max_model_len=1_000_000
+    )
 
 
 def test_phys_blocks_reserves_one_subring_per_slot_plus_null():

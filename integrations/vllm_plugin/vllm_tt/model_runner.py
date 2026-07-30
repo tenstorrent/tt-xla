@@ -4236,7 +4236,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._group_window_blocks = [
             (
                 sliding_window_blocks(
-                    g.kv_cache_spec.sliding_window, g.kv_cache_spec.block_size
+                    g.kv_cache_spec.sliding_window,
+                    g.kv_cache_spec.block_size,
+                    self.max_model_len,
                 )
                 if isinstance(g.kv_cache_spec, SlidingWindowSpec)
                 else 0

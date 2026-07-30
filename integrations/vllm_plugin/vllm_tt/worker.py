@@ -347,7 +347,9 @@ class TTWorker:
                 # Same helpers the model runner sizes the rings with, so the
                 # reservation here cannot drift from what it later allocates.
                 window_blocks = sliding_window_blocks(
-                    layer_spec.sliding_window, layer_spec.block_size
+                    layer_spec.sliding_window,
+                    layer_spec.block_size,
+                    self.model_runner.max_model_len,
                 )
                 sliding_reserve += sliding_ring_reserve_bytes(
                     window_blocks, max_num_reqs, layer_spec.page_size_bytes
