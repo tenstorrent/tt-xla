@@ -4210,10 +4210,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 spec = layer_to_spec[layer_name]
                 if isinstance(spec, AttentionSpec):
                     tp_size = kv_cache_shard_factor(self)
-                    if tp_size > 1:
-                        # mark_sharding() below does the real sharding; this
-                        # just fails loudly instead of it silently falling
-                        # back to replication (see safe_mark_sharding).
+                    if tp_size > 1 and not _is_mla(spec):
+                        # Non-MLA K/V caches are sharded on the model axis below.
+                        # Fail loudly when KV heads are not TP-divisible instead
+                        # of silently replicating (see safe_mark_sharding).
                         assert spec.num_kv_heads % tp_size == 0, (
                             f"num_kv_heads {spec.num_kv_heads} must be divisible "
                             f"by tp_size {tp_size} for correct KV-head sharding"
