@@ -21,7 +21,10 @@ _BENCHMARK_DIR = Path(__file__).resolve().parents[2] / "benchmark"
 if str(_BENCHMARK_DIR) not in sys.path:
     sys.path.insert(0, str(_BENCHMARK_DIR))
 
-from benchmarks.vllm_benchmark import _extract_decode_predictions  # noqa: E402
+from benchmarks.vllm_benchmark import (  # noqa: E402
+    _assert_no_speculative_decode,
+    _extract_decode_predictions,
+)
 
 
 def _logprob(lp):
@@ -58,3 +61,26 @@ def test_asserts_on_short_window():
     out = _make_output([{5: -0.1}, {7: -0.5}])
     with pytest.raises(AssertionError):
         _extract_decode_predictions(out, 3)
+
+
+def _make_llm(speculative_config):
+    """Minimal stand-in for the vllm.LLM attribute chain the guard reads."""
+    return SimpleNamespace(
+        llm_engine=SimpleNamespace(
+            vllm_config=SimpleNamespace(speculative_config=speculative_config)
+        )
+    )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_allows_accuracy_without_speculative_decode():
+    _assert_no_speculative_decode(_make_llm(None))
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_rejects_accuracy_with_speculative_decode():
+    spec = SimpleNamespace(method="ngram", num_speculative_tokens=3)
+    with pytest.raises(AssertionError, match="speculative decode"):
+        _assert_no_speculative_decode(_make_llm(spec))

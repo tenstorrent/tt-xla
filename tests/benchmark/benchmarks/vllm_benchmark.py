@@ -272,6 +272,28 @@ def _perf_measurements(avg_ttft_ms: float, avg_tokens_per_sec: float) -> List[di
     ]
 
 
+def _assert_no_speculative_decode(llm: vllm.LLM) -> None:
+    """Fail an accuracy run whose engine has speculative decode enabled.
+
+    Teacher forcing only holds on the one-token-per-step path: under speculative
+    decode the accepted draft tokens have already been through the verify pass,
+    so their KV entries are written and the scored numbers would be meaningless.
+    Read off the live engine so this catches speculative decode however it was
+    configured, and call it before any generate so nothing gets published.
+
+    TTModelRunner only warns in the equivalent spot, deliberately: a stray
+    extra_args must never crash a real inference run, whose output is usable
+    even when it is not token-identical.
+    """
+    spec_config = llm.llm_engine.vllm_config.speculative_config
+    assert spec_config is None, (
+        "vLLM accuracy testing is not supported with speculative decode "
+        f"(speculative_config={spec_config}). Teacher forcing cannot override "
+        "accepted draft tokens without desyncing the KV cache from the recorded "
+        "token ids. Run accuracy with speculative decode disabled."
+    )
+
+
 def _benchmark_vllm_accuracy(
     config: VLLMBenchmarkConfig,
     display_name: str,
@@ -307,6 +329,8 @@ def _benchmark_vllm_accuracy(
 
     llm = _create_llm(config)
     arch, device_count, mesh_shape = _get_device_info_from_engine(llm)
+
+    _assert_no_speculative_decode(llm)
 
     input_prompt_tokens = token_accuracy.input_prompt.tolist()
     ground_truth_tokens = token_accuracy.reference_tokens.tolist()
