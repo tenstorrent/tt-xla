@@ -52,4 +52,4 @@ tests/benchmark/reference_outputs/*.refpt
 /generated/
 
 # Tracy profiling files
-/tracy_artifacts/
+/.tracy_artifacts/
