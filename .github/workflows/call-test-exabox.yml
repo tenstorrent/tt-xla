@@ -356,6 +356,8 @@ jobs:
     - name: Run tests
       timeout-minutes: 240
       shell: bash
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         set -euo pipefail
         cat > "$RUN_SCRIPT" <<EOF
@@ -380,7 +382,9 @@ jobs:
         echo "=== Test command ==="
         cat "$RUN_SCRIPT"
         echo "===================="
-        mpirun --pernode --tag-output bash "$RUN_SCRIPT"
+        # HF_TOKEN is forwarded with -x rather than written into the script, which
+        # lives on the shared volume.
+        mpirun -x HF_TOKEN --pernode --tag-output bash "$RUN_SCRIPT"
 
     - name: Delete test environment
       if: always()
