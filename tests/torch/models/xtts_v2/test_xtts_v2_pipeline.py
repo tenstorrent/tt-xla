@@ -29,13 +29,6 @@ from utils import BringupStatus, Category, ModelGroup
 
 import third_party.tt_forge_models.xtts_v2.pytorch.loader as xtts_loader
 
-pytestmark = [
-    pytest.mark.nightly,
-    pytest.mark.model_test,
-    pytest.mark.single_device,
-    pytest.mark.large,
-]
-
 # Cap on decode steps so the test stays bounded (each token is ~1024 output
 # samples @ 24 kHz); the property under test is that the chain runs end-to-end
 # and emits a valid waveform, not audio length.
@@ -166,6 +159,10 @@ def _make_pcc_pipeline_cls():
     return PccXTTSPipeline
 
 
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.large
+@pytest.mark.single_device
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name="XTTS_v2_Pipeline",
