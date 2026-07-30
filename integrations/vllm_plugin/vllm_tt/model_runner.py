@@ -4257,15 +4257,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
-            # each device writes its own K/V slice via paged_update_cache. The
-            # TP-only spec puts block_size on the DP axis and fails
-            # ttir.paged_update_cache. Tracked in #5796.
-            #
-            # kv_cache_shard_factor() mirrors this branch by returning 1 for
-            # DP+TP; when this is changed to really shard, update it too or
-            # each chip will be budgeted tp_size times too little.
-            pass
+            # DP+TP: shard KV heads on "model" axis (TP dimension). Blocks
+            # stay replicated across DP to avoid replica-aware block allocation.
+            # Each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size] instead of the full [num_blocks, num_kv_heads, ...].
+            # Must update kv_cache_shard_factor() to return tp_size (line ~124).
+            for entry in self.kv_caches:
+                is_pair = isinstance(entry, (list, tuple))
+                caches = entry if is_pair else [entry]
+                for cache in caches:
+                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    if is_pair:
+                        safe_mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                    else:
+                        # Replicate the MLA latent KV cache tensor
+                        xs.mark_sharding(cache, self.mesh, (None, None, None, None))
         elif self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
             # buffer can appear under multiple layers (cross-layer sharing), so
