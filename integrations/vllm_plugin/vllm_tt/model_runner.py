@@ -1276,6 +1276,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
+    def _remap_page_table_for_blocks_sharding(self, page_table: torch.Tensor):
+        """Remap block IDs for DP+TP blocks sharding.
+
+        Under DP+TP with blocks sharded on the "batch" (DP) axis, each replica
+        holds only num_blocks/dp_size slots. The block allocator returns global
+        IDs, but we need to remap them to per-replica coordinates so all replicas
+        write to the same local slot.
+
+        Remapping: local_block_id = global_block_id % num_blocks_per_replica
+
+        Args:
+            page_table: Tensor of shape [num_reqs, max_blocks_per_req] containing
+                        global block IDs, modified in-place to per-replica IDs.
+        """
+        if self.parallel_mode != ParallelismMode.DATA_TENSOR_PARALLEL:
+            return
+
+        dp_size = self.parallel_config.data_parallel_size
+        if dp_size <= 1:
+            return
+
+        num_blocks_per_replica = self.num_blocks // dp_size
+        # In-place modulo remapping: map all global IDs to per-replica coordinates
+        page_table.mod_(num_blocks_per_replica)
+
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -1540,11 +1565,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         cache_position_dev.copy_(cache_position)
         page_table_dev.copy_(page_table)
+
+        # Remap block IDs for DP+TP sharding: each replica holds only
+        # num_blocks/dp_size slots. Map global block IDs to per-replica
+        # coordinates so all replicas write to the same local slot.
+        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+            self._remap_page_table_for_blocks_sharding(page_table_dev)
+
         if fill_page_table is page_table:
             fill_page_table_dev = page_table_dev
         else:
             fill_page_table_dev_buf.copy_(fill_page_table)
             fill_page_table_dev = fill_page_table_dev_buf
+            # Also remap fill_page_table if it's different
+            if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+                self._remap_page_table_for_blocks_sharding(fill_page_table_dev)
 
         cache_position = cache_position_dev
         page_table = page_table_dev
