@@ -508,7 +508,7 @@ def test_streaming_dsv4_flash() -> None:
     del h_cpu, ids_cpu
     torch_xla.sync(wait=True)
 
-    @torch.compile(backend="tt")
+    @torch.compile(backend="tt", options={"tt_use_aot_autograd": False})
     def run_block_flush(block, *blk_args):
         return block(*blk_args)
 
@@ -610,7 +610,7 @@ def test_streaming_dsv4_flash() -> None:
 
     # ---- whole-model compile, then teacher-forced prefill + decode ----
     logger.info("\n[stream] torch.compile(model) + prefill ...")
-    compiled = torch.compile(model, backend="tt")
+    compiled = torch.compile(model, backend="tt", options={"tt_use_aot_autograd": False})
 
     prompt_ids = prompt_ids_cpu.to(device)
     xs.mark_sharding(prompt_ids, mesh, ("_axis_0", None))
