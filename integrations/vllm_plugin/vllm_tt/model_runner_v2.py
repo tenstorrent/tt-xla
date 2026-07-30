@@ -514,8 +514,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.model.compile(backend="tt", dynamic=False)
         logger.info("Model loaded and registered for tt compilation.")
-        self.sampler = Sampler()
-        self.rejection_sampler = RejectionSampler(self.sampler)
 
         encoder_cache = self.encoder_cache if self.supports_mm_inputs else None
         model_state_cls = get_tt_model_state_cls(self.model)
@@ -523,6 +521,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.model_state = model_state_cls(
             self.vllm_config, self.model, encoder_cache, self.device
         )
+
+        # Gap 4: Instantiate custom sampler for DiffusionGemma.
+        from .diffusion_gemma import TTDiffusionGemmaModelState
+        if isinstance(self.model_state, TTDiffusionGemmaModelState):
+            from .diffusion_sampler import DiffusionSampler
+            self.sampler = DiffusionSampler()
+            logger.info("Using DiffusionSampler for DiffusionGemma model.")
+        else:
+            self.sampler = Sampler()
+        self.rejection_sampler = RejectionSampler(self.sampler)
 
         # Cache the attention layer names for the per-step prepare_attn fan-out.
         self._attention_layer_names = tuple(
