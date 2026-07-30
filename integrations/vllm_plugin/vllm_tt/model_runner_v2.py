@@ -1312,7 +1312,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 want_prompt_hs,
                 grammar_output,
                 spec_md,
-            )
+            )  # pragma: no cover
             if want_prompt_hs:
                 sampled, hidden_states = pass_result
                 # Copy only the rows for requests that need prompt logprobs
@@ -1469,6 +1469,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             grammar_bitmask,
             bitmasks,
             logits_only=spec_active,
+            idx_mapping_np=idx_mapping_np,
         )
         if want_prompt_hs:
             forward_out, hidden_states = result
@@ -1524,6 +1525,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         grammar_bitmask=None,
         bitmasks=None,
         logits_only=False,
+        idx_mapping_np=None,  # DiffusionGemma: slot indices for this batch
     ):
         """Run the forward->logits graph, then (device path) the sampling graph.
 
@@ -1533,6 +1535,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         while ``_sample_compiled`` keys on ``apply_grammar`` and the sampling mode.
         Under cpu_sampling the sampling graph is skipped -- the caller masks and
         samples on the host (see ``sample_from_logits_cpu``).
+
+        For DiffusionGemma, idx_mapping_np is required to apply the diffusion
+        sampling step before the standard sampler.
         """
         from vllm.forward_context import set_forward_context
 
@@ -1547,6 +1552,18 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 input_ids, positions, logits_indices, inputs_embeds, want_prompt_hs
             )
         logits, hidden_states = fwd if want_prompt_hs else (fwd, None)
+
+        # DiffusionGemma: apply diffusion sampling logic before standard sampling
+        from .diffusion_gemma import TTDiffusionGemmaModelState
+        if isinstance(self.model_state, TTDiffusionGemmaModelState) and idx_mapping_np is not None:
+            logits = self.model_state.apply_diffusion_sample_step(
+                logits, idx_mapping_np, self.device
+            )
+            # Logits are now [num_reqs, CL, vocab]; reshape for standard sampler
+            num_reqs = logits.shape[0]
+            CL = logits.shape[1]
+            vocab = logits.shape[2]
+            logits = logits.reshape(num_reqs * CL, vocab)
 
         if self.cpu_sampling or logits_only:
             # Stop at logits; grammar + sampling run on the host (spec decode

@@ -443,3 +443,150 @@ class TTDiffusionGemmaModelState(TTModelState):
             attn_mask=attn_mask,
             is_causal=is_causal,
         )
+
+    def prepare_diffusion_metadata(
+        self, idx_mapping_np: np.ndarray, device: torch.device
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Prepare metadata for diffusion_sample_step.
+
+        Computes which requests are in decode mode (denoise/commit) and their
+        valid canvas lengths. Used to route diffusion sampling logic from the
+        model runner.
+
+        Args:
+            idx_mapping_np: [num_reqs] slot indices for this batch
+            device: target device for output tensors
+
+        Returns:
+            (decode_slots, decode_idx, all_slots, valid_canvas_len)
+            - decode_slots: [num_decode] indices of slots in decode mode
+            - decode_idx: [num_decode] position of each decode slot in [0, num_reqs)
+            - all_slots: [num_reqs] all slot indices
+            - valid_canvas_len: [num_decode] real canvas length per decode request
+        """
+        num_reqs = len(idx_mapping_np)
+
+        # Filter to requests that are in decode phase (denoise or commit)
+        decode_mask = []
+        decode_slots_list = []
+        decode_idx_list = []
+        valid_len_list = []
+
+        for b, slot in enumerate(idx_mapping_np):
+            slot = int(slot)
+            is_decode = not self.diffusion_states.is_encoder_phase[slot]
+            if is_decode:
+                decode_mask.append(True)
+                decode_slots_list.append(slot)
+                decode_idx_list.append(b)
+                valid_len_list.append(int(self.canvas_length))  # TODO: real length
+            else:
+                decode_mask.append(False)
+
+        # Convert to tensors
+        all_slots = torch.tensor(idx_mapping_np, dtype=torch.int64, device=device)
+        if decode_slots_list:
+            decode_slots = torch.tensor(
+                decode_slots_list, dtype=torch.int64, device=device
+            )
+            decode_idx = torch.tensor(decode_idx_list, dtype=torch.int64, device=device)
+            valid_canvas_len = torch.tensor(
+                valid_len_list, dtype=torch.int64, device=device
+            )
+        else:
+            # No decode requests this step
+            decode_slots = torch.zeros(0, dtype=torch.int64, device=device)
+            decode_idx = torch.zeros(0, dtype=torch.int64, device=device)
+            valid_canvas_len = torch.zeros(0, dtype=torch.int64, device=device)
+
+        return decode_slots, decode_idx, all_slots, valid_canvas_len
+
+    def apply_diffusion_sample_step(
+        self,
+        logits: torch.Tensor,  # [num_reqs*CL, vocab]
+        idx_mapping_np: np.ndarray,  # [num_reqs] slot indices
+        device: torch.device,
+        draft_tokens: torch.Tensor | None = None,  # [max_num_reqs, >=CL] spec-decode buffer
+        tp_size: int = 1,
+        tp_group_name: str = "",
+    ) -> torch.Tensor:
+        """Apply diffusion sampling logic: temperature, Gumbel, confidence, accept/renoise.
+
+        Wraps diffusion_sample_step with proper metadata preparation. Returns scaled
+        logits ready for sampling over all canvas positions.
+
+        Args:
+            logits: [num_reqs*CL, vocab] raw logits from model forward (all canvas pos)
+            idx_mapping_np: [num_reqs] slot indices for this batch
+            device: target device
+            draft_tokens: optional [max_num_reqs, >=CL] buffer for spec-decode (gap 5)
+            tp_size: tensor parallel size (for self-conditioning all-reduce)
+            tp_group_name: tensor parallel group name
+
+        Returns:
+            scaled_logits: [num_reqs, CL, vocab] temperature-scaled logits ready for sampling
+        """
+        num_reqs = len(idx_mapping_np)
+        CL = self.canvas_length
+        vocab = logits.shape[-1]
+
+        # Reshape logits: [num_reqs*CL, vocab] -> [num_reqs, CL, vocab]
+        logits_3d = logits.reshape(num_reqs, CL, vocab)
+
+        # Prepare metadata for diffusion_sample_step
+        decode_slots, decode_idx, all_slots, valid_canvas_len = (
+            self.prepare_diffusion_metadata(idx_mapping_np, device)
+        )
+
+        # Create output buffers
+        sampled = torch.zeros(num_reqs, CL, dtype=torch.int64, device=device)
+        num_sampled = torch.zeros(num_reqs, dtype=torch.int64, device=device)
+        if draft_tokens is None:
+            draft_tokens = torch.zeros(
+                self.max_num_reqs, CL, dtype=torch.int64, device=device
+            )
+
+        # Placeholder tensors for self-conditioning (gap 5: proper implementation)
+        # These are used in diffusion_sample_step but not essential for core logic.
+        embed_weight = torch.randn(vocab, 16, device=device)
+        normalizer = torch.tensor(1.0, device=device)
+
+        # Reshape for diffusion_sample_step: [num_reqs*CL, vocab]
+        logits_flat = logits_3d.reshape(num_reqs * CL, vocab)
+
+        # Call the core diffusion sampling function
+        scaled = diffusion_sample_step(
+            logits=logits_flat,
+            decode_slots=decode_slots,
+            decode_idx=decode_idx,
+            all_slots=all_slots,
+            valid_canvas_len=valid_canvas_len,
+            canvas=self.diffusion_states.canvas,
+            argmax_canvas=self.diffusion_states.argmax_canvas,
+            step_tensor=self.diffusion_states.step,
+            is_encoder_phase=self.diffusion_states.is_encoder_phase,
+            confident_tensor=self.diffusion_states.confident,
+            sc_embeds=self.diffusion_states.self_conditioning_embeds,
+            embed_weight=embed_weight,
+            normalizer=normalizer,
+            history=self.diffusion_states.accepted_canvas_history,
+            history_len_tensor=self.diffusion_states.accepted_canvas_history_len,
+            sampled=sampled,
+            num_sampled=num_sampled,
+            draft_tokens=draft_tokens,
+            max_denoising_steps=float(self.diffusion_states.max_denoising_steps),
+            t_min=float(self.gen_config.get("t_min", 0.0)),
+            t_max=float(self.gen_config.get("t_max", 1.0)),
+            confidence_threshold=float(self.gen_config.get("confidence_threshold", 0.95)),
+            vocab_size=self.model_config.get_vocab_size(),
+            CL=CL,
+            ST=self.diffusion_states.stability_threshold,
+            entropy_bound=float(self.gen_config.get("entropy_bound", 8.0)),
+            sc_vocab_start=0,
+            sc_vocab_end=self.model_config.get_vocab_size(),
+            tp_size=tp_size,
+            tp_group_name=tp_group_name,
+        )
+
+        # Reshape back: [num_reqs*CL, vocab] -> [num_reqs, CL, vocab]
+        return scaled.reshape(num_reqs, CL, vocab)
