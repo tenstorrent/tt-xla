@@ -21,15 +21,22 @@ from vllm.utils.math_utils import cdiv
 PAGE_TABLE_STICK_BLOCK_ALIGNMENT = 8
 
 
-def sliding_window_blocks(sliding_window: int, block_size: int) -> int:
+def sliding_window_blocks(
+    sliding_window: int, block_size: int, max_model_len: int
+) -> int:
     """Blocks per user in a sliding ring, page-table-stick aligned.
 
     ``cdiv(window, block_size) + 1`` covers a window straddling a block
     boundary; the round-up satisfies the stick alignment above. The ring is
     over-provisioned to that width -- the sliding_window mask still limits
     attention to the real window.
+
+    Capped by ``max_model_len``: no request can ever hold more context than
+    that, so a layer's static sliding_window (e.g. 1024) must not size the
+    ring past the model_len a shorter-context run actually needs.
     """
-    n = cdiv(sliding_window, block_size) + 1
+    window = min(sliding_window, max_model_len)
+    n = cdiv(window, block_size) + 1
     align = PAGE_TABLE_STICK_BLOCK_ALIGNMENT
     return ((n + align - 1) // align) * align
 
