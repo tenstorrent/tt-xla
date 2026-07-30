@@ -509,11 +509,11 @@ class TTDiffusionGemmaModelState(TTModelState):
         draft_tokens: torch.Tensor | None = None,  # [max_num_reqs, >=CL] spec-decode buffer
         tp_size: int = 1,
         tp_group_name: str = "",
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Apply diffusion sampling logic: temperature, Gumbel, confidence, accept/renoise.
 
-        Wraps diffusion_sample_step with proper metadata preparation. Returns scaled
-        logits ready for sampling over all canvas positions.
+        Wraps diffusion_sample_step with proper metadata preparation. Returns the
+        sampled tokens directly (diffusion_sample_step computes them internally).
 
         Args:
             logits: [num_reqs*CL, vocab] raw logits from model forward (all canvas pos)
@@ -524,7 +524,10 @@ class TTDiffusionGemmaModelState(TTModelState):
             tp_group_name: tensor parallel group name
 
         Returns:
-            scaled_logits: [num_reqs, CL, vocab] temperature-scaled logits ready for sampling
+            (sampled, num_sampled, scaled_logits):
+            - sampled: [num_reqs, CL] token ids (0 on denoise, argmax_canvas on commit)
+            - num_sampled: [num_reqs] count (0 on denoise, CL on commit)
+            - scaled_logits: [num_reqs*CL, vocab] temperature-scaled for inspection/debugging
         """
         num_reqs = len(idx_mapping_np)
         CL = self.canvas_length
@@ -538,7 +541,7 @@ class TTDiffusionGemmaModelState(TTModelState):
             self.prepare_diffusion_metadata(idx_mapping_np, device)
         )
 
-        # Create output buffers
+        # Output buffers for diffusion_sample_step (modified in-place)
         sampled = torch.zeros(num_reqs, CL, dtype=torch.int64, device=device)
         num_sampled = torch.zeros(num_reqs, dtype=torch.int64, device=device)
         if draft_tokens is None:
@@ -547,7 +550,6 @@ class TTDiffusionGemmaModelState(TTModelState):
             )
 
         # Placeholder tensors for self-conditioning (gap 5: proper implementation)
-        # These are used in diffusion_sample_step but not essential for core logic.
         embed_weight = torch.randn(vocab, 16, device=device)
         normalizer = torch.tensor(1.0, device=device)
 
@@ -555,6 +557,7 @@ class TTDiffusionGemmaModelState(TTModelState):
         logits_flat = logits_3d.reshape(num_reqs * CL, vocab)
 
         # Call the core diffusion sampling function
+        # This modifies sampled, num_sampled, and diffusion_states in-place
         scaled = diffusion_sample_step(
             logits=logits_flat,
             decode_slots=decode_slots,
@@ -588,5 +591,6 @@ class TTDiffusionGemmaModelState(TTModelState):
             tp_group_name=tp_group_name,
         )
 
-        # Reshape back: [num_reqs*CL, vocab] -> [num_reqs, CL, vocab]
-        return scaled.reshape(num_reqs, CL, vocab)
+        # Return the sampled tokens and scaled logits for inspection
+        # Note: sampled already has shape [num_reqs, CL]
+        return sampled, num_sampled, scaled

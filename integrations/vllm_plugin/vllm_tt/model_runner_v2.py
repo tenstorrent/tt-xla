@@ -1394,14 +1394,23 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(batch_idx_dev, self.mesh, ("batch",))
             safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
 
-        attn_metadata = self.model_state.prepare_attn(
-            self.attention_layer_names,
-            page_table_dev,
-            cache_position_dev,
+        # DiffusionGemma: pass slot indices and query_len for per-request mode mask
+        from .diffusion_gemma import TTDiffusionGemmaModelState
+        attn_kwargs = dict(
             fill_page_table=fill_page_table_dev,
             batch_idx=batch_idx_dev,
             num_users=target_num_reqs,
             dp_size=self.dp_size,
+        )
+        if isinstance(self.model_state, TTDiffusionGemmaModelState):
+            attn_kwargs["slot_indices_np"] = idx_mapping_np
+            attn_kwargs["query_len"] = padded_query_len
+
+        attn_metadata = self.model_state.prepare_attn(
+            self.attention_layer_names,
+            page_table_dev,
+            cache_position_dev,
+            **attn_kwargs,
         )
         # from_v2_states only reads num_reqs + idx_mapping_np off the view.
         batch_view = SimpleNamespace(
@@ -1553,17 +1562,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         logits, hidden_states = fwd if want_prompt_hs else (fwd, None)
 
-        # DiffusionGemma: apply diffusion sampling logic before standard sampling
+        # DiffusionGemma: apply diffusion sampling logic; returns tokens directly
         from .diffusion_gemma import TTDiffusionGemmaModelState
         if isinstance(self.model_state, TTDiffusionGemmaModelState) and idx_mapping_np is not None:
-            logits = self.model_state.apply_diffusion_sample_step(
+            sampled, num_sampled, scaled_logits = self.model_state.apply_diffusion_sample_step(
                 logits, idx_mapping_np, self.device
             )
-            # Logits are now [num_reqs, CL, vocab]; reshape for standard sampler
-            num_reqs = logits.shape[0]
-            CL = logits.shape[1]
-            vocab = logits.shape[2]
-            logits = logits.reshape(num_reqs * CL, vocab)
+            # diffusion_sample_step returns [num_reqs, CL] tokens; reshape to [num_reqs*CL, 1]
+            # to match the standard sampler output format for postprocessing
+            num_reqs, CL = sampled.shape
+            out = sampled.reshape(num_reqs * CL, 1).to(self.device)
+            if want_prompt_hs:
+                return out, hidden_states
+            return out
 
         if self.cpu_sampling or logits_only:
             # Stop at logits; grammar + sampling run on the host (spec decode
