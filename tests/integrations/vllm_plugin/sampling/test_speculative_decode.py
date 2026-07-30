@@ -155,8 +155,19 @@ def test_propose_draft_token_ids_ignores_discarded_rows():
     class _FakeDrafter:
         def __init__(self):
             self.last_sampled = None
+            self.last_num_spec = None
 
-        def propose(self, sampled_token_ids_list, num_tokens_no_spec, token_ids_cpu):
+        # Keep this signature in step with NgramProposer.propose. A laxer fake
+        # silently passes a wrong call (0.25.1 added num_speculative_tokens).
+        def propose(
+            self,
+            num_speculative_tokens,
+            sampled_token_ids_list,
+            num_tokens_no_spec,
+            token_ids_cpu,
+            slot_mappings=None,
+        ):
+            self.last_num_spec = num_speculative_tokens
             self.last_sampled = sampled_token_ids_list
             return [[] for _ in sampled_token_ids_list]
 
@@ -188,3 +199,4 @@ def test_propose_draft_token_ids_ignores_discarded_rows():
     )
 
     assert fake_drafter.last_sampled == [[100], []]
+    assert fake_drafter.last_num_spec == 3

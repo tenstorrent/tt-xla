@@ -110,7 +110,7 @@ from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
-from .rejection_sampler import RejectionSampler
+from .rejection_sampler import _PLACEHOLDER_TOKEN_ID, RejectionSampler
 from .sampler import Sampler
 from .swa_cache_utils import (
     assign_ring_slots,
@@ -503,10 +503,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_model_len,
         )
 
-        # Chunked SDPA op is usable only when chunking can occur and
-        # num_blocks_per_req % 8 == 0 (ttnn page-table stick must be 32B-aligned).
-        self._chunked_sdpa_active = self.prefill_chunk_budget < self.max_model_len and (
-            self.max_num_blocks_per_req % 8 == 0
+        # The chunked SDPA op itself only needs num_blocks_per_req % 8 == 0 (ttnn
+        # page-table stick must be 32B-aligned). Track that separately: any
+        # multi-token row over a cached prefix needs this op, not just prefill
+        # chunks. A speculative decode step is exactly that, and it can never
+        # satisfy prefill_chunk_budget < max_model_len, because spec decode forces
+        # max_num_batched_tokens >= max_model_len x max_num_seqs while the platform
+        # derives it as prefill_chunk_size x max_num_seqs.
+        self._prefix_sdpa_usable = self.max_num_blocks_per_req % 8 == 0
+        # Chunking can actually occur (drives the token-padding ladder and warmup).
+        self._chunked_sdpa_active = (
+            self.prefill_chunk_budget < self.max_model_len and self._prefix_sdpa_usable
         )
 
         # Opted into chunking but page-table layout unsupported: no correct
@@ -1387,6 +1394,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:_prefill_cap]
             end_index = start_index + _prefill_cap
 
+        # Multi-token rows over a cached prefix get re-fed to their block boundary
+        # (row_lead below) and share a single chunk_start_idx, so one pass may only
+        # carry rows sitting on the SAME boundary. Trim to the leading run; the
+        # multi-pass loop picks the rest up next iteration. Without this a mixed
+        # batch would write each row's K/V at its own block start while the shared
+        # read offset matched only the first row.
+        if self._prefix_sdpa_usable and max(num_scheduled_tokens_per_req) > 1:
+            boundary = (
+                self.input_batch.num_computed_tokens_cpu[start_index:end_index]
+                // self.block_size
+            )
+            differs = np.flatnonzero(boundary != boundary[0])
+            if differs.size:
+                same_run = int(differs[0])
+                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[:same_run]
+                end_index = start_index + same_run
+
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -1396,6 +1420,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         num_reqs = len(num_scheduled_tokens_per_req)
         actual_num_reqs = num_reqs
+        # This pass covers global requests [start_index, start_index + num_reqs).
+        # input_batch is indexed globally while the per-pass lists are 0-based.
+        req_slice = slice(start_index, start_index + num_reqs)
 
         # Row-count bucket for this step, clamped to the SMEM sequence limit.
         path_max_num_reqs = self.num_reqs_max_model_len
@@ -1408,10 +1435,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             actual_num_reqs,
         )
 
+        # Block-align a multi-token row that sits on a cached prefix.
+        #
+        # paged_fill_cache takes no write position: it starts at the first block of
+        # fill_page_table, i.e. at (num_computed // block_size) * block_size, while
+        # the read side (chunked SDPA) offsets by chunk_start_idx == num_computed
+        # exactly. The two agree only when num_computed % block_size == 0. Prefill
+        # chunks are block-aligned by construction so this never bit them, but a
+        # speculative decode row starts wherever decoding happens to be, so its
+        # K/V lands num_computed % block_size positions too early.
+        #
+        # Fix: extend the row left to the block boundary and re-feed the tokens in
+        # between. They are already computed, so rewriting their K/V is a no-op,
+        # and the row is padded to a bucket anyway so it is usually free.
+        row_lead = np.zeros(len(num_scheduled_tokens_per_req), dtype=np.int32)
+        if self._prefix_sdpa_usable and max_num_scheduled_tokens_all_reqs > 1:
+            computed = self.input_batch.num_computed_tokens_cpu[req_slice]
+            row_lead = (computed % self.block_size).astype(np.int32)
+            # The pass was trimmed to a single block boundary above, so one shared
+            # chunk_start_idx describes every row. Assert rather than silently
+            # fall back: zeroing row_lead here would restore the write/read
+            # mismatch and emit wrong tokens.
+            assert len(np.unique(computed - row_lead)) <= 1, (
+                "spec/prefix pass spans multiple block boundaries: "
+                f"{(computed - row_lead).tolist()}"
+            )
+
         # Compute the padded total number of scheduled tokens so that all requests
         # in the batch share a common, hardware-compatible sequence length.
         padded_total_num_scheduled_tokens = _get_padded_token_len(
-            self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
+            self.num_tokens_paddings,
+            int((num_scheduled_tokens_per_req + row_lead).max()),
         )
 
         # Allocate a zero-initialized position tensor. For MRoPE models, keep
@@ -1451,15 +1505,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #   [[3, 4, 0, 0, 0],
         #    [10,11,12,13,14],
         #    [5, 6, 7, 0, 0]]
+        # i is pass-relative (the list starts at start_index); input_batch is
+        # indexed globally, so reads need start_index + i.
         for i, n in enumerate(num_scheduled_tokens_per_req):
+            lead = int(row_lead[i])
+            row_len = lead + n
             positions = (
-                torch.arange(n, dtype=torch.int32)
-                + self.input_batch.num_computed_tokens_cpu[i]
+                torch.arange(row_len, dtype=torch.int32)
+                + self.input_batch.num_computed_tokens_cpu[start_index + i]
+                - lead
             )
             if self.uses_mrope:
-                arange[:, i, :n] = positions
+                arange[:, i, :row_len] = positions
             else:
-                arange[i, :n] = positions
+                arange[i, :row_len] = positions
 
         # Allocate a zero-padded input_ids tensor of shape
         # [target_num_reqs, padded_total_num_scheduled_tokens].
@@ -1473,9 +1532,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Fill input_ids with the newly scheduled tokens for each request, starting
         # from the current computed token offset.
         for i, n in enumerate(num_scheduled_tokens_per_req):
-            computed_tokens = self.input_batch.num_computed_tokens_cpu[i]
-            input_ids_cpu[i, :n] = self.input_batch.token_ids_cpu_tensor[
-                i, computed_tokens : n + computed_tokens
+            lead = int(row_lead[i])
+            req = start_index + i
+            start = self.input_batch.num_computed_tokens_cpu[req] - lead
+            input_ids_cpu[i, : lead + n] = self.input_batch.token_ids_cpu_tensor[
+                req, start : start + lead + n
             ]
 
         # Move input_ids and position_ids to the target device for execution.
@@ -1502,7 +1563,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.query_start_loc_np[num_reqs + 1 :] = 1
 
         self.seq_lens_np[:num_reqs] = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
+            self.input_batch.num_computed_tokens_cpu[req_slice]
             + num_scheduled_tokens_per_req
         )
 
@@ -1610,7 +1671,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # offset depends on the group's block_size -> computed per group in the
         # loop below from this raw token count.
         num_computed_tokens_slice = (
-            self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+            self.input_batch.num_computed_tokens_cpu[req_slice]
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
@@ -1637,16 +1698,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
-        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[req_slice]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
         )
         chunk_start_idx = None
-        if prefix_chunk_step and self._chunked_sdpa_active:
+        if prefix_chunk_step and self._prefix_sdpa_usable:
             # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask).
+            # causally and applies it internally (no host attn_mask). row_lead
+            # moved the row back to its block boundary, so the read offset must
+            # match, otherwise it disagrees with where paged_fill_cache wrote.
             self._chunk_start_idx_dev.copy_(
-                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+                torch.tensor(
+                    [int(num_computed_for_reqs[0]) - int(row_lead[0])],
+                    dtype=torch.int32,
+                )
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
@@ -1708,8 +1774,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             page_table = torch.zeros(
                 (target_num_reqs, width), dtype=self.block_table_cpu.dtype
             )
+            # Source rows are global; this pass covers [start_index, +num_reqs).
             page_table[:actual_num_reqs, :copy_width] = group_block_table[
-                :actual_num_reqs, :copy_width
+                req_slice, :copy_width
             ]
             if actual_num_reqs == 1:
                 page_table[1:, :] = 0
@@ -1794,10 +1861,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # In spec decode, use a packed [batch, num_spec_tokens + 1] layout so we
         # compute draft + bonus logits in one pass and avoid recomputing target
         # logits in RejectionSampler.
+        # row_lead re-fed the already-computed head of the block, so every
+        # within-row index shifts right by it.
         if spec_decode_metadata is None:
             logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32)
             logits_indices[:actual_num_reqs] = (
-                torch.from_numpy(num_scheduled_tokens_per_req) - 1
+                torch.from_numpy(num_scheduled_tokens_per_req + row_lead) - 1
             )
             logits_indices_dev = self._logits_indices_dev[target_num_reqs]
             logits_indices_dev.copy_(logits_indices)
@@ -1808,12 +1877,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (target_num_reqs, spec_width), dtype=torch.int32
             )
             for req_idx in range(actual_num_reqs):
-                bonus_idx = int(num_scheduled_tokens_per_req[req_idx] - 1)
+                lead = int(row_lead[req_idx])
+                bonus_idx = lead + int(num_scheduled_tokens_per_req[req_idx]) - 1
                 logits_indices[req_idx, :] = bonus_idx
                 draft_len = spec_decode_metadata.num_draft_tokens[req_idx]
                 if draft_len > 0:
-                    logits_indices[req_idx, :draft_len] = torch.arange(
-                        draft_len, dtype=torch.int32
+                    logits_indices[req_idx, :draft_len] = (
+                        torch.arange(draft_len, dtype=torch.int32) + lead
                     )
             logits_indices = logits_indices.to(self.device)
 
@@ -2288,8 +2358,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         i, : self.input_batch.num_tokens_no_spec[i]
                     ]
                 )
-        # Propose draft tokens using ngram proposer
+        # Propose draft tokens using ngram proposer. vLLM 0.25.1 added the
+        # leading num_speculative_tokens argument.
         draft_token_ids = self.drafter.propose(
+            self.num_spec_tokens,
             sampled_token_ids_list,
             num_tokens_no_spec,
             token_ids_cpu,
@@ -2592,6 +2664,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             start_index = end_index
 
+        # Passes can differ in width: one carrying drafts yields
+        # [reqs, num_spec_tokens + 1], one without yields [reqs, 1]. That happens
+        # whenever a step spans several passes and the proposer drafted for only
+        # some requests. Right-pad the narrow ones so the concat is well-formed;
+        # parse_output drops the placeholders, leaving those requests their single
+        # sampled token.
+        widths = {t.shape[-1] for t in combined_selected_tokens}
+        if len(widths) > 1:
+            width = max(widths)
+            combined_selected_tokens = [
+                (
+                    t
+                    if t.shape[-1] == width
+                    else torch.nn.functional.pad(
+                        t, (0, width - t.shape[-1]), value=_PLACEHOLDER_TOKEN_ID
+                    )
+                )
+                for t in combined_selected_tokens
+            ]
         selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
         if sampling_metadata.logprobs:
             logprobs_lists = LogprobsLists(
@@ -2679,8 +2770,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logprobs_tensors=None,
             )
             gen_lens = [len(seq) for seq in valid_sampled_token_ids]
-            self.input_batch.num_tokens[:num_reqs] += gen_lens
-            self.input_batch.num_tokens_no_spec[:num_reqs] += gen_lens
             for i, req_state, seq_len in request_seq_lens:
                 # Teacher forcing is only implemented for the one-token-per-step
                 # path. Accepted draft tokens have already been through the verify
@@ -2699,11 +2788,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                 if not valid_sampled_token_ids[i]:
                     continue
-                target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
-                self.input_batch.token_ids_cpu[i, target_slice] = (
+                # Anchor on the committed-token count, as upstream does. Anchoring
+                # on seq_len (= num_computed + num_scheduled) is only equivalent
+                # when every draft is accepted; on a partial acceptance it lands
+                # num_scheduled - gen_len positions too late, so the tokens the
+                # next step reads back as context are wrong even though the
+                # returned ids are right.
+                start_idx = int(self.input_batch.num_tokens_no_spec[i])
+                end_idx = start_idx + gen_lens[i]
+                self.input_batch.token_ids_cpu[i, start_idx:end_idx] = (
                     valid_sampled_token_ids[i]
                 )
                 req_state.output_token_ids.extend(valid_sampled_token_ids[i])
+            # After the writes: start_idx above must be the pre-step count.
+            self.input_batch.num_tokens[:num_reqs] += gen_lens
+            self.input_batch.num_tokens_no_spec[:num_reqs] += gen_lens
 
         if tele_on:
             # len() per row keeps this accepted tokens/step under spec decode.
@@ -3226,7 +3325,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # standard one, but only when the op is usable; otherwise the first
         # continuation chunk would compile mid-serving (or hit the ttnn
         # page-table-stick assert on unsupported layouts).
-        prefix_chunk_options = [False, True] if self._chunked_sdpa_active else [False]
+        prefix_chunk_options = [False, True] if self._prefix_sdpa_usable else [False]
 
         configs = [
             {
@@ -3759,7 +3858,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start = time.perf_counter()
         # Precompile the cached-prefix (chunked SDPA op) graph only when the op is
         # usable; otherwise small configs would hit the ttnn page-table-stick assert.
-        chunked = self._chunked_sdpa_active
+        chunked = self._prefix_sdpa_usable
 
         def _compile_path(
             num_reqs_buckets: set[int],
