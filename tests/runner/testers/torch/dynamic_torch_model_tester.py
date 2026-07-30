@@ -325,8 +325,11 @@ class DynamicTorchModelTester(TorchModelTester):
             "experts backend"
         )
         # Re-register against the live transformers (a per-model version swap
-        # wipes moe_backend's import-time registration).
-        register_tt_moe_backend()
+        # wipes moe_backend's import-time registration). Prefer the "model"
+        # axis for expert-parallel so 8-expert Mixtral-style MoEs work on
+        # Galaxy (4, 8) where E % 32 != 0 but E % model_axis == 0.
+        cluster_axis = mesh_names.index("model") if "model" in mesh_names else None
+        register_tt_moe_backend(cluster_axis=cluster_axis)
         if hasattr(model, "config"):
             model.config._experts_implementation = TT_MOE_BACKEND_NAME
         else:

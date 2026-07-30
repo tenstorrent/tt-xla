@@ -201,27 +201,105 @@ def _get_expert_adapter(module: nn.Module) -> _ExpertAdapter:
 
 def _expert_mapping(
     num_experts: int,
-    num_devices: int,
+    total_devices: int,
     device: torch.device,
+    mesh_shape: Tuple[int, ...] = (),
+    cluster_axis: int = 0,
+    dispatch_devices: Optional[int] = None,
 ) -> torch.Tensor:
-    """Build `[1, 1, E, D]` one-hot expert-to-device mapping."""
-    if num_experts % num_devices != 0:
+    """Build `[1, 1, E, total_devices]` one-hot expert-to-device mapping.
+
+    Metal CCL ops (dispatch / combine / moe_expert_token_remap) index the
+    mapping by absolute linearized device id, so the last dim must always be
+    the full mesh size.
+
+    When ``E`` divides ``total_devices``, experts are partitioned uniquely
+    across the mesh. When ``E`` only divides the EP / cluster-axis size
+    (Mixtral-style 8 experts on Galaxy ``(4, 8)``), each expert is placed on
+    every device that shares its cluster-axis coordinate — matching
+    ``expert_axis="model"`` weight sharding (replicated across the non-EP
+    axes).
+    """
+    dispatch = (
+        dispatch_devices
+        if dispatch_devices is not None
+        else (
+            mesh_shape[cluster_axis]
+            if mesh_shape and 0 <= cluster_axis < len(mesh_shape)
+            else total_devices
+        )
+    )
+
+    if num_experts % total_devices == 0:
+        experts_per_device = num_experts // total_devices
+        device_ids = (
+            torch.arange(num_experts, device=device, dtype=torch.int64)
+            // experts_per_device
+        ).to(torch.uint16)
+        mapping = (
+            device_ids.unsqueeze(-1)
+            == torch.arange(total_devices, device=device, dtype=torch.int64).to(
+                torch.uint16
+            )
+        ).to(torch.uint16)
+        return mapping.view(1, 1, num_experts, total_devices)
+
+    if dispatch <= 0 or num_experts % dispatch != 0:
         raise ValueError(
-            f"num_experts ({num_experts}) must be divisible by num_devices "
-            f"({num_devices}) to build a one-hot expert-to-device mapping."
+            f"num_experts ({num_experts}) must be divisible by total_devices "
+            f"({total_devices}) or by the EP / cluster-axis size ({dispatch}) "
+            "to build a one-hot expert-to-device mapping."
         )
 
-    experts_per_device = num_experts // num_devices
-    device_ids = (
-        torch.arange(num_experts, device=device, dtype=torch.int64)
-        // experts_per_device
-    ).to(torch.uint16)
+    if len(mesh_shape) != 2:
+        raise ValueError(
+            f"Axis-scoped expert mapping requires a 2D mesh, got mesh_shape="
+            f"{mesh_shape} (experts={num_experts}, total_devices={total_devices})."
+        )
 
-    mapping = (
-        device_ids.unsqueeze(-1)
-        == torch.arange(num_devices, device=device, dtype=torch.int64).to(torch.uint16)
-    ).to(torch.uint16)
-    return mapping.view(1, 1, num_experts, num_devices)
+    cols = int(mesh_shape[1])
+    experts_per_ep = num_experts // dispatch
+    # EP coordinate for each expert along the cluster axis.
+    ep_coords = (
+        torch.arange(num_experts, device=device, dtype=torch.int64) // experts_per_ep
+    )
+    device_ids = torch.arange(total_devices, device=device, dtype=torch.int64)
+    if cluster_axis == 1:
+        # model/cols axis: expert e on all rows at column ep_coords[e].
+        device_ep = device_ids % cols
+    elif cluster_axis == 0:
+        # batch/rows axis: expert e on all cols at row ep_coords[e].
+        device_ep = device_ids // cols
+    else:
+        raise ValueError(f"Unsupported cluster_axis={cluster_axis} for 2D mesh")
+
+    mapping = (ep_coords.unsqueeze(-1) == device_ep.unsqueeze(0)).to(torch.uint16)
+    return mapping.view(1, 1, num_experts, total_devices)
+
+
+def _build_moe_sparsity(
+    metadata: torch.Tensor,
+    num_experts: int,
+    reduction_size: int = REDUCTION_SIZE,
+) -> torch.Tensor:
+    """Build `[1, 1, ceil(tokens/R), E]` sparsity from dispatch metadata.
+
+    Fallback for meshes where metal ``moe_expert_token_remap`` cannot run
+    because it hardcodes ``num_local_experts = E / mesh_devices``, which is
+    zero when experts are only partitioned along the EP axis (e.g. 8 experts
+    on a 32-device Galaxy mesh).
+    """
+    tokens = metadata.shape[2]
+    reduced_seq = (tokens + reduction_size - 1) // reduction_size
+    idx = metadata[0, 0]
+    expert_range = torch.arange(num_experts, device=metadata.device, dtype=idx.dtype)
+    presence = (idx.unsqueeze(-1) == expert_range).any(dim=1).to(torch.bfloat16)
+
+    padded_tokens = reduced_seq * reduction_size
+    if padded_tokens > tokens:
+        presence = F.pad(presence, (0, 0, 0, padded_tokens - tokens))
+    sparsity = presence.view(reduced_seq, reduction_size, num_experts).amax(dim=1)
+    return sparsity.view(1, 1, reduced_seq, num_experts)
 
 
 def _build_routing_scores(
@@ -290,6 +368,7 @@ def _tt_experts_forward_ep(
     total_devices: int,
     dispatch_devices: int,
     cluster_axis: int,
+    mesh_shape: Tuple[int, ...] = (),
 ) -> torch.Tensor:
     """Expert-parallel compute: dispatch tokens to the devices holding their
     selected experts, run the sparse_matmul chain on the dispatched layout,
@@ -313,7 +392,17 @@ def _tt_experts_forward_ep(
         device,
     )
 
-    expert_mapping = _expert_mapping(E, total_devices, device)  # [1, 1, E, D_total]
+    # Mapping last dim must be total mesh devices — metal CCL ops index by
+    # absolute linearized device id. For Mixtral-style E % total != 0, experts
+    # are replicated across the non-EP axes (see _expert_mapping).
+    expert_mapping = _expert_mapping(
+        E,
+        total_devices,
+        device,
+        mesh_shape=mesh_shape,
+        cluster_axis=cluster_axis,
+        dispatch_devices=dispatch_devices,
+    )  # [1, 1, E, D_total]
 
     # num_devices = dispatch_devices (cluster_axis size), not total.
     hidden_3d = hidden_states.view(1, T, H)
@@ -328,12 +417,17 @@ def _tt_experts_forward_ep(
     metadata = metadata.reshape(1, 1, BD * T, K)
 
     # Sparsity from all-gathered metadata (not local router scores).
-    _, sparsity = torch.ops.tt.moe_expert_token_remap(
-        routing_scores,
-        expert_mapping,
-        metadata,
-        num_devices=dispatch_devices,
-    )  # sparsity: [1, 1, ceil(BD*T/32), E]
+    # Metal moe_expert_token_remap hardcodes num_local_experts = E / mesh_D,
+    # which is invalid when experts are only partitioned on the EP axis.
+    if E % total_devices == 0:
+        _, sparsity = torch.ops.tt.moe_expert_token_remap(
+            routing_scores,
+            expert_mapping,
+            metadata,
+            num_devices=dispatch_devices,
+        )  # sparsity: [1, 1, ceil(BD*T/32), E]
+    else:
+        sparsity = _build_moe_sparsity(metadata, E)
 
     if experts.has_fused_gate_up:
         gate_up_out = torch.ops.tt.sparse_matmul(
@@ -437,6 +531,7 @@ def tt_experts_forward(
         total_devices,
         dispatch_devices,
         cluster_axis,
+        mesh_shape=mesh_shape,
     )
 
 
@@ -539,7 +634,15 @@ def get_tt_moe_shard_specs(
 ) -> Dict[Any, Any]:
     """Add expert-dimension sharding to the upstream shard spec for MoE layers."""
     shard_specs = original_spec_fn(model)
-    expert_axis: Any = tuple(mesh_names) if len(mesh_names) > 1 else mesh_names[0]
+    # Prefer the "model" axis for expert-parallel. Compound (batch, model)
+    # requires num_experts % (batch * model) == 0 and breaks 8-expert
+    # Mixtral-style models on Galaxy meshes such as (4, 8).
+    if "model" in mesh_names:
+        expert_axis: Any = "model"
+    elif len(mesh_names) > 1:
+        expert_axis = tuple(mesh_names)
+    else:
+        expert_axis = mesh_names[0]
 
     layers = getattr(getattr(model, "model", None), "layers", None)
     if layers is None:
@@ -553,7 +656,7 @@ def get_tt_moe_shard_specs(
         if experts is None:
             continue
 
-        # Shard only the expert dimension; compound axis for 2D meshes.
+        # Shard only the expert dimension along the EP axis.
         if hasattr(experts, "gate_up_proj") and hasattr(experts, "down_proj"):
             shard_specs[experts.gate_up_proj] = (expert_axis, None, None)
             gate_up_bias = getattr(experts, "gate_up_proj_bias", None)
