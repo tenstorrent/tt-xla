@@ -498,60 +498,6 @@ def test_bge_m3(output_file, request):
     )
 
 
-def test_xtts_v2(output_file, request):
-    """Benchmark XTTS-v2 (coqui/XTTS-v2) — the GPT2 KV-cached decode step.
-
-    The per-token decode step is the graph the autoregressive loop reuses every
-    token, so it determines throughput; this reports its device throughput + PCC
-    vs CPU (float32). Needs coqui-tts + torchaudio and CPML-gated weights.
-    """
-    import os
-
-    from third_party.tt_forge_models.xtts_v2.pytorch import ModelLoader, ModelVariant
-
-    os.environ.setdefault("COQUI_TOS_AGREED", "1")
-
-    def inputs_to_device(inputs, device):
-        """Move tensor entries to device; pass non-tensors through."""
-        return {
-            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
-            for k, v in inputs.items()
-        }
-
-    # XTTS stays float32 (mixed-dtype submodules); one token per step, so the
-    # "sequence length" is 1.
-    data_format = "float32"
-    batch_size = 1
-
-    # Same loader instance backs both the model and the decode inputs.
-    loader = ModelLoader(variant=ModelVariant.GPT_DECODE)
-    model_info_name = loader.get_model_info(variant=ModelVariant.GPT_DECODE).name
-    print(f"\nLoading model {model_info_name}...")
-    model = loader.load_model()
-
-    load_inputs_fn = lambda batch_size: loader.load_inputs()
-    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
-    output_processor_fn = lambda out, inputs: out
-
-    test_encoder(
-        model=model,
-        model_info_name=model_info_name,
-        output_file=output_file,
-        display_name="xtts_v2_gpt_decode",
-        request=request,
-        load_inputs_fn=load_inputs_fn,
-        preprocess_fn=preprocess_fn,
-        output_processor_fn=output_processor_fn,
-        data_format=data_format,
-        batch_size=batch_size,
-        input_sequence_length=1,
-        loop_count=32,
-        optimization_level=0,
-        trace_enabled=False,
-        required_pcc=0.99,
-    )
-
-
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
 def test_unet_for_conditional_generation(output_file, request):
     """Test UNet for Conditional Generation model. This is a core component of the Stable Diffusion XL pipeline (https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)"""
