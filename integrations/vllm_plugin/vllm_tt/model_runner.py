@@ -1749,22 +1749,39 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[req_slice]
+        # Only rows contributing tokens this step matter. A running request
+        # re-batched into a later prefill step contributes 0 new tokens (see the
+        # zero_sched_rows handling above); its num_computed says nothing about
+        # what the rows actually prefilling need. Deciding from every row let an
+        # inactive row's offset be handed to a fresh row, which then attended a
+        # prefix that does not exist for it and decoded garbage.
+        active_rows = np.nonzero(num_scheduled_tokens_per_req > 0)[0]
+        active_computed = num_computed_for_reqs[active_rows]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+            np.any(active_computed > 0)
         )
         chunk_start_idx = None
         if prefix_chunk_step and (
             self._chunked_sdpa_active or self._spec_prefix_rows()
         ):
-            # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask). row_lead
-            # moved the row back to its block boundary, so the read offset must
-            # match, otherwise it disagrees with where paged_fill_cache wrote.
-            self._chunk_start_idx_dev.copy_(
-                torch.tensor(
-                    [int(num_computed_for_reqs[0]) - int(row_lead[0])],
-                    dtype=torch.int32,
+            # The op takes ONE prefix offset for the whole batch, so it is only
+            # valid when every active row is at the same stage. Take it from an
+            # active row, and refuse rather than silently applying one row's
+            # offset to a row at a different stage. row_lead moved the row back
+            # to its block boundary, so the read offset must match, otherwise it
+            # disagrees with where paged_fill_cache wrote.
+            active_starts = active_computed - row_lead[active_rows]
+            offsets = {int(v) for v in active_starts}
+            if len(offsets) > 1:
+                raise RuntimeError(
+                    "chunked-prefill SDPA takes a single prefix offset for the "
+                    f"batch, but active rows are at different stages: "
+                    f"start={sorted(offsets)} for rows "
+                    f"{active_rows.tolist()}. Batching mixed stages would apply "
+                    "one row's offset to another."
                 )
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(active_starts[0])], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
