@@ -2806,6 +2806,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # next step reads back as context are wrong even though the
                 # returned ids are right.
                 start_idx = int(self.input_batch.num_tokens_no_spec[i])
+                remaining_capacity = self.max_model_len - start_idx
+                if remaining_capacity <= 0:
+                    gen_lens[i] = 0
+                    valid_sampled_token_ids[i] = []
+                    continue
+                if gen_lens[i] > remaining_capacity:
+                    logger.warning(
+                        "Truncating accepted speculative tokens for req_id=%s: "
+                        "accepted=%d capacity=%d",
+                        req_ids[i],
+                        gen_lens[i],
+                        remaining_capacity,
+                    )
+                    valid_sampled_token_ids[i] = valid_sampled_token_ids[i][
+                        :remaining_capacity
+                    ]
+                    gen_lens[i] = remaining_capacity
                 end_idx = start_idx + gen_lens[i]
                 self.input_batch.token_ids_cpu[i, start_idx:end_idx] = (
                     valid_sampled_token_ids[i]

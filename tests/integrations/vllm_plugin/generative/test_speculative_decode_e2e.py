@@ -3,17 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """End-to-end check that ngram speculative decode does not change the output.
 
-A draft token is only accepted when it matches what the target model would have
-sampled anyway, so with greedy sampling spec decode must be token identical to
-plain greedy. That is a correctness oracle needing no golden text: the non
-speculative run is the reference, so the check survives model, dtype and compiler
-changes.
-
-The unit tests in sampling/test_speculative_decode.py cover the rejection sampler
-and the proposer handoff on cpu with fakes. Nothing there runs a model, and
-assert_output_coherent only detects token soup, so several device level defects in
-the speculative path emitted fluent but wrong text unnoticed.
-
 Two prompts of different lengths, so their decode positions sit on different KV
 cache block boundaries. A speculative row is re-fed to its block boundary and the
 prefix offset is one shared value per pass, so a batch spanning two boundaries has
@@ -24,16 +13,6 @@ decode as the only variable.
 Repeated per parallelism mode, because the speculative row work touches page
 tables and cache positions, which is exactly what TP shards by head and DP shards
 by row (DP also pads the batch with zero-token rows).
-
-Only the single device case is on push, at about three minutes. Each multichip
-mode costs two multichip engine startups, nine to twelve minutes, so they run
-nightly. Push still covers the boundary trim (single device runs two rows at
-different boundaries) and DP more broadly via
-test_data_parallel_generation.py::test_data_parallel_chunked_prefill_n300.
-
-One engine at a time: two vllm.LLM instances alive together leave the first
-EngineCore holding /dev/tenstorrent and the second stalls, so each run shuts its
-engine down before the next is built.
 """
 
 import gc
