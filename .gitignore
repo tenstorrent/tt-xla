@@ -47,6 +47,11 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Perf benchmark generated modules
 /modules/
+tests/benchmark/modules/
+
+# Per-graph TTNN perf metrics dumped next to the working dir by every
+# benchmark suite (ttnn_perf_metrics_output_file is a bare basename).
+tt_xla_*_perf_metrics_*.json
 
 # Runtime-generated tt-metal debug artifacts
 /generated/
