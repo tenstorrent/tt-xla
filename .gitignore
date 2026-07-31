@@ -56,3 +56,8 @@ tests/benchmark/reference_outputs/*.refpt
 
 # vLLM serving telemetry output (issue #5715); default dir is <cwd>/tt_telemetry
 tt_telemetry/
+
+# transformers-uplift: transient claude-fix artifacts (WIP branch only)
+/failure_context.txt
+/baseline_failures.txt
+/.github/transformers-uplift/fix-summary.md
