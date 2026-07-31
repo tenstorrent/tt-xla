@@ -48,7 +48,7 @@ from vllm.v1.worker.worker_base import CompilationTimes
 from .attention_impls.attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
 from .model_runner import TTModelRunner
-from .platform import TTConfig
+from .platform import TTConfig, publish_tt_per_request_prefill_chunk
 from .pooling_runner import TTPoolingModelRunner
 from .swa_cache_utils import sliding_ring_reserve_bytes, sliding_window_blocks
 from .vllm_distributed_utils import kv_cache_shard_factor
@@ -96,6 +96,10 @@ class TTWorker:
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
         self.scheduler_config = vllm_config.scheduler_config
+        # check_and_update_config runs in the front-end process; republish here
+        # so the sliding-window admission bound sees the per-request chunk in
+        # EngineCore, where both of its consumers live.
+        publish_tt_per_request_prefill_chunk(self.scheduler_config)
         self.device_config = vllm_config.device_config
         self.speculative_config = vllm_config.speculative_config
         self.observability_config = vllm_config.observability_config
