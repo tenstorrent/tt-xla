@@ -6,8 +6,10 @@ long enough to split into a second chunk. Everything else is incidental, so this
 strips it:
 
   - facebook/opt-125m instead of Qwen3-0.6B  (~5x fewer layers to trace)
-  - max_model_len=128, chunk=32              (token buckets [1, 32, 64] not
-                                              [1, 128, 256, 512])
+  - max_model_len=256, chunk=32              (smallest legal value: chunked
+                                              prefill needs max_num_blocks_per_req
+                                              % 8 == 0, i.e. max_model_len a
+                                              multiple of 8*block_size = 256)
   - enable_precompile_all=False              (skip warming every shape)
   - optimization_level=0                     (skip optimizer passes)
   - max_tokens=1                             (prefill is where it breaks;
@@ -46,7 +48,7 @@ def main():
     llm = vllm.LLM(
         model="facebook/opt-125m",
         max_num_seqs=n,
-        max_model_len=128,
+        max_model_len=256,
         gpu_memory_utilization=0.1,
         enable_prefix_caching=True,
         additional_config={
