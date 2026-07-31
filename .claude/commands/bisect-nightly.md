@@ -46,6 +46,43 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 All artifacts live under `$REPO_ROOT/bisection/` (shared with the sub-skills). The ledger is
 `$REPO_ROOT/bisection/bisected.json`.
 
+#### Artifact layout and log retention
+
+Two classes of artifact live under `bisection/`, and they have very different lifetimes:
+
+| artifact | size | lifetime |
+|---|---|---|
+| `bisected.json` (the ledger) | ~250 KB | **forever** — the whole point of the system |
+| `run_<id>_failures{,_filtered}.json` | ~30 KB/run | **keep indefinitely** — drives the prev-nightly diff and cross-night signature tracing |
+| `nightly_<id>_failures_table.md` | ~3 KB/run | keep indefinitely |
+| `logs/run_<id>/job_*.txt` (raw CI logs) | **~5 MB/run** | **cache — 4-day retention** |
+
+Raw job logs dominate the directory (they are ~99% of it) and are only needed while a
+run is being analysed. **Retention rule: keep raw logs for the last 4 days of nightlies;
+prune anything older.** Enforce it with:
+
+```bash
+python3 .claude/scripts/prune_logs.py            # dry run — shows what would go
+python3 .claude/scripts/prune_logs.py --apply    # delete
+```
+
+The script prunes by the run's own `run_date` (from `run_<id>_failures.json`, falling back
+to `logs/index.json`), also removes log directories with no resolvable run date (boundary-search
+leftovers that have no analysis JSON), tidies stale `logs/index.json` entries, and always keeps
+at least the newest run (`--keep-min`). Override the window with `--days N`.
+
+**Run the dry run at the end of Phase 5** and apply it if it reports anything to free, so the
+cache does not grow unbounded at ~5 MB/night.
+
+Two cautions:
+- **Pruning is a one-way door.** GitHub expires job logs, so a pruned log generally cannot be
+  re-downloaded. The failures JSONs are what let you trace a signature across older nightlies —
+  which is why they are never pruned.
+- **A failed log download is not a log.** The API returns a ~215-byte `BlobNotFound` XML payload;
+  if that gets saved as `job_<id>.txt`, any parser reads it as an empty log and silently reports
+  zero failed tests. `collect-failures` must check the download is non-empty and does not begin
+  with `<?xml`/`<Error>`; `prune_logs.py` deletes any such payloads it finds.
+
 ### Phase 1 — Collect failures
 Invoke skill `collect-failures` with the run URL/id (Skill tool). It writes
 `bisection/run_<run_id>_failures.json`. Read that file; note `run_id`, `sha` (this nightly's head),
@@ -215,6 +252,8 @@ already-bisected regressions and preserves pending ones.
   `auto_dispatch=true`.
 - Honor the memories: generic `Error code: 13` is unwrapped by `/collect-failures`; PCC drops may be HF
   checkpoint drift (`checkpoint_drift`); tt-mlir is pinned via `TT_MLIR_VERSION` in `third_party/CMakeLists.txt`.
+- Raw logs under `bisection/logs/` are a 4-day cache — prune with `.claude/scripts/prune_logs.py --apply`.
+  Never delete `bisected.json`, the `run_*_failures*.json` files, or the `nightly_*_table.md` reports.
 
 ## Error handling
 | Situation | Action |
