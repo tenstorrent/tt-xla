@@ -602,7 +602,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.speculative_config.method == "ngram":
                 self.drafter = NgramProposer(vllm_config)
 
-        self._dp_inert_slots: list[int] = []
+        self._dp_free_slots: list[int] = []
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -988,8 +988,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for req_id in scheduler_output.finished_req_ids:
             if dp_active:
                 idx = self.input_batch.req_id_to_index.get(req_id)
-                if idx is not None and idx not in self._dp_inert_slots:
-                    self._dp_inert_slots.append(idx)
+                if idx is not None and idx not in self._dp_free_slots:
+                    self._dp_free_slots.append(idx)
                 continue
             req_index = self.input_batch.remove_request(req_id)
             if req_index is not None:
@@ -1112,8 +1112,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         for req_id in req_ids_to_add:
             req_state = self.requests[req_id]
-            if dp_active and self._dp_inert_slots:
-                req_index = self._dp_inert_slots.pop(0)
+            if dp_active and self._dp_free_slots:
+                req_index = self._dp_free_slots.pop(0)
                 old_id = self.input_batch.req_ids[req_index]
                 if old_id is not None:
                     self.requests.pop(old_id, None)
