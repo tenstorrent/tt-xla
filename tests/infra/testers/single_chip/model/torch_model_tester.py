@@ -27,6 +27,56 @@ from third_party.tt_forge_models.config import Parallelism
 from .model_tester import ModelTester, RunMode
 
 
+def _clear_runtime_global_tensor_cache() -> None:
+    """Clear the runtime's process-global const-eval GlobalTensorCache.
+
+    The cache is a single singleton living in the shared ``libTTMLIRRuntime.so``
+    that the PJRT plugin links, so clearing it through any binding to that lib
+    frees the same tensors the plugin holds. Used between the flatbuffer
+    reference run and the EmitPy run in ``verify_emitpy`` to avoid the two runs'
+    weights being co-resident (double residency -> OOM on small-DRAM parts).
+
+    Best-effort: prefers a plugin-provided binding, falls back to the tt-mlir
+    ``ttrt`` binding (same singleton via soname), and warns loudly if neither is
+    available so the missing binding is obvious rather than silently skipped.
+    """
+    # 1) Preferred: binding exposed by the PJRT plugin package (shares the
+    #    plugin's exact GlobalTensorCache instance).
+    try:
+        import pjrt_plugin_tt  # type: ignore
+
+        clear = getattr(pjrt_plugin_tt, "clear_global_tensor_cache", None)
+        if callable(clear):
+            clear()
+            logger.info("Cleared runtime GlobalTensorCache (pjrt_plugin_tt).")
+            return
+    except Exception as e:  # pragma: no cover - defensive
+        logger.debug(f"pjrt_plugin_tt cache clear unavailable: {e}")
+
+    # 2) Fallback: tt-mlir ttrt binding. Shares the same libTTMLIRRuntime.so
+    #    singleton (resolved by soname), so this clears the plugin's cache too.
+    try:
+        from ttrt.runtime._ttmlir_runtime.binary import (  # type: ignore
+            GlobalTensorCache,
+        )
+
+        cache = GlobalTensorCache.get_instance()
+        before = cache.size()
+        cache.clear()
+        logger.info(
+            f"Cleared runtime GlobalTensorCache (ttrt): {before} entries evicted."
+        )
+        return
+    except Exception as e:
+        logger.warning(
+            "Could not clear runtime GlobalTensorCache before the EmitPy run "
+            f"({e}). The flatbuffer run's const-eval weights stay resident and "
+            "may cause a DRAM OOM in the EmitPy comparison on small-DRAM parts. "
+            "Expose GlobalTensorCache::clear() from the PJRT plugin "
+            "(pjrt_plugin_tt.clear_global_tensor_cache) to fix this."
+        )
+
+
 @contextmanager
 def _mask_jax_accelerator():
     """Temporarily hide jax accelerator to avoid inductor issues with no-tensor-input graphs.
@@ -429,6 +479,19 @@ class TorchModelTester(ModelTester):
             self._compile_for_tt_device(
                 self._workload, options={"tt_legacy_compile": True}
             )
+
+            # Free the flatbuffer reference run's const-eval results from the
+            # process-global runtime GlobalTensorCache before the EmitPy run.
+            # The fb run leaves its preprocessed weights on device (retained,
+            # evicted only on input-tensor destroy or explicit clear). The EmitPy
+            # codegen (torch.compile trace happens inside _run_on_tt_device and
+            # needs the on-device model, so we cannot free the model here) then
+            # loads/streams its own weights on top of those retained fb tensors
+            # -> double residency -> OOM on smaller-DRAM parts (e.g. n150), while
+            # p150 masks it. The cache is a single singleton in the shared
+            # libTTMLIRRuntime.so the plugin links, so an explicit clear frees it
+            # without touching the model. See qwen_3/embedding/Embedding_8B.
+            _clear_runtime_global_tensor_cache()
 
             emitpy_result = self._run_on_tt_device(self._workload)
 
