@@ -198,6 +198,82 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     return cfg
 
 
+def _qwen3_4b_production_config():
+    cfg = _config(
+        "Qwen/Qwen3-4B",
+        32,
+        gpu_memory_utilization=0.5,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+    )
+    cfg.max_model_len = 40960
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _qwen3_8b_production_config():
+    cfg = _config(
+        "Qwen/Qwen3-8B",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+    )
+    cfg.max_model_len = 40960
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _llama3_2_3b_instruct_production_config():
+    cfg = _config(
+        "meta-llama/Llama-3.2-3B-Instruct",
+        32,
+        gpu_memory_utilization=0.5,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+    )
+    cfg.max_model_len = 65536
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _llama3_1_8b_instruct_production_config():
+    cfg = _config(
+        "meta-llama/Llama-3.1-8B-Instruct",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+    )
+    cfg.max_model_len = 65536
+    cfg.use_chat_template = True
+    return cfg
+
+
 def _falcon3_7b_instruct_production_config():
     # Mirrors the real single-chip (p150) production launch config from
     # ~/scripts/model_servers/launch_falcon3_7b_instruct_uvicorn.sh (which
@@ -240,8 +316,16 @@ SINGLE_DEVICE_CONFIGS = [
         _config("meta-llama/Llama-3.2-3B-Instruct", experimental_kv_cache_dtype=""),
         id="llama-3.2-3b",
     ),
+    pytest.param(
+        _llama3_2_3b_instruct_production_config(),
+        id="llama-3.2-3b-instruct-production",
+    ),
     # opt-level 2 (the default since #5410) OOMs DRAM on n150. See https://github.com/tenstorrent/tt-xla/issues/5494.
     pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
+    pytest.param(
+        _llama3_1_8b_instruct_production_config(),
+        id="llama-3.1-8b-instruct-production",
+    ),
     # Qwen 2.5
     pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
@@ -251,7 +335,9 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("Qwen/Qwen3-0.6B"), id="qwen3-0.6b"),
     pytest.param(_config("Qwen/Qwen3-1.7B"), id="qwen3-1.7b"),
     pytest.param(_config("Qwen/Qwen3-4B"), id="qwen3-4b"),
+    pytest.param(_qwen3_4b_production_config(), id="qwen3-4b-production"),
     pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
+    pytest.param(_qwen3_8b_production_config(), id="qwen3-8b-production"),
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
     # Phi
