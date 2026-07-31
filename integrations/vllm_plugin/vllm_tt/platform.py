@@ -720,6 +720,7 @@ class TTPlatform(Platform):
                 # TT-internal per-sequence chunk cap, read by AscendScheduler
                 # (per-request chunk sizing) and TTModelRunner (bucket ladder).
                 scheduler_config.tt_prefill_chunk_size = per_seq_chunk
+                publish_tt_per_request_prefill_chunk(scheduler_config)
                 # Derived value: a user-supplied max_num_batched_tokens is
                 # intentionally overridden here (logged above).
                 scheduler_config.max_num_batched_tokens = budget
@@ -799,6 +800,80 @@ class TTPlatform(Platform):
         worker after initializing the device.
         """
         return
+
+
+# Per-request prefill chunk, published for the sliding-window admission bound
+# below. Set from the scheduler config in both TTPlatform.check_and_update_config
+# and TTWorker.__init__: the former runs in the front-end process, while both
+# consumers of the bound run in EngineCore, where the worker is constructed
+# before either of them. 0 = TT chunked prefill is off, patch is a no-op.
+_TT_PER_REQUEST_PREFILL_CHUNK = 0
+
+
+def publish_tt_per_request_prefill_chunk(scheduler_config) -> None:
+    """Record the per-request prefill chunk for the admission bound.
+
+    Always assigns, so a config without TT chunked prefill clears any value a
+    previous config published rather than leaving it stale.
+    """
+    global _TT_PER_REQUEST_PREFILL_CHUNK
+    _TT_PER_REQUEST_PREFILL_CHUNK = (
+        getattr(scheduler_config, "tt_prefill_chunk_size", 0)
+        if getattr(scheduler_config, "tt_chunked_prefill_enabled", False)
+        else 0
+    )
+
+
+def install_tt_sliding_window_admission() -> None:
+    """Bound a sliding-window layer by one request's chunk, not the batch's.
+
+    ``SlidingWindowSpec.max_admission_blocks_per_request`` bounds a single
+    request at ``sliding_window - 1 + max_num_batched_tokens`` tokens -- it reads
+    ``max_num_batched_tokens`` as the largest chunk ONE request can be scheduled.
+
+    Under TT chunked prefill that reading is wrong. ``max_num_batched_tokens`` is
+    the batch-wide budget (``tt_prefill_chunk_size * max_num_seqs``), while
+    AscendScheduler caps each individual request at ``tt_prefill_chunk_size``
+    ("so one long prompt can't eat the whole budget and serialize others"). A
+    request can therefore never hold the batch-wide budget, and the bound is
+    inflated by up to ``max_num_seqs`` x -- for gemma-4-31B at
+    max_model_len=65536, chunk 1024, batch 32, each sliding group is charged
+    ``cdiv(1023 + 32768, 32) + 1 = 1057`` blocks instead of
+    ``cdiv(1023 + 1024, 32) + 1 = 65``.
+
+    That 16x over-charge feeds the startup admission check
+    (``_max_memory_usage_bytes_from_groups``), which rejects long-context
+    configurations over pool memory they would never use.
+
+    Patch the spec method rather than either caller: vLLM treats it as the
+    single source of truth for both the startup pool sizer and the runtime
+    admission cap in ``get_manager_for_kv_cache_spec``, and warns that drift
+    between the two re-introduces a deadlock (vllm#39734) or mid-prefill OOM.
+    Clamping here keeps them consistent by construction.
+    """
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    original = SlidingWindowSpec.max_admission_blocks_per_request
+    if getattr(original, "_tt_patched", False):
+        return  # idempotent: never stack wrappers and clamp twice
+
+    def _tt_max_admission_blocks_per_request(
+        self, max_num_batched_tokens: int, max_model_len: int
+    ) -> int:
+        if _TT_PER_REQUEST_PREFILL_CHUNK:
+            max_num_batched_tokens = min(
+                max_num_batched_tokens, _TT_PER_REQUEST_PREFILL_CHUNK
+            )
+        return original(
+            self,
+            max_num_batched_tokens=max_num_batched_tokens,
+            max_model_len=max_model_len,
+        )
+
+    _tt_max_admission_blocks_per_request._tt_patched = True
+    SlidingWindowSpec.max_admission_blocks_per_request = (
+        _tt_max_admission_blocks_per_request
+    )
 
 
 def install_tt_accelerator_memory_info() -> None:
