@@ -1648,12 +1648,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # the paged cache via the chunked SDPA op. Decode (L == 1) and first-chunk
         # prefill take the standard path (chunk_start_idx stays None).
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        # Only rows contributing tokens this step matter. A running request
+        # re-batched into a later prefill step contributes 0 new tokens (see the
+        # zero_sched_rows handling above); its num_computed says nothing about
+        # what the rows actually prefilling need. Deciding from every row let an
+        # inactive row's offset be handed to a fresh row, which then attended a
+        # prefix that does not exist for it and decoded garbage.
+        active_rows = np.nonzero(num_scheduled_tokens_per_req[:num_reqs] > 0)[0]
+        active_computed = (
+            num_computed_for_reqs[active_rows]
+            if len(active_rows)
+            else np.zeros(0, dtype=np.int64)
+        )
+
         # A prefill step with >4 concurrent cached rows (num_computed > 0)
         # corrupts higher-index rows past dp_size 4 (validated dp_size 8: <=4
         # cached rows correct, >4 drop to garbage). Cold rows and <=4 cached
         # rows are unaffected, so fail loudly only on the offending step rather
         # than serve wrong tokens. Distinct from the paged fill/sampler DP bugs.
-        num_cached_rows = int(np.count_nonzero(num_computed_for_reqs > 0))
+        # Counts ACTIVE cached rows only: an inactive row is not prefilling and
+        # cannot contribute to the corruption.
+        num_cached_rows = int(np.count_nonzero(active_computed > 0))
         if self.dp_size > 4 and num_cached_rows > 4:
             raise RuntimeError(
                 f"DP cached-prefix prefill corrupts with >4 concurrent cached "
@@ -1662,7 +1677,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"or use dp_size <= 4."
             )
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+            np.any(active_computed > 0)
         )
         chunk_start_idx = None
         # DP keeps prefill on the cold/direct SDPA path; do not route DP
@@ -1672,10 +1687,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and self._chunked_sdpa_active
             and not self.enable_data_parallel
         ):
-            # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask).
+            # The op takes ONE prefix offset for the whole batch, so it is only
+            # valid when every active row is at the same stage. Take it from an
+            # active row, and refuse rather than silently applying one row's
+            # offset to a row at a different stage.
+            offsets = {int(v) for v in active_computed}
+            if len(offsets) > 1:
+                raise RuntimeError(
+                    "chunked-prefill SDPA takes a single prefix offset for the "
+                    f"batch, but active rows are at different stages: "
+                    f"num_computed={sorted(offsets)} for rows "
+                    f"{active_rows.tolist()}. Batching mixed stages would apply "
+                    "one row's offset to another."
+                )
             self._chunk_start_idx_dev.copy_(
-                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+                torch.tensor([int(active_computed[0])], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
@@ -1698,7 +1724,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # -> no runtime recompile. Decode (suffix == 1) keeps attn_mask None and
         # the decode kernel handles causality.
         attn_mask: torch.Tensor | None = None
-        is_cold_prefill = not bool(np.any(num_computed_for_reqs > 0))
+        # Same active-row rule as the chunk offset above: an inactive row's
+        # num_computed must not decide the path. Keying off every row sent a step
+        # whose only active row is COLD down the masked full-gather path, and the
+        # redundant full-slab read-back is exactly what degenerates a cold
+        # prefill's first token (the reason cold attends its own K/V directly).
+        is_cold_prefill = not bool(np.any(active_computed > 0))
         # Cached-prefix prefill takes the masked full-gather path, under DP too:
         # DP suppresses only chunk_start_idx (the chunked SDPA op), and routes
         # the cached prefix through the masked gather instead. Cold prefill
