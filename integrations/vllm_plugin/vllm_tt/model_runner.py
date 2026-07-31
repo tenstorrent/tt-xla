@@ -1297,7 +1297,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if dp_size <= 1:
             return
 
-        num_blocks_per_replica = self.num_blocks // dp_size
+        if not hasattr(self, 'kv_num_blocks') or self.kv_num_blocks is None:
+            return
+
+        num_blocks_per_replica = self.kv_num_blocks // dp_size
         # In-place modulo remapping: map all global IDs to per-replica coordinates
         page_table.mod_(num_blocks_per_replica)
 
@@ -3929,6 +3932,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
+                # Store total blocks for use in DP+TP sharding (e.g., page table remapping)
+                if not hasattr(self, 'kv_num_blocks'):
+                    self.kv_num_blocks = num_blocks
                 if isinstance(kv_cache_spec, MLAAttentionSpec):
                     # MLA stores a SINGLE concatenated latent KV tensor per
                     # slot (num_kv_heads == 1, head_size == kv_lora_rank +
