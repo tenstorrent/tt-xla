@@ -5,7 +5,9 @@ DP continuation-chunk corruption needs only: dp >= 2, >= 2 rows, and a prompt
 long enough to split into a second chunk. Everything else is incidental, so this
 strips it:
 
-  - facebook/opt-125m instead of Qwen3-0.6B  (~5x fewer layers to trace)
+  - Qwen3-0.6B, NOT opt-125m: opt-125m's baseline output on this prompt is
+    degenerate whitespace, so row-equality is vacuous and proves nothing.
+    The win here comes from the warmup reductions below, not the model.
   - max_model_len=256, chunk=32              (smallest legal value: chunked
                                               prefill needs max_num_blocks_per_req
                                               % 8 == 0, i.e. max_model_len a
@@ -41,12 +43,12 @@ WORD_RE = re.compile(r"[A-Za-z']+")
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     chunk = int(sys.argv[2]) if len(sys.argv) > 2 else 32
-    reps = int(sys.argv[3]) if len(sys.argv) > 3 else 4
+    reps = int(sys.argv[3]) if len(sys.argv) > 3 else 3
 
     prompts = [BASE * reps] * n
 
     llm = vllm.LLM(
-        model="facebook/opt-125m",
+        model="Qwen/Qwen3-0.6B",
         max_num_seqs=n,
         max_model_len=256,
         gpu_memory_utilization=0.1,
