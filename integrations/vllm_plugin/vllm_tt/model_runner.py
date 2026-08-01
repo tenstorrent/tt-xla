@@ -1840,6 +1840,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if fill_page_table is not page_table:
                 fill_page_table[actual_num_reqs:, :] = 0
 
+            # A parked (finished/unscheduled) row's page_table may still point at
+            # blocks the scheduler freed and reassigned to a live request; sending
+            # its decode paged_update_cache write to the null block (as the fill
+            # path above does) keeps it from clobbering that request's KV.
+            if len(zero_sched_rows) > 0:
+                page_table[zero_sched_rows, :] = 0
+
             page_table_dev.copy_(page_table)
             if fill_page_table is page_table:
                 fill_page_table_dev = page_table_dev
