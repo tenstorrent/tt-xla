@@ -971,19 +971,57 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     return tt_pjrt_status::kUnimplemented;
   }
 
-  // Set compute kernel config options if provided
-  if (compile_options.math_fidelity.has_value()) {
-    mlir::tt::ttnn::OptionalMathFidelity math_fidelity;
-    tt_pjrt_status status = CompileOptionsParser::parseMathFidelity(
-        compile_options.math_fidelity.value(), math_fidelity);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return status;
+  // Set compute kernel config options if provided.
+  //
+  // These must go through parseFromString rather than direct assignment:
+  // resolveOptimizationLevelOptions() resets computeCfgMathFidelity /
+  // computeCfgFp32DestAccEn to Undefined/unset whenever optimizationLevel > 0
+  // and getNumOccurrences() == 0. Plain assignment does not bump the
+  // occurrence counter (only cl parsing does), so a frontend override was
+  // silently discarded at every optimization level >= 1.
+  {
+    std::string compute_cfg_opts;
+    if (compile_options.math_fidelity.has_value()) {
+      mlir::tt::ttnn::OptionalMathFidelity math_fidelity;
+      tt_pjrt_status status = CompileOptionsParser::parseMathFidelity(
+          compile_options.math_fidelity.value(), math_fidelity);
+      if (!tt_pjrt_status_is_ok(status)) {
+        return status;
+      }
+      // Names must match the clEnumValN spellings of compute-cfg-math-fidelity.
+      std::string fidelity_name;
+      switch (math_fidelity) {
+      case mlir::tt::ttnn::OptionalMathFidelity::LoFi:
+        fidelity_name = "lofi";
+        break;
+      case mlir::tt::ttnn::OptionalMathFidelity::HiFi2:
+        fidelity_name = "hifi2";
+        break;
+      case mlir::tt::ttnn::OptionalMathFidelity::HiFi3:
+        fidelity_name = "hifi3";
+        break;
+      case mlir::tt::ttnn::OptionalMathFidelity::HiFi4:
+        fidelity_name = "hifi4";
+        break;
+      case mlir::tt::ttnn::OptionalMathFidelity::Undefined:
+        fidelity_name = "undefined";
+        break;
+      }
+      compute_cfg_opts += "compute-cfg-math-fidelity=" + fidelity_name + " ";
     }
-    options.computeCfgMathFidelity = math_fidelity;
-  }
 
-  if (compile_options.fp32_dest_acc_en.has_value()) {
-    options.computeCfgFp32DestAccEn = compile_options.fp32_dest_acc_en.value();
+    if (compile_options.fp32_dest_acc_en.has_value()) {
+      compute_cfg_opts +=
+          std::string("compute-cfg-fp32-dest-acc-en=") +
+          (compile_options.fp32_dest_acc_en.value() ? "true" : "false") + " ";
+    }
+
+    if (!compute_cfg_opts.empty() &&
+        mlir::failed(options.parseFromString(compute_cfg_opts))) {
+      LOG_F(ERROR, "Failed to apply compute kernel config options: '%s'",
+            compute_cfg_opts.c_str());
+      return tt_pjrt_status::kInternal;
+    }
   }
 
   options.enableFusingConv2dWithMultiplyPattern =
