@@ -68,8 +68,7 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -77,8 +76,7 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
@@ -264,8 +262,11 @@ def test_sdxl_lightning(output_file, request):
 
 
 def test_flux2(output_file, request):
-    from benchmarks.flux2_pipeline import Flux2Config, Flux2Pipeline_TT
-
+    from third_party.tt_forge_models.flux2.pytorch.pipeline import (
+        NUM_INFERENCE_STEPS,
+        Flux2Config,
+        Flux2TTPipeline,
+    )
     from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
         HEIGHT,
         PROMPT,
@@ -276,12 +277,12 @@ def test_flux2(output_file, request):
     # tensor-parallel sharded across the mesh's model axis) + replicated VAE.
     # Multichip — wired to the 4-chip blackhole (qb2) in perf-bench-matrix.json.
     prompt = PROMPT
-    num_inference_steps = 50
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = HEIGHT
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = Flux2Pipeline_TT(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2TTPipeline(config=Flux2Config(compile_options=compile_options))
         pipeline.setup()
 
         def generate_fn(prompt, steps):
