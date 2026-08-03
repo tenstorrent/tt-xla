@@ -328,7 +328,7 @@ TP_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, accuracy_testing=False):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
         resolved_display_name
@@ -346,7 +346,7 @@ def _run_vllm_benchmark(config, output_file, request):
         "export_model_name", sanitize_model_name(display_name)
     )
 
-    results = benchmark_vllm(config, display_name)
+    results = benchmark_vllm(config, display_name, accuracy_testing=accuracy_testing)
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -460,13 +460,13 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", TP_CONFIGS)
-def test_vllm_tp_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_tp_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)

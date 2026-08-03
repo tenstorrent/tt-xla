@@ -130,6 +130,7 @@ from .vllm_utils import (
     apply_hidden_layer_override,
     determine_mesh_shape,
     prev_power_of_2,
+    teacher_forced_token,
 )
 
 
@@ -2650,8 +2651,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for i in discard_sampled_tokens_req_indices:
                 valid_sampled_token_ids[i].clear()
 
-            # Append sampled tokens
+            # Append sampled tokens. For accuracy runs, teacher-force the decode
+            # by overriding the sampled token with the reference ground-truth
+            # token (via SamplingParams.extra_args). The override happens after
+            # gather_logprobs above, so `logprobs_lists` still carries the true
+            # device argmax (what accuracy scores), while the next decode input
+            # and recorded output become ground truth. No-op in production.
             for i, req_state, seq_len in request_seq_lens:
+                sampling_params = req_state.sampling_params
+                forced = teacher_forced_token(
+                    sampling_params.extra_args if sampling_params is not None else None,
+                    len(req_state.output_token_ids),
+                )
+                if forced is not None:
+                    valid_sampled_token_ids[i][0] = forced
                 token_id = valid_sampled_token_ids[i][0]
                 self.input_batch.token_ids_cpu[i, seq_len] = token_id
                 req_state.output_token_ids.append(token_id)
@@ -2669,6 +2682,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.input_batch.num_tokens[:num_reqs] += gen_lens
             self.input_batch.num_tokens_no_spec[:num_reqs] += gen_lens
             for i, req_state, seq_len in request_seq_lens:
+                # Teacher forcing is only implemented for the one-token-per-step
+                # path. Accepted draft tokens have already been through the verify
+                # pass, so their KV entries are written; overriding the token ids
+                # here would desync the cache from token_ids_cpu. Warn rather than
+                # assert, so a stray extra_args can never break a decode run.
+                extra_args = (
+                    req_state.sampling_params.extra_args
+                    if req_state.sampling_params is not None
+                    else None
+                )
+                if extra_args is not None and "teacher_forcing_tokens" in extra_args:
+                    logger.warning_once(
+                        "teacher_forcing_tokens is not supported when sampling "
+                        "multiple tokens per step (e.g. speculative decoding)."
+                    )
                 if not valid_sampled_token_ids[i]:
                     continue
                 target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
