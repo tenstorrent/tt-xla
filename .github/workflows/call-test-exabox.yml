@@ -62,7 +62,6 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    # `matrix.build.runs-on` is the hardware to allocate, not a runner label.
     runs-on:
       - exabox-multihost-with-nfs
 
@@ -70,7 +69,7 @@ jobs:
 
     env:
       ALLOCATION_NAME: ci-xla-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      # On the NFS volume shared between this runner and every worker pod.
+      # /ci is a NFS volume shared between orchestrator and every worker pod
       STAGE_DIR: /ci/tt-xla
       RUN_SCRIPT: /ci/run_tests.sh
       TTOP_DIR: /etc/ttop
@@ -151,7 +150,6 @@ jobs:
           echo "SPEC_EOF"
         } >> "$GITHUB_OUTPUT"
 
-    # The ttop chart takes repository and tag separately.
     - name: Parse worker image
       id: worker-image
       shell: bash
@@ -161,8 +159,6 @@ jobs:
         echo "tag=${IMAGE##*:}" >> "$GITHUB_OUTPUT"
 
     - name: Fetch ttop helpers from tt-metal
-      # metal's ttop-* composites resolve ./.github/actions/ttop-await-resource and
-      # .github/scripts/environment-ssh-setup.sh against THIS workspace.
       uses: actions/checkout@v6
       with:
         repository: tenstorrent/tt-metal
@@ -211,10 +207,8 @@ jobs:
         useDevHostMount: "true"
         sharedVolumeEnabled: "true"
         path: /etc/ttop
-        # Default is 300s, too short for a cold pull of the tt-xla base image.
         timeoutSeconds: "1800"
 
-    # Both land in /ci/artifacts, which the install step globs.
     - name: Download tt-xla wheel
       uses: actions/download-artifact@v8
       with:
@@ -359,9 +353,6 @@ jobs:
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
-    # The pytest command is written to a script on the shared volume rather than
-    # inlined into mpirun, so its quoting survives to the remote shell verbatim.
-    # Heredoc bodies sit at the shell block's base indentation on purpose.
     - name: Run tests
       timeout-minutes: 240
       shell: bash

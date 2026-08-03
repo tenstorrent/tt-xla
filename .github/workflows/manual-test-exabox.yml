@@ -1,21 +1,11 @@
 name: Run Test Exabox
 
-# Manual entry point for running tt-xla tests on the exabox Galaxy cluster
-# (Markham) via the ttop orchestration. Mirrors manual-test-single.yml:
-# build the docker image, build the wheel, turn the inputs into a one-entry test
-# matrix, then hand off to call-test-exabox.yml.
-#
-# Tests execute on a single allocated host, so sc1 is the intended target. See the
-# SCOPE note in call-test-exabox.yml for what a larger allocation does (and does
-# not) get you today.
-
 on:
   workflow_dispatch:
     inputs:
       runs_on:
         description: >-
-          Exabox hardware to allocate (sc1 = 1 Galaxy, sc4 = 4-Galaxy quad,
-          sc16 = 16-Galaxy SC16). Tests run on one host regardless.
+          Exabox hardware to allocate (sc1 = 1 Galaxy)
         required: true
         type: choice
         default: 'sc1'
@@ -35,7 +25,7 @@ permissions:
   packages: write
   checks: write
   contents: read
-  id-token: write # the ttop actions mint an OIDC token for kubectl
+  id-token: write
 
 run-name: 'Test exabox ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
 
