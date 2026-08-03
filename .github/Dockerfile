@@ -14,6 +14,11 @@ COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh
 
+# Base image only: it is the one used as the ttop worker image for exabox tests.
+COPY --chown=root:root --chmod=777 .github/scripts/install-exabox-worker.sh /tmp/install-exabox-worker.sh
+RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/install-exabox-worker.sh && \
+    rm /tmp/install-exabox-worker.sh
+
 COPY --chown=root:root --chmod=777 .github/scripts/install-tt-triage.sh /tmp/install-tt-triage.sh
 COPY third_party/CMakeLists.txt third_party/CMakeLists.txt
 RUN /tmp/install-tt-triage.sh || true
