@@ -89,6 +89,24 @@ class TTConfig:
     # Resolved/validated in TTPlatform.check_and_update_config.
     prefill_kv_watermark: float = 0.25
 
+    # Serving telemetry. When True, the scheduler and the v1 model
+    # runner emit JSON-lines telemetry (batch occupancy, prefill/decode pass
+    # split, decode rate, preemption, queue depth, KV/batch utilization) for
+    # offline analysis. Zero-cost when off (a single bool check on the hot path).
+    # No per-step disk I/O: records buffer in memory and flush on an interval /
+    # at request completion / at shutdown. See vllm_tt/telemetry.py.
+    # Override at runtime with env var TTXLA_TELEMETRY (truthy), which takes
+    # precedence over additional_config. Resolved in check_and_update_config.
+    telemetry_enabled: bool = False
+
+    # Directory for telemetry JSON-lines sinks (scheduler.jsonl, runner.jsonl,
+    # runner_snapshot.json). Env override: TTXLA_TELEMETRY_DIR. Default ./tt_telemetry.
+    telemetry_dir: str = "./tt_telemetry"
+
+    # Minimum gap (milliseconds) between telemetry disk flushes. Env override:
+    # TTXLA_TELEMETRY_FLUSH_MS. Default 1000.
+    telemetry_flush_ms: float = 1000.0
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -466,6 +484,40 @@ class TTPlatform(Platform):
                 f"must be in [0, 1); got {wm}."
             )
         additional_config["prefill_kv_watermark"] = wm
+
+        # Written back so the runner (typed TTConfig) and the scheduler (raw
+        # additional_config, separate process) read the same settings.
+        tele_enabled = bool(additional_config.get("telemetry_enabled", False))
+        env_tele = os.environ.get("TTXLA_TELEMETRY")
+        if env_tele is not None:
+            tele_enabled = env_tele.strip().lower() in {"1", "true", "yes", "on"}
+        additional_config["telemetry_enabled"] = tele_enabled
+
+        env_tele_dir = os.environ.get("TTXLA_TELEMETRY_DIR", "").strip()
+        # reset_sinks joins this path, so an empty value would delete
+        # sink-named files from the process CWD.
+        additional_config["telemetry_dir"] = (
+            env_tele_dir
+            or (additional_config.get("telemetry_dir") or "").strip()
+            or TTConfig.telemetry_dir
+        )
+
+        env_tele_flush = os.environ.get("TTXLA_TELEMETRY_FLUSH_MS")
+        if env_tele_flush is not None:
+            try:
+                additional_config["telemetry_flush_ms"] = float(env_tele_flush)
+            except ValueError:
+                # A telemetry knob must never crash the engine.
+                additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+        elif additional_config.get("telemetry_flush_ms") is None:
+            additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+
+        # Must precede every collector: the scheduler's is built after warmup
+        # and the snapshot is never truncated on init.
+        if additional_config["telemetry_enabled"]:
+            from .telemetry import reset_sinks
+
+            reset_sinks(additional_config["telemetry_dir"])
 
         vllm_config.additional_config = additional_config
 
