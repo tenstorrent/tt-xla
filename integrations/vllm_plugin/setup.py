@@ -51,7 +51,7 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.25.1",
+        "vllm==0.26.0",
         "transformers==5.14.1",
     ],
     python_requires=">=3.12, <3.13",

@@ -198,6 +198,40 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     return cfg
 
 
+def _falcon3_7b_instruct_production_config():
+    # Mirrors the real single-chip (p150) production launch config from
+    # ~/scripts/model_servers/launch_falcon3_7b_instruct_uvicorn.sh (which
+    # mirrors workflows/model_specs/dev/cnn.yaml), not the minimal smoke-test
+    # defaults. Kept as the single test we maintain at production settings.
+    cfg = _config(
+        "tiiuae/Falcon3-7B-Instruct",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        # b1-prefill: serve prefills serially (small graph) when <=16 are
+        # pending instead of paying for a wasted-row b32 batch. Needs
+        # min_num_seqs < max_num_seqs (batch_size=32).
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        # Cap prefill graphs at b16 instead of b32 (#5541): cuts prefill-trace
+        # DRAM residency and ~22% off compile time, with no throughput/TTFT
+        # regression measured.
+        max_prefill_num_seqs=16,
+    )
+    # max_num_batched_tokens and enable_chunked_prefill aren't set here: the
+    # plugin derives/overrides both from prefill_chunk_size (platform.py).
+    cfg.max_model_len = 32768
+    # Instruct-tuned: drive via the chat template, matching production evals
+    # (--apply_chat_template).
+    cfg.use_chat_template = True
+    return cfg
+
+
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
@@ -236,6 +270,10 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         _config("tiiuae/Falcon3-7B-Base", experimental_kv_cache_dtype=""),
         id="falcon3-7b-base",
+    ),
+    pytest.param(
+        _falcon3_7b_instruct_production_config(),
+        id="falcon3-7b-instruct-production",
     ),
     # Mistral
     pytest.param(
@@ -290,7 +328,7 @@ TP_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, accuracy_testing=False):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
         resolved_display_name
@@ -308,7 +346,7 @@ def _run_vllm_benchmark(config, output_file, request):
         "export_model_name", sanitize_model_name(display_name)
     )
 
-    results = benchmark_vllm(config, display_name)
+    results = benchmark_vllm(config, display_name, accuracy_testing=accuracy_testing)
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -422,13 +460,13 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", TP_CONFIGS)
-def test_vllm_tp_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_tp_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)

@@ -162,3 +162,27 @@ def apply_hidden_layer_override(
         return original_num_layers, target_num_layers
 
     return None, None
+
+
+def teacher_forced_token(extra_args, num_generated_tokens):
+    """Return the ground-truth token to force at a given decode step.
+
+    Accuracy benchmarks make the decode loop teacher-forced by attaching a
+    reference token sequence to each request via
+    ``SamplingParams.extra_args["teacher_forcing_tokens"]``. At decode step
+    ``num_generated_tokens`` (0-indexed: the count of tokens the request has
+    already emitted), the runner forces the sampled token to the corresponding
+    ground-truth token so the next decode step sees the reference context.
+
+    Returns None when teacher forcing is not requested (production path) or the
+    step is outside the reference window, in which case the sampled token is
+    left unchanged.
+    """
+    if not extra_args:
+        return None
+    tf = extra_args.get("teacher_forcing_tokens")
+    if not tf:
+        return None
+    if 0 <= num_generated_tokens < len(tf):
+        return tf[num_generated_tokens]
+    return None

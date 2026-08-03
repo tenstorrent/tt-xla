@@ -39,6 +39,7 @@ from vllm.v1.kv_cache_interface import (
     KVCacheConfig,
     KVCacheGroupSpec,
 )
+from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.request import Request
 from vllm.v1.structured_output import StructuredOutputManager
 from vllm_tt.scheduler.ascend_scheduler import AscendScheduler
@@ -111,6 +112,18 @@ def _make_request(rid: str, num_tokens: int) -> Request:
         sampling_params=SamplingParams(ignore_eos=True, max_tokens=16),
         pooling_params=None,
         block_hasher=get_request_block_hasher(_BLOCK_SIZE, sha256),
+    )
+
+
+def _fake_model_output(sched_out) -> ModelRunnerOutput:
+    """Stand-in model output: each scheduled request sampled one token."""
+    req_ids = list(sched_out.num_scheduled_tokens.keys())
+    return ModelRunnerOutput(
+        req_ids=req_ids,
+        req_id_to_index={r: i for i, r in enumerate(req_ids)},
+        sampled_token_ids=[[7] for _ in req_ids],
+        logprobs=None,
+        prompt_logprobs_dict={r: None for r in req_ids},
     )
 
 
@@ -195,3 +208,43 @@ def test_chunk_boundary_avoids_single_token_remainder():
         f"step 2: expected {expected_step2} tokens (final chunk), "
         f"got {out2.num_scheduled_tokens['r0']}"
     )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_new_prefill_preempts_decode_then_decode_combines_old_and_new():
+    """When new prompts arrive during decode, prefill is scheduled first;
+    the next decode-only step includes both old and newly-prefilled requests.
+    """
+    chunk = 2 * _BLOCK_SIZE  # 32
+    sched = _make_scheduler(chunk=chunk, max_num_seqs=4)
+
+    # Step 1: two initial requests fully prefill and enter running.
+    sched.add_request(_make_request("old-0", num_tokens=chunk))
+    sched.add_request(_make_request("old-1", num_tokens=chunk))
+    out1 = sched.schedule()
+    sched.update_from_output(out1, _fake_model_output(out1))
+    assert {"old-0", "old-1"}.issubset({r.request_id for r in sched.running})
+
+    # Step 2: no waiting requests -> decode runs for existing running requests.
+    out2 = sched.schedule()
+    assert {"old-0", "old-1"}.issubset(set(out2.num_scheduled_tokens.keys()))
+    sched.update_from_output(out2, _fake_model_output(out2))
+
+    # New prompt arrives while decode is active and there is running capacity.
+    assert len(sched.running) < sched.max_num_running_reqs
+    sched.add_request(_make_request("new-0", num_tokens=chunk))
+
+    # Step 3: prefill-first policy should schedule only the new prefill,
+    # not decode old requests in the same step.
+    out3 = sched.schedule()
+    step3_ids = set(out3.num_scheduled_tokens.keys())
+    assert "new-0" in step3_ids
+    assert "old-0" not in step3_ids and "old-1" not in step3_ids
+    sched.update_from_output(out3, _fake_model_output(out3))
+
+    # Step 4: with no pending prefills, decode resumes and should include
+    # both old and newly-prefilled running requests.
+    out4 = sched.schedule()
+    step4_ids = set(out4.num_scheduled_tokens.keys())
+    assert {"old-0", "old-1", "new-0"}.issubset(step4_ids)
