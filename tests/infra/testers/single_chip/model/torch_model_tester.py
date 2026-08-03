@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import gc
 import os
 import re
 import shutil
@@ -25,56 +26,6 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.config import Parallelism
 
 from .model_tester import ModelTester, RunMode
-
-
-def _clear_runtime_global_tensor_cache() -> None:
-    """Clear the runtime's process-global const-eval GlobalTensorCache.
-
-    The cache is a single singleton living in the shared ``libTTMLIRRuntime.so``
-    that the PJRT plugin links, so clearing it through any binding to that lib
-    frees the same tensors the plugin holds. Used between the flatbuffer
-    reference run and the EmitPy run in ``verify_emitpy`` to avoid the two runs'
-    weights being co-resident (double residency -> OOM on small-DRAM parts).
-
-    Best-effort: prefers a plugin-provided binding, falls back to the tt-mlir
-    ``ttrt`` binding (same singleton via soname), and warns loudly if neither is
-    available so the missing binding is obvious rather than silently skipped.
-    """
-    # 1) Preferred: binding exposed by the PJRT plugin package (shares the
-    #    plugin's exact GlobalTensorCache instance).
-    try:
-        import pjrt_plugin_tt  # type: ignore
-
-        clear = getattr(pjrt_plugin_tt, "clear_global_tensor_cache", None)
-        if callable(clear):
-            clear()
-            logger.info("Cleared runtime GlobalTensorCache (pjrt_plugin_tt).")
-            return
-    except Exception as e:  # pragma: no cover - defensive
-        logger.debug(f"pjrt_plugin_tt cache clear unavailable: {e}")
-
-    # 2) Fallback: tt-mlir ttrt binding. Shares the same libTTMLIRRuntime.so
-    #    singleton (resolved by soname), so this clears the plugin's cache too.
-    try:
-        from ttrt.runtime._ttmlir_runtime.binary import (  # type: ignore
-            GlobalTensorCache,
-        )
-
-        cache = GlobalTensorCache.get_instance()
-        before = cache.size()
-        cache.clear()
-        logger.info(
-            f"Cleared runtime GlobalTensorCache (ttrt): {before} entries evicted."
-        )
-        return
-    except Exception as e:
-        logger.warning(
-            "Could not clear runtime GlobalTensorCache before the EmitPy run "
-            f"({e}). The flatbuffer run's const-eval weights stay resident and "
-            "may cause a DRAM OOM in the EmitPy comparison on small-DRAM parts. "
-            "Expose GlobalTensorCache::clear() from the PJRT plugin "
-            "(pjrt_plugin_tt.clear_global_tensor_cache) to fix this."
-        )
 
 
 @contextmanager
@@ -411,6 +362,34 @@ class TorchModelTester(ModelTester):
         # and only want to report on the backward result
         return backward_result, forward_result
 
+    def _release_device_weights(self) -> None:
+        """Drop the model's on-device weights so the runtime's const-eval cache drains.
+
+        The runtime keeps preprocessed (tilized/relayout/requantized) weights in a
+        process-global const-eval cache. An entry is evicted only when one of the
+        input tensors that produced it is destroyed -- ``GlobalTensorCache::store``
+        registers an on-destroy callback on each input for exactly that purpose.
+        Moving the model off device destroys those tensors, so the cache drains
+        through its intended mechanism; no runtime-internal API is required, which
+        keeps this working in environments that ship only the plugin wheel.
+
+        Safe to call before a subsequent device run: ``DeviceRunner.run_on_device``
+        re-places the workload on every invocation, so the next run still gets a
+        correctly placed model (weight-dtype overrides, weight tying and sharding
+        are all re-applied by ``_safely_put_workload_on_device``).
+
+        Callers use this to avoid two runs' weights being co-resident: without it
+        the reference run's weights stay on device while the next program streams
+        its own copy, doubling peak DRAM and exhausting smaller parts.
+        """
+        model = getattr(self._workload, "model", None)
+        if model is None or not hasattr(model, "to"):
+            return
+        model.to("cpu")
+        # Parameters are freed once the device tensors are unreferenced; collect
+        # so that happens here rather than at an arbitrary later point.
+        gc.collect()
+
     def verify_emitpy(
         self,
         fb_reference,
@@ -480,18 +459,16 @@ class TorchModelTester(ModelTester):
                 self._workload, options={"tt_legacy_compile": True}
             )
 
-            # Free the flatbuffer reference run's const-eval results from the
-            # process-global runtime GlobalTensorCache before the EmitPy run.
-            # The fb run leaves its preprocessed weights on device (retained,
-            # evicted only on input-tensor destroy or explicit clear). The EmitPy
-            # codegen (torch.compile trace happens inside _run_on_tt_device and
-            # needs the on-device model, so we cannot free the model here) then
-            # loads/streams its own weights on top of those retained fb tensors
-            # -> double residency -> OOM on smaller-DRAM parts (e.g. n150), while
-            # p150 masks it. The cache is a single singleton in the shared
-            # libTTMLIRRuntime.so the plugin links, so an explicit clear frees it
-            # without touching the model. See qwen_3/embedding/Embedding_8B.
-            _clear_runtime_global_tensor_cache()
+            # Release the flatbuffer run's on-device weights before the EmitPy
+            # run so its retained const-eval results are evicted. Otherwise both
+            # runs' weights are co-resident and peak DRAM roughly doubles, which
+            # OOMs on smaller parts (n150: ~7 GB retained + ~8.6 GB streamed by
+            # the generated program > 12.85 GB) while larger parts mask it.
+            # See qwen_3/embedding/Embedding_8B, which measured 188 retained
+            # const-eval entries dropping to 6 -- enough DRAM for the EmitPy run
+            # to fit. The residual entries come from inputs other than model
+            # parameters and are released with those inputs.
+            self._release_device_weights()
 
             emitpy_result = self._run_on_tt_device(self._workload)
 
