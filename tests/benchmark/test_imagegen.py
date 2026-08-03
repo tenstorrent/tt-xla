@@ -264,25 +264,25 @@ def test_sdxl_lightning(output_file, request):
 
 
 def test_qwen_image(output_file, request):
-    from benchmarks.qwen_image_pipeline import QwenImageConfig, QwenImagePipeline_TT
-
-    from third_party.tt_forge_models.qwen_image.pytorch.src.model_utils import (
+    from third_party.tt_forge_models.qwen_image.pytorch.pipeline import (
         HEIGHT,
         NUM_INFERENCE_STEPS,
         PROMPT,
         WIDTH,
+        QwenImageConfig,
+        QwenImagePipeline,
     )
 
-    # Qwen-Image: ~7B Qwen2.5-VL text encoder (replicated) + ~20B QwenImage MMDiT
-    # transformer (tensor-parallel sharded across the mesh's model axis) +
-    # replicated VAE. Multichip — wired to the 4-chip blackhole (qb2).
+    # Qwen-Image: ~7B Qwen2.5-VL text encoder and the ~20B QwenImage MMDiT
+    # transformer both tensor-parallel sharded across the mesh's model axis, plus
+    # a replicated VAE. Multichip — wired to the 4-chip blackhole (qb2).
     prompt = PROMPT
     num_inference_steps = NUM_INFERENCE_STEPS
     height = HEIGHT
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = QwenImagePipeline_TT(
+        pipeline = QwenImagePipeline(
             config=QwenImageConfig(compile_options=compile_options)
         )
         pipeline.setup()

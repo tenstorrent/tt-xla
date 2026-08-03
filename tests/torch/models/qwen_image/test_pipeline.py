@@ -48,8 +48,6 @@ from third_party.tt_forge_models.qwen_image.pytorch.src.model_utils import (
     shard_transformer_specs,
 )
 
-from . import skip_on_wormhole
-
 MAX_SEQUENCE_LENGTH = 1024
 PCC_THRESHOLD = 0.99
 
@@ -236,7 +234,7 @@ class QwenImageTTPipeline:
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.large
-@pytest.mark.lb_blackhole
+@pytest.mark.qb2_blackhole
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_name="QwenImage_Pipeline",
@@ -248,7 +246,6 @@ class QwenImageTTPipeline:
 def test_qwen_image_pipeline():
     """Full Qwen-Image pipeline on TT with per-component PCC gating."""
     xr.set_device_type("TT")
-    skip_on_wormhole("pipeline")
     torch.manual_seed(SEED)
 
     pipeline = QwenImageTTPipeline()
