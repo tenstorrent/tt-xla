@@ -7,9 +7,29 @@ SPDX-License-Identifier: Apache-2.0
 
 Two small, dependency-free tools for understanding a TTNN **codegen dump** — the
 per-graph `main.py` / `ttnn.mlir` folders that the emitpy codegen path produces
-(e.g. `qwen_codegen/graph_N/`, `mnist_codegen/graph_0/`). Both read a graph's
+(e.g. `resnet50_codegen/graph_0/`, `qwen_codegen/graph_N/`). Both read a graph's
 `main.py`, enrich it with tensor shapes from the sibling `ttnn.mlir`, and emit a
 single self-contained HTML file (no CDN, works offline and in sandboxed viewers).
+
+## Producing a dump
+
+Any codegen example under `examples/pytorch/codegen/python/` emits one, but the
+tools parse the `forward(input, device)` entrypoint, which `codegen_py` only emits
+when asked:
+
+```python
+codegen_py(model, x, export_path="resnet50_codegen",
+           compiler_options={"target_module": True})
+```
+
+Without `target_module` the dump is the standalone flavor — `_main(activations,
+weights)` plus tensor loaders — and both tools fail with `StopIteration`.
+`TTXLA_CODEGEN_EXPORT_DIR` sets `target_module` itself, so dumps captured that
+way (the vLLM examples, `tests/torch/codegen/`) need nothing extra.
+
+Good starting points: `custom_module.py` for a minimal graph (18 ops),
+`resnet.py` for a conv-heavy one (436 ops), `graph_break.py` for a
+multi-graph dump.
 
 ## Usage
 
@@ -33,8 +53,8 @@ python3 scripts/codegen_trace_graph.py <path>/main.py --no-collapse   # graph: o
   it deallocates. `input[i]` references are annotated with the arg's `ttir.name`
   (weight / kv_cache / constant / activation). Has a live filter box. Pass
   `--no-plumbing` to hide the six plumbing ops and rewire kept ops' inputs through
-  the folded ops (mnist 41 -> 13 rows, qwen 2096 -> 1098); off by default so the
-  table stays a faithful execution trace.
+  the folded ops (resnet50 436 -> 277 rows, qwen 2096 -> 1098); off by default so
+  the table stays a faithful execution trace.
 - **`codegen_trace_graph.py`** — top-down layered dataflow DAG (SVG). Pan (drag),
   zoom (wheel), hover to highlight a node's edges, click to pin its full
   ancestor+descendant lineage, filter by op/var. Reuses `build_trace` from the
@@ -93,8 +113,8 @@ dead-ends we already ruled out).
   when changing the alignment.
 - **Alignment holds only while both traces emit an op the same number of times, and
   that is a property of the graph, not a guarantee.** Verified aligned on the
-  MNIST dump (41 ops) and on all 31 graphs of the vLLM Qwen3-0.6B dump, including
-  the 2203-op prefill graph. Drift is reachable, though: a Qwen3-0.6B prefill graph
+  ResNet-50 dump (436 ops) and on all 31 graphs of the vLLM Qwen3-0.6B dump,
+  including the 2203-op prefill graph. Drift is reachable, though: a Qwen3-0.6B prefill graph
   emitted through plain torch_xla + transformers instead of vLLM had the MLIR
   declaring 174 `reshape` results against 171 calls, 126 `typecast` against 115 and
   30 `where` against 28; the extras are not trailing, so every later occurrence took
@@ -103,12 +123,17 @@ dead-ends we already ruled out).
 - **`ttnn.reshape` carries its literal target dims in `main.py`**, which is the
   cheapest ground truth for checking alignment on a new dump — compare it against
   the resolved shape before trusting a graph the tools have not seen before.
-- **Function calls in `main.py` are not ttnn ops** (`transformer.concatenate_heads`,
+- **Function calls in `main.py` are not ttnn ops** (`consteval_forward` in the
+  ResNet dump; `transformer.concatenate_heads`,
   `transformer.chunked_scaled_dot_product_attention` in the vLLM dump). They have no
   MLIR result and fall back by design; a count mismatch for these is expected.
 - **`NAME_MAP`** bridges name mismatches between the two forms — currently
-  `slice` (main.py) -> `slice_static` (MLIR). Add here when a new op's Python name
-  differs from its MLIR spelling, or alignment silently drifts.
+  `slice` -> `slice_static` and `batch_norm` -> `batch_norm_inference`. Add here
+  when a new op's Python name differs from its MLIR spelling, or alignment
+  silently drifts.
+- **Const-eval hoisting is invisible to the trace.** With it on, ResNet-50 puts 211
+  `main_const_eval_N` helpers and a `consteval_forward` beside `forward`; only
+  `forward` is parsed, so weight preprocessing does not appear as rows or nodes.
 - **`PASSTHROUGH`** (`to_device`, `to_layout`, `to_memory_config`,
   `paged_update_cache`): ops with no MLIR result to align against. They inherit
   their first tensor operand's shape. `paged_update_cache` is void in the MLIR
@@ -120,14 +145,15 @@ dead-ends we already ruled out).
 - Names come from the MLIR arg signature's `ttir.name` + `argument_type<...>`
   attrs; `pretty_arg_name` shortens the torch module path and normalizes
   `kv_cache` names. Kind drives color (parameter / kv_cache / constant / input).
-- **Two export flavors seen, and they differ:**
-  - *Qwen* export carries full metadata — every arg has a `ttir.name` and a real
-    `argument_type` (parameter / constant / kv_cache / input). 310/315 args are
-    well-named; only the 5 genuine runtime inputs are opaque.
-  - *MNIST* export carries **none** — all 9 args are `argument_type<input>` with
-    empty `ttir.name`. So weights are indistinguishable from the real image input
-    except by shape (e.g. `32x1x3x3` = conv1 weight, `4x1x28x28` = the batch).
-    This is a property of how the graph was captured, not a script bug.
+- **Arg metadata depends on how the graph was captured, and can be absent
+  entirely.** The `codegen_py` dumps name everything (ResNet-50 268/268, e.g.
+  `resnet.encoder.stages.3.layers.0.shortcut.normalization.running_var`), and the
+  vLLM Qwen dump names 310/315 — only the 5 genuine runtime inputs are opaque. A
+  graph captured straight through `torch.compile(backend="tt")` can instead give
+  every arg `argument_type<input>` and an empty `ttir.name`, leaving weights
+  distinguishable from activations only by shape. `codegen_py` passes
+  `tt_legacy_compile` for this reason. Empty names are a property of the capture,
+  not a script bug.
 - **Deliberately NOT implemented: role inference for opaque inputs.** The 5 Qwen
   runtime inputs (`argNNN_1` placeholders) have no real name anywhere in the
   source. Their role *is* recoverable by walking to the first non-plumbing
