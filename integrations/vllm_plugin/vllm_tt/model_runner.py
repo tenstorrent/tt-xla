@@ -1638,15 +1638,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+        active_rows = num_scheduled_tokens_per_req > 0
+        num_computed_active = num_computed_for_reqs[active_rows]
+        prefix_chunk_step = (
+            padded_total_num_scheduled_tokens > 1
+            and num_computed_active.size > 0
+            and bool(np.all(num_computed_active > 0))
         )
         chunk_start_idx = None
         if prefix_chunk_step and self._chunked_sdpa_active:
             # Same-stage batching => one shared [1] prefix offset; the op masks
             # causally and applies it internally (no host attn_mask).
             self._chunk_start_idx_dev.copy_(
-                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+                torch.tensor([int(num_computed_active.min())], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
@@ -2614,11 +2618,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, req_id in zip(range(num_reqs), self.input_batch.req_ids):
             assert req_id is not None
             req_state = self.requests[req_id]
-            seq_len = (
-                req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens.get(req_id, 0)
-            )
-            if seq_len >= req_state.num_tokens:
+            num_sched = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            seq_len = req_state.num_computed_tokens + num_sched
+            if num_sched == 0:
+                # Row scheduled no tokens this step, so it produced no real
+                # logits: logits_indices is num_scheduled - 1 == -1, which
+                # gathers the last padded position (zeros) and samples token 0.
+                # Under DP such rows are retained rather than removed, and any
+                # already-prefilled row idles while others finish their prefill
+                # chunks, so without this its bogus token would be appended.
+                discard_sampled_tokens_req_indices.append(i)
+            elif seq_len >= req_state.num_tokens:
                 request_seq_lens.append((i, req_state, seq_len))
             else:
                 # Ignore the sampled token from the partial request.
