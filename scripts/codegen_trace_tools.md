@@ -91,6 +91,21 @@ dead-ends we already ruled out).
   still counts toward `shapes: N/N resolved`, so the header confirms every op got
   *a* shape, not that it came from the MLIR. Check a known op against `ttnn.mlir`
   when changing the alignment.
+- **Alignment holds only while both traces emit an op the same number of times, and
+  that is a property of the graph, not a guarantee.** Verified aligned on the
+  MNIST dump (41 ops) and on all 31 graphs of the vLLM Qwen3-0.6B dump, including
+  the 2203-op prefill graph. Drift is reachable, though: a Qwen3-0.6B prefill graph
+  emitted through plain torch_xla + transformers instead of vLLM had the MLIR
+  declaring 174 `reshape` results against 171 calls, 126 `typecast` against 115 and
+  30 `where` against 28; the extras are not trailing, so every later occurrence took
+  an earlier op's shape and all 171 `reshape` shapes were wrong while the header
+  still read `2123/2124 resolved`.
+- **`ttnn.reshape` carries its literal target dims in `main.py`**, which is the
+  cheapest ground truth for checking alignment on a new dump — compare it against
+  the resolved shape before trusting a graph the tools have not seen before.
+- **Function calls in `main.py` are not ttnn ops** (`transformer.concatenate_heads`,
+  `transformer.chunked_scaled_dot_product_attention` in the vLLM dump). They have no
+  MLIR result and fall back by design; a count mismatch for these is expected.
 - **`NAME_MAP`** bridges name mismatches between the two forms — currently
   `slice` (main.py) -> `slice_static` (MLIR). Add here when a new op's Python name
   differs from its MLIR spelling, or alignment silently drifts.
