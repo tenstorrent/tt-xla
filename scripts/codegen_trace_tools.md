@@ -7,29 +7,41 @@ SPDX-License-Identifier: Apache-2.0
 
 Two small, dependency-free tools for understanding a TTNN **codegen dump** — the
 per-graph `main.py` / `ttnn.mlir` folders that the emitpy codegen path produces
-(e.g. `resnet50_codegen/graph_0/`, `qwen_codegen/graph_N/`). Both read a graph's
+(e.g. `mnist_codegen/graph_0/`, `qwen_codegen/graph_N/`). Both read a graph's
 `main.py`, enrich it with tensor shapes from the sibling `ttnn.mlir`, and emit a
 single self-contained HTML file (no CDN, works offline and in sandboxed viewers).
 
 ## Producing a dump
 
-Any codegen example under `examples/pytorch/codegen/python/` emits one, but the
-tools parse the `forward(input, device)` entrypoint, which `codegen_py` only emits
-when asked:
+Set `TTXLA_CODEGEN_EXPORT_DIR` and run any example that compiles with the TT
+backend. The MNIST CNN gives a 27-op graph — small enough to read end to end,
+with convolutions and a classifier head:
+
+```bash
+TTXLA_CODEGEN_EXPORT_DIR=$PWD/mnist_codegen XLA_HLO_DEBUG=1 \
+    python examples/pytorch/mnist.py
+```
+
+The run exits non-zero on its own `PCC: nan` assertion. That is expected: emit is
+a dry run that returns zero-filled buffers, so the example's CPU comparison cannot
+pass. The dump under `mnist_codegen/graph_0/` is complete. `XLA_HLO_DEBUG=1` is
+what puts source locations in the IRs.
+
+The examples under `examples/pytorch/codegen/python/` call `codegen_py` directly
+and need `target_module`, because the tools parse the `forward(input, device)`
+entrypoint and `codegen_py` emits it only when asked:
 
 ```python
 codegen_py(model, x, export_path="resnet50_codegen",
            compiler_options={"target_module": True})
 ```
 
-Without `target_module` the dump is the standalone flavor — `_main(activations,
-weights)` plus tensor loaders — and both tools fail with `StopIteration`.
-`TTXLA_CODEGEN_EXPORT_DIR` sets `target_module` itself, so dumps captured that
-way (the vLLM examples, `tests/torch/codegen/`) need nothing extra.
+Without it the dump is the standalone `_main(activations, weights)` flavor plus
+tensor loaders, and both tools fail with `StopIteration`. The env var sets
+`target_module` itself, so that route needs nothing extra.
 
-Good starting points: `custom_module.py` for a minimal graph (18 ops),
-`resnet.py` for a conv-heavy one (436 ops), `graph_break.py` for a
-multi-graph dump.
+Other sizes: `custom_module.py` for a minimal graph (18 ops), `resnet.py` for a
+deep one (436 ops), `graph_break.py` for a multi-graph dump.
 
 ## Usage
 
@@ -53,7 +65,7 @@ python3 scripts/codegen_trace_graph.py <path>/main.py --no-collapse   # graph: o
   it deallocates. `input[i]` references are annotated with the arg's `ttir.name`
   (weight / kv_cache / constant / activation). Has a live filter box. Pass
   `--no-plumbing` to hide the six plumbing ops and rewire kept ops' inputs through
-  the folded ops (resnet50 436 -> 277 rows, qwen 2096 -> 1098); off by default so
+  the folded ops (mnist 27 -> 14 rows, qwen 2096 -> 1098); off by default so
   the table stays a faithful execution trace.
 - **`codegen_trace_graph.py`** — top-down layered dataflow DAG (SVG). Pan (drag),
   zoom (wheel), hover to highlight a node's edges, click to pin its full
@@ -113,7 +125,8 @@ dead-ends we already ruled out).
   when changing the alignment.
 - **Alignment holds only while both traces emit an op the same number of times, and
   that is a property of the graph, not a guarantee.** Verified aligned on the
-  ResNet-50 dump (436 ops) and on all 31 graphs of the vLLM Qwen3-0.6B dump,
+  MNIST (27 ops) and ResNet-50 (436 ops) dumps and on all 31 graphs of the vLLM
+  Qwen3-0.6B dump,
   including the 2203-op prefill graph. Drift is reachable, though: a Qwen3-0.6B prefill graph
   emitted through plain torch_xla + transformers instead of vLLM had the MLIR
   declaring 174 `reshape` results against 171 calls, 126 `typecast` against 115 and
@@ -131,9 +144,12 @@ dead-ends we already ruled out).
   `slice` -> `slice_static` and `batch_norm` -> `batch_norm_inference`. Add here
   when a new op's Python name differs from its MLIR spelling, or alignment
   silently drifts.
-- **Const-eval hoisting is invisible to the trace.** With it on, ResNet-50 puts 211
-  `main_const_eval_N` helpers and a `consteval_forward` beside `forward`; only
-  `forward` is parsed, so weight preprocessing does not appear as rows or nodes.
+- **Const-eval hoisting is scoped out, and must stay that way.** It emits
+  `main_const_eval_N` / `cpu_hoisted_const_eval_*` functions *ahead of* `@main` in
+  the MLIR (211 of them for ResNet-50, 6 for MNIST). `main_func_body()` restricts
+  the shape scan to `@main`; without it those results are consumed first and any op
+  appearing in both places draws a weight shape where an activation belongs.
+  The hoisted work is invisible in the trace either way — only `forward` is parsed.
 - **`PASSTHROUGH`** (`to_device`, `to_layout`, `to_memory_config`,
   `paged_update_cache`): ops with no MLIR result to align against. They inherit
   their first tensor operand's shape. `paged_update_cache` is void in the MLIR
@@ -146,14 +162,13 @@ dead-ends we already ruled out).
   attrs; `pretty_arg_name` shortens the torch module path and normalizes
   `kv_cache` names. Kind drives color (parameter / kv_cache / constant / input).
 - **Arg metadata depends on how the graph was captured, and can be absent
-  entirely.** The `codegen_py` dumps name everything (ResNet-50 268/268, e.g.
-  `resnet.encoder.stages.3.layers.0.shortcut.normalization.running_var`), and the
-  vLLM Qwen dump names 310/315 — only the 5 genuine runtime inputs are opaque. A
-  graph captured straight through `torch.compile(backend="tt")` can instead give
-  every arg `argument_type<input>` and an empty `ttir.name`, leaving weights
-  distinguishable from activations only by shape. `codegen_py` passes
-  `tt_legacy_compile` for this reason. Empty names are a property of the capture,
-  not a script bug.
+  entirely.** Dumps from the examples name everything (MNIST 9/9, ResNet-50
+  268/268, e.g. `resnet.encoder.stages.3.layers.0.shortcut.normalization.running_var`);
+  the vLLM Qwen dump names 310/315, leaving only the 5 genuine runtime inputs
+  opaque. A model driven straight as lazy tensors, with no `model.compile(...)`
+  to trace through, instead gives every arg `argument_type<input>` and an empty
+  `ttir.name`, leaving weights distinguishable from activations only by shape.
+  Empty names are a property of the capture, not a script bug.
 - **Deliberately NOT implemented: role inference for opaque inputs.** The 5 Qwen
   runtime inputs (`argNNN_1` placeholders) have no real name anywhere in the
   source. Their role *is* recoverable by walking to the first non-plumbing
