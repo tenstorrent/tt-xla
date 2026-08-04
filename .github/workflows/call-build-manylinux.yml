@@ -73,7 +73,7 @@ jobs:
       - name: Build ttxla  Wheel (manylinux)
         uses: pypa/cibuildwheel@v3.3
         env:
-          CIBW_CONTAINER_ENGINE: "docker; create_args: --pull never"
+          CIBW_CONTAINER_ENGINE: "docker; create_args: --pull missing"
           CIBW_ENVIRONMENT: >-
             CCACHE_REMOTE_ONLY=true
             CCACHE_TEMPDIR=/tmp/ccache
