@@ -31,52 +31,84 @@ import os
 
 from codegen_trace_table import build_trace
 
-
 # op-family -> fill color (aligned with the table's accent colors)
 OP_COLORS = {
-    "matmul": "#0aa77a", "linear": "#0aa77a",
-    "rms_norm": "#c58a1a", "conv2d": "#2d7dd2", "max_pool2d": "#2467b0",
-    "embedding": "#8a2be2", "permute": "#7d8b99", "concat": "#7d8b99",
-    "argmax": "#c0392b", "max": "#c0392b", "sum": "#c0392b",
-    "relu": "#16a085", "silu": "#16a085", "exp": "#1f9e8f", "log": "#1f9e8f",
-    "add": "#4b8b3b", "subtract": "#4b8b3b", "multiply": "#4b8b3b",
-    "sin": "#4b8b3b", "cos": "#4b8b3b",
+    "matmul": "#0aa77a",
+    "linear": "#0aa77a",
+    "rms_norm": "#c58a1a",
+    "conv2d": "#2d7dd2",
+    "max_pool2d": "#2467b0",
+    "embedding": "#8a2be2",
+    "permute": "#7d8b99",
+    "concat": "#7d8b99",
+    "argmax": "#c0392b",
+    "max": "#c0392b",
+    "sum": "#c0392b",
+    "relu": "#16a085",
+    "silu": "#16a085",
+    "exp": "#1f9e8f",
+    "log": "#1f9e8f",
+    "add": "#4b8b3b",
+    "subtract": "#4b8b3b",
+    "multiply": "#4b8b3b",
+    "sin": "#4b8b3b",
+    "cos": "#4b8b3b",
     "paged_scaled_dot_product_attention_decode": "#d35400",
     "paged_update_cache": "#e67e22",
     # plumbing (only shown with --no-collapse)
-    "to_device": "#9aa0a6", "to_layout": "#9aa0a6", "from_device": "#9aa0a6",
-    "to_memory_config": "#9aa0a6", "typecast": "#b0b6bb", "reshape": "#aeb6bd",
+    "to_device": "#9aa0a6",
+    "to_layout": "#9aa0a6",
+    "from_device": "#9aa0a6",
+    "to_memory_config": "#9aa0a6",
+    "typecast": "#b0b6bb",
+    "reshape": "#aeb6bd",
     "slice": "#aeb6bd",
 }
 DEFAULT_COLOR = "#5b6b7b"
 INPUT_COLOR = "#b03a5b"
 
 # ops folded away when --collapse (default). Shape/layout/movement only.
-PLUMBING = {"to_device", "to_layout", "from_device", "to_memory_config",
-            "typecast", "reshape"}
+PLUMBING = {
+    "to_device",
+    "to_layout",
+    "from_device",
+    "to_memory_config",
+    "typecast",
+    "reshape",
+}
 
 # op -> logical stage family (for the background bands)
 FAMILY = {
-    "conv2d": "conv", "max_pool2d": "pool",
-    "linear": "linear", "matmul": "linear",
-    "rms_norm": "norm", "embedding": "embed",
+    "conv2d": "conv",
+    "max_pool2d": "pool",
+    "linear": "linear",
+    "matmul": "linear",
+    "rms_norm": "norm",
+    "embedding": "embed",
     "paged_scaled_dot_product_attention_decode": "attention",
     "paged_update_cache": "attention",
-    "permute": "reshape", "reshape": "reshape", "concat": "reshape",
+    "permute": "reshape",
+    "reshape": "reshape",
+    "concat": "reshape",
     "slice": "reshape",
 }
 BAND_TINT = {
-    "conv": "#e9f1fb", "pool": "#e0eafa", "linear": "#e7f7ef", "norm": "#faf1e0",
-    "attention": "#fdece0", "embed": "#f1eafb", "reshape": "#eef1f3",
+    "conv": "#e9f1fb",
+    "pool": "#e0eafa",
+    "linear": "#e7f7ef",
+    "norm": "#faf1e0",
+    "attention": "#fdece0",
+    "embed": "#f1eafb",
+    "reshape": "#eef1f3",
     "elementwise": "#f5f6f7",
 }
 
-COL_W = 210      # x spacing between depth layers
+COL_W = 210  # x spacing between depth layers
 NODE_W = 178
 NODE_H = 58
-ROW_GAP = 84     # cross-axis spacing for branches at the same depth
-IN_FIRST = NODE_H + 30   # gap from backbone up to the first stacked input
-IN_GAP = NODE_H + 14     # gap between stacked inputs
+ROW_GAP = 84  # cross-axis spacing for branches at the same depth
+IN_FIRST = NODE_H + 30  # gap from backbone up to the first stacked input
+IN_GAP = NODE_H + 14  # gap between stacked inputs
 
 
 def bare_op(op):
@@ -93,31 +125,45 @@ def build_graph(tr, collapse=True):
     arg_info = tr["arg_info"]
     out_set = set(tr["outputs"])
 
-    nodes = {}   # key -> dict
+    nodes = {}  # key -> dict
 
     def ensure_input(key):
         if key in nodes:
             return
         label, kind, shape = key, "input", ""
         if key.startswith("input["):
-            idx = key[key.find("[") + 1:key.find("]")]
+            idx = key[key.find("[") + 1 : key.find("]")]
             if idx.isdigit() and int(idx) < len(arg_info):
                 info = arg_info[int(idx)]
                 label = info["label"] or key
                 kind = info["kind"] or "input"
                 shape = info["shape"]
-        nodes[key] = {"key": key, "bare": "input", "label": label, "kind": kind,
-                      "shape": shape, "is_input": True,
-                      "is_output": False, "preds": []}
+        nodes[key] = {
+            "key": key,
+            "bare": "input",
+            "label": label,
+            "kind": kind,
+            "shape": shape,
+            "is_input": True,
+            "is_output": False,
+            "preds": [],
+        }
 
-    order = []   # compute nodes in program order
+    order = []  # compute nodes in program order
     for step, out, op, inputs, dtype, layout, mem, shape in rows:
         for i in inputs:
             if i.startswith("input["):
                 ensure_input(i)
-        nodes[out] = {"key": out, "bare": bare_op(op), "label": out, "kind": "",
-                      "shape": shape, "is_input": False,
-                      "is_output": out in out_set, "preds": list(inputs)}
+        nodes[out] = {
+            "key": out,
+            "bare": bare_op(op),
+            "label": out,
+            "kind": "",
+            "shape": shape,
+            "is_input": False,
+            "is_output": out in out_set,
+            "preds": list(inputs),
+        }
         order.append(out)
 
     def kept(n):
@@ -127,7 +173,7 @@ def build_graph(tr, collapse=True):
     if collapse:
         real = {}
         input_keys = [k for k in nodes if nodes[k]["is_input"]]
-        for key in input_keys + order:          # sources first, then topo
+        for key in input_keys + order:  # sources first, then topo
             rp = []
             for p in nodes[key]["preds"]:
                 if p not in nodes:
@@ -215,10 +261,16 @@ def build_graph(tr, collapse=True):
             d0, d1 = depths[i], depths[j]
             x0 = d0 * COL_W - 26
             x1 = d1 * COL_W + NODE_W + 26
-            bands.append({
-                "x": x0, "w": x1 - x0, "y": top - 30, "h": (bottom - top) + 60,
-                "label": fam[depths[i]], "tint": BAND_TINT.get(fam[depths[i]], "#f2f3f4"),
-            })
+            bands.append(
+                {
+                    "x": x0,
+                    "w": x1 - x0,
+                    "y": top - 30,
+                    "h": (bottom - top) + 60,
+                    "label": fam[depths[i]],
+                    "tint": BAND_TINT.get(fam[depths[i]], "#f2f3f4"),
+                }
+            )
             i = j + 1
 
     return node_list, edges, bands
@@ -234,14 +286,16 @@ def edge_path(a, b):
     acx, acy = a["x"] + NODE_W / 2, a["y"] + NODE_H / 2
     bcx, bcy = b["x"] + NODE_W / 2, b["y"] + NODE_H / 2
     dx, dy = bcx - acx, bcy - acy
-    if abs(dx) >= abs(dy):                                 # horizontal-ish
+    if abs(dx) >= abs(dy):  # horizontal-ish
         if dx >= 0:
             x1, y1, x2, y2 = a["x"] + NODE_W, acy, b["x"], bcy
         else:
             x1, y1, x2, y2 = a["x"], acy, b["x"] + NODE_W, bcy
         mx = (x1 + x2) / 2
-        return f"M{x1:.0f},{y1:.0f} C{mx:.0f},{y1:.0f} {mx:.0f},{y2:.0f} {x2:.0f},{y2:.0f}"
-    if dy >= 0:                                            # vertical-ish
+        return (
+            f"M{x1:.0f},{y1:.0f} C{mx:.0f},{y1:.0f} {mx:.0f},{y2:.0f} {x2:.0f},{y2:.0f}"
+        )
+    if dy >= 0:  # vertical-ish
         x1, y1, x2, y2 = acx, a["y"] + NODE_H, bcx, b["y"]
     else:
         x1, y1, x2, y2 = acx, a["y"], bcx, b["y"] + NODE_H
@@ -250,7 +304,7 @@ def edge_path(a, b):
 
 
 def trunc(s, n=24):
-    return s if len(s) <= n else s[:n - 1] + "…"
+    return s if len(s) <= n else s[: n - 1] + "…"
 
 
 def render(tr, main_path, out_path, collapse=True, stages=True):
@@ -297,20 +351,22 @@ def render(tr, main_path, out_path, collapse=True, stages=True):
         stroke = "#111" if n["is_output"] else "none"
         node_svg.append(
             f'<g class=node data-id="{n["id"]}" transform="translate({n["x"]:.0f},{n["y"]:.0f})">'
-            f'<title>{title}</title>'
+            f"<title>{title}</title>"
             f'<rect width="{NODE_W}" height="{NODE_H}" rx="7" fill="{color_for(n)}" '
             f'stroke="{stroke}" stroke-width="2.5"/>'
             f'<text class=nop x="10" y="19">{l1}</text>'
             f'<text class=nvar x="10" y="35">{l2}</text>'
             f'<text class=nshape x="10" y="50">{l3}</text>'
-            f'</g>'
+            f"</g>"
         )
 
     op_counts = {}
     for n in nodes:
         if not n["is_input"]:
             op_counts[n["bare"]] = op_counts.get(n["bare"], 0) + 1
-    legend = " · ".join(f"{k}:{v}" for k, v in sorted(op_counts.items(), key=lambda x: -x[1]))
+    legend = " · ".join(
+        f"{k}:{v}" for k, v in sorted(op_counts.items(), key=lambda x: -x[1])
+    )
     mode = "collapsed" if collapse else "full"
     graph_name = os.path.basename(os.path.dirname(os.path.abspath(main_path)))
 
@@ -427,17 +483,27 @@ def main():
     ap.add_argument("path")
     ap.add_argument("-o", "--out")
     ap.add_argument("--mlir")
-    ap.add_argument("--no-collapse", action="store_true",
-                    help="keep plumbing ops (to_device/to_layout/reshape/...) as nodes")
-    ap.add_argument("--no-stages", action="store_true",
-                    help="omit the labeled stage bands")
+    ap.add_argument(
+        "--no-collapse",
+        action="store_true",
+        help="keep plumbing ops (to_device/to_layout/reshape/...) as nodes",
+    )
+    ap.add_argument(
+        "--no-stages", action="store_true", help="omit the labeled stage bands"
+    )
     args = ap.parse_args()
 
     tr = build_trace(args.path, args.mlir)
     out_path = args.out or os.path.join(
-        os.path.dirname(os.path.abspath(args.path)), "graph.html")
-    n, e = render(tr, args.path, out_path,
-                  collapse=not args.no_collapse, stages=not args.no_stages)
+        os.path.dirname(os.path.abspath(args.path)), "graph.html"
+    )
+    n, e = render(
+        tr,
+        args.path,
+        out_path,
+        collapse=not args.no_collapse,
+        stages=not args.no_stages,
+    )
     note = "" if tr["has_shapes"] else "  (no ttnn.mlir -> shapes blank)"
     print(f"wrote {out_path}  ({n} nodes, {e} edges){note}")
 

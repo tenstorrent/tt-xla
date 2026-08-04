@@ -26,7 +26,6 @@ import os
 import re
 from collections import defaultdict
 
-
 # main.py op name -> MLIR op name
 NAME_MAP = {
     "slice": "slice_static",
@@ -36,8 +35,14 @@ NAME_MAP = {
 # ops whose result shape == shape of their first tensor operand (no MLIR result)
 PASSTHROUGH = {"to_device", "to_layout", "to_memory_config", "paged_update_cache"}
 # pure shape/layout/movement ops hidden by --no-plumbing (matches the graph tool)
-PLUMBING = {"to_device", "to_layout", "from_device", "to_memory_config",
-            "typecast", "reshape"}
+PLUMBING = {
+    "to_device",
+    "to_layout",
+    "from_device",
+    "to_memory_config",
+    "typecast",
+    "reshape",
+}
 
 
 def pretty_arg_name(raw):
@@ -49,7 +54,7 @@ def pretty_arg_name(raw):
         km = re.search(r"(kv_cache_\d+)", raw)
         if lm and km:
             return f"layers.{lm.group(1)}.{km.group(1)}"
-    s = re.sub(r"^L__self___(model_)+", "", raw)   # drop L__self___model_model_
+    s = re.sub(r"^L__self___(model_)+", "", raw)  # drop L__self___model_model_
     s = re.sub(r"^model_", "", s)
     return s
 
@@ -73,12 +78,14 @@ def parse_mlir_shapes(path):
             kind = kd.group(1) if kd else ""
             if "kv_cache" in attrs:
                 kind = "kv_cache"
-            arg_info.append({
-                "shape": f"{m.group(1)}·{m.group(2)}",
-                "name": name,
-                "label": pretty_arg_name(name),
-                "kind": kind,
-            })
+            arg_info.append(
+                {
+                    "shape": f"{m.group(1)}·{m.group(2)}",
+                    "name": name,
+                    "label": pretty_arg_name(name),
+                    "kind": kind,
+                }
+            )
 
     op_shapes = defaultdict(list)
     # result-producing ops:  %N = "ttnn.NAME"(...) ... -> tensor<DIMSxDTYPE,
@@ -160,15 +167,19 @@ def build_trace(main_path, mlir_path=None):
       mlir_path, has_shapes, shape_hits, shape_misses
     """
     tree = ast.parse(open(main_path).read())
-    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "forward")
+    fn = next(
+        n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "forward"
+    )
 
     if mlir_path is None:
-        mlir_path = os.path.join(os.path.dirname(os.path.abspath(main_path)), "ttnn.mlir")
+        mlir_path = os.path.join(
+            os.path.dirname(os.path.abspath(main_path)), "ttnn.mlir"
+        )
     arg_info, op_shapes = ([], {})
     if os.path.exists(mlir_path):
         arg_info, op_shapes = parse_mlir_shapes(mlir_path)
-    op_cursor = defaultdict(int)     # mlir_op_name -> next occurrence index to consume
-    var_shapes = {}                  # main.py var -> shape string
+    op_cursor = defaultdict(int)  # mlir_op_name -> next occurrence index to consume
+    var_shapes = {}  # main.py var -> shape string
     shape_hits = shape_misses = 0
 
     def bare_op(op):
@@ -199,7 +210,7 @@ def build_trace(main_path, mlir_path=None):
 
     defined = set()
     rows = []
-    deallocs = {}      # var -> step at which it is freed
+    deallocs = {}  # var -> step at which it is freed
     outputs = []
 
     step = 0
@@ -232,10 +243,15 @@ def build_trace(main_path, mlir_path=None):
         freed_at.setdefault(st, []).append(var)
 
     return {
-        "rows": rows, "arg_info": arg_info, "outputs": outputs,
-        "freed_at": freed_at, "var_shapes": var_shapes, "mlir_path": mlir_path,
+        "rows": rows,
+        "arg_info": arg_info,
+        "outputs": outputs,
+        "freed_at": freed_at,
+        "var_shapes": var_shapes,
+        "mlir_path": mlir_path,
         "has_shapes": bool(op_shapes),
-        "shape_hits": shape_hits, "shape_misses": shape_misses,
+        "shape_hits": shape_hits,
+        "shape_misses": shape_misses,
     }
 
 
@@ -243,12 +259,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("path")
     ap.add_argument("-o", "--out")
-    ap.add_argument("--mlir", help="ttnn.mlir to source tensor shapes from "
-                                   "(default: sibling ttnn.mlir)")
-    ap.add_argument("--no-plumbing", action="store_true",
-                    help="hide plumbing ops (to_device/to_layout/from_device/"
-                         "to_memory_config/typecast/reshape); rewire kept ops' "
-                         "inputs through the folded ops")
+    ap.add_argument(
+        "--mlir",
+        help="ttnn.mlir to source tensor shapes from " "(default: sibling ttnn.mlir)",
+    )
+    ap.add_argument(
+        "--no-plumbing",
+        action="store_true",
+        help="hide plumbing ops (to_device/to_layout/from_device/"
+        "to_memory_config/typecast/reshape); rewire kept ops' "
+        "inputs through the folded ops",
+    )
     args = ap.parse_args()
 
     tr = build_trace(args.path, args.mlir)
@@ -265,11 +286,13 @@ def main():
     # plumbing to the nearest real (non-plumbing) producer var.
     def bare(op):
         return op.rsplit(".", 1)[-1] if op else op
-    producer = {r[1]: r for r in rows}          # out var -> row
+
+    producer = {r[1]: r for r in rows}  # out var -> row
     plumb_vars = {r[1] for r in rows if bare(r[2]) in PLUMBING}
     display = rows
     if args.no_plumbing:
         memo = {}
+
         def kept_srcs(var, seen=None):
             if var in memo:
                 return memo[var]
@@ -279,7 +302,7 @@ def main():
             seen.add(var)
             r = producer.get(var)
             if r is None or bare(r[2]) not in PLUMBING:
-                res = [var]                     # leaf (input[i]) or real producer
+                res = [var]  # leaf (input[i]) or real producer
             else:
                 res = []
                 for inp in r[3]:
@@ -288,6 +311,7 @@ def main():
                             res.append(s)
             memo[var] = res
             return res
+
         display = []
         for step, out, op, inputs, dtype, layout, mem, shape in rows:
             if bare(op) in PLUMBING:
@@ -308,7 +332,8 @@ def main():
         return html.escape(str(x))
 
     parts = []
-    parts.append("""<!doctype html><meta charset=utf-8>
+    parts.append(
+        """<!doctype html><meta charset=utf-8>
 <title>Compute trace</title>
 <style>
  body{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;margin:1rem;color:#111;background:#fff}
@@ -327,27 +352,42 @@ def main():
  .shape{color:#093;white-space:nowrap} .stype{color:#787} .noshape{color:#bbb}
  .t-matmul{color:#0a7} .t-rms_norm{color:#a60} .t-slice,.t-reshape{color:#777}
 </style>
-<h1>Computation trace</h1>""")
-    shape_note = (f' &middot; shapes: {shape_hits}/{len(rows)} resolved'
-                  + (f' ({shape_misses} unknown)' if shape_misses else '')
-                  + f' from {esc(os.path.basename(mlir_path))}'
-                  if op_shapes else ' &middot; no MLIR shapes')
-    op_count_note = (f'{len(display)} ops (of {len(rows)}, plumbing hidden)'
-                     if args.no_plumbing else f'{len(rows)} ops')
-    parts.append(f'<div class=meta>{esc(os.path.abspath(args.path))} &middot; '
-                 f'{op_count_note} &middot; {len(outputs)} outputs{shape_note}<br>'
-                 + " &middot; ".join(f"{esc(k.replace('ttnn.',''))}:{v}"
-                                     for k, v in sorted(op_counts.items(), key=lambda x: -x[1]))
-                 + "</div>")
-    parts.append('<input id=f placeholder="filter rows (op name, var…)" '
-                 'oninput="var q=this.value.toLowerCase();'
-                 "for(var r of document.querySelectorAll('tbody tr'))"
-                 "r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'\">")
-    parts.append("<table><thead><tr>"
-                 "<th>#</th><th>inputs</th><th>op</th><th>layout</th><th>output</th>"
-                 "<th>dims</th><th>type</th>"
-                 "<th>dtype</th><th>mem</th><th>frees</th>"
-                 "</tr></thead><tbody>")
+<h1>Computation trace</h1>"""
+    )
+    shape_note = (
+        f" &middot; shapes: {shape_hits}/{len(rows)} resolved"
+        + (f" ({shape_misses} unknown)" if shape_misses else "")
+        + f" from {esc(os.path.basename(mlir_path))}"
+        if op_shapes
+        else " &middot; no MLIR shapes"
+    )
+    op_count_note = (
+        f"{len(display)} ops (of {len(rows)}, plumbing hidden)"
+        if args.no_plumbing
+        else f"{len(rows)} ops"
+    )
+    parts.append(
+        f"<div class=meta>{esc(os.path.abspath(args.path))} &middot; "
+        f"{op_count_note} &middot; {len(outputs)} outputs{shape_note}<br>"
+        + " &middot; ".join(
+            f"{esc(k.replace('ttnn.',''))}:{v}"
+            for k, v in sorted(op_counts.items(), key=lambda x: -x[1])
+        )
+        + "</div>"
+    )
+    parts.append(
+        '<input id=f placeholder="filter rows (op name, var…)" '
+        'oninput="var q=this.value.toLowerCase();'
+        "for(var r of document.querySelectorAll('tbody tr'))"
+        "r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'\">"
+    )
+    parts.append(
+        "<table><thead><tr>"
+        "<th>#</th><th>inputs</th><th>op</th><th>layout</th><th>output</th>"
+        "<th>dims</th><th>type</th>"
+        "<th>dtype</th><th>mem</th><th>frees</th>"
+        "</tr></thead><tbody>"
+    )
 
     def render_input(i):
         m = re.fullmatch(r"input\[(\d+)\]", i)
@@ -355,24 +395,29 @@ def main():
             info = arg_info[int(m.group(1))]
             label, kind = info["label"], info["kind"]
             title = esc(info["name"] or "") + (f" [{esc(kind)}]" if kind else "")
-            name_html = (f' <span class="argname k-{esc(kind)}">{esc(label)}</span>'
-                         if label else "")
+            name_html = (
+                f' <span class="argname k-{esc(kind)}">{esc(label)}</span>'
+                if label
+                else ""
+            )
             return f'<span class=in title="{title}">{esc(i)}</span>{name_html}'
-        return f'<span class=in>{esc(i)}</span>'
+        return f"<span class=in>{esc(i)}</span>"
 
     for step, out, op, inputs, dtype, layout, mem, shape in display:
         opshort = op.replace("ttnn.", "")
         ins = ", ".join(render_input(i) for i in inputs)
-        frees = ", ".join(f'<span class=free>{esc(v)}</span>'
-                          for v in freed_at.get(step, [])
-                          if not (args.no_plumbing and v in plumb_vars))
+        frees = ", ".join(
+            f"<span class=free>{esc(v)}</span>"
+            for v in freed_at.get(step, [])
+            if not (args.no_plumbing and v in plumb_vars)
+        )
         out_cls = " class=out" if out in out_set else ""
         if shape:
             dims, _, stype = shape.partition("·")
-            dims_html = f'<span class=shape>{esc(dims)}</span>'
-            stype_html = f'<span class=stype>{esc(stype)}</span>'
+            dims_html = f"<span class=shape>{esc(dims)}</span>"
+            stype_html = f"<span class=stype>{esc(stype)}</span>"
         else:
-            dims_html = stype_html = '<span class=noshape>?</span>'
+            dims_html = stype_html = "<span class=noshape>?</span>"
         parts.append(
             f"<tr><td class=num>{step}</td>"
             f"<td>{ins}</td>"
@@ -381,10 +426,13 @@ def main():
             f"<td{out_cls}>{esc(out)}</td>"
             f"<td>{dims_html}</td><td>{stype_html}</td>"
             f"<td>{esc(dtype)}</td>"
-            f"<td>{esc(mem)}</td><td>{frees}</td></tr>")
+            f"<td>{esc(mem)}</td><td>{frees}</td></tr>"
+        )
     parts.append("</tbody></table>")
 
-    out_path = args.out or os.path.join(os.path.dirname(os.path.abspath(args.path)), "trace.html")
+    out_path = args.out or os.path.join(
+        os.path.dirname(os.path.abspath(args.path)), "trace.html"
+    )
     with open(out_path, "w") as f:
         f.write("".join(parts))
     print(f"wrote {out_path}  ({len(rows)} rows)")
