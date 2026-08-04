@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import itertools
+import math
 import os
+from enum import IntEnum
 from typing import List, Optional, Union
 
 import torch
@@ -351,6 +353,188 @@ def composite_gather(
     input, index = builder.mark_inputs(input, index)
     output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
     output = builder.mark_outputs(output)
+    return output
+
+
+################# ttml training composites #################
+
+class AttentionMaskType(IntEnum):
+    """
+    Mask mode for `composite_sdpa_fw`.
+
+    Mirrors `ttcore::AttentionMaskType` in tt-mlir (and `ttml::metal::
+    AttentionMaskType` behind it); the values are what the composite passes
+    through as the `mask_type` attribute, so they must stay in sync.
+    """
+
+    NONE = 0
+    CAUSAL = 1
+    ARBITRARY = 2
+
+
+def composite_sdpa_fw(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attention_mask: Optional[Tensor] = None,
+    mask_type: AttentionMaskType = AttentionMaskType.CAUSAL,
+    return_intermediates: bool = False,
+) -> Union[Tensor, tuple[Tensor, Tensor]]:
+    """
+    Creates the composite for the fused ttml SDPA forward pass
+    (`tenstorrent.sdpa_fw` -> `ttir.sdpa_fw` -> `ttml::metal::sdpa_fw`).
+
+    This is the training-oriented SDPA: it optionally also returns the per-row
+    log-sum-exp intermediates that the backward pass consumes. It is a separate
+    op from `composite_scaled_dot_product_attention` (which lowers to the
+    inference `ttnn.scaled_dot_product_attention`), and it has a stricter
+    contract:
+      - query is [B, Hq, S, D], key is [B, Hkv, S, D], value is [B, Hkv, S, Dv];
+        Hq must be a positive multiple of Hkv (GQA).
+      - the scale is a fixed 1/sqrt(D) folded into the kernel, so there is no
+        `scale` argument.
+      - `attention_mask` is [1, 1, S, S] additive, and is present iff
+        `mask_type` is ARBITRARY.
+      - dropout is not supported (the attribute is always 0.0).
+
+    Args:
+        query: [B, Hq, S, D] queries.
+        key: [B, Hkv, S, D] keys.
+        value: [B, Hkv, S, Dv] values.
+        attention_mask: [1, 1, S, S] additive mask, only for ARBITRARY.
+        mask_type: NONE, CAUSAL (default) or ARBITRARY.
+        return_intermediates: also return the [B, Hq, S, 32] fp32 log-sum-exp.
+
+    Returns:
+        The [B, Hq, S, Dv] attention output, or a (output, intermediates) tuple
+        when `return_intermediates` is set.
+    """
+    mask_type = AttentionMaskType(mask_type)
+
+    # tt-mlir rejects the composite (rather than falling back) when the mask
+    # operand and the mask type disagree, so fail here with a clearer message.
+    if (mask_type == AttentionMaskType.ARBITRARY) != (attention_mask is not None):
+        raise ValueError(
+            "composite_sdpa_fw: attention_mask must be provided iff mask_type is "
+            f"ARBITRARY (got mask_type={mask_type.name}, "
+            f"attention_mask={'set' if attention_mask is not None else 'None'})."
+        )
+
+    attr = {
+        # int() because torch_xla's composite attr validation type-checks
+        # exactly against int, which an IntEnum instance is not.
+        "mask_type": int(mask_type),
+        "dropout_probability": 0.0,
+    }
+
+    builder = _make_composite_builder(name="tenstorrent.sdpa_fw", attr=attr)
+
+    if attention_mask is not None:
+        query, key, value, attention_mask = builder.mark_inputs(
+            query, key, value, attention_mask
+        )
+    else:
+        query, key, value = builder.mark_inputs(query, key, value)
+
+    num_query_heads, num_kv_heads = query.shape[1], key.shape[1]
+    enable_gqa = num_query_heads != num_kv_heads
+
+    if mask_type == AttentionMaskType.CAUSAL:
+        seq_len = query.shape[-2]
+        attn_bias = torch.triu(
+            torch.full(
+                (seq_len, seq_len),
+                float("-inf"),
+                dtype=query.dtype,
+                device=query.device,
+            ),
+            diagonal=1,
+        )
+    else:
+        attn_bias = attention_mask
+
+    output = torch.nn.functional.scaled_dot_product_attention(
+        query,
+        key,
+        value,
+        attn_mask=attn_bias,
+        is_causal=False,
+        enable_gqa=enable_gqa,
+    )
+
+    if not return_intermediates:
+        return builder.mark_outputs(output)
+
+    # ttml stores the log-sum-exp of the masked, scaled scores as one fp32 tile
+    # per row, i.e. the value broadcast across 32 columns. Recompute the scores
+    # here since torch's SDPA does not expose them.
+    keys = (
+        torch.repeat_interleave(key, num_query_heads // num_kv_heads, dim=1)
+        if enable_gqa
+        else key
+    )
+    scores = torch.matmul(query.float(), keys.float().transpose(-2, -1)) * (
+        1.0 / math.sqrt(query.shape[-1])
+    )
+    if mask_type == AttentionMaskType.CAUSAL:
+        seq_len_q, seq_len_k = scores.shape[-2], scores.shape[-1]
+        scores = scores + torch.triu(
+            torch.full(
+                (seq_len_q, seq_len_k),
+                float("-inf"),
+                dtype=scores.dtype,
+                device=scores.device,
+            ),
+            diagonal=1,
+        )
+    elif mask_type == AttentionMaskType.ARBITRARY:
+        scores = scores + attention_mask.float()
+
+    log_sum_exp = torch.logsumexp(scores, dim=-1, keepdim=True)
+    intermediates = torch.broadcast_to(
+        log_sum_exp, (*log_sum_exp.shape[:-1], 32)
+    ).contiguous()
+
+    output, intermediates = builder.mark_outputs(output, intermediates)
+    return output, intermediates
+
+
+def composite_cross_entropy_fw(input: Tensor, target: Tensor) -> Tensor:
+    """
+    Creates the composite for the fused ttml cross entropy forward pass
+    (`tenstorrent.cross_entropy_fw` -> `ttir.cross_entropy_fw` ->
+    `ttml::metal::cross_entropy_fw`).
+
+    The op applies no reduction across rows: it returns one loss value per row,
+    so a mean or sum over the batch is a separate op. Its shape contract is
+    fixed by the kernel:
+      - `input` is [N, 1, H, W] logits, where W is the number of classes.
+      - `target` is [N, H] integer class indices into `input`'s last dimension.
+      - the result is [N, 1, H, 1].
+
+    Args:
+        input: [N, 1, H, W] logits.
+        target: [N, H] class indices (integer dtype).
+
+    Returns:
+        The [N, 1, H, 1] per-row loss.
+    """
+    builder = _make_composite_builder(name="tenstorrent.cross_entropy_fw")
+
+    input, target = builder.mark_inputs(input, target)
+
+    # F.cross_entropy wants the class dimension at 1; ours is last. Flattening
+    # to (N * H, W) against (N * H,) avoids a transpose.
+    batch_size, _, num_rows, num_classes = input.shape
+    loss = torch.nn.functional.cross_entropy(
+        input.reshape(-1, num_classes),
+        target.reshape(-1).long(),
+        reduction="none",
+    )
+    output = loss.reshape(batch_size, 1, num_rows, 1).to(input.dtype)
+
+    output = builder.mark_outputs(output)
+
     return output
 
 
