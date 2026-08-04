@@ -908,6 +908,20 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "wan14b_e2e_480p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_e2e[14b-480p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "wan14b_e2e_720p_sharded",
+        "pytest": "tests/benchmark/test_wan.py::test_wan_e2e[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }

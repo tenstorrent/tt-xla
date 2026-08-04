@@ -37,6 +37,10 @@ import pytest
 import torch
 import torch_xla.distributed.spmd as xs
 from benchmarks.video_gen_benchmark import benchmark_video_gen_torch_xla
+from benchmarks.video_gen_pipeline_benchmark import (
+    benchmark_video_gen_pipeline_torch_xla,
+)
+from benchmarks.wan_pipeline import WanI2VConfig, build_wan_i2v_pipeline
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -71,6 +75,22 @@ TEXT_SEQ_LEN = 512  # UMT5 output / DiT cross-attention sequence length
 TEXT_EMBED_DIM = 4096  # UMT5 hidden size
 DENOISE_TIMESTEP = 500.0  # arbitrary mid-schedule step for a single forward
 DIT_MAX_BLOCKS = 0  # 0 = run the full transformer (30 blocks 5B / 40 blocks A14B)
+
+# --- End-to-end (full pipeline) benchmark settings ---
+# Denoising steps for the steady-state e2e pass. Lower than the 40 the Wan repo
+# uses for final quality: this measures latency, not output quality, and each
+# step is a full 14B DiT forward (x2 for CFG), so 40 would dominate CI time.
+E2E_NUM_STEPS = 8
+E2E_PROMPT = (
+    "A cinematic shot of a small wooden sailboat crossing a calm bay at sunset, "
+    "gentle waves, warm golden light"
+)
+E2E_NEGATIVE_PROMPT = (
+    "blurry, low quality, distorted, watermark, text, static, overexposed"
+)
+# CFG scales for the high-noise and low-noise experts respectively.
+E2E_GUIDANCE_SCALE = 3.5
+E2E_GUIDANCE_SCALE_2 = 3.5
 
 # (resolution, sharded) variants, with clean node-ids for matrix references,
 # e.g. tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]
@@ -403,6 +423,60 @@ def benchmark_dit(family, resolution, sharded, output_file, request):
     )
 
 
+def benchmark_e2e(family, resolution, sharded, output_file, request):
+    """Full image-to-video pipeline: text encode -> denoise loop -> VAE decode.
+
+    Reports one row per run with ``model_info_name`` ending in ``-E2E``. That
+    suffix is load-bearing: the Forge dashboard's model-performance page selects
+    its E2E series by matching ``/e2e|end[_ -]?to[_ -]?end/i`` against
+    ``ml_model_name`` + ``display_name``, so renaming it silently empties that
+    chart.
+
+    Unlike the per-component benchmarks this does not check PCC — there is no
+    practical CPU golden for a full 14B multi-step generation. It is a latency
+    measurement; per-component correctness is covered by the component
+    benchmarks and the functional tests.
+    """
+    shared = family.shared
+    torch.manual_seed(SEED)
+
+    config = WanI2VConfig(
+        shared=shared,
+        resolution=resolution,
+        prompt=E2E_PROMPT,
+        negative_prompt=E2E_NEGATIVE_PROMPT,
+        guidance_scale=E2E_GUIDANCE_SCALE,
+        guidance_scale_2=E2E_GUIDANCE_SCALE_2,
+        sharded=sharded,
+        dit_patches=family.dit_patches,
+        dit_run_context=family.dit_override_disabled,
+        vae_run_context=family.safe_xla_slicing,
+    )
+
+    model_info_name = f"{family.name_prefix}-E2E"
+    display_name = resolve_display_name(request=request, fallback=model_info_name)
+    shapes = shared.RESOLUTIONS[resolution]
+
+    results = benchmark_video_gen_pipeline_torch_xla(
+        build_pipeline_fn=build_wan_i2v_pipeline(config),
+        model_info_name=model_info_name,
+        display_name=display_name,
+        prompt=E2E_PROMPT,
+        num_inference_steps=E2E_NUM_STEPS,
+        # The DiT config drives the denoise loop, which dominates e2e time.
+        compiler_config=family.dit_config,
+        ttnn_perf_metrics_output_file=f"tt_xla_{display_name}_perf_metrics",
+        frame_shape=(3, shapes["video_h"], shapes["video_w"]),
+    )
+
+    if output_file:
+        results["project"] = "tt-forge/tt-xla"
+        results["model_rawname"] = model_info_name
+        aggregate_ttnn_perf_metrics(f"tt_xla_{display_name}_perf_metrics", results)
+        with open(output_file, "w") as file:
+            json.dump(results, file, indent=2)
+
+
 # ---------------------------------------------------------------------------
 # Family manifests + discoverable test functions
 # ---------------------------------------------------------------------------
@@ -441,6 +515,17 @@ FAMILIES = [_FAMILY_5B, _FAMILY_14B]
 # once — on A14B — to avoid a redundant duplicate run.
 UMT5_FAMILIES = [_FAMILY_14B]
 
+# E2E runs only on A14B: it is the I2V model the dashboard tracks, and its
+# two-expert schedule is what the pipeline-level benchmark exercises.
+E2E_FAMILIES = [_FAMILY_14B]
+
+# E2E holds both 14B experts resident simultaneously, so only the sharded
+# variants are viable — unsharded would not fit.
+E2E_VARIANTS = [
+    pytest.param("480p", True, id="480p-sharded"),
+    pytest.param("720p", True, id="720p-sharded"),
+]
+
 
 # UMT5 output is resolution-independent, so only the sharding axis is varied.
 @pytest.mark.parametrize("sharded", SHARDING_VARIANTS)
@@ -465,3 +550,9 @@ def test_wan_vae_decoder(family, resolution, sharded, output_file, request):
 @pytest.mark.parametrize("family", FAMILIES)
 def test_wan_dit(family, resolution, sharded, output_file, request):
     benchmark_dit(family, resolution, sharded, output_file, request)
+
+
+@pytest.mark.parametrize("resolution,sharded", E2E_VARIANTS)
+@pytest.mark.parametrize("family", E2E_FAMILIES)
+def test_wan_e2e(family, resolution, sharded, output_file, request):
+    benchmark_e2e(family, resolution, sharded, output_file, request)
