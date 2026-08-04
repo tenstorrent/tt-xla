@@ -58,6 +58,52 @@ logger = tt_init_logger(__name__)
 _R = TypeVar("_R")
 
 
+def sliding_ring_reserve_for_spec(
+    kv_cache_spec: dict[str, KVCacheSpec],
+    max_num_reqs: int,
+    max_model_len: int,
+    hybrid_kv_cache_disabled: bool,
+) -> tuple[int, int]:
+    """Bytes to reserve for sliding-window rings, and how many layers pay them.
+
+    Every layer gets its own tensor (no byte-overlay on TT), so the rings are
+    carved out of the KV budget to keep pool + rings within it.
+
+    Reserve against the spec vLLM will actually group on, not the one we were
+    handed: when the hybrid manager is disabled it first runs
+    ``unify_hybrid_kv_cache_specs()``, which rewrites SlidingWindowSpec to
+    FullAttentionSpec so the runner allocates no rings and reserving for them
+    would strand the bytes. Running vLLM's own function over a copy keeps the two
+    in agreement by construction, including the case it deliberately leaves
+    alone: an all-sliding (uniform) model keeps its SlidingWindowSpecs, so its
+    rings are real and must still be reserved -- which is why this cannot just
+    skip the reservation whenever the flag is set.
+
+    NOTE: under pipeline parallelism this worker's spec is a subset of the merged
+    spec vLLM unifies, so a stage holding only sliding layers can still disagree
+    with the global decision.
+    """
+    effective_spec = dict(kv_cache_spec)
+    if hybrid_kv_cache_disabled:
+        unify_hybrid_kv_cache_specs(effective_spec)
+    sliding_reserve = 0
+    num_sliding = 0
+    for layer_spec in effective_spec.values():
+        if isinstance(layer_spec, SlidingWindowSpec):
+            # Same helpers the model runner sizes the rings with, so the
+            # reservation here cannot drift from what it later allocates.
+            window_blocks = sliding_window_blocks(
+                layer_spec.sliding_window,
+                layer_spec.block_size,
+                max_model_len,
+            )
+            sliding_reserve += sliding_ring_reserve_bytes(
+                window_blocks, max_num_reqs, layer_spec.page_size_bytes
+            )
+            num_sliding += 1
+    return sliding_reserve, num_sliding
+
+
 class TTWorker:
     def __init__(
         self,
@@ -341,41 +387,13 @@ class TTWorker:
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
             kv_cache_bytes = kv_cache_bytes * head_size // padded_head_size
-        # Reserve physical bytes for sliding-window layers' small ring buffers.
-        # Every layer gets its own tensor (no byte-overlay on TT), so carving the
-        # rings out here keeps the full-attention pool + rings within the budget.
-        #
-        # Reserve against the spec vLLM will actually group on, not the one we
-        # were handed: when the hybrid manager is disabled it first runs
-        # unify_hybrid_kv_cache_specs(), which rewrites SlidingWindowSpec to
-        # FullAttentionSpec so the runner allocates no rings at all -- reserving
-        # for them would strand the bytes (6.27 GiB of a 25.50 GiB budget for
-        # gemma-4-31B at max_model_len=128). Running vLLM's own function on a
-        # copy keeps the two in agreement by construction, including the case it
-        # deliberately leaves alone: an all-sliding (uniform) model keeps its
-        # SlidingWindowSpecs, so the rings are real and must still be reserved.
-        # NOTE: under pipeline parallelism this worker's spec is a subset of the
-        # merged spec vLLM unifies, so a stage holding only sliding layers can
-        # still disagree with the global decision.
-        effective_spec = dict(kv_cache_spec)
-        if self.scheduler_config.disable_hybrid_kv_cache_manager:
-            unify_hybrid_kv_cache_specs(effective_spec)
         max_num_reqs = self.model_runner.max_num_reqs
-        sliding_reserve = 0
-        num_sliding = 0
-        for layer_spec in effective_spec.values():
-            if isinstance(layer_spec, SlidingWindowSpec):
-                # Same helpers the model runner sizes the rings with, so the
-                # reservation here cannot drift from what it later allocates.
-                window_blocks = sliding_window_blocks(
-                    layer_spec.sliding_window,
-                    layer_spec.block_size,
-                    self.model_runner.max_model_len,
-                )
-                sliding_reserve += sliding_ring_reserve_bytes(
-                    window_blocks, max_num_reqs, layer_spec.page_size_bytes
-                )
-                num_sliding += 1
+        sliding_reserve, num_sliding = sliding_ring_reserve_for_spec(
+            kv_cache_spec,
+            max_num_reqs,
+            self.model_runner.max_model_len,
+            bool(self.scheduler_config.disable_hybrid_kv_cache_manager),
+        )
         if sliding_reserve > 0:
             logger.info(
                 "Reserving %.3f GiB for %d sliding-window per-user rings "
