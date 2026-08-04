@@ -130,6 +130,10 @@ jobs:
           third_party/pjrt_c_api/
           pytest.ini
           python_package/requirements.txt
+          # THROWAWAY PROBE - do not merge. venv/activate points UV_OVERRIDE here,
+          # so the test job's sparse checkout must include it or every uv command
+          # fails with "File not found".
+          python_package/uv-overrides-probe.txt
           integrations/vllm_plugin/requirements-vllm-plugin.txt
           tests/
           venv/
