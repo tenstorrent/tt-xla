@@ -15,7 +15,7 @@ on:
 jobs:
   build-and-test-ttxla:
     timeout-minutes: 120
-    runs-on: builder
+    runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla (debug)"
     container:
       image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}

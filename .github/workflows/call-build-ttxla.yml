@@ -35,7 +35,7 @@ on:
 jobs:
   build-ttxla:
     timeout-minutes: 120
-    runs-on: builder
+    runs-on: tt-ubuntu-2204-large-stable
     name: "Build tt-xla (${{ inputs.build_type }})"
     container:
       image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
