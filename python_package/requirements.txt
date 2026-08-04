@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-jax==0.7.1
-jaxlib==0.7.1
+jax==0.11.0
+jaxlib==0.11.0
 requests
 torch@https://download.pytorch.org/whl/cpu/torch-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru

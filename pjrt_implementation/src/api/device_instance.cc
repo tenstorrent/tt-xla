@@ -41,6 +41,7 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
   api->PJRT_Device_AddressableMemories = internal::onDeviceAddressableMemories;
   api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
+  api->PJRT_Device_GetAttributes = internal::onDeviceGetAttributes;
 }
 
 namespace internal {
@@ -92,6 +93,29 @@ PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
 
   args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());
+
+  return nullptr;
+};
+
+PJRT_Error *onDeviceGetAttributes(PJRT_Device_GetAttributes_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetAttributes");
+
+  // TT devices expose no additional key-value attributes, so we report an empty
+  // set. This must return success (nullptr): jaxlib's PjRtCApiDevice attribute
+  // initialization treats any error here as fatal, so returning an unimplemented
+  // status aborts client creation.
+  args->attributes = nullptr;
+  args->num_attributes = 0;
+
+  // Since minor 114 the caller also expects `device_attributes` (the opaque
+  // backing storage for `attributes`) together with a non-null
+  // `attributes_deleter` that it invokes to free that storage. We own no
+  // backing storage for an empty attribute set, so we hand back a null backing
+  // pointer and a deleter that has nothing to free. The deleter must still be
+  // non-null: jaxlib CHECK-fails otherwise.
+  args->device_attributes = nullptr;
+  args->attributes_deleter = +[](PJRT_Device_Attributes *) {};
 
   return nullptr;
 };
