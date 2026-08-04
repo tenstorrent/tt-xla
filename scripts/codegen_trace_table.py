@@ -40,6 +40,7 @@ def load_template(name):
 # main.py op name -> MLIR op name
 NAME_MAP = {
     "slice": "slice_static",
+    "batch_norm": "batch_norm_inference",
     "paged_scaled_dot_product_attention_decode": "paged_scaled_dot_product_attention_decode",
     "paged_update_cache": "paged_update_cache",
 }
