@@ -11,6 +11,7 @@ these tests pin the decision boundary and the cases it must leave alone.
 Pure config manipulation -- no device, no engine.
 """
 
+import inspect
 import types
 
 import pytest
@@ -52,7 +53,7 @@ def _gate(
 @pytest.mark.parametrize(
     "max_model_len,expect_disabled",
     [
-        (128, True),  # ring 8 vs full 4 -- the reported regression
+        (128, True),  # ring 8 vs full 4
         (512, True),  # ring 24 vs full 16
         (1024, True),  # ring 40 vs full 32 -- window == max_model_len
         (2048, False),  # ring 40 vs full 64 -- window finally clips
@@ -121,17 +122,19 @@ class TestSlidingWindowAdmissionBound:
         )
 
     @staticmethod
-    def _publish(chunk, enabled=True):
+    def _publish(chunk, enabled=True, concurrent_batches=1):
         from vllm_tt.platform import publish_tt_per_request_prefill_chunk
 
         publish_tt_per_request_prefill_chunk(
             types.SimpleNamespace(
-                tt_chunked_prefill_enabled=enabled, tt_prefill_chunk_size=chunk
+                scheduler_config=types.SimpleNamespace(
+                    tt_chunked_prefill_enabled=enabled, tt_prefill_chunk_size=chunk
+                ),
+                max_concurrent_batches=concurrent_batches,
             )
         )
 
     def test_clamps_to_the_per_request_chunk(self):
-        """gemma-4-31B at max_model_len=65536, chunk 1024, batch 32."""
         import vllm_tt.platform as platform_mod
 
         spec = self._spec()
@@ -139,7 +142,7 @@ class TestSlidingWindowAdmissionBound:
         try:
             self._publish(1024)
             clamped = spec.max_admission_blocks_per_request(
-                max_num_batched_tokens=1024 * 32, max_model_len=65536
+                max_in_flight_tokens=1024 * 32, max_model_len=65536
             )
             # cdiv(1023 + 1024, 32) + 1, not cdiv(1023 + 32768, 32) + 1 = 1057
             assert clamped == 65
@@ -154,7 +157,7 @@ class TestSlidingWindowAdmissionBound:
         self._publish(0, enabled=False)
         assert (
             spec.max_admission_blocks_per_request(
-                max_num_batched_tokens=1024 * 32, max_model_len=65536
+                max_in_flight_tokens=1024 * 32, max_model_len=65536
             )
             == 1057
         )
@@ -168,12 +171,12 @@ class TestSlidingWindowAdmissionBound:
         try:
             self._publish(0, enabled=False)
             unclamped = spec.max_admission_blocks_per_request(
-                max_num_batched_tokens=4096, max_model_len=65536
+                max_in_flight_tokens=4096, max_model_len=65536
             )
             self._publish(1 << 20)  # chunk far above the budget
             assert (
                 spec.max_admission_blocks_per_request(
-                    max_num_batched_tokens=4096, max_model_len=65536
+                    max_in_flight_tokens=4096, max_model_len=65536
                 )
                 == unclamped
             )
@@ -191,9 +194,55 @@ class TestSlidingWindowAdmissionBound:
             self._publish(1024)
             assert (
                 spec.max_admission_blocks_per_request(
-                    max_num_batched_tokens=1024 * 32, max_model_len=65536
+                    max_in_flight_tokens=1024 * 32, max_model_len=65536
                 )
                 == 65
             )
         finally:
             self._publish(0, enabled=False)
+
+
+def test_gate_reads_config_attributes_that_still_exist_upstream():
+    """The gate tests above use a stand-in config, which cannot notice a rename.
+
+    vLLM 0.26 renamed ``max_num_batched_tokens`` to ``max_in_flight_tokens`` on
+    the admission bound and that only surfaced in a benchmark run, so pin the
+    names the gate reads against the real classes. ``original_max_model_len`` is
+    assigned in ModelConfig.__post_init__ rather than declared, so check the
+    source of truth for each name separately.
+    """
+    from dataclasses import fields
+
+    from vllm.config import CacheConfig, ModelConfig, SchedulerConfig, VllmConfig
+
+    assert hasattr(ModelConfig, "get_sliding_window")
+    assert "max_model_len" in {f.name for f in fields(ModelConfig)}
+    assert "block_size" in {f.name for f in fields(CacheConfig)}
+    assert "disable_hybrid_kv_cache_manager" in {
+        f.name for f in fields(SchedulerConfig)
+    }
+    # Read by publish_tt_per_request_prefill_chunk for the in-flight multiplier.
+    assert hasattr(VllmConfig, "max_concurrent_batches")
+    # Not a declared field: set in ModelConfig.__post_init__.
+    assert "original_max_model_len" in inspect.getsource(ModelConfig.__post_init__)
+
+
+def test_publish_carries_the_in_flight_multiplier():
+    """vLLM's bound is max_concurrent_batches x max_num_batched_tokens, so the
+    per-request analogue must carry the same multiplier -- assuming 1 would
+    under-charge silently if PP or async scheduling is ever enabled."""
+    import vllm_tt.platform as platform_mod
+
+    spec = TestSlidingWindowAdmissionBound._spec()
+    platform_mod.install_tt_sliding_window_admission()
+    try:
+        TestSlidingWindowAdmissionBound._publish(1024, concurrent_batches=2)
+        # cdiv(1023 + 2*1024, 32) + 1, not the single-batch cdiv(1023+1024,32)+1
+        assert (
+            spec.max_admission_blocks_per_request(
+                max_in_flight_tokens=1024 * 32, max_model_len=65536
+            )
+            == 97
+        )
+    finally:
+        TestSlidingWindowAdmissionBound._publish(0, enabled=False)
