@@ -8,8 +8,10 @@
 // c++ standard library includes
 #include <algorithm>
 #include <cstdlib>
+#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tt::pjrt {
 
@@ -122,6 +124,8 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  options.mesh_shape_override =
+      internal::parseUInt32VectorOption(compile_options, mesh_shape_key);
   // Codegen lays out one graph_N directory per graph and matches graphs on load
   // by hash, so a model label has no role there and would only add a confusing
   // prefix to the emitted files. Clear it for every codegen backend; only the
@@ -210,6 +214,43 @@ std::optional<int> parseIntOption(
     }
   }
   return std::nullopt;
+}
+
+std::optional<std::vector<uint32_t>> parseUInt32VectorOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::string &option_name) {
+  auto it = compile_options.find(option_name);
+  if (it == compile_options.end() || it->second.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<uint32_t> values;
+  std::stringstream stream(it->second);
+  std::string component;
+  while (std::getline(stream, component, ',')) {
+    // Trim surrounding whitespace so "2, 4" parses the same as "2,4".
+    size_t begin = component.find_first_not_of(" \t");
+    size_t end = component.find_last_not_of(" \t");
+    if (begin == std::string::npos) {
+      ABORT_F("Empty component in option '%s': '%s'", option_name.c_str(),
+              it->second.c_str());
+    }
+    component = component.substr(begin, end - begin + 1);
+
+    try {
+      long parsed = std::stol(component);
+      if (parsed <= 0) {
+        ABORT_F("Option '%s' components must be positive, got '%s'",
+                option_name.c_str(), component.c_str());
+      }
+      values.push_back(static_cast<uint32_t>(parsed));
+    } catch (const std::exception &e) {
+      ABORT_F("Failed to parse option '%s' component '%s': %s",
+              option_name.c_str(), component.c_str(), e.what());
+    }
+  }
+
+  return values;
 }
 
 } // namespace internal

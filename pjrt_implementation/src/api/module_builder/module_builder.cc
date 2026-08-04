@@ -100,6 +100,23 @@ moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
   return public_func_ops[0].getNumArguments() > 0;
 }
 
+// Returns true when at least one input is sharded across devices, i.e. the
+// module already carries its own device mesh. Distinct from
+// `moduleHasAnyFuncArguments`: a graph can have inputs that are all replicated
+// (no device sharding), in which case it does NOT define its own mesh and an
+// external mesh-shape override may safely apply.
+static bool moduleHasDeviceShardedInputs(
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
+  for (const mlir::tt::sharding_utils::MeshSharding &input_sharding :
+       input_shardings) {
+    if (input_sharding.getShardType() ==
+        mlir::tt::ttcore::MeshShardType::Devices) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -386,10 +403,66 @@ ModuleBuilder::buildModule(
       parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
                   : std::nullopt;
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name,
-                                        current_mesh_shape, target_num_devices);
+  // An explicit mesh_shape override reshapes the synthesized device mesh (see
+  // runCompilerStableHLOPipeline). Decide here, before compilation, whether it
+  // applies to *this* graph, and validate it when it does.
+  //
+  // The option is set process-wide via `set_custom_compile_options`, so it
+  // rides along on every graph compiled afterwards -- including graphs it was
+  // never meant for. A graph that already carries device-sharded inputs defines
+  // its own mesh (from those shardings), so the override does not apply: it is
+  // silently deferred rather than treated as an error. (AnalyzeMeshPass ignores
+  // `meshShape` entirely once sdy/gspmd annotations exist, so applying it there
+  // would be a no-op at best and a contradiction at worst.)
+  std::optional<std::vector<uint32_t>> effective_mesh_shape_override;
+  if (compile_options.mesh_shape_override.has_value()) {
+    const std::vector<uint32_t> &override_shape =
+        *compile_options.mesh_shape_override;
+
+    if (moduleHasDeviceShardedInputs(input_shardings)) {
+      DLOG_F(LOG_DEBUG,
+             "Compile option 'mesh_shape' ignored for this graph: it already "
+             "has device-sharded inputs and defines its own mesh.");
+    } else {
+      // The override will be applied to this graph, so validate it.
+
+      // AnalyzeMeshPass only synthesizes 2D meshes.
+      if (override_shape.size() != 2) {
+        LOG_F(ERROR,
+              "Compile option 'mesh_shape' must be a 2D shape (e.g. \"2,4\"), "
+              "got %zu dimensions.",
+              override_shape.size());
+        return {tt_pjrt_status::kInvalidArgument, nullptr};
+      }
+
+      // The override must cover exactly the devices the executable spans.
+      if (current_mesh_shape.has_value()) {
+        uint64_t override_devices = 1;
+        for (uint32_t dim : override_shape) {
+          override_devices *= dim;
+        }
+        uint64_t available_devices = 1;
+        for (uint32_t dim : *current_mesh_shape) {
+          available_devices *= dim;
+        }
+        if (override_devices != available_devices) {
+          LOG_F(ERROR,
+                "Compile option 'mesh_shape' product (%llu) does not match the "
+                "number of available devices (%llu).",
+                static_cast<unsigned long long>(override_devices),
+                static_cast<unsigned long long>(available_devices));
+          return {tt_pjrt_status::kInvalidArgument, nullptr};
+        }
+      }
+
+      effective_mesh_shape_override = compile_options.mesh_shape_override;
+    }
+  }
+
+  status = runCompilerStableHLOPipeline(
+      mlir_module, result_presharded, compile_options.export_path,
+      compile_options.export_model_name, current_mesh_shape, target_num_devices,
+      effective_mesh_shape_override);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -777,18 +850,31 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     const std::optional<std::string> &export_path,
     const std::string &model_name,
     const std::optional<std::vector<uint32_t>> &current_mesh_shape,
-    size_t target_num_devices) {
+    size_t target_num_devices,
+    const std::optional<std::vector<uint32_t>> &mesh_shape_override) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // A no-input graph on a multi-device run must adopt the full mesh: a no-input
-  // replicated value (e.g. a const-folded torch.arange) would otherwise default
-  // to 1x1, collapse the mesh, and break the live sharded buffers.
-  // See https://github.com/tenstorrent/tt-xla/issues/5360
-  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      !moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1) {
+  if (mesh_shape_override.has_value() && mesh_shape_override->size() == 2) {
+    // Explicit user override. buildModule has already verified that the module
+    // does not define its own device mesh and that the product matches the
+    // device count. Deliberately NOT gated on `target_num_devices`: torch-xla
+    // leaves `num_partitions` unset, so that count is 1 even on a genuine
+    // multi-device run. Stamping meshShape here makes AnalyzeMeshPass create a
+    // real 2D `sdy.mesh` before the `mesh_idx_N` placeholders are resolved.
+    stablehlo_pipeline_options.meshShape = {
+        static_cast<int64_t>((*mesh_shape_override)[0]),
+        static_cast<int64_t>((*mesh_shape_override)[1])};
+  } else if (current_mesh_shape.has_value() &&
+             current_mesh_shape->size() == 2 &&
+             !moduleHasAnyFuncArguments(mlir_module) &&
+             target_num_devices > 1) {
+    // A no-input graph on a multi-device run must adopt the full mesh: a
+    // no-input replicated value (e.g. a const-folded torch.arange) would
+    // otherwise default to 1x1, collapse the mesh, and break the live sharded
+    // buffers. See https://github.com/tenstorrent/tt-xla/issues/5360
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

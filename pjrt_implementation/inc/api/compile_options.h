@@ -6,9 +6,11 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_COMPILE_OPTIONS_H_
 
 // c++ standard library includes
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tt::pjrt {
 
@@ -36,6 +38,9 @@ struct CompileOptions {
 
   // Map the key used to store and retrieve the optimization level
   static inline const std::string optimization_level_key = "optimization_level";
+
+  // Map key used to store and retrieve the explicit mesh-shape override.
+  static inline const std::string mesh_shape_key = "mesh_shape";
 
   // Optimization level (0, 1, or 2) that controls multiple optimization passes.
   // See documentation for details on what each level enables.
@@ -176,6 +181,17 @@ struct CompileOptions {
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
 
+  // Explicit device mesh shape supplied by the user (e.g. "2,4" -> {2, 4}).
+  //
+  // When set, and the module does not already carry its own device sharding,
+  // the compiler stamps this shape onto the synthesized `sdy.mesh` instead of
+  // defaulting to the flat 1xN mesh. This lets a no-input graph -- or a graph
+  // with inputs where none are sharded -- run on a genuine 2D (DP x TP) mesh.
+  // Currently only 2D shapes are supported, and the product must equal the
+  // number of devices the executable spans. See ModuleBuilder::buildModule for
+  // validation and runCompilerStableHLOPipeline for where it is applied.
+  std::optional<std::vector<uint32_t>> mesh_shape_override = std::nullopt;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };
@@ -197,6 +213,13 @@ std::optional<std::string> parseStringOption(
     const std::string &option_name);
 
 std::optional<int> parseIntOption(
+    const std::unordered_map<std::string, std::string> &compile_options,
+    const std::string &option_name);
+
+// Parse a comma-separated list of positive integers (e.g. "2,4") into a
+// vector. Returns nullopt when the option is absent or an empty string.
+// Aborts if any component is missing, non-numeric, or not positive.
+std::optional<std::vector<uint32_t>> parseUInt32VectorOption(
     const std::unordered_map<std::string, std::string> &compile_options,
     const std::string &option_name);
 

@@ -197,6 +197,12 @@ private:
   collectResultPresharded(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
   // Runs compiler StableHLO pipeline on the MLIR module.
+  //
+  // `mesh_shape_override`, when set, forces the synthesized device mesh to the
+  // given 2D shape (validated by the caller). It takes precedence over the
+  // parent mesh and, unlike the legacy no-input path, is not gated on
+  // `target_num_devices` -- torch-xla leaves `num_partitions` unset, so that
+  // count is 1 even on a genuine multi-device run.
   tt_pjrt_status runCompilerStableHLOPipeline(
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<int64_t> &result_presharded,
@@ -204,7 +210,9 @@ private:
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
           std::nullopt,
-      size_t target_num_devices = 1);
+      size_t target_num_devices = 1,
+      const std::optional<std::vector<uint32_t>> &mesh_shape_override =
+          std::nullopt);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
