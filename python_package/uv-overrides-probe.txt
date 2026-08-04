@@ -1,0 +1,15 @@
+# THROWAWAY PROBE - do not merge.
+#
+# torch-xla 2.9.0+gitb230007 pins `jax==0.7.1` exactly, which makes
+# python_package/requirements.txt unsatisfiable once jax moves to 0.9.2:
+#
+#   × No solution found when resolving dependencies:
+#   ╰─▶ torch-xla==2.9.0+gitb230007 depends on jax==0.7.1 ... your
+#       requirements are unsatisfiable.
+#
+# The pin is metadata-only in practice - torch_xla 2.9.0 imports and runs fine
+# against jax 0.9.2 (verified locally). This override lets uv resolve so the
+# JAX tensor-parallel suite can be validated while torch-xla is rebuilt against
+# jax 0.9.2 for real. Torch tests are NOT trustworthy under this override.
+jax==0.9.2
+jaxlib==0.9.2

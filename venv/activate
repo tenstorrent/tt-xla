@@ -16,6 +16,11 @@ export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES:$(pwd)/integrations
 # Without this, uv may fail to resolve PyTorch packages correctly from extra-index-url
 export UV_INDEX_STRATEGY=unsafe-best-match
 
+# THROWAWAY PROBE - do not merge. Forces jax past torch-xla's exact `jax==0.7.1`
+# pin so uv can resolve python_package/requirements.txt at jax 0.9.2. See
+# python_package/uv-overrides-probe.txt for why this is safe for JAX tests and not for torch.
+export UV_OVERRIDE="$(pwd)/python_package/uv-overrides-probe.txt"
+
 export TTMLIR_VENV_DIR="$(pwd)/venv"
 if [ -d $TTMLIR_VENV_DIR/bin ]; then
   [ -f $TTMLIR_VENV_DIR/bin/activate ] && source $TTMLIR_VENV_DIR/bin/activate
