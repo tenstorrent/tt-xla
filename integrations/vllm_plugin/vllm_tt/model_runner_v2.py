@@ -975,11 +975,24 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Returns None when spec decode is off or no request in this pass carries
         drafts, which keeps the non-spec path on the flat one-logit-per-request
         layout. Mirrors the v1 builder.
+
+        Gap 5: For DiffusionGemma decoder mode, use canvas length as num_draft_tokens
+        so the diffusion canvas tokens flow through the spec-decode path.
         """
         if not self.num_spec_tokens:
             return None
         rs = self.req_states
         num_draft = [int(rs.num_draft_tokens[int(s)]) for s in idx_mapping_np]
+
+        # Gap 5: DiffusionGemma overload - use canvas length for decoder requests
+        from .diffusion_gemma import TTDiffusionGemmaModelState
+        if isinstance(self.model_state, TTDiffusionGemmaModelState):
+            for b, slot in enumerate(idx_mapping_np):
+                slot_idx = int(slot)
+                # Decoder (denoise) mode: set num_draft to canvas length
+                if not self.model_state.diffusion_states.is_encoder_phase[slot_idx]:
+                    num_draft[b] = self.model_state.canvas_length
+
         if not any(num_draft):
             return None
 
