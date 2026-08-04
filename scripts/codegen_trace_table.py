@@ -71,6 +71,17 @@ def pretty_arg_name(raw):
     return s
 
 
+def main_func_body(text):
+    """The body of @main. Const-eval helpers are separate funcs whose results
+    main.py's forward() never runs, so counting them breaks occurrence alignment."""
+    start = re.search(r"func\.func @main\(", text)
+    if not start:
+        return text
+    rest = text[start.end() :]
+    nxt = re.search(r"\n\s*func\.func ", rest)
+    return rest[: nxt.start()] if nxt else rest
+
+
 def parse_mlir_shapes(path):
     """Return (arg_info, op_shapes) where op_shapes maps mlir_op_name -> list of
     result shape-strings in program order, and arg_info is an ordered list (by %argN)
@@ -103,7 +114,7 @@ def parse_mlir_shapes(path):
     # result-producing ops:  %N = "ttnn.NAME"(...) ... -> tensor<DIMSxDTYPE,
     for m in re.finditer(
         r'%\d+ = "ttnn\.([a-z0-9_]+)"\(.*?->\s*tensor<([0-9x]+)x([a-z0-9_]+)[,>]',
-        text,
+        main_func_body(text),
     ):
         op_shapes[m.group(1)].append(f"{m.group(2)}·{m.group(3)}")
     return arg_info, op_shapes
