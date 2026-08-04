@@ -101,7 +101,7 @@ def parse_mlir_shapes(path):
     op_shapes = defaultdict(list)
     # result-producing ops:  %N = "ttnn.NAME"(...) ... -> tensor<DIMSxDTYPE,
     for m in re.finditer(
-        r'%\d+ = "ttnn\.([a-z_]+)"\(.*?->\s*tensor<([0-9x]+)x([a-z0-9_]+)[,>]',
+        r'%\d+ = "ttnn\.([a-z0-9_]+)"\(.*?->\s*tensor<([0-9x]+)x([a-z0-9_]+)[,>]',
         text,
     ):
         op_shapes[m.group(1)].append(f"{m.group(2)}·{m.group(3)}")

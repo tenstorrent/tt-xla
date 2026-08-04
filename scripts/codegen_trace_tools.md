@@ -85,8 +85,12 @@ dead-ends we already ruled out).
 - **Occurrence-index alignment**: `main.py` and `ttnn.mlir` are linear traces of
   the same IR in the same order, so the k-th occurrence of op X in `main.py` maps
   to the k-th `ttnn.X` result in the MLIR. `resolve_shape` consumes MLIR results
-  per-op via `op_cursor`. Validated at 100% coverage on qwen (2096 ops) and mnist
-  (41 ops).
+  per-op via `op_cursor`. The op-name pattern must allow digits (`conv2d`,
+  `max_pool2d`) — without them those ops match nothing in the MLIR.
+- **A miss is silent**: `resolve_shape` falls back to the first operand's shape and
+  still counts toward `shapes: N/N resolved`, so the header confirms every op got
+  *a* shape, not that it came from the MLIR. Check a known op against `ttnn.mlir`
+  when changing the alignment.
 - **`NAME_MAP`** bridges name mismatches between the two forms — currently
   `slice` (main.py) -> `slice_static` (MLIR). Add here when a new op's Python name
   differs from its MLIR spelling, or alignment silently drifts.
