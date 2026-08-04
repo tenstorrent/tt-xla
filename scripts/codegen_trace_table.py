@@ -25,6 +25,17 @@ import html
 import os
 import re
 from collections import defaultdict
+from pathlib import Path
+
+
+def load_template(name):
+    """Read a page template shipped beside these scripts."""
+    path = Path(__file__).resolve().parent / name
+    try:
+        return path.read_text()
+    except OSError as e:
+        raise SystemExit(f"cannot read page template {path}: {e}")
+
 
 # main.py op name -> MLIR op name
 NAME_MAP = {
@@ -331,29 +342,6 @@ def main():
     def esc(x):
         return html.escape(str(x))
 
-    parts = []
-    parts.append(
-        """<!doctype html><meta charset=utf-8>
-<title>Compute trace</title>
-<style>
- body{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;margin:1rem;color:#111;background:#fff}
- h1{font-size:16px} .meta{color:#555;margin-bottom:.6rem}
- input{font:inherit;padding:4px 6px;width:280px;margin-bottom:.6rem}
- table{border-collapse:collapse;width:100%}
- th,td{border:1px solid #ddd;padding:3px 6px;text-align:left;vertical-align:top}
- th{position:sticky;top:0;background:#f4f4f4;cursor:default}
- tbody tr:nth-child(even){background:#fafafa}
- td.num{color:#999;text-align:right}
- .op{font-weight:600}
- .in{color:#06c} .free{color:#c00} .out{background:#fff6d5}
- .argname{font-style:italic}
- .k-parameter{color:#a0740a} .k-kv_cache{color:#8a2be2} .k-constant{color:#0a8a8a}
- .k-input{color:#c0392b}
- .shape{color:#093;white-space:nowrap} .stype{color:#787} .noshape{color:#bbb}
- .t-matmul{color:#0a7} .t-rms_norm{color:#a60} .t-slice,.t-reshape{color:#777}
-</style>
-<h1>Computation trace</h1>"""
-    )
     shape_note = (
         f" &middot; shapes: {shape_hits}/{len(rows)} resolved"
         + (f" ({shape_misses} unknown)" if shape_misses else "")
@@ -366,28 +354,15 @@ def main():
         if args.no_plumbing
         else f"{len(rows)} ops"
     )
-    parts.append(
-        f"<div class=meta>{esc(os.path.abspath(args.path))} &middot; "
+    meta_html = (
+        f"{esc(os.path.abspath(args.path))} &middot; "
         f"{op_count_note} &middot; {len(outputs)} outputs{shape_note}<br>"
         + " &middot; ".join(
             f"{esc(k.replace('ttnn.',''))}:{v}"
             for k, v in sorted(op_counts.items(), key=lambda x: -x[1])
         )
-        + "</div>"
     )
-    parts.append(
-        '<input id=f placeholder="filter rows (op name, var…)" '
-        'oninput="var q=this.value.toLowerCase();'
-        "for(var r of document.querySelectorAll('tbody tr'))"
-        "r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'\">"
-    )
-    parts.append(
-        "<table><thead><tr>"
-        "<th>#</th><th>inputs</th><th>op</th><th>layout</th><th>output</th>"
-        "<th>dims</th><th>type</th>"
-        "<th>dtype</th><th>mem</th><th>frees</th>"
-        "</tr></thead><tbody>"
-    )
+    rows_html = []
 
     def render_input(i):
         m = re.fullmatch(r"input\[(\d+)\]", i)
@@ -418,7 +393,7 @@ def main():
             stype_html = f"<span class=stype>{esc(stype)}</span>"
         else:
             dims_html = stype_html = "<span class=noshape>?</span>"
-        parts.append(
+        rows_html.append(
             f"<tr><td class=num>{step}</td>"
             f"<td>{ins}</td>"
             f'<td class="op t-{esc(opshort)}">{esc(opshort)}</td>'
@@ -428,13 +403,17 @@ def main():
             f"<td>{esc(dtype)}</td>"
             f"<td>{esc(mem)}</td><td>{frees}</td></tr>"
         )
-    parts.append("</tbody></table>")
 
+    doc = (
+        load_template("codegen_trace_table_template.html")
+        .replace("<!--__META__-->", meta_html)
+        .replace("<!--__ROWS__-->", "".join(rows_html))
+    )
     out_path = args.out or os.path.join(
         os.path.dirname(os.path.abspath(args.path)), "trace.html"
     )
     with open(out_path, "w") as f:
-        f.write("".join(parts))
+        f.write(doc)
     print(f"wrote {out_path}  ({len(rows)} rows)")
 
 

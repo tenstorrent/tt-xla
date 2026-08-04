@@ -76,6 +76,10 @@ dead-ends we already ruled out).
   output works offline, in sandboxed viewers, and as a publishable Claude Artifact.
   The SVG graph hand-rolls pan/zoom/highlight in inline JS for the same reason —
   don't reach for d3/graphviz/cytoscape.
+- **Page chrome lives in `*_template.html` beside each script**, loaded via
+  `load_template()` and filled by replacing `<!--__NAME__-->` placeholders, matching
+  `scripts/telemetry/telemetry_viz.py`. Edit markup, CSS and the graph's JS in the
+  template; the scripts only generate rows and SVG fragments.
 
 ### Shape resolution (the subtle part)
 - **Occurrence-index alignment**: `main.py` and `ttnn.mlir` are linear traces of
