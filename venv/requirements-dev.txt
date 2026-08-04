@@ -4,7 +4,9 @@ clang-format
 cmake==4.2.1
 datasets==4.5.0
 einops
-flax==0.10.4
+# Must match the flax pin in python_package/requirements.txt. flax<0.12 imports
+# jax._src.core.mutable_array, which was removed in jax 0.9.
+flax==0.12.3
 fsspec
 jaxtyping
 
