@@ -309,8 +309,11 @@ def test_flux2(output_file, request):
 
 
 def test_flux(output_file, request):
-    from benchmarks.flux_pipeline import FluxConfig, FluxPipeline_TT
-
+    from third_party.tt_forge_models.flux.pytorch.pipeline import (
+        NUM_INFERENCE_STEPS,
+        FluxConfig,
+        FluxTTPipeline,
+    )
     from third_party.tt_forge_models.flux.pytorch.src.model_utils import (
         HEIGHT,
         PROMPT,
@@ -323,12 +326,12 @@ def test_flux(output_file, request):
     # model axis. Multichip — wired to the 4-chip blackhole in
     # perf-bench-matrix.json.
     prompt = PROMPT
-    num_inference_steps = 50
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = HEIGHT
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = FluxPipeline_TT(config=FluxConfig(compile_options=compile_options))
+        pipeline = FluxTTPipeline(config=FluxConfig(compile_options=compile_options))
         pipeline.setup()
 
         def generate_fn(prompt, steps):

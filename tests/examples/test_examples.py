@@ -23,6 +23,10 @@ XFAIL_DIRS: dict[str, str] = {
 # in pytest.ini) so a matching CI job runs them on the right runner and the
 # default Wormhole examples job skips them.
 HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/flux1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/flux2.py": [
         "nightly",
         "bhqb",
