@@ -670,43 +670,6 @@ def clamp_neg_getitem_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     return gm
 
 
-# Decompositions of the fused add+matmul ops route every operand through float32
-# irrespective of the model dtype. A rank-2 activation makes nn.Linear lower to
-# addmm instead of mm, so with flattened model IO this hits every linear in the
-# graph and drags whole encoders into f32. Refs: tt-xla #5756.
-_FLOAT32_PROMOTING_MATMULS = (
-    "aten::addmm",
-    "aten::addmv",
-    "aten::addbmm",
-    "aten::baddbmm",
-)
-
-
-def _dtype_cast_target(node):
-    """
-    (spelling, target dtype) of a pure dtype-cast node, or None if not one.
-
-    Decompositions spell the cast either as prims::convert_element_type or as
-    aten::_to_copy with a dtype kwarg. For _to_copy, any kwarg that also relocates
-    the tensor (device/layout/memory_format) means it is not a pure cast and must
-    be left alone.
-    """
-    if node.op != "call_function" or not hasattr(node.target, "name"):
-        return None
-    if not node.args or not isinstance(node.args[0], torch.fx.Node):
-        return None
-
-    name = node.target.name()
-    if "prims::convert_element_type" in name:
-        dtype = node.args[1] if len(node.args) > 1 else node.kwargs.get("dtype")
-        return ("convert_element_type", dtype)
-    if "aten::_to_copy" in name:
-        if any(key not in ("dtype", "non_blocking") for key in node.kwargs):
-            return None
-        return ("_to_copy", node.kwargs.get("dtype"))
-    return None
-
-
 def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
     Removes casting of nodes to float32 unless they were explicitly set by the user.
@@ -716,35 +679,22 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
     removed_non_redundant_casts = False
     for node in gm.graph.nodes:
-        cast = _dtype_cast_target(node)
-        if cast is None:
-            continue
-        spelling, cast_dtype = cast
-
-        # A cast the user wrote keeps original_aten == aten::_to_copy; anything else
-        # attributes the cast to the op being decomposed.
-        original_aten = getattr(node.meta.get("original_aten"), "_name", None)
-        if spelling == "convert_element_type":
+        if (
+            node.op == "call_function"
+            and hasattr(node.target, "name")
+            and "prims::convert_element_type" in node.target.name()
+        ):
             is_unwanted_dtype_promotion = (
-                original_aten is not None
-                and original_aten != "aten::_to_copy"
-                and cast_dtype == torch.float32
+                node.meta["original_aten"]._name != "aten::_to_copy"
+                and node.args[1] == torch.float32
             )
-        else:
-            # _to_copy is also how an explicit user .to() is spelled, so restrict
-            # this spelling to the decompositions known to promote for opmath.
-            is_unwanted_dtype_promotion = (
-                original_aten in _FLOAT32_PROMOTING_MATMULS
-                and cast_dtype == torch.float32
-            )
+            node_meta = node.args[0].meta
+            meta_val = node_meta.get("tensor_meta") or node_meta.get("val")
+            is_redundant_cast = meta_val is not None and meta_val.dtype == node.args[1]
 
-        node_meta = node.args[0].meta
-        meta_val = node_meta.get("tensor_meta") or node_meta.get("val")
-        is_redundant_cast = meta_val is not None and meta_val.dtype == cast_dtype
-
-        if is_unwanted_dtype_promotion or is_redundant_cast:
-            node.replace_all_uses_with(node.args[0])
-            removed_non_redundant_casts |= is_unwanted_dtype_promotion
+            if is_unwanted_dtype_promotion or is_redundant_cast:
+                node.replace_all_uses_with(node.args[0])
+                removed_non_redundant_casts |= is_unwanted_dtype_promotion
 
     gm.graph.eliminate_dead_code()
     gm.graph.lint()
