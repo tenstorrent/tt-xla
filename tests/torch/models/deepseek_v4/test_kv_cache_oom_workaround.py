@@ -179,61 +179,17 @@ def _mock_kv_touch(cache: torch.Tensor):
     and make the DRAM figure unattributable. A read adds nothing: the cache is a
     graph parameter, so its whole buffer must be resident no matter how few
     elements the program touches.
-
-    NOTE: the index on dim 1 is what makes this collective. Head 0 lives on one
-    device, so producing a replicated scalar from it forces Shardy to all-gather
-    the cache. See `_mock_kv_update` for the local-only alternative.
     """
     return cache[0, 0, 0, 0].sum(dtype=torch.float32).reshape(1)
 
 
-def _mock_kv_update(cache: torch.Tensor, mesh, block_idx: int = 0):
-    """Write one page, entirely within each device's own shard. No collectives.
-
-    This is vLLM's cache write in miniature -- a scatter along the *block* dim.
-    Only heads are sharded here, so the block dim is replicated: every device
-    writes the same block offset into its own head slice, and the scatter lowers
-    to a purely local dynamic-update-slice.
-
-    Two rules keep it local, and breaking either reintroduces the gather:
-
-    - Touch ONLY dim 0. Indexing, slicing, or reducing dim 1 asks for heads that
-      live on other devices, and Shardy resolves that by all-gathering the whole
-      cache -- exactly what `_mock_kv_touch` does.
-    - Constrain the page AND the result to the cache's own spec. An
-      unconstrained `ones` is replicated, and feeding a replicated operand into
-      a sharded tensor makes Shardy reshard one side of the write.
-
-    DRAM cost: this is out-of-place (donation is stubbed, see the module docstring
-    and `PJRT_Buffer_DonateWithControlDependency` in the plugin's stubs), so the
-    input and output caches are both live -- budget 2x the per-device slice.
-    """
-    # A single page: (1, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), ~1 MiB. Sharded the
-    # same way as the cache so the write has no reshard on either operand.
-    page = torch.ones((1, *cache.shape[1:]), dtype=cache.dtype, device=cache.device)
-    page = sharding_constraint_tensor(page, mesh, (None, HEAD_AXIS, None, None))
-
-    # slice_scatter, not `cache[block_idx] = page`: the in-place form is
-    # functionalized into the same copy anyway, and the functional op is what
-    # lowers cleanly to dynamic-update-slice.
-    updated = torch.slice_scatter(
-        cache, page, dim=0, start=block_idx, end=block_idx + 1
-    )
-    return sharding_constraint_tensor(updated, mesh, (None, HEAD_AXIS, None, None))
-
-
-def _run_mock(k_cache, mesh, device, update: bool = False):
+def _run_mock(k_cache, mesh, device):
     """Run a device program against the cache, adding as little DRAM as possible.
 
     No extra tensors are shipped: the cache is the only input, so whatever the
     allocator reports is the cache. The returned scalar is left on device -- a
     `.to("cpu")` would only add a host round-trip, and the point is that the
     program ran, not what it computed.
-
-    `update=True` swaps the read-only touch for `_mock_kv_update`, a local page
-    write. That is the realistic vLLM access pattern, but it doubles per-device
-    DRAM (no donation), so it cannot share an overcommit budget with the
-    read-only path -- see the note at the bottom of this file.
     """
     # The fill pinned sharding *inside* its own graph via sdy.sharding_constraint,
     # which does not necessarily leave a spec on the tensor handed back. If this
@@ -251,25 +207,12 @@ def _run_mock(k_cache, mesh, device, update: bool = False):
     # MESH_SHAPE promises -- see `_mesh_declaration`.
     # xs.mark_sharding(k_cache, mesh, (None, HEAD_AXIS, None, None))
 
-    if update:
-        compiled = torch.compile(_mock_kv_update, backend="tt")
-        _log("updating one cache page on device")
-        out = compiled(k_cache, mesh)
-        torch_xla.sync(wait=True)
-        xm.wait_device_ops()
-        # Same global shape means the write was not silently resharded into a
-        # different layout; the spec is the check that it stayed distributed.
-        assert tuple(out.shape) == tuple(k_cache.shape)
-        _log(f"update done, out spec: {torch_xla._XLAC._get_xla_sharding_spec(out)}")
-        return out
-
     compiled = torch.compile(_mock_kv_touch, backend="tt")
     _log("touching cache on device")
     compiled(k_cache)
     torch_xla.sync(wait=True)
     xm.wait_device_ops()
     _log("touch done")
-    return None
 
 
 # Fails to do repeat on device
@@ -452,20 +395,6 @@ Running without run mock passes for 7.5x but fails at 8.0x with NO PREV ALLOCATE
 The muliplications are happening in the mock function after the cache is init. 
 Running with run mock pass for 2.5x passes but fails at 3.0x with 2 caches worth of DRAM 
 previously allocated. This means it's trying to allocate 3 copies of the cache per device.. why?
-
-Note the 3-copies reading is consistent with a FLAT 1x8 mesh, where each device
-holds k*D/8: three copies of 2.5x fit in one chip (0.94 D) and three of 3.0x do
-not (1.13 D). Under the 2x4 override each device holds k*D/4 instead, so the same
-3 copies would already fail at 1.5x -- re-measure before reusing these numbers.
-
-DRAM budget for `_run_mock(update=True)`:
-  per-device slice = overcommit * D / TP_SIZE, and the update is out-of-place
-  (donation is stubbed), so input + output = 2 * overcommit * D / TP_SIZE.
-  With TP_SIZE=4 that needs overcommit < 2.0 just for the two cache buffers,
-  before any runtime overhead. So the update mock CANNOT be used to demonstrate
-  the 3.0x premise -- keep `_mock_kv_touch` (or no mock at all) for that, and use
-  the update mock at <=1.5x to test the access pattern instead. An OOM at 3.0x
-  with update=True proves nothing about whether the fill stayed distributed.
 """
 """
 TODO next:
@@ -474,6 +403,4 @@ TODO next:
 - Remove reshard and just assert on sharding spec
 - Make the mock test more like a kv_cache interaction
 - Test with runtime debug memory logging to see where the extra copies are coming from
-- Confirm _mock_kv_update emits no all-gather: dump IR with the `export_path`
-  compile option and grep the stage for `all-gather` / `sdy.all_gather`.
 """
