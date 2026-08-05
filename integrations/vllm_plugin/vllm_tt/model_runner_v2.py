@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import torch
-import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
 from vllm.sampling_params import SamplingType
 from vllm.utils.math_utils import cdiv
@@ -216,13 +215,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.block_size = self.cache_config.block_size
         self.max_model_len = self.model_config.max_model_len
-        self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
-        self.num_blocks_per_most_len_req = (
-            cdiv(self.most_model_len, self.block_size)
-            if self.most_model_len is not None
-            else None
-        )
 
         # Prefill request-count bucketing bounds (decode always uses max_num_reqs).
         self.min_num_reqs = getattr(tt, "min_num_seqs", None) or self.max_num_reqs
@@ -273,16 +266,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_reqs_max_model_len = min(
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
-        )
-        self.num_reqs_most_model_len = (
-            min(
-                TTAttentionBackend.get_max_num_seqs(
-                    self.most_model_len, self.block_size
-                ),
-                self.max_num_reqs,
-            )
-            if self.most_model_len is not None
-            else None
         )
 
         # Driver / graph knobs read later.
@@ -691,10 +674,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> tuple[np.ndarray, np.ndarray, int, int, int]:
         """Pick the sub-batch for one pass, applying the SMEM row caps.
 
-        Mirrors the v1 fork's per-pass clamping over the decode-first ordering:
-        a long request in the remaining tail forces the max-model-len row cap;
-        prefill passes are additionally capped at ``max_prefill_num_reqs`` and the
-        multi-pass loop picks up the rest. Returns ``(idx_mapping,
+        Mirrors the v1 fork's per-pass clamping over the decode-first ordering.
+        The row cap is always the max-model-len cap; prefill passes are
+        additionally capped at ``max_prefill_num_reqs`` and the multi-pass loop
+        picks up the rest. Returns ``(idx_mapping,
         num_scheduled_tokens, target_num_reqs, padded_query_len, end_index)``.
         """
         if self.dp_size > 1:
@@ -712,18 +695,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 len(ordered_slots),
             )
 
-        # A long request anywhere in the remaining tail forces max-model-len mode
-        # (fewer rows fit SMEM), matching the v1 collection loop.
-        use_max_model_len = self.most_model_len is None
-        if not use_max_model_len and np.any(
-            ordered_num_tokens[start_index:] > self.most_model_len
-        ):
-            use_max_model_len = True
-        row_cap = (
-            self.num_reqs_max_model_len
-            if use_max_model_len
-            else self.num_reqs_most_model_len
-        )
+        row_cap = self.num_reqs_max_model_len
 
         end_index = min(len(ordered_slots), start_index + row_cap)
         num_scheduled = ordered_num_tokens[start_index:end_index]
