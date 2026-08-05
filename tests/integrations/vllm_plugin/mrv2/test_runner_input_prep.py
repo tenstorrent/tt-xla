@@ -20,8 +20,12 @@ from vllm_tt.request_state import TTRequestState
 VOCAB = 1000
 
 
-def runner_with_reqs(max_num_reqs=4, max_model_len=32):
+def runner_with_reqs(max_num_reqs=4, max_model_len=32, num_spec_tokens=0):
     r = object.__new__(TTModelRunnerV2)
+    r.block_size = 16
+    r.max_num_blocks_per_req = max(max_model_len // r.block_size, 1)
+    r._prefix_sdpa_usable = r.max_num_blocks_per_req % 8 == 0
+    r.num_spec_tokens = num_spec_tokens
     r.uses_mrope = False
     r.req_states = TTRequestState(
         max_num_reqs=max_num_reqs,
