@@ -211,6 +211,7 @@ def _qwen3_4b_production_config():
         prefill_chunk_size=1024,
         min_num_seqs=1,
         prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
     )
     cfg.max_model_len = 40960
     cfg.use_chat_template = True
@@ -230,6 +231,7 @@ def _qwen3_8b_production_config():
         prefill_chunk_size=1024,
         min_num_seqs=1,
         prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
     )
     cfg.max_model_len = 40960
     cfg.use_chat_template = True
@@ -249,6 +251,7 @@ def _llama3_2_3b_instruct_production_config():
         prefill_chunk_size=1024,
         min_num_seqs=1,
         prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
     )
     cfg.max_model_len = 65536
     cfg.use_chat_template = True
@@ -268,6 +271,7 @@ def _llama3_1_8b_instruct_production_config():
         prefill_chunk_size=1024,
         min_num_seqs=1,
         prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
     )
     cfg.max_model_len = 65536
     cfg.use_chat_template = True
