@@ -28,14 +28,15 @@ def parse_args():
     parser.add_argument(
         "--skip",
         type=int,
-        default=1,
-        help="program executions to run before capturing; skips warm-up compilation",
+        default=0,
+        help="program executions to run before capturing; index 0 is the forward program",
     )
     parser.add_argument(
         "--count",
         type=int,
-        default=1,
-        help="program executions per capture window, all merged into one report",
+        default=4,
+        help="program executions per capture window, merged into one report; "
+        "must not exceed the executions the run performs (see README.md)",
     )
     parser.add_argument("--steps", type=int, default=3, help="model invocations to run")
     return parser.parse_args()

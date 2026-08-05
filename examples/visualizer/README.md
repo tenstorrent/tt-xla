@@ -19,7 +19,7 @@ rather than producing an empty report if the hook is absent.
 ## Capture
 
 ```bash
-python capture_graph_report.py --out graph_reports --skip 1 --count 1
+python capture_graph_report.py --out graph_reports --skip 0 --count 4
 ```
 
 The runtime reads three environment variables, which the script sets for you:
@@ -27,14 +27,26 @@ The runtime reads three environment variables, which the script sets for you:
 | Variable | Meaning |
 | --- | --- |
 | `TT_RUNTIME_GRAPH_CAPTURE_DIR` | Where to write reports. Unset disables capture entirely. |
-| `TT_RUNTIME_GRAPH_CAPTURE_SKIP` | Program executions to run before capturing. Skip at least one to leave warm-up compilation out. |
+| `TT_RUNTIME_GRAPH_CAPTURE_SKIP` | Program executions to run before capturing. Execution 0 is the forward program; compilation is not an execution. |
 | `TT_RUNTIME_GRAPH_CAPTURE_COUNT` | Program executions per capture window, merged into a single report. |
 
-One model step becomes several program executions — the main program plus one per
-const-eval subgraph — so reports are named
-`<program>_pid<pid>_tid<tid>_exec<index>.json`. Spanning several executions is what makes
-per-op buffer detail accumulate; in one measured run a single program yielded no buffer
-chunks while eight yielded 2654.
+One model step becomes several program executions — the forward program plus one per
+const-eval subgraph — and reports are named
+`<program>_pid<pid>_tid<tid>_exec<index>.json` after the program that opened the window.
+Spanning several executions is what makes per-op buffer detail accumulate: measured on
+the example model, `--skip 1 --count 1` lands on a const-eval subgraph and yields a
+5 KB report of two `to_dtype` calls, while `--skip 0 --count 4` yields 5.9 MB — 25
+operations over 335 buffers.
+
+Two limits of the current hook are worth knowing before you change these numbers.
+
+- **`--count` must not exceed the executions the run performs.** A window still open when
+  the process exits is flushed by a `thread_local` destructor after the mesh device is
+  gone, and the process dumps core inside `ttnn::reports::get_buffer_pages`. Raise
+  `--steps` alongside `--count`.
+- **One window per process.** The window cannot reopen once closed, so a run produces a
+  single report. Selecting a different program means another run with a different
+  `--skip`.
 
 Set `TT_METAL_HOME` during capture if you want the Topology tab's mesh coordinate mapping.
 
