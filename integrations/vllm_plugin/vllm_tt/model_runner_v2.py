@@ -290,12 +290,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self.block_table = MultiGroupBlockTable(
             max_num_reqs=self.max_num_reqs,
-            max_model_len=self.max_model_len,
             max_num_batched_tokens=self.max_num_tokens,
             pin_memory=False,
             device=torch.device("cpu"),
             block_sizes=[self.block_size],
             kernel_block_sizes=[self.block_size],
+            max_num_blocks=[cdiv(self.max_model_len, self.block_size)],
         )
         self.input_buffers = TTInputBuffers(
             self.max_num_reqs, self.max_num_tokens, self.device
