@@ -149,6 +149,13 @@ class TTConfig:
     # fidelity for accuracy. Higher fidelity trades throughput for precision.
     math_fidelity: Optional[str] = None
 
+    # Override math approx mode for all ttnn ops exposing compute kernel config.
+    # ttnn's per-op default is True, which selects approximate SFPU
+    # implementations (notably a reciprocal with reduced Newton refinement --
+    # tt-metal #51927). Set False to trade throughput for accuracy. None
+    # (default) leaves the MLIR default.
+    math_approx_mode: Optional[bool] = None
+
     # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
 
@@ -219,6 +226,8 @@ class TTConfig:
             cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
         if self.math_fidelity is not None:
             cfg["math_fidelity"] = self.math_fidelity
+        if self.math_approx_mode is not None:
+            cfg["math_approx_mode"] = self.math_approx_mode
         if self.experimental_kv_cache_dtype is not None:
             cfg["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
         if self.export_path:

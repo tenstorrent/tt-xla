@@ -70,6 +70,13 @@ struct CompileOptions {
   // MLIR is used. Currently, MLIR default is true for all operations.
   std::optional<bool> fp32_dest_acc_en = std::nullopt;
 
+  // Override math approx mode for all ttnn operations exposing compute kernel
+  // config. If not set (nullopt), the default behavior from MLIR is used.
+  // Note ttnn's own per-op default is true, which selects approximate SFPU
+  // implementations (e.g. a reciprocal with reduced Newton refinement); setting
+  // this false trades some throughput for accuracy.
+  std::optional<bool> math_approx_mode = std::nullopt;
+
   // Enables Conv2d fusion with multiply pattern in the TTNN fusing pass.
   // TODO(sdjordjevicTT): This is a temporary option and will be removed once
   // the underlying issue https://github.com/tenstorrent/tt-mlir/issues/4628 is

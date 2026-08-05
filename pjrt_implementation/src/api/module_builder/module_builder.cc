@@ -1016,6 +1016,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
           (compile_options.fp32_dest_acc_en.value() ? "true" : "false") + " ";
     }
 
+    if (compile_options.math_approx_mode.has_value()) {
+      compute_cfg_opts +=
+          std::string("compute-cfg-math-approx-mode=") +
+          (compile_options.math_approx_mode.value() ? "true" : "false") + " ";
+    }
+
     if (!compute_cfg_opts.empty() &&
         mlir::failed(options.parseFromString(compute_cfg_opts))) {
       LOG_F(ERROR, "Failed to apply compute kernel config options: '%s'",
