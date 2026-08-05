@@ -10,8 +10,8 @@ with no TT hardware and no model: the runner is allocated without ``__init__``
 and the state it touches is injected, and the block table is a recording fake
 so the tests assert the calls the lifecycle makes rather than device layout.
 
-They pin the v2 semantics that differ from the v1 fork: stable slots (no
-condense), preempted-request removal, and re-add clearing a stale slot.
+They pin the stable-slot semantics: no condense, preempted-request removal, and
+re-add clearing a stale slot.
 """
 
 from types import SimpleNamespace

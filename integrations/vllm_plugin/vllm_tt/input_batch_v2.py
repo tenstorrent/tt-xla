@@ -1,31 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TT ``InputBatch`` for vLLM Model Runner v2 (MRv2).
+"""TT ``InputBatch`` for the vLLM v2 model runner.
 
-Phase 2 of the MRv2 adoption: the transient per-step batch view. Mirrors
-upstream ``vllm.v1.worker.gpu.input_batch`` (as of vLLM v0.22.1) -- the
-``InputBuffers`` (persistent device scratch) and the ``InputBatch`` dataclass
-(a fresh per-step view the runner populates).
-
-Scope / status
---------------
-* ``InputBatch`` is a pure view: the runner rebuilds it every step from
-  ``TTRequestState`` (see request_state.py). Fields tied to features TT does
-  not support -- ``expanded_idx_mapping`` / ``expanded_local_pos`` /
-  ``num_draft_tokens*`` (spec decode) and ``dcp_local_seq_lens`` (DCP) -- are
-  kept for structural parity but degenerate to the no-spec / no-DCP path.
-* Upstream's module also holds the Triton input-prep kernels
-  (``prepare_prefill_inputs``, ``prepare_pos_seq_lens``,
-  ``combine_sampled_and_draft_tokens``, ``expand_idx_mapping``, ``post_update``,
-  ...). Those are input-prep, called from the runner's ``prepare_inputs``, and
-  have no Triton equivalent on TT. They are deferred to Phase 3, where the TT
-  runner fork substitutes host-side numpy / torch (salvage from the v1 runner's
-  ``_prepare_inputs``). We do NOT ship stubs for them here.
-* Like request_state.py, this module has no ``vllm.v1.worker.gpu.*`` dependency
-  and is import-safe, but is intentionally NOT imported from the package
-  ``__init__`` until the TT v2 runner (Phase 3) wires it in. UNVALIDATED at
-  runtime until then.
+``TTInputBuffers`` holds the persistent device scratch; ``TTInputBatch`` is the
+transient per-step view sliced out of it. Input prep itself lives in the runner
+(host-side numpy/torch, no Triton kernels).
 """
 
 from __future__ import annotations
@@ -38,11 +18,7 @@ from vllm.utils import random_uuid
 
 
 class TTInputBuffers:
-    """Persistent device-side scratch buffers, owned by the runner.
-
-    Sliced into per-step ``TTInputBatch`` views. Mirrors upstream
-    ``InputBuffers``.
-    """
+    """Persistent device-side scratch buffers, sliced into per-step views."""
 
     def __init__(
         self,
@@ -72,7 +48,7 @@ class TTInputBatch:
     # batch_idx -> req_state_idx
     idx_mapping: torch.Tensor
     idx_mapping_np: np.ndarray
-    # Identical to idx_mapping except for spec decoding (unused on TT).
+    # Identical to idx_mapping except under spec decode.
     expanded_idx_mapping: torch.Tensor
     # [total_num_logits] position within request for each logit.
     expanded_local_pos: torch.Tensor
@@ -82,7 +58,7 @@ class TTInputBatch:
     # sum(num_scheduled_tokens)
     num_tokens: int
     num_tokens_after_padding: int
-    # Sum of draft tokens scheduled across requests (0 on TT: no spec decode).
+    # Sum of draft tokens scheduled across requests.
     num_draft_tokens: int
     # [num_reqs] draft tokens scheduled per request, if any.
     num_draft_tokens_per_req: np.ndarray | None
@@ -94,7 +70,7 @@ class TTInputBatch:
     seq_lens: torch.Tensor
     # [num_reqs] CPU upper bound on seq_lens.
     seq_lens_cpu_upper_bound: torch.Tensor
-    # [num_reqs] DCP per-request local seq_lens (None on TT: no DCP).
+    # [num_reqs] DCP per-request local seq_lens.
     dcp_local_seq_lens: torch.Tensor | None
     # [num_reqs] CPU bool array.
     is_prefilling_np: np.ndarray

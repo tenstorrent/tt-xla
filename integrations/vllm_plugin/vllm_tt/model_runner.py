@@ -576,8 +576,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.vocab_size = model_config.get_vocab_size()
 
         if self.lora_config is not None:
-            # lora_extra_vocab_size was removed in vllm 0.20.2; add it only when
-            # the installed LoRAConfig still exposes it.
             self.vocab_size += getattr(self.lora_config, "lora_extra_vocab_size", 0)
 
         # Multi-modal data support

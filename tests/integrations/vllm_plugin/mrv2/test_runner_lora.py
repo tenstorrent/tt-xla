@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """CPU unit tests for MRv2 LoRA host mapping (_make_lora_inputs).
 
-``TTModelRunnerV2._make_lora_inputs`` is the host substitute for
-InputBatch.make_lora_inputs: it turns the per-slot active-LoRA table into the
-(prompt_lora_mapping, token_lora_mapping, lora_requests) triple the LoRA mixin's
-_set_active_loras consumes.
+``TTModelRunnerV2._make_lora_inputs`` turns the per-slot active-LoRA table into
+the (prompt_lora_mapping, token_lora_mapping, lora_requests) triple the LoRA
+mixin's _set_active_loras consumes.
 """
 import numpy as np
 import pytest

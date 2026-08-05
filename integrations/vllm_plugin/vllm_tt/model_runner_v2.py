@@ -1,25 +1,18 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TT Model Runner v2 (MRv2): a fork of upstream ``vllm/v1/worker/gpu/model_runner.py``.
+"""TT model runner for the vLLM v2 runner split.
 
-Upstream's v2 runner is Triton/CUDA/UVA-native, so TT forks it and substitutes
-host-side mechanisms (numpy input-prep, ``@torch.compile(backend="tt")`` graphs,
-TT attention metadata) instead of subclassing ``GPUModelRunner``. Two things
-differ from a naive port:
+Input prep is host-side numpy and the model runs through
+``@torch.compile(backend="tt")`` graphs. Two structural notes:
 
-* 2D forward layout: TT's model takes ``[num_reqs, padded_query_len]`` (reshaped
-  to 1D at the call boundary for ``flat_model_io`` models), not upstream's flat
-  ``[num_tokens]``. The runner builds those 2D tensors itself; ``TTInputBatch``
+* The forward takes 2D ``[num_reqs, padded_query_len]`` inputs (reshaped to 1D at
+  the call boundary for ``flat_model_io`` models), built here; ``TTInputBatch``
   is the flat per-step bookkeeping view consumed by ``from_v2_states`` and the
   attn build.
-* Upstream v2 request semantics: requests keep a stable ``TTRequestState`` slot
-  for their lifetime (no condense); preempted requests are freed and resumed
-  ones return via ``scheduled_new_reqs``, so ``update_requests`` has no resumed
-  branch.
-
-Deferred: multi-device SPMD/mesh, ``get_mm_embeddings``, LoRA, and the grammar /
-cpu_sampling / prompt-logprobs branches.
+* A request keeps a stable ``TTRequestState`` slot for its lifetime (no
+  condense). Preempted requests are freed and resumed ones return via
+  ``scheduled_new_reqs``, so ``update_requests`` has no resumed branch.
 """
 
 from __future__ import annotations
@@ -91,8 +84,8 @@ def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
 def replace_set_lora(model):
     """Wrap each LoRA layer's set_lora/reset_lora with a torch_xla.sync.
 
-    Ported from the v1 runner: the integer LoRA index would otherwise trigger a
-    recompilation, so a sync captures the input/metadata updates around it.
+    The integer LoRA index would otherwise trigger a recompilation, so a sync
+    captures the input/metadata updates around it.
     """
     import torch_xla
     from vllm.lora.layers import BaseLayerWithLoRA
@@ -150,8 +143,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.lora_config = vllm_config.lora_config
         self.device = device
 
-        # Speculative decode (ngram). Mirrors v1: num_spec_tokens gates the whole
-        # path, drafter is only built for the ngram method.
+        # num_spec_tokens gates the whole path; the drafter is only built for ngram.
         self.speculative_config = getattr(vllm_config, "speculative_config", None)
         self.num_spec_tokens = 0
         self.drafter = None
@@ -164,8 +156,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 self.drafter = NgramProposer(vllm_config)
 
-        # additional_config arrives as a plain dict; build the typed TTConfig
-        # (as the v1 runner does) so the field reads below see real values.
+        # additional_config arrives as a plain dict; build the typed TTConfig so
+        # the field reads below see real values.
         self.tt_config = TTConfig(**vllm_config.additional_config)
 
         # Override number of hidden layers if specified in TTConfig. Must run
@@ -241,7 +233,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.num_tokens_paddings = [1]
         self.max_num_tokens = self.num_tokens_paddings[-1]
 
-        # Model dims.
         self.num_attn_layers = self.model_config.get_num_layers_by_block_type(
             self.parallel_config, "attention"
         )
@@ -252,8 +243,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.head_size = self.model_config.get_head_size()
         self.vocab_size = self.model_config.get_vocab_size()
         if self.lora_config is not None:
-            # lora_extra_vocab_size was removed in vllm 0.20.2; add it only when
-            # the installed LoRAConfig still exposes it.
             self.vocab_size += getattr(self.lora_config, "lora_extra_vocab_size", 0)
         # M-RoPE models feed 3D [3, reqs, tokens] position ids to the model.
         self.uses_mrope = self.model_config.uses_mrope
@@ -268,7 +257,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.max_num_reqs,
         )
 
-        # Driver / graph knobs read later.
         self.use_flat_model_io = bool(getattr(tt, "flat_model_io", False))
         self.cpu_sampling = bool(getattr(tt, "cpu_sampling", False))
         self.enable_decode_fused_graphs = bool(
@@ -276,7 +264,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self.sampling_device = torch.device("cpu") if self.cpu_sampling else self.device
 
-        # Split v2 state.
         self.req_states = TTRequestState(
             max_num_reqs=self.max_num_reqs,
             max_model_len=self.max_model_len,
@@ -344,10 +331,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _build_device_mesh(self) -> None:
         """Select the parallelism mode and build the SPMD device mesh.
 
-        Ported from the v1 runner: disables TP/DP that the available device count
-        can't support, derives the ``(batch, model)`` mesh via
-        ``determine_mesh_shape``, sets ``dp_size`` (>1 only in DP modes), and
-        rounds ``max_num_reqs`` up to a ``dp_size`` multiple. No-ops to the
+        Disables TP/DP the available device count can't support, derives the
+        ``(batch, model)`` mesh, sets ``dp_size`` (>1 only in DP modes), and rounds
+        ``max_num_reqs`` up to a ``dp_size`` multiple. Falls back to the
         single-device path (mesh stays None) when both flags end up disabled.
         """
         import torch_xla.distributed.spmd as xs
@@ -416,9 +402,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Load, place, and compile the model; build ModelState + sampler.
 
         Under TP the weights are sharded across the mesh (via ``shard_model``)
-        and the embedding load is wrapped in the vocab TP-rank patch. LoRA and
-        per-tensor weight-dtype overrides are still deferred. Needs a real model
-        + loader, so it is validated at engine stand-up.
+        and the embedding load is wrapped in the vocab TP-rank patch.
         """
         from contextlib import nullcontext
 
@@ -471,9 +455,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Repair MoE routing closures that captured CPU tensors before to(device).
         repair_stale_moe_closures(self.model)
 
-        # Wrap with LoRA layers after the model is on device, before compile
-        # (ported from the v1 runner). replace_set_lora adds the torch_xla.sync
-        # the integer LoRA index needs.
+        # Wrap with LoRA layers after the model is on device, before compile.
+        # replace_set_lora adds the torch_xla.sync the integer LoRA index needs.
         if self.lora_config is not None:
             logger.info("Loading LoRA model...")
             self.model = self.load_lora_model(self.model, self.vllm_config, self.device)
@@ -545,8 +528,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def finish_requests(self, scheduler_output: "SchedulerOutput") -> None:
         """Remove finished and preempted requests, freeing their slots.
 
-        Preempted requests are dropped (not kept at their slot as in v1): the
-        scheduler resends them through ``scheduled_new_reqs`` when resumed.
+        Preempted requests are dropped, not kept at their slot: the scheduler
+        resends them through ``scheduled_new_reqs`` when resumed.
         """
         for req_id in scheduler_output.finished_req_ids:
             self._remove_request(req_id)
@@ -618,7 +601,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             slot = self.req_states.req_id_to_index[req_id]
             num_computed = cached.num_computed_tokens[i]
             self.req_states.num_computed_tokens[slot] = num_computed
-            # Clamp prefill progress to the prefill length (upstream update_requests).
+            # Clamp prefill progress to the prefill length.
             self.req_states.num_computed_prefill_tokens[slot] = min(
                 num_computed, int(self.req_states.prefill_len[slot])
             )
@@ -632,9 +615,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Order this step's scheduled requests decodes-first (by token count).
 
         Returns parallel ``(slots, num_scheduled_tokens)`` arrays. Sorting by
-        ascending scheduled-token count (upstream v2 convention) groups the
-        1-token decodes ahead of the prefills so the multi-pass loop can emit
-        pure decode passes (dispatched to the decode graph) before prefills.
+        ascending scheduled-token count groups the 1-token decodes ahead of the
+        prefills so the multi-pass loop can emit pure decode passes (dispatched
+        to the decode graph) before prefills.
         """
         sched = scheduler_output.num_scheduled_tokens
         if self.dp_size > 1:
@@ -674,7 +657,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> tuple[np.ndarray, np.ndarray, int, int, int]:
         """Pick the sub-batch for one pass, applying the SMEM row caps.
 
-        Mirrors the v1 fork's per-pass clamping over the decode-first ordering.
         The row cap is always the max-model-len cap; prefill passes are
         additionally capped at ``max_prefill_num_reqs`` and the multi-pass loop
         picks up the rest. Returns ``(idx_mapping,
@@ -735,7 +717,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         padded_query_len: int,
         spec_decode_metadata=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Host substitute for the v2 Triton input-prep kernels.
+        """Build this pass's model inputs from the slot table.
 
         Builds 2D input_ids/positions [target_num_reqs, padded_query_len] plus flat
         query_start_loc/seq_lens from TTRequestState, indexed by idx_mapping_np[b]
@@ -789,7 +771,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.uses_mrope:
             # M-RoPE position ids are 3D [3, reqs, tokens]. For text-only inputs
             # every plane is identical, making it equivalent to 1D RoPE (see
-            # https://arxiv.org/abs/2409.12191). Mirrors the v1 runner.
+            # https://arxiv.org/abs/2409.12191).
             positions = np.broadcast_to(
                 positions, (3, target_num_reqs, padded_query_len)
             ).copy()
@@ -799,9 +781,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _execute_mm_encoder(self, scheduler_output: "SchedulerOutput") -> None:
         """Run the multimodal encoder for this step and cache outputs by mm_hash.
 
-        Ported from the v1 runner (_execute_mm_encoder). Reads mm features from
-        the per-slot table instead of self.requests, and assumes whole mm items
-        (no scatter_mm_placeholders dynamism), like the v1 runner.
+        Assumes whole mm items (no scatter_mm_placeholders dynamism).
         """
         from typing import cast
 
@@ -849,11 +829,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens: np.ndarray,
         padded_query_len: int,
     ):
-        """Build the per-pass mm-embed mask + flat scatter indices (v1
-        _gather_mm_embeddings port). The mask is [target_num_reqs,
-        padded_query_len] to match input_ids (each request's scheduled tokens
-        start at column 0); mm_indices are its row-major True positions, consumed
-        by get_mm_embeddings' index_copy merge.
+        """Build the per-pass mm-embed mask + flat scatter indices.
+
+        The mask is [target_num_reqs, padded_query_len] to match input_ids (each
+        request's scheduled tokens start at column 0); mm_indices are its
+        row-major True positions, consumed by get_mm_embeddings' index_copy.
         """
         target_num_reqs = len(idx_mapping_np)
         is_mm_embed = torch.zeros(
@@ -936,7 +916,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         Returns None when spec decode is off or no request in this pass carries
         drafts, which keeps the non-spec path on the flat one-logit-per-request
-        layout. Mirrors the v1 builder.
+        layout.
         """
         if not self.num_spec_tokens:
             return None
@@ -985,7 +965,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens: np.ndarray,
         sampled_token_ids: list[list[int]],
     ) -> list[list[int]]:
-        """Write sampled tokens back into TTRequestState (post_update substitute).
+        """Write sampled tokens back into TTRequestState.
 
         A request emits a token only once past its prefill (seq_len >= prefill_len);
         still-prefilling rows are discarded. The token lands at total_len (== seq_len
@@ -1028,7 +1008,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         target_num_reqs: int,
         num_blocks_per_req: int,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Host substitute for the v2 block-table / slot-mapping kernels.
+        """Build the paged-attention tensors for this pass.
 
         Builds the paged-attention tensors TTModelState.prepare_attn packages into
         a TTMetadata: read-path page_table (gathered in batch order via the slot
@@ -1412,7 +1392,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         apply_grammar = grammar_output is not None
         spec_active = spec_decode_metadata is not None
         if apply_grammar and spec_active:
-            # Same limitation as v1: tenstorrent/tt-xla#5701.
+            # Limitation: tenstorrent/tt-xla#5701.
             logger.warning_once(
                 "Speculative decoding with grammar is not supported yet. "
                 "Disabling grammar for this step."
@@ -1474,7 +1454,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             selected = forward_out
         # [target_num_reqs, 1] -> per active-req list; drop padding rows.
         # Transfer first, then slice on host: a device-side slice of the ROW_MAJOR
-        # sampled-id tensor forces a to_layout typecast tt-mlir can't lower (v1-aligned).
+        # sampled-id tensor forces a to_layout typecast tt-mlir can't lower.
         sampled = selected.cpu()[: len(idx_mapping_np)].tolist()
         if want_prompt_hs:
             return sampled, hidden_states
@@ -1591,7 +1571,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def _pin_input_shardings(self, input_ids, positions, inputs_embeds) -> None:
         """Pin model inputs on the batch/mesh axis so warmup and inference trace
-        the same graph. No-op off the SPMD path (ported from the v1 runner)."""
+        the same graph. No-op off the SPMD path."""
         if not self.enable_tensor_parallel and self.parallel_mode not in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -1676,10 +1656,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def prepare_structured_decoding_input(
         self, grammar_output, idx_mapping_np, num_reqs
     ):
-        """Build the per-pass structured-decoding tensors (ported from v1).
+        """Build the per-pass structured-decoding tensors.
 
-        Keyed by batch position b (not the v1 persistent input_batch index): the
-        request at slot ``idx_mapping_np[b]`` fills row b. ``grammar_bitmask`` has
+        Keyed by batch position b: the request at slot ``idx_mapping_np[b]`` fills
+        row b. ``grammar_bitmask`` has
         one row per structured request (scheduler order), so index it by the
         enumerate position so passes that hold only some structured requests stay
         aligned.
@@ -1710,7 +1690,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def structured_decode(
         self, require_struct_decoding, grammar_bitmask, logits, bitmasks
     ):
-        """Mask logits to grammar-allowed tokens for rows requiring it (v1 port)."""
+        """Mask logits to grammar-allowed tokens for rows requiring it."""
         return torch.where(
             require_struct_decoding,
             self._apply_grammar_bitmask(logits, grammar_bitmask, bitmasks),
@@ -1736,9 +1716,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
         """Sample on CPU instead of compiling a device sampling graph.
 
-        Ported from the v1 runner: supports greedy, temperature, top-k/top-p and
-        penalty-based sampling. Uses Gumbel-max (argmax of logits + Gumbel noise)
-        rather than torch.multinomial, which serializes over the batch.
+        Supports greedy, temperature, top-k/top-p and penalty-based sampling.
+        Uses Gumbel-max (argmax of logits + Gumbel noise) rather than
+        torch.multinomial, which serializes over the batch.
         """
         logits = logits.cpu()
 
@@ -1834,7 +1814,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
     def compute_logits(self, sample_hidden_states):
-        """Vocab logits for the given hidden states (ported from the v1 runner)."""
+        """Vocab logits for the given hidden states."""
         logits = self.model.compute_logits(sample_hidden_states)
         # Replicate sharded logits for SPMD: hooks can't reach ParallelLMHead
         # (quant_method.apply bypasses __call__) and all_gather is a no-op at
@@ -1849,7 +1829,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.compute_logits(sample_hidden_states)
 
     def gather_logprobs(self, logits, token_ids):
-        """Top-k logprobs + the given tokens' logprobs (ported from the v1 runner).
+        """Top-k logprobs + the given tokens' logprobs.
 
         Uses a fixed ``max_logprobs`` width so one compiled graph serves every
         request; callers trim to their per-request count on CPU.
@@ -1867,7 +1847,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.gather_logprobs(logits, token_ids)
 
     def _get_prompt_logprobs_dict(self, prompt_lp_hs, scheduler_output):
-        """Compute prompt logprobs for prefilling requests (ported from v1).
+        """Compute prompt logprobs for prefilling requests.
 
         For each request with prompt_logprobs enabled, processes this step's
         prompt positions in batches of max_num_reqs through compute_logits /
@@ -1972,9 +1952,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
         """Allocate the per-layer KV cache tensors on the TT device.
 
-        The device-coupled core of ``initialize_kv_cache`` (salvaged from the v1
-        fork), split out so it can be exercised on-device without the engine
-        wrappers. Standard attention gets separate ``[k_cache, v_cache]`` tensors
+        The device-coupled core of ``initialize_kv_cache``, split out so it can be
+        exercised on-device without the engine wrappers. Standard attention gets
+        separate ``[k_cache, v_cache]`` tensors
         (avoids slice/concat in the compiled graph); MLA gets a single latent
         tensor. Only one KV-cache group (no hybrid) and one owner per tensor are
         supported. Returns ``layer_name -> tensor | [k, v]``.
@@ -2060,7 +2040,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         Gemma-4's last layers allocate no cache of their own and reuse an earlier
         layer's; without this they keep an empty placeholder and decode indexes
-        it (kv_cache[0]) on an empty tensor. Mirrors the v1 runner.
+        it (kv_cache[0]) on an empty tensor.
         """
         if not self.shared_kv_cache_layers:
             return
@@ -2214,7 +2194,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests, *args, **kwargs
     ) -> None:
-        """Activate LoRAs, bracketing with torch_xla.sync (ported from v1).
+        """Activate LoRAs, bracketing with torch_xla.sync.
 
         The syncs capture the input/metadata updates around the integer LoRA
         index, which would otherwise force a recompile.
@@ -2230,9 +2210,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _make_lora_inputs(self, idx_mapping_np, num_scheduled_tokens):
         """Build (prompt, token) LoRA id mappings + active requests for a pass.
 
-        Host substitute for InputBatch.make_lora_inputs: repeats each request's
-        LoRA id (0 = base model) by its sampled-token count (1) and scheduled-
-        token count, gathered in batch order via idx_mapping.
+        Repeats each request's LoRA id (0 = base model) by its sampled-token
+        count (1) and scheduled-token count, gathered in batch order via
+        idx_mapping.
         """
         prompt_lora_mapping: list[int] = []
         token_lora_mapping: list[int] = []
@@ -2385,8 +2365,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         fill_page_table = torch.zeros(
             (target_num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
         ).to(dev)
-        # Non-zero write position: all-zeros makes the paged cache op fail to
-        # compile (matches v1's _dummy_run, which uses ones).
+        # Non-zero write position: all-zeros makes the paged cache op fail to compile.
         cache_position = torch.ones(target_num_reqs, dtype=torch.int32).to(dev)
         # from_numpy (not on-device arange) so the DP "batch" sharding sticks.
         batch_idx = torch.from_numpy(np.arange(target_num_reqs, dtype=np.int32)).to(dev)

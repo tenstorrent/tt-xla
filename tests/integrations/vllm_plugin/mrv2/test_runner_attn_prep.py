@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """CPU unit tests for the MRv2 runner attention slot-mapping build.
 
-``TTModelRunnerV2._prepare_attn_tensors`` (see vllm_tt/model_runner_v2.py) is the
-host substitute for upstream's block-table / slot-mapping Triton kernels. It is
-pure numpy over ``TTRequestState`` + the runner block table, so it runs on cpu
-with no TT hardware: the runner is allocated without ``__init__`` and the block
-table is a fake returning a fixed numpy block map.
+``TTModelRunnerV2._prepare_attn_tensors`` (see vllm_tt/model_runner_v2.py) builds
+the paged-attention tensors. It is pure numpy over ``TTRequestState`` + the runner
+block table, so it runs on cpu with no TT hardware: the block table is a fake
+returning a fixed numpy block map.
 
 They pin the paged-attention math TT owns: the batch-order gather, the prefix
 roll for ``paged_fill_cache``, the zero-scheduled-row redirect, and null padding.

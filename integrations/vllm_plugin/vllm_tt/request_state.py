@@ -1,34 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TT ``RequestState`` for vLLM Model Runner v2 (MRv2).
+"""TT ``RequestState`` for the vLLM v2 model runner.
 
-Phase 2 of the MRv2 adoption: the persistent per-request slot table. Mirrors
-upstream ``vllm.v1.worker.gpu.states.RequestState`` (as of vLLM v0.22.1),
-substituting host-side numpy storage for upstream's UVA / ``StagedWriteTensor``
-buffers.
-
-Scope / status
---------------
-MRv2 splits the old monolithic runner into four pieces: the runner (engine),
-``ModelState`` (see model_state.py), ``RequestState`` (this file) and
-``InputBatch`` (see input_batch_v2.py). ``RequestState`` is the stable slot
-table that replaces v1's ``CachedRequestState`` dict + ``InputBatch`` add /
-remove / condense bookkeeping: each request owns a fixed slot for its lifetime
-and the slot is returned to a free list on removal (no condensing).
-
-* Holds ONLY token bookkeeping. Upstream keeps sampling params in the sampler
-  (``SamplingStates``) and block tables in the runner, not here; TT mirrors
-  that split -- both are deferred to Phase 3.
-* Upstream backs the per-slot arrays with ``StagedWriteTensor`` / ``UvaBackedTensor``
-  so the Triton input-prep kernels can read them on device. TT input-prep is
-  host-side (no Triton), so those device mirrors would be dead weight; we use
-  plain numpy as the single source of truth. As a result ``apply_staged_writes``
-  is a no-op -- writes land immediately.
-* This module has no ``vllm.v1.worker.gpu.*`` dependency, so unlike
-  model_state.py it is import-safe on un-uplifted envs. It is still intentionally
-  NOT imported from the package ``__init__`` until the TT v2 runner (Phase 3)
-  wires it in. UNVALIDATED at runtime until then.
+Each request owns a fixed slot for its lifetime; the slot returns to a free list
+on removal (no condensing). Holds only token bookkeeping -- sampling params live
+in ``TTSamplingStates`` and block tables in the runner. Storage is host-side
+numpy, so ``apply_staged_writes`` is a no-op.
 """
 
 from __future__ import annotations
@@ -42,12 +20,7 @@ if TYPE_CHECKING:
 
 
 class TTRequestState:
-    """Persistent per-request slot table for the TT MRv2 runner.
-
-    Structure-of-arrays indexed by ``req_state_idx`` (a stable slot). Mirrors
-    upstream ``RequestState`` field-for-field; see module docstring for the
-    numpy-vs-UVA substitution.
-    """
+    """Structure-of-arrays keyed by ``req_state_idx``, a stable per-request slot."""
 
     def __init__(
         self,
@@ -63,14 +36,12 @@ class TTRequestState:
         self.max_num_batched_tokens = max_num_batched_tokens
         self.num_speculative_steps = num_speculative_steps
         self.vocab_size = vocab_size
-        # Kept for parity / Phase 3 device materialization; unused host-side.
         self.device = device
 
         self.req_id_to_index: dict[str, int] = {}
         self.index_to_req_id: dict[int, str] = {}
         self.free_indices = list(range(max_num_reqs))
 
-        # Per-slot token ids. Host-side numpy (upstream: UVA StagedWriteTensor).
         self.all_token_ids = np.zeros(
             (self.max_num_reqs, self.max_model_len), dtype=np.int32
         )
@@ -84,9 +55,6 @@ class TTRequestState:
         # total_len = prompt_len + output_len; grows as the request progresses.
         self.total_len = np.zeros(self.max_num_reqs, dtype=np.int32)
 
-        # Number of computed tokens. Upstream splits this into a device tensor
-        # (authoritative, updated by the post_update kernel) plus an optimistic
-        # CPU mirror; host-side these collapse to one array.
         self.num_computed_prefill_tokens = np.zeros(self.max_num_reqs, dtype=np.int32)
         self.num_computed_tokens = np.zeros(self.max_num_reqs, dtype=np.int32)
 
@@ -158,11 +126,7 @@ class TTRequestState:
         self.num_draft_tokens[req_idx] = 0
 
     def apply_staged_writes(self) -> None:
-        """No-op: numpy writes land immediately (see module docstring).
-
-        Kept for interface parity with upstream ``RequestState`` so the Phase 3
-        runner's ``add_requests`` can call it unconditionally.
-        """
+        """No-op: numpy writes land immediately."""
         return None
 
     def remove_request(self, req_id: str) -> bool:

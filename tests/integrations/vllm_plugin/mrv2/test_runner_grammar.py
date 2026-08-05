@@ -6,8 +6,7 @@
 ``TTModelRunnerV2._apply_grammar_bitmask`` / ``structured_decode`` mask logits to
 grammar-allowed tokens using a bitwise_and unpack (TT has no bitwise_right_shift),
 and ``prepare_structured_decoding_input`` places each structured request's bitmask
-row at its per-pass batch position (keyed by idx_mapping, not the v1 persistent
-input_batch index). These run purely on CPU.
+row at its per-pass batch position (keyed by idx_mapping). These run purely on CPU.
 """
 from types import SimpleNamespace
 

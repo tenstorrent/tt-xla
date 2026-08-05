@@ -4,14 +4,8 @@
 """CPU unit tests for the MRv2 ``TTRequestState`` slot table.
 
 ``TTRequestState`` (see vllm_tt/request_state.py) is pure host-side numpy, so
-these run on a cpu-only runner with no TT hardware and no model. They pin the
-invariants that are TT's own responsibility and stable across the remaining
-MRv2 phases: the stable-slot / free-list lifecycle (which replaces v1's
-condense-and-shuffle bookkeeping and the slot-corruption bugs it caused),
-length accounting, and the numpy substitution for upstream's UVA buffers.
-
-These do NOT exercise the end-to-end runner path -- nothing consumes
-``TTRequestState`` until the Phase 3 runner exists.
+these run on cpu with no TT hardware and no model. They pin the stable-slot /
+free-list lifecycle and the length accounting.
 """
 
 import numpy as np
@@ -125,7 +119,7 @@ def test_remove_request_return_value():
 @pytest.mark.cpu
 def test_apply_staged_writes_is_noop():
     """Locks the numpy substitution: writes land immediately in add_request, so
-    apply_staged_writes must not mutate state (upstream flushes UVA here)."""
+    apply_staged_writes must not mutate state."""
     rs = make_state()
     rs.add_request("A", prompt_len=2, all_token_ids=[10, 11], num_computed_tokens=0)
     slot = rs.req_id_to_index["A"]
