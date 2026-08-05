@@ -190,6 +190,8 @@ def test_select_batch_short_rows_still_use_max_model_len_cap():
     idx0, nst0, target0, padded0, end0 = r._select_batch(slots, ntoks, 0)
     assert idx0.tolist() == [0, 1]
     assert nst0.tolist() == [5, 5]
-    assert target0 == 2
+    # Row cap trims the pass to 2, but a prefill still runs at the compiled
+    # max_prefill_num_reqs bucket (only <= min_num_reqs drops to min).
+    assert target0 == 4
     assert padded0 == 32
     assert end0 == 2
