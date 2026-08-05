@@ -541,7 +541,14 @@ def get_tt_moe_shard_specs(
     shard_specs = original_spec_fn(model)
     expert_axis: Any = tuple(mesh_names) if len(mesh_names) > 1 else mesh_names[0]
 
-    layers = getattr(getattr(model, "model", None), "layers", None)
+    # Decoder layers live at model.model.layers for causal-LM MoE, but at
+    # model.model.language_model.layers for multimodal (VLM) MoE, where
+    # model.model only exposes .visual and .language_model. Check both so the
+    # expert-dimension sharding is applied in either topology.
+    inner = getattr(model, "model", None)
+    layers = getattr(inner, "layers", None)
+    if layers is None:
+        layers = getattr(getattr(inner, "language_model", None), "layers", None)
     if layers is None:
         return shard_specs
 
