@@ -116,7 +116,13 @@ jobs:
     needs: [ check_dumped_irs, build_ttxla_explorer ]
     if: needs.check_dumped_irs.outputs.skip_ir_processing == 'false'
 
-    runs-on: ${{ !inputs.shared-runners && 'n150' || 'tt-ubuntu-2204-n150-stable' }}
+    # No device: op extraction is pure MLIR parsing/splitting.
+    # `extract_ops_from_module` only runs `MLIRModuleSplitter.split`, and unlike
+    # `execute_extracted_ops` it never calls `_ensure_system_desc()`, so nothing
+    # here opens a Tenstorrent device. The explorer wheel is still required for
+    # the `op_by_op_infra` / ttmlir python bindings, hence the container image and
+    # the dependency on build_ttxla_explorer.
+    runs-on: tt-ubuntu-2204-large-stable
 
     outputs:
       skip_ir_processing: ${{ steps.plan-unique-ops.outputs.skip_ir_processing }}
@@ -124,15 +130,7 @@ jobs:
       job_matrix: ${{ steps.plan-unique-ops.outputs.job_matrix }}
 
     container:
-      image: ${{ !inputs.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent
-      volumes:
-        - /dev/hugepages:/dev/hugepages
-        - /dev/hugepages-1G:/dev/hugepages-1G
-        - /etc/udev/rules.d:/etc/udev/rules.d
-        - /lib/modules:/lib/modules
-        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-        - /mnt/dockercache:/mnt/dockercache
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
 
     steps:
       - name: Mark repo as safe for git
