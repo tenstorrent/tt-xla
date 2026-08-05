@@ -114,7 +114,7 @@ def replace_set_lora(model):
 
 
 class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
-    """Tenstorrent MRv2 model runner (see module docstring)."""
+    """Tenstorrent MRv2 model runner."""
 
     def __init__(
         self,
