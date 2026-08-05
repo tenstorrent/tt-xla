@@ -172,8 +172,9 @@ def transformer_shard_spec(model: mdo.Transformer):
 def test_prefill_and_decode_pcc_e2e(
     model_name, num_iterations, num_layers, use_cpu_decode_inputs
 ):
-    enable_spmd()
+    # Device type must be set before any XLA runtime / SPMD init.
     xr.set_device_type("TT")
+    enable_spmd()
 
     mesh = utils.make_2d_mesh()
     bsz = len(PROMPTS)
