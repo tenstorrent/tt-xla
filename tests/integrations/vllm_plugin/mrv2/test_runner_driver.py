@@ -76,9 +76,7 @@ def make_runner(max_num_reqs=8, max_model_len=32, max_num_blocks_per_req=4):
     r.max_num_blocks_per_req = max_num_blocks_per_req
     r.block_size = 16
     # SMEM-cap scalars: generous so scenarios run in a single pass.
-    r.most_model_len = None
     r.num_reqs_max_model_len = max_num_reqs
-    r.num_reqs_most_model_len = None
     r.min_num_reqs = 1
     r.max_prefill_num_reqs = max_num_reqs
     r.max_num_reqs = max_num_reqs
