@@ -218,19 +218,17 @@ The result is the **same set of four failures**, with the same messages:
 - `test_seed_reproducibility` — same seed still gives `'The capital of France is Paris.'` vs `'Paris.'`
 - `test_non_uniform_seeding` — seed=0 gives **16** unique outputs (15 under device sampling)
 
-So the seed handling gap is **not** attributable to device sampling. All four failures look like
-genuine forge-backend gaps:
+So the seed handling gap is **not** attributable to device sampling.
 
-| gap | evidence |
-|:--|:--|
-| `n` ignored | always returns 1 choice regardless of `n` |
-| `logprobs` never returned | field absent from the response even when requested |
-| `seed` not honored | non-reproducible under both device and host sampling |
+> **Superseded.** This section originally concluded that all four failures were "genuine
+> forge-backend gaps" supporting Andrija's hypothesis. That is wrong. Two of the three parameters
+> never reach forge at all — they are dropped by tt-media-server's own OpenAI shim. See
+> [Root causes](#root-causes-verified-on-hardware) below, which was established by running the
+> same three parameters against a stock `vllm serve` with no tt-inference-server in the picture.
 
-This supports Andrija's hypothesis fairly directly: the forge backend does not implement these
-OpenAI-defined parameters, independent of sampling location. Note the suite still mostly passes —
-stop sequences, `max_tokens`, penalties, and pinned temperature/top_k/top_p determinism all work —
-so it is a specific set of unimplemented parameters, not a broadly non-conformant server.
+Note the suite still mostly passes — stop sequences, `max_tokens`, penalties, and pinned
+temperature/top_k/top_p determinism all work — so it is a specific set of parameters, not a
+broadly non-conformant server.
 
 ### Run 3 — host sampling again, same server instance: 6 pass / 3 fail (FLAKY)
 
@@ -298,52 +296,99 @@ The existing xfail reason on `test_seed`:
 > `additional_config={'cpu_sampling': True}`.** Remove this xfail once the kernel grows per-row
 > seed support.
 
-### The workaround did not hold over HTTP
+### Why none of these tests catch the real bugs
 
-Run 2 used `cpu_sampling: True` (verified in `additional_config`, zero `Sampling on xla:0` lines)
-and both seed tests failed -- but run 3 on the same server passed `test_seed_reproducibility`, so
-only the *concurrent* test (`test_non_uniform_seeding`) is a reliable failure. For that one, two
-readings:
+Every one of them stops short of the layer where the defects live:
 
-1. the documented workaround is stale, or
-2. the seed is dropped somewhere in the **HTTP -> SamplingParams** path, which would be a
-   different bug from #4539's kernel-level one.
+| test | what it actually drives | why it misses |
+|:--|:--|:--|
+| `test_seed_correctness.py` | `Sampler.random_sample()` on CPU with hand-built `q_samples` | validates the math; never touches the engine, so broken wiring upstream is invisible |
+| `test_sampling_params.py::test_seed` | offline `LLM`, device sampling | `xfail(strict=True)` — the failure is expected and green, and nobody re-checks it under the workaround it recommends |
+| `test_cpu_sampling.py` | offline `LLM`, host sampling | contains **no seed test at all** — the workaround was never verified |
+| `test_logprobs_correctness.py` | `Sampler().gather_logprobs()` directly | all 14 call sites pass `num_logprobs >= 1`; `logprobs=0` appears nowhere in the tree |
+| `n` | — | no coverage anywhere |
 
-(2) is more likely: tt-xla's `test_seed` drives the offline `LLM` API in-process, while the spec
-test goes over `/v1/chat/completions`. Note also that `test_cpu_sampling.py` contains **no seed
-test at all**, so the workaround has never actually been verified in tt-xla's own suite.
+The common thread: the suite unit-tests the sampler and offline-tests the engine, but nothing
+exercises the **OpenAI request -> `SamplingParams` translation**, which is where all of these live.
 
-The same shape holds for `logprobs`: it passes tt-xla's own correctness tests but is absent from
-the HTTP response. So across the reliable failures the pattern is **"works in-process, broken over HTTP"** — pointing at the serving/entrypoint layer rather than the sampler or the kernels.
-That is a sharper hypothesis than "forge doesn't implement the OpenAI API" and should be the first
-thing the next session tests.
+## Root causes (verified on hardware)
 
-**Check first:** whether #4539 is still open and whether its scope already covers the HTTP path.
-If it does, this is evidence the stated workaround is wrong; if not, this is a separate
-serving-layer issue.
-
-## A pure tt-xla repro is feasible (no tt-inference-server dependency)
-
-`tt-xla/tests/integrations/vllm_plugin/generative/test_responses_api.py` already does exactly what
-is needed: it spawns `python -m vllm.entrypoints.openai.api_server` as a subprocess with the tt
-plugin, waits for health, and exercises HTTP endpoints. Its fixture uses a deliberately tiny
-config for fast startup:
+Established by driving `n` / `logprobs` / `seed` against a stock
+`python -m vllm.entrypoints.openai.api_server` with opt-125m — no tt-inference-server, no Falcon3.
+Results:
 
 ```
---max-model-len 128 --max-num-batched-tokens 128 --max-num-seqs 1 --gpu-memory-utilization 0.001
+n=2 / n=3                        HTTP 200, choices=2 / 3      <- works
+logprobs=True                    HTTP 500  IndexError         <- tt-xla bug
+logprobs=True, top_logprobs=3    HTTP 200, logprobs present   <- works
+seed=42 x2                       identical=False              <- tt-xla bug
+seed=0 / seed=7, x16 concurrent  8/16 unique each             <- seed not honored
 ```
 
-`falcon3_serve_no_fix.log` also confirms stock `vllm serve` works standalone on tt-xla.
+This splits the original four failures across **two different repos**.
 
-So a tt-xla-only ticket can carry a self-contained test that starts its own server and asserts
-`n` / `logprobs` / `seed` over HTTP, runnable in tt-xla CI with no tt-inference-server checkout.
-Adjustments needed vs the `test_responses_api.py` fixture:
+### tt-media-server, not forge
 
-- `--max-num-seqs 32` (the seeding test fires 32 concurrent requests), not 1
-- a small model rather than Falcon3-7B, for speed
+The Falcon3 server under test was `uvicorn main:app` — tt-media-server's hand-rolled OpenAI shim,
+not vLLM's `api_server`. Three of the conformance failures are caused there and never reach the
+plugin:
 
-This is probably the better bug report: it isolates the serving layer, runs in tt-xla CI, and
-sidesteps whether the failure is Falcon3-specific.
+| failure | cause |
+|:--|:--|
+| `n` ignored | `open_ai_api/chat.py:143` — `choices` is a hardcoded 1-element list. `n` *is* forwarded to `SamplingParams`; the extra outputs are discarded when the response dict is built. |
+| `logprobs` absent | `domain/chat_completion_request.py` — the pydantic model has **no `logprobs` field**, so `"logprobs": true` is dropped before vLLM sees it. `CompletionRequest` has it; only the chat model is missing it. |
+| `seed` ignored | `utils/sampling_params_builder.py:48` — **`seed = None` is hardcoded**, deliberately, citing #4539 and a ~5x slowdown on the seeded path. |
+
+The hardcoded `seed = None` fully explains why run 2's `CPU_SAMPLING=true` changed nothing: the
+seed was discarded host-side before sampling location could matter.
+
+### tt-xla, underneath
+
+1. **`logprobs: true` without `top_logprobs` -> HTTP 500.** It maps to `SamplingParams(logprobs=0)`.
+   `metadata.py:220` computes `needs_logprobs = max_num_logprobs > 0 if max_num_logprobs else False`,
+   so a `0` takes the `else False` branch, no logprobs tensors are produced, and vLLM's
+   `_create_chat_logprobs` then dies on `top_logprobs[i]` with `IndexError`. `logprobs=0` is a valid
+   request meaning "the sampled token's logprob, no alternatives".
+2. **logprobs + `cpu_sampling` kills EngineCore.** `sampler.py:253`
+   `logprobs.gather(-1, token_ids)` receives a host `LongTensor` for `selected_token_ids` and raises
+   `Input tensor is not an XLA tensor`. Every subsequent request on that server 500s.
+3. **`seed` is not honored, and `cpu_sampling: True` does not fix it.** Reproduced over HTTP
+   (16/16 unique at seed=0) *and* via the in-process `LLM` API (8/8 unique in a single batch,
+   seed=42 non-reproducible across calls).
+
+Point 3 retires the "works in-process, broken over HTTP" hypothesis for seed: it is broken on both
+paths, so #4539's stated kernel-level cause cannot be the whole story and **the workaround
+documented on `test_seed` is simply wrong** — not stale, not HTTP-specific.
+
+## The tt-xla repro test
+
+`tests/integrations/vllm_plugin/sampling/test_openai_sampling_params.py` — self-contained, spawns
+its own `api_server`, no tt-inference-server checkout needed.
+
+```bash
+cd /localdev/kmabee/tt-xla
+source venv/activate
+pytest tests/integrations/vllm_plugin/sampling/test_openai_sampling_params.py -v
+```
+
+Measured: **3 passed, 5 xfailed, 12m13s**, most of it the two server startups (device-sampling and
+`cpu_sampling` fixtures). All xfails are `strict=True`, so a fix turns them into red XPASS rather
+than silently passing.
+
+| test | result |
+|:--|:--|
+| `test_chat_n[2]`, `test_chat_n[3]` | PASS — regression guard, `n` works here |
+| `test_chat_logprobs_with_top_logprobs` | PASS — the contrast case |
+| `test_chat_logprobs_without_top_logprobs` | XFAIL — the `logprobs=0` 500 |
+| `test_chat_logprobs_cpu_sampling` | XFAIL — EngineCore death |
+| `test_chat_seed_reproducibility` | XFAIL |
+| `test_chat_seed_reproducibility_cpu_sampling` | XFAIL — the workaround |
+| `test_chat_seed_under_concurrency` | XFAIL — 16 concurrent, seed=0 |
+
+Fixture gotcha worth knowing before copying `test_responses_api.py`'s config: the plugin asserts
+`max_num_batched_tokens >= max_model_len * max_num_seqs`, so raising `--max-num-seqs` for the
+concurrency test forces `--max-num-batched-tokens` up too (128 -> 4096 at `max_model_len=128`).
+Leaving it at 128 fails at engine init, not at request time.
 
 ## Faster server for iterating
 
@@ -360,13 +405,30 @@ graph) and `ENABLE_TRACE=false`. Change one variable at a time if the result mat
 
 ## Open items
 
-- File `n`, `logprobs` and `seed` against the forge vLLM plugin — all three are independent of
-  Falcon3 and will hit every forge model that declares spec tests.
+Against **tt-media-server** (three separate few-line fixes, all independent of Falcon3 and forge):
+
+- `n` — build `choices` from all outputs instead of a hardcoded 1-element list (`open_ai_api/chat.py:143`).
+- `logprobs` — add the field to `ChatCompletionRequest` and forward it; it is already plumbed for `CompletionRequest`.
+- `seed` — the hardcoded `seed = None` needs revisiting once tt-xla honors seeds; until then it should
+  at least be documented in the API surface rather than silently ignored.
+
+Against **tt-xla**:
+
+- File `logprobs=0` -> 500 (`metadata.py:220`). Cheapest real fix of the set.
+- File logprobs + `cpu_sampling` -> EngineCore death (`sampler.py:253`).
+- Correct the `test_seed` xfail reason: the `cpu_sampling` workaround it recommends does not work,
+  verified both in-process and over HTTP. Check whether #4539 is still open and whether its scope
+  covers the non-kernel path.
+
+Process / open questions:
+
 - Decide whether the Falcon3 `llm.json` / `server_tests_config.json` additions should be upstreamed
-  as-is (they will make Falcon3 CI red until `n` / `logprobs` / `seed` are fixed or xfailed).
-- Cross-check Andrija's Mistral CI failure for the 401 pattern before attributing it to forge.
-- Test the "works in-process, broken over HTTP" hypothesis — the single highest-value next step.
+  as-is (they will make Falcon3 CI red until the tt-media-server side is fixed).
+- Cross-check Andrija's Mistral CI failure — if it also ran through tt-media-server, its `n` /
+  `logprobs` / `seed` failures have the same three non-forge causes and "forge is non-conformant"
+  is the wrong conclusion for them. Check the 401 pattern too.
+- Decide whether `test_openai_sampling_params.py` belongs in CI at 12 min for one device. Currently
+  marked `nightly`.
 - Re-run `test_seed_reproducibility` several times to characterise its flake rate; a flaky test in
   a release-gating suite is its own problem regardless of the underlying seed bug.
-- Confirm `MAX_MODEL_LENGTH=4096` reproduces 5 pass / 4 fail.
-- Add `n` coverage to tt-xla's vllm_plugin tests; it has none today.
+- Confirm `MAX_MODEL_LENGTH=4096` reproduces the same pass/fail split.
