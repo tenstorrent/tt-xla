@@ -279,7 +279,13 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
     ),
-    pytest.param(_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b"),
+    pytest.param(
+        _config(
+            "mistralai/Ministral-8B-Instruct-2410",
+            gpu_memory_utilization=0.12,
+        ),
+        id="ministral-8b",
+    ),
     # OPT (vLLM-only fast canary; not part of the torch-xla matrix)
     pytest.param(_config("facebook/opt-125m"), id="opt-125m"),
 ]
