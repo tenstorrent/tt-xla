@@ -54,6 +54,8 @@ def make_runner(max_num_reqs=4, max_model_len=32):
     r.enable_tensor_parallel = False
     r.block_size = 16
     r.max_num_blocks_per_req = 4
+    r._prefix_sdpa_usable = r.max_num_blocks_per_req % 8 == 0
+    r.num_spec_tokens = 0
     r.attention_layer_names = ("layer.0", "layer.1")
     r.req_states = TTRequestState(
         max_num_reqs=max_num_reqs,

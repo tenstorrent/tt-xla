@@ -31,6 +31,7 @@ from vllm.v1.worker.kv_connector_model_runner_mixin import KVConnectorModelRunne
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 from .logger import tt_init_logger
+from .model_runner import _row_lead, _same_block_run
 from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 
 logger = tt_init_logger(__name__)
@@ -208,6 +209,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.block_size = self.cache_config.block_size
         self.max_model_len = self.model_config.max_model_len
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
+        # The chunked SDPA op needs num_blocks_per_req % 8 == 0 (32B-aligned
+        # page-table stick). Any multi-token row over a cached prefix needs that
+        # op, and a spec-decode row is exactly that.
+        self._prefix_sdpa_usable = self.max_num_blocks_per_req % 8 == 0
 
         # Prefill request-count bucketing bounds (decode always uses max_num_reqs).
         self.min_num_reqs = getattr(tt, "min_num_seqs", None) or self.max_num_reqs
@@ -649,6 +654,34 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         order = np.argsort(ntoks_np, kind="stable")
         return np.array(slots, dtype=np.int32)[order], ntoks_np[order]
 
+    def _spec_prefix_rows(self) -> bool:
+        """Whether this run can produce speculative multi-token rows.
+
+        Those are the only rows that start mid block and so need the block
+        alignment handling; every other path is left untouched.
+        """
+        return bool(self.num_spec_tokens) and self._prefix_sdpa_usable
+
+    def _row_lead_for(
+        self, idx_mapping_np: np.ndarray, num_scheduled_tokens: np.ndarray
+    ) -> np.ndarray:
+        """Tokens each row must re-feed to start on its KV block boundary.
+
+        Zero everywhere except a speculative multi-token row: ``paged_fill_cache``
+        writes from the start of a block while the chunked SDPA read offsets by an
+        exact token position, so the row is extended left to the boundary.
+        """
+        lead = np.zeros(len(idx_mapping_np), dtype=np.int32)
+        if not self._spec_prefix_rows() or len(num_scheduled_tokens) == 0:
+            return lead
+        if int(np.max(num_scheduled_tokens)) <= 1:
+            return lead
+        computed = np.array(
+            [int(self.req_states.num_computed_tokens[int(s)]) for s in idx_mapping_np],
+            dtype=np.int32,
+        )
+        return _row_lead(computed, self.block_size)
+
     def _select_batch(
         self,
         ordered_slots: np.ndarray,
@@ -666,8 +699,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # DP grid is one full-width pass; positions already map to replicas
             # (see _order_scheduled_reqs), so no SMEM re-clamp or reorder here.
             max_scheduled = max(int(ordered_num_tokens.max()), 1)
+            lead = self._row_lead_for(ordered_slots, ordered_num_tokens)
             padded_query_len = _get_padded_token_len(
-                self.num_tokens_paddings, max_scheduled
+                self.num_tokens_paddings,
+                max(int((ordered_num_tokens + lead).max()), max_scheduled),
             )
             return (
                 ordered_slots,
@@ -690,6 +725,30 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             end_index = start_index + self.max_prefill_num_reqs
             num_scheduled = ordered_num_tokens[start_index:end_index]
 
+        # Spec rows are re-fed to their block boundary and share one read offset,
+        # so a multi-token pass may only carry rows on the SAME boundary. Trim to
+        # the leading run; the next pass takes the rest. Prefill chunks are already
+        # block aligned, so this is inert off the spec path.
+        if self._spec_prefix_rows() and int(num_scheduled.max()) > 1:
+            computed = np.array(
+                [
+                    int(self.req_states.num_computed_tokens[int(s)])
+                    for s in ordered_slots[start_index:end_index]
+                ],
+                dtype=np.int32,
+            )
+            same_run = _same_block_run(computed, self.block_size)
+            trimmed = ordered_num_tokens[start_index : start_index + same_run]
+            # A trim that leaves no scheduled work would trip the caller's
+            # assert (DP padding rows), so only take it when real work remains.
+            if (
+                same_run < len(num_scheduled)
+                and len(trimmed)
+                and int(trimmed.max()) > 0
+            ):
+                end_index = start_index + same_run
+                num_scheduled = trimmed
+
         idx_mapping = ordered_slots[start_index:end_index]
         max_scheduled = int(num_scheduled.max())
 
@@ -704,8 +763,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else self.max_prefill_num_reqs
             )
 
+        # Bucket on the re-fed row length, so the extended row still fits.
+        lead = self._row_lead_for(idx_mapping, num_scheduled)
         padded_query_len = _get_padded_token_len(
-            self.num_tokens_paddings, max_scheduled
+            self.num_tokens_paddings,
+            max(int((num_scheduled + lead).max()), max_scheduled),
         )
         return idx_mapping, num_scheduled, target_num_reqs, padded_query_len, end_index
 
@@ -729,9 +791,13 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits_indices is flat [target_num_reqs] (one logit at each request's last
         scheduled token), or packed [target_num_reqs, num_spec_tokens+1] under spec
         decode so draft and bonus logits come out of a single pass.
+
+        A speculative row is extended left to its KV block boundary (row_lead), so
+        every within-row index shifts right by that lead.
         """
         num_reqs = len(idx_mapping_np)
         rs = self.req_states
+        row_lead = self._row_lead_for(idx_mapping_np, num_scheduled_tokens)
 
         input_ids = np.zeros((target_num_reqs, padded_query_len), dtype=np.int32)
         positions = np.zeros((target_num_reqs, padded_query_len), dtype=np.int32)
@@ -742,13 +808,17 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             slot = int(idx_mapping_np[b])
             n = int(num_scheduled_tokens[b])
             computed = int(rs.num_computed_tokens[slot])
+            lead = int(row_lead[b])
+            start = computed - lead
+            row_len = lead + n
             # Same gather for prefill and decode: the scheduled tokens for this
-            # step are all_token_ids[computed : computed + n].
-            input_ids[b, :n] = rs.all_token_ids[slot, computed : computed + n]
-            positions[b, :n] = np.arange(n, dtype=np.int32) + computed
+            # step are all_token_ids[computed : computed + n]; a spec row re-feeds
+            # the already-computed head of its block first (idempotent K/V write).
+            input_ids[b, :row_len] = rs.all_token_ids[slot, start : start + row_len]
+            positions[b, :row_len] = np.arange(row_len, dtype=np.int32) + start
             seq_lens[b] = computed + n
             # One logit per request, at its last scheduled token (within-row).
-            logits_indices[b] = n - 1
+            logits_indices[b] = row_len - 1
 
         if spec_decode_metadata is not None:
             # Packed [reqs, spec_width]: draft rows index the first draft_len
@@ -756,11 +826,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             spec_width = self.num_spec_tokens + 1
             packed = np.zeros((target_num_reqs, spec_width), dtype=np.int32)
             for b in range(num_reqs):
-                bonus_idx = int(num_scheduled_tokens[b]) - 1
+                lead = int(row_lead[b])
+                bonus_idx = lead + int(num_scheduled_tokens[b]) - 1
                 packed[b, :] = bonus_idx
                 draft_len = spec_decode_metadata.num_draft_tokens[b]
                 if draft_len:
-                    packed[b, :draft_len] = np.arange(draft_len, dtype=np.int32)
+                    packed[b, :draft_len] = np.arange(draft_len, dtype=np.int32) + lead
             logits_indices = packed
 
         query_start_loc = np.zeros(target_num_reqs + 1, dtype=np.int32)
@@ -1057,6 +1128,38 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return page_table, fill_page_table, cache_position
 
+    def _chunk_start_idx_for(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        padded_query_len: int,
+    ) -> np.ndarray | None:
+        """Shared prefix read offset for a speculative multi-token pass.
+
+        None off the spec path, so every other path keeps the standard attention
+        branch. The offset must equal the block boundary the row was extended to,
+        otherwise the read disagrees with where paged_fill_cache wrote.
+        """
+        if not self._spec_prefix_rows() or padded_query_len <= 1:
+            return None
+        if len(num_scheduled_tokens) == 0 or int(np.max(num_scheduled_tokens)) <= 1:
+            return None
+        computed = np.array(
+            [int(self.req_states.num_computed_tokens[int(s)]) for s in idx_mapping_np],
+            dtype=np.int32,
+        )
+        if not np.any(computed > 0):
+            return None
+        lead = _row_lead(computed, self.block_size)
+        # The pass was trimmed to one block boundary, so a single offset describes
+        # every row. Rows scheduled 0 tokens (DP padding) are never read.
+        active = np.asarray(num_scheduled_tokens) > 0
+        starts = np.unique((computed - lead)[active])
+        assert (
+            len(starts) <= 1
+        ), f"spec pass spans multiple block boundaries: {starts.tolist()}"
+        return np.array([int(computed[0]) - int(lead[0])], dtype=np.int32)
+
     def execute_model(
         self,
         scheduler_output: "SchedulerOutput",
@@ -1184,7 +1287,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             token_ids_cpu[i, :n] = rs.all_token_ids[slot, :n]
 
         drafts = self.drafter.propose(
-            [list(row) for row in out_sampled], num_tokens_no_spec, token_ids_cpu
+            self.num_spec_tokens,
+            [list(row) for row in out_sampled],
+            num_tokens_no_spec,
+            token_ids_cpu,
         )
         for req_id, draft in zip(out_req_ids, drafts):
             if draft:
@@ -1344,6 +1450,18 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(batch_idx_dev, self.mesh, ("batch",))
             safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
 
+        # A spec row attends over the paged cache via the chunked SDPA op, which
+        # needs the prefix offset the row was extended to. Stays None elsewhere, so
+        # every other path traces the standard attention branch.
+        chunk_start_idx_np = self._chunk_start_idx_for(
+            idx_mapping_np, num_scheduled_tokens, padded_query_len
+        )
+        chunk_start_idx_dev = (
+            torch.from_numpy(chunk_start_idx_np).to(dev)
+            if chunk_start_idx_np is not None
+            else None
+        )
+
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
             page_table_dev,
@@ -1352,6 +1470,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             batch_idx=batch_idx_dev,
             num_users=target_num_reqs,
             dp_size=self.dp_size,
+            chunk_start_idx=chunk_start_idx_dev,
         )
         # from_v2_states only reads num_reqs + idx_mapping_np off the view.
         batch_view = SimpleNamespace(

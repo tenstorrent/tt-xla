@@ -15,6 +15,8 @@ tested here is the v2-specific plumbing around it:
 * the ngram proposal / take_draft_token_ids handoff
 """
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from test_runner_driver import make_runner, make_sched, new_req
@@ -208,12 +210,22 @@ def test_propose_draft_token_ids_caches_and_hands_off():
         def __init__(self):
             self.seen = None
 
-        def propose(self, sampled, num_tokens_no_spec, token_ids_cpu):
-            self.seen = (sampled, num_tokens_no_spec.copy())
+        # Signature must match the real NgramProposer.propose, leading
+        # num_speculative_tokens included: a laxer fake hides a call-site drift.
+        def propose(
+            self,
+            num_speculative_tokens,
+            sampled,
+            num_tokens_no_spec,
+            token_ids_cpu,
+            slot_mappings=None,
+        ):
+            self.seen = (num_speculative_tokens, sampled, num_tokens_no_spec.copy())
             return [[71, 72]]
 
     r.drafter = FakeProposer()
     r.propose_draft_token_ids(["A"], [[21]])
+    assert r.drafter.seen[0] == r.num_spec_tokens
 
     out = r.take_draft_token_ids()
     assert out.req_ids == ["A"]
@@ -244,3 +256,139 @@ def test_propose_draft_token_ids_skips_when_nothing_accepted():
     r.drafter = BoomProposer()
     r.propose_draft_token_ids(["A"], [[]])
     assert r.take_draft_token_ids() is None
+
+
+# --- KV block alignment for speculative rows -------------------------------
+#
+# paged_fill_cache writes from the start of the block fill_page_table points at,
+# while the chunked SDPA read offsets by an exact token position. They agree only
+# when num_computed is block aligned, which a prefill chunk always is and a spec
+# row never is. The row is therefore extended left to its boundary (row_lead) and
+# every within-row index shifts with it.
+
+
+def aligned_spec_runner(num_spec_tokens=3):
+    """Spec runner whose page-table layout supports the chunked SDPA op."""
+    r = spec_runner(
+        num_spec_tokens=num_spec_tokens, max_model_len=128, max_num_blocks_per_req=8
+    )
+    assert r._prefix_sdpa_usable, "test needs num_blocks_per_req % 8 == 0"
+    return r
+
+
+def seed_at(r, computed, n_sched, req_id="A"):
+    """Request decoding at ``computed`` with ``n_sched`` tokens this step."""
+    rs = r.req_states
+    ids = [(i % 97) + 1 for i in range(computed + n_sched)]
+    rs.add_request(req_id, computed, ids, computed)
+    return rs.req_id_to_index[req_id], ids
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_spec_row_extends_left_to_its_block_boundary():
+    r = aligned_spec_runner()
+    slot, ids = seed_at(r, computed=20, n_sched=3)  # block 16 -> lead 4
+
+    input_ids, positions, _, seq_lens, logits_indices = r._prepare_input_tokens(
+        np.array([slot], dtype=np.int32), np.array([3], dtype=np.int32), 1, 32
+    )
+
+    # Row starts on the boundary (16) and re-feeds the 4 computed tokens.
+    assert positions[0, :7].tolist() == list(range(16, 23))
+    assert input_ids[0, :7].tolist() == ids[16:23]
+    assert positions[0, 7:].tolist() == [0] * 25
+    # The sampled logit moved right by the lead.
+    assert int(logits_indices[0]) == 6
+    # seq_len stays the physical context length, unaffected by the re-feed.
+    assert int(seq_lens[0]) == 23
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_packed_logits_indices_shift_by_row_lead():
+    r = aligned_spec_runner()
+    slot, _ = seed_at(r, computed=20, n_sched=3)  # lead 4, 2 drafts + bonus
+    spec_md = SimpleNamespace(num_draft_tokens=[2])
+
+    *_, logits_indices = r._prepare_input_tokens(
+        np.array([slot], dtype=np.int32),
+        np.array([3], dtype=np.int32),
+        1,
+        32,
+        spec_md,
+    )
+
+    assert logits_indices[0, :2].tolist() == [4, 5]  # drafts, shifted by lead
+    assert logits_indices[0, 2:].tolist() == [6, 6]  # bonus at row_len - 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_chunk_start_idx_is_the_row_block_boundary():
+    r = aligned_spec_runner()
+    slot, _ = seed_at(r, computed=20, n_sched=3)
+
+    start = r._chunk_start_idx_for(
+        np.array([slot], dtype=np.int32), np.array([3], dtype=np.int32), 32
+    )
+    # Must equal where paged_fill_cache writes, not the exact decode position.
+    assert start is not None and start.tolist() == [16]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_chunk_start_idx_none_for_plain_decode():
+    r = aligned_spec_runner()
+    slot, _ = seed_at(r, computed=20, n_sched=1)
+    assert (
+        r._chunk_start_idx_for(
+            np.array([slot], dtype=np.int32), np.array([1], dtype=np.int32), 1
+        )
+        is None
+    )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_select_batch_trims_spec_pass_to_one_block_boundary():
+    r = aligned_spec_runner()
+    s_a, _ = seed_at(r, computed=20, n_sched=3, req_id="A")  # boundary 16
+    s_b, _ = seed_at(r, computed=40, n_sched=3, req_id="B")  # boundary 32
+
+    slots = np.array([s_a, s_b], dtype=np.int32)
+    ntoks = np.array([3, 3], dtype=np.int32)
+    idx0, nst0, _, padded0, end0 = r._select_batch(slots, ntoks, 0)
+
+    # One shared read offset cannot describe both boundaries: take A now, B next.
+    assert idx0.tolist() == [s_a]
+    assert end0 == 1
+    # Bucket covers the re-fed length (4 + 3), not just the 3 scheduled tokens.
+    assert padded0 == 32
+
+    idx1, _, _, _, end1 = r._select_batch(slots, ntoks, end0)
+    assert idx1.tolist() == [s_b]
+    assert end1 == 2
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_no_row_lead_when_spec_decode_is_off():
+    """The whole alignment path must be inert without spec decode."""
+    r = aligned_spec_runner()
+    r.num_spec_tokens = 0
+    slot, ids = seed_at(r, computed=20, n_sched=3)
+
+    input_ids, positions, _, _, logits_indices = r._prepare_input_tokens(
+        np.array([slot], dtype=np.int32), np.array([3], dtype=np.int32), 1, 32
+    )
+
+    assert positions[0, :3].tolist() == [20, 21, 22]
+    assert input_ids[0, :3].tolist() == ids[20:23]
+    assert int(logits_indices[0]) == 2
+    assert (
+        r._chunk_start_idx_for(
+            np.array([slot], dtype=np.int32), np.array([3], dtype=np.int32), 32
+        )
+        is None
+    )

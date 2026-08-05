@@ -35,6 +35,10 @@ def make_runner(**scalars):
         vocab_size=VOCAB,
         device="cpu",
     )
+    r.block_size = scalars.get("block_size", 16)
+    r.max_num_blocks_per_req = 512 // r.block_size
+    r._prefix_sdpa_usable = r.max_num_blocks_per_req % 8 == 0
+    r.num_spec_tokens = scalars.get("num_spec_tokens", 0)
     r.num_reqs_max_model_len = scalars.get("num_reqs_max_model_len", 3)
     r.max_prefill_num_reqs = scalars.get("max_prefill_num_reqs", 2)
     r.min_num_reqs = scalars.get("min_num_reqs", 1)
