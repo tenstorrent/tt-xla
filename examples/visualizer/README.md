@@ -71,17 +71,41 @@ Absent, and not fixable with a build flag:
   device-op level** (`MatmulDeviceOperation` rather than `ttnn.matmul`). All three come
   from `python_io` records, which only ttnn's Python decorators write; ops arriving from
   a C++ caller get none.
-- **The Graph tab fragments.** Without `python_io` the importer falls back to the graph
-  tracker's own argument scan, which matches only plain `Tensor`-shaped types — in one
-  measured run 160 of 339 captured ops recorded no inputs. The ids that are recorded do
-  line up (189 input references gave 161 links and 28 orphans, largest component 103
-  ops), but the importer then folds `Tensor::to_device`, `reshape`, `to_dtype` and
-  `deallocate` away and rejects inputs whose producer went with them, leaving 111
-  operations with 65 links across 58 components. A JAX-driven capture fragments the same
-  way, so this is not a property of the hook.
+- **The Graph tab fragments, by an amount that depends on the op mix.** Without
+  `python_io` the importer falls back to the graph tracker's own argument scan, which
+  matches only plain `Tensor`-shaped types. Convolutional graphs fare badly, because halo
+  and conv ops pass tensors inside attribute structs that match nothing: in one measured
+  run 160 of 339 captured ops recorded no inputs, and after the importer folds
+  `Tensor::to_device`, `reshape`, `to_dtype` and `deallocate` away and rejects inputs whose
+  producer went with them, 111 operations were left with 65 links across 58 components. A
+  transformer decode fares much better — a TinyLlama capture gave 1236 operations with
+  *every* one recording an input, 1287 links from 1948 references, and a largest component
+  of 414 ops (191 components in total, 617 orphaned inputs). A JAX-driven capture fragments
+  the same way as a torch one, so none of this is a property of the hook.
 - **The perf half of a report.** Tracy zones exist in Metalium and tt-mlir, but tt-xla's
   wheel build forces `TTMLIR_ENABLE_PERF_TRACE` off, so kernel timings need a source
   build under the tracy wrapper.
+
+## Capturing a vLLM server
+
+`capture_graph_report.py` drives its own model, but the same environment variables work on
+anything that runs through the plugin, including `vllm serve`. Export them around the
+server process — for example alongside `examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh`
+— then send a request and shut the server down.
+
+**The window must open after weight loading, not merely after warm-up.** Weight load
+allocates host-side `SYSTEM_MEMORY` buffers, and the per-op buffer snapshot the capture
+takes walks every buffer on the device and asks the allocator for its bank count.
+`AllocatorImpl::get_num_banks` handles `DRAM`, `L1`, `L1_SMALL` and `TRACE` and throws
+`Unsupported buffer type!` on `SYSTEM_MEMORY`, which surfaces as a `TT_THROW` inside
+`Tensor::to_device` and kills vLLM's engine core during startup. Those buffers are
+transient, so a window opened later is unaffected: `TT_RUNTIME_GRAPH_CAPTURE_SKIP=0` failed
+on TinyLlama while `SKIP=40` served requests normally.
+
+Measured on TinyLlama-1.1B-Chat-v1.0 with `SKIP=40 COUNT=2` and a 64-token completion: a
+223 MB report, importing in 8 s to a 22 MB database with 1236 operations, 1701 tensors and
+581456 buffer rows. Reports scale with the window, so keep `COUNT` small for a serving
+model.
 
 ## Capturing pure ttnn instead
 
