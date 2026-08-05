@@ -9,7 +9,7 @@ requests decodes-first and carve out one pass's sub-batch under the SMEM row
 caps. They run on cpu with no TT hardware; the SMEM-cap scalars are injected.
 
 They pin the selection math TT owns: decode-first ordering, the max/most model-len
-row cap (a long tail request forcing max-model-len mode), the prefill-cap
+row cap, the prefill-cap
 multi-pass split, and the decode/prefill target-bucket + padded query length.
 The outputs feed ``_prepare_input_tokens`` and ``_prepare_attn_tensors``.
 """
@@ -36,9 +36,7 @@ def make_runner(**scalars):
         vocab_size=VOCAB,
         device="cpu",
     )
-    r.most_model_len = scalars.get("most_model_len", None)
     r.num_reqs_max_model_len = scalars.get("num_reqs_max_model_len", 3)
-    r.num_reqs_most_model_len = scalars.get("num_reqs_most_model_len", None)
     r.max_prefill_num_reqs = scalars.get("max_prefill_num_reqs", 2)
     r.min_num_reqs = scalars.get("min_num_reqs", 1)
     r.max_num_reqs = scalars.get("max_num_reqs", 4)
@@ -118,7 +116,7 @@ def test_select_batch_dp_single_full_width_pass():
 @pytest.mark.push
 @pytest.mark.cpu
 def test_select_batch_decode_runs_at_max_bucket():
-    r = make_runner(most_model_len=None, num_reqs_max_model_len=3, max_num_reqs=4)
+    r = make_runner(num_reqs_max_model_len=3, max_num_reqs=4)
     slots = np.array([0, 1, 2], dtype=np.int32)
     ntoks = np.array([1, 1, 1], dtype=np.int32)
 
@@ -134,7 +132,6 @@ def test_select_batch_decode_runs_at_max_bucket():
 @pytest.mark.cpu
 def test_select_batch_prefill_cap_multipass():
     r = make_runner(
-        most_model_len=None,
         num_reqs_max_model_len=3,
         max_prefill_num_reqs=2,
         min_num_reqs=1,
@@ -157,19 +154,17 @@ def test_select_batch_prefill_cap_multipass():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_select_batch_long_request_forces_max_model_len_cap():
+def test_select_batch_row_cap_is_always_max_model_len():
     r = make_runner(
-        most_model_len=100,
-        num_reqs_most_model_len=3,
         num_reqs_max_model_len=2,
         max_prefill_num_reqs=4,
         min_num_reqs=1,
     )
     slots = np.array([0, 1, 2], dtype=np.int32)
-    ntoks = np.array([5, 5, 200], dtype=np.int32)  # 200 > most_model_len
+    ntoks = np.array([5, 5, 200], dtype=np.int32)
 
     idx0, nst0, target0, padded0, end0 = r._select_batch(slots, ntoks, 0)
-    # A long tail request forces the tighter max-model-len row cap (2, not 3).
+    # Row cap is always max-model-len cap.
     assert idx0.tolist() == [0, 1]
     assert end0 == 2
     assert padded0 == 32  # ceil-bucket of 5
@@ -183,18 +178,18 @@ def test_select_batch_long_request_forces_max_model_len_cap():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_select_batch_uses_most_model_len_cap_when_no_long_request():
+def test_select_batch_short_rows_still_use_max_model_len_cap():
     r = make_runner(
-        most_model_len=100,
-        num_reqs_most_model_len=3,
         num_reqs_max_model_len=2,
         max_prefill_num_reqs=4,
         min_num_reqs=1,
     )
     slots = np.array([0, 1, 2, 3], dtype=np.int32)
-    ntoks = np.array([5, 5, 5, 5], dtype=np.int32)  # none exceed most_model_len
+    ntoks = np.array([5, 5, 5, 5], dtype=np.int32)
 
     idx0, nst0, target0, padded0, end0 = r._select_batch(slots, ntoks, 0)
-    # No long request -> the looser most-model-len row cap (3) applies.
-    assert idx0.tolist() == [0, 1, 2]
-    assert end0 == 3
+    assert idx0.tolist() == [0, 1]
+    assert nst0.tolist() == [5, 5]
+    assert target0 == 2
+    assert padded0 == 32
+    assert end0 == 2

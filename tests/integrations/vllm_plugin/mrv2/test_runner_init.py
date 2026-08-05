@@ -86,8 +86,6 @@ def test_init_scalars_and_smem_caps():
     assert r.head_size == 64
     assert r.kv_cache_dtype == torch.bfloat16  # cache_dtype="auto" -> model dtype
     assert r.supports_mm_inputs is False
-    # No VLLM_TPU_MOST_MODEL_LEN by default -> only the max-model-len cap applies.
-    assert r.num_reqs_most_model_len is None
     # get_max_num_seqs(256, 32) is huge, so the cap is max_num_reqs.
     assert r.num_reqs_max_model_len == 8
     # These fall back to max_num_reqs when the TTConfig fields are unset (None).
