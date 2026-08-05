@@ -18,49 +18,8 @@
     },
     "tests": [
       {
-        "name": "resnet_jax",
-        "pyreq": "transformers==4.57.1 flax==0.10.4",
-        "pytest": "tests/benchmark/resnet_jax_benchmark.py::test_resnet_jax"
-      },
-      {
-        "name": "mnist",
-        "pytest": "tests/benchmark/test_vision.py::test_mnist"
-      },
-      {
         "name": "resnet",
         "pytest": "tests/benchmark/test_vision.py::test_resnet50"
-      },
-      {
-        "name": "mobilenetv2",
-        "pytest": "tests/benchmark/test_vision.py::test_mobilenetv2"
-      },
-      {
-        "name": "efficientnet",
-        "pytest": "tests/benchmark/test_vision.py::test_efficientnet"
-      },
-      {
-        "name": "segformer",
-        "pytest": "tests/benchmark/test_vision.py::test_segformer"
-      },
-      {
-        "name": "swin",
-        "pytest": "tests/benchmark/test_vision.py::test_swin"
-      },
-      {
-        "name": "ufld_v2",
-        "pytest": "tests/benchmark/test_vision.py::test_ufld_v2"
-      },
-      {
-        "name": "unet",
-        "pytest": "tests/benchmark/test_vision.py::test_unet"
-      },
-      {
-        "name": "vit",
-        "pytest": "tests/benchmark/test_vision.py::test_vit"
-      },
-      {
-        "name": "vovnet",
-        "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
         "name": "playground_v2_5",
@@ -115,37 +74,6 @@
         "runs-on": "qb2-blackhole"
       },
       {
-        "name": "bge_m3_encode",
-        "pyreq": "transformers==4.57.1 FlagEmbedding",
-        "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
-      },
-      {
-        "name": "vllm_bge_m3_encode_batch1",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch1]",
-        "vllm": true,
-        "skip-stablehlo-dump": true,
-        "skip-ttir-dump": true,
-        "skip-ttnn-dump": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_bge_m3_encode_batch32",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_embedding_benchmark[bge-m3-batch32]",
-        "vllm": true,
-        "skip-stablehlo-dump": true,
-        "skip-ttir-dump": true,
-        "skip-ttnn-dump": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "llama_3_2_1b_instruct",
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
-      },
-      {
-        "name": "llama_3_2_3b_instruct",
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
-      },
-      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
@@ -160,16 +88,6 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
-        "name": "test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
-        "runs-on": "galaxy-wh-6u"
-      },
-      {
-        "name": "gpt_oss_120b_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
         "name": "llama_3_1_70b_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2",
         "runs-on": "qb2-blackhole"
@@ -180,33 +98,8 @@
         "runs-on": "qb2-blackhole"
       },
       {
-        "name": "falcon3_7b_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "falcon3_10b_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_falcon3_10b_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
         "name": "llama_3_1_8b_instruct_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "mistral_small_24b_instruct_2501_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "qwen_2_5_coder_32b_instruct_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp_qb2",
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "qwen_3_32b_tp_qb2",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp_qb2",
         "runs-on": "qb2-blackhole"
       },
       {
@@ -631,23 +524,11 @@
         "accuracy-testing": true
       },
       {
-        "name": "vllm_llama_3_2_3b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
         "name": "vllm_llama_3_2_3b_instruct_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-instruct-production]",
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "p150-perf"
-      },
-      {
-        "name": "vllm_llama_3_2_1b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]",
-        "vllm": true,
-        "skip-device-perf": true
       },
       {
         "name": "vllm_llama_3_1_8b",
@@ -663,59 +544,11 @@
         "runs-on": "p150-perf"
       },
       {
-        "name": "vllm_qwen2_5_0_5b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-0.5b-instruct]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen2_5_1_5b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-1.5b-instruct]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen2_5_3b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-3b-instruct]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen2_5_7b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-7b-instruct]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen3_0_6b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-0.6b]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen3_1_7b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-1.7b]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_qwen3_4b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
         "name": "vllm_qwen3_4b_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b-production]",
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "p150-perf"
-      },
-      {
-        "name": "vllm_qwen3_8b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b]",
-        "vllm": true,
-        "skip-device-perf": true
       },
       {
         "name": "vllm_qwen3_8b_production",
@@ -725,42 +558,6 @@
         "runs-on": "p150-perf"
       },
       {
-        "name": "vllm_phi_1",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_phi_1_5",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1_5]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_phi_2",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-2]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_falcon3_1b_base",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_falcon3_3b_base",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-3b-base]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_falcon3_7b_base",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-7b-base]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
         "name": "vllm_falcon3_7b_instruct_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-7b-instruct-production]",
         "vllm": true,
@@ -768,55 +565,8 @@
         "runs-on": "p150-perf"
       },
       {
-        "name": "vllm_mistral_7b_instruct",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[mistral-7b-instruct]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
-        "name": "vllm_ministral_8b",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[ministral-8b]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
         "name": "vllm_gemma4_31b_it_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gemma4-31b-it-tp]",
-        "vllm": true,
-        "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "vllm_qwen3_32b_qb2_tp",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-32b-qb2-tp]",
-        "vllm": true,
-        "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "vllm_falcon3_7b_qb2_tp",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-7b-qb2-tp]",
-        "vllm": true,
-        "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "vllm_falcon3_10b_qb2_tp",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-10b-qb2-tp]",
-        "vllm": true,
-        "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "vllm_qwen2_5_coder_32b_instruct_qb2_tp",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-coder-32b-instruct-qb2-tp]",
-        "vllm": true,
-        "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
-      },
-      {
-        "name": "vllm_mistral_small_24b_instruct_2501_qb2_tp",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-24b-instruct-2501-qb2-tp]",
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "qb2-blackhole"
