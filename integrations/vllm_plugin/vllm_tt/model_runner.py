@@ -1115,7 +1115,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if dp_active and self._dp_free_slots:
                 req_index = self._dp_free_slots.pop(0)
                 old_id = self.input_batch.req_ids[req_index]
-                if old_id is not None:
+                # Evict the parked occupant of this slot, but only if it is a
+                # different request that still lives here. Abort+resubmit reuses
+                # the same req_id (see NOTE above): old_id == req_id would drop
+                # the new state we just installed, and if old_id has been
+                # re-seated at another index, evicting via req_id_to_index would
+                # blank that live row and relocate it.
+                if (
+                    old_id is not None
+                    and old_id != req_id
+                    and self.input_batch.req_id_to_index.get(old_id) == req_index
+                ):
                     self.requests.pop(old_id, None)
                     self.num_prompt_logprobs.pop(old_id, None)
                     self.input_batch.remove_request(old_id)
@@ -1137,6 +1147,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
         # Condense the batched states if there are empty indices.
+        # TODO(dp-aware-condense): condense is skipped under DP because relocating
+        # a request to a lower slot breaks its slot->replica KV-cache affinity
+        # (the block-table index moves but the KV bytes, which live in one
+        # replica's DRAM, do not) and corrupts decode. The cost of skipping is a
+        # finished slot riding along as decode padding until a new prefill
+        # reclaims it -- largely free today since decode pads to the max request
+        # shape anyway. A DP-aware condense (compacting within each replica's slot
+        # range) is the eventual fix. Tracked in #5896.
         if removed_req_indices and not dp_active:
             self.input_batch.condense(removed_req_indices)
 
@@ -1707,13 +1725,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
-        # A running (already-prefilled) request re-batched into a later prefill
-        # step contributes 0 new tokens. paged_fill_cache still writes its row,
-        # and since fill_page_table[row] points at that request's real blocks, it
-        # clobbers the KV written in the earlier step with padding. Under DP+TP
-        # such an inactive row lands inside the active range (row 0), not at the
-        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
-        # the null block (0); the read-path page_table keeps the real blocks.
+        # Rows scheduled 0 tokens this step are parked (finished/unscheduled)
+        # under DP and land inside the active range (e.g. row 0), not at the
+        # tail. Both their fill and read page tables are redirected to the null
+        # block below (see the masking after the tail-clear) so they can't
+        # clobber real KV; the discarded read is harmless.
         zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
 
         batch_idx = self._batch_idx_dev[target_num_reqs]
@@ -1829,10 +1845,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
             else:
                 fill_page_table = page_table
-            if len(zero_sched_rows) > 0:
-                if fill_page_table is page_table:
-                    fill_page_table = page_table.clone()
-                fill_page_table[zero_sched_rows, :] = 0
 
             # Clear unused rows so persistent device buffers don't keep stale
             # block indices from a previous call (would surface as KV bleed).
@@ -1840,12 +1852,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if fill_page_table is not page_table:
                 fill_page_table[actual_num_reqs:, :] = 0
 
-            # A parked (finished/unscheduled) row's page_table may still point at
-            # blocks the scheduler freed and reassigned to a live request; sending
-            # its decode paged_update_cache write to the null block (as the fill
-            # path above does) keeps it from clobbering that request's KV.
+            # A parked (finished/unscheduled) row has no new token. Point its
+            # page_table at the null block so neither the decode write
+            # (paged_update_cache) nor the prefill fill (paged_fill_cache) can
+            # touch blocks the scheduler freed and reassigned to a live request.
+            # The read path also lands on block 0, which is safe: a 0-scheduled
+            # row's sampled token is discarded in execute_model, so it never
+            # escapes. In the no-roll case fill_page_table IS page_table, so this
+            # single write covers both and avoids a redundant clone + per-step H2D.
             if len(zero_sched_rows) > 0:
                 page_table[zero_sched_rows, :] = 0
+                if fill_page_table is not page_table:
+                    fill_page_table[zero_sched_rows, :] = 0
 
             page_table_dev.copy_(page_table)
             if fill_page_table is page_table:
