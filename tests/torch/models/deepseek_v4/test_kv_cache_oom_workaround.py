@@ -38,7 +38,7 @@ from tt_torch.sharding import sharding_constraint_tensor
 # vLLM K-cache geometry is (num_blocks, num_kv_heads, block_size, head_size);
 # only num_blocks is scaled to hit the target size.
 BLOCK_SIZE = 32  # tokens per page
-NUM_KV_HEADS = 128  # must be divisible by TP_SIZE
+NUM_KV_HEADS = 64  # must be divisible by TP_SIZE
 HEAD_SIZE = 128
 KV_DTYPE = torch.bfloat16
 
@@ -89,12 +89,22 @@ MESH_DEVICES = int(np.prod(MESH_SHAPE))
 # device; a 4-of-8 split with 2-way replication has no representation there.
 #
 # THE FIX (used by the constrained-fill test below): the `mesh_shape` compile
-# option. When the graph defines no device-sharded inputs of its own -- true for
-# a no-input fill, and also for a graph whose inputs are all replicated -- the
-# plugin stamps the requested 2D shape onto the synthesized `sdy.mesh` before the
-# `mesh_idx_N` placeholders are resolved, so `mesh_idx_1` binds to a size-4 "y"
-# axis and "x"=2 is the replicated DP axis. See `CompileOptions::mesh_shape_
-# override` and `ModuleBuilder::runCompilerStableHLOPipeline` in the plugin.
+# option. For a graph with NO tensor inputs at all, the plugin stamps the
+# requested 2D shape onto the synthesized `sdy.mesh` before the `mesh_idx_N`
+# placeholders are resolved, so `mesh_idx_1` binds to a size-4 "y" axis and
+# "x"=2 is the replicated DP axis. See `CompileOptions::mesh_shape_override`
+# and `ModuleBuilder::runCompilerStableHLOPipeline` in the plugin.
+#
+# It does NOT extend to a graph whose inputs are merely replicated, despite
+# `moduleHasDeviceShardedInputs` returning false for those. A replicated arg is
+# still an arg: it makes the plugin's `isSpmdMode` true (see
+# `shlo_set_proper_sdy_mesh_attribute.cc` -- the check is "func has arguments
+# AND arg 0 has mhlo.sharding") and closes the `!moduleHasAnyFuncArguments`
+# gate, so the module lands on the annotation-driven mesh path with nothing
+# defining @mesh. That surfaces as Shardy rejecting the module with
+# "'func.func' op arg 0 - unknown mesh: @mesh". Any graph with inputs has to
+# carry its own mesh via real `mark_sharding` on those inputs -- see
+# `test_create_cache_with_seed_and_sharding_pinned`.
 #
 # The option is set process-wide (`set_custom_compile_options`), so it rides on
 # every graph compiled afterwards -- including the *second* graph this test runs,
@@ -113,6 +123,7 @@ def _setup(mesh_shape_override=None):
     compile_options = {
         "enable_const_eval_inputs_to_system_memory": False,
         "enable_const_eval_on_cpu": False,
+        #"enable_const_eval": False,
     }
     # Hand the compiler the intended (DP x TP) mesh explicitly. Without it the
     # plugin derives a flat 1xN mesh from the device list, so `mesh_idx_1` binds
@@ -121,8 +132,9 @@ def _setup(mesh_shape_override=None):
     # inputs of its own -- true for the constrained-fill graph, which takes no
     # tensor inputs -- and rejects it otherwise, so it stays opt-in per test.
     if mesh_shape_override is not None:
+        # compile_options = {"mesh_shape": ",".join(str(d) for d in mesh_shape_override)}
         compile_options["mesh_shape"] = ",".join(str(d) for d in mesh_shape_override)
-    torch_xla.set_custom_compile_options(compile_options)
+        torch_xla.set_custom_compile_options(compile_options)
     n = xr.global_runtime_device_count()
     if n != MESH_DEVICES:
         pytest.skip(
@@ -151,21 +163,22 @@ def _per_chip_dram_bytes() -> int:
 
 
 def _kv_dims(tp_size: int, overcommit: float = OVERCOMMIT):
-    """Cache dims whose unsharded size is `overcommit` x one chip's DRAM."""
-    assert NUM_KV_HEADS % tp_size == 0
+    # """Cache dims whose unsharded size is `overcommit` x one chip's DRAM."""
+    # assert NUM_KV_HEADS % tp_size == 0
 
-    page_bytes = NUM_KV_HEADS * BLOCK_SIZE * HEAD_SIZE * KV_DTYPE.itemsize
-    per_chip = _per_chip_dram_bytes()
-    num_blocks = int(overcommit * per_chip) // page_bytes
-    # The seed contributes tp_size on dim 1, so the repeat factor must divide out.
-    num_blocks -= num_blocks % tp_size
+    # page_bytes = NUM_KV_HEADS * BLOCK_SIZE * HEAD_SIZE * KV_DTYPE.itemsize
+    # per_chip = _per_chip_dram_bytes()
+    # num_blocks = int(overcommit * per_chip) // page_bytes
+    # # The seed contributes tp_size on dim 1, so the repeat factor must divide out.
+    # num_blocks -= num_blocks % tp_size
 
-    total = num_blocks * page_bytes
-    print(
-        f"per-chip DRAM {per_chip / 2**30:.1f} GiB | "
-        f"cache {total / 2**30:.1f} GiB unsharded ({total / per_chip:.1f}x one chip) | "
-        f"{total / tp_size / 2**30:.1f} GiB per chip sharded {tp_size}-way"
-    )
+    # total = num_blocks * page_bytes
+    # print(
+    #     f"per-chip DRAM {per_chip / 2**30:.1f} GiB | "
+    #     f"cache {total / 2**30:.1f} GiB unsharded ({total / per_chip:.1f}x one chip) | "
+    #     f"{total / tp_size / 2**30:.1f} GiB per chip sharded {tp_size}-way"
+    # )
+    num_blocks = 1024 * 8  # 24576
     return (num_blocks, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE)
 
 
@@ -215,11 +228,272 @@ def _run_mock(k_cache, mesh, device):
     _log("touch done")
 
 
-# Fails to do repeat on device
+def _mock_kv_touch_both(k_cache, v_cache):
+    """`_mock_kv_touch` for a K/V pair, in ONE graph.
+
+    Both caches are parameters of the same program, so both buffers have to be
+    resident at the same instant -- which is the point. Touching them in two
+    separate executions only ever proves one cache fits at a time.
+
+    The two reads are summed into a single output so neither can be dropped as
+    dead. Still read-only, for the same reason as `_mock_kv_touch`.
+    """
+    k = k_cache[0, 0, 0, 0].sum(dtype=torch.float32)
+    v = v_cache[0, 0, 0, 0].sum(dtype=torch.float32)
+    return (k + v).reshape(1)
+
+
+def _run_mock_kv(k_cache, v_cache, mesh, device):
+    """Run one device program that takes both caches as inputs.
+
+    Whatever the allocator reports here is two caches' worth: no other tensors
+    are shipped, and the output is a single scalar left on device.
+    """
+    _log(f"k spec entering mock: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)!r}")
+    _log(f"v spec entering mock: {torch_xla._XLAC._get_xla_sharding_spec(v_cache)!r}")
+
+    compiled = torch.compile(_mock_kv_touch_both, backend="tt")
+    _log("touching both caches on device")
+    compiled(k_cache, v_cache)
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+    _log("touch done")
+
+
+@pytest.mark.bh_galaxy
+@torch.inference_mode()
+def test_oversized_kv_cache_oom_without_workaround() -> None:
+    mesh, device = _setup()
+    target = _kv_dims(TP_SIZE)
+
+    with pytest.raises(Exception) as excinfo:
+        k_cache = torch.zeros(target, dtype=KV_DTYPE)
+        print(f"{_ts()}: created cache")
+        k_cache = k_cache.to(device)
+        print(f"{_ts()}: marked .to(device)")
+        xs.mark_sharding(k_cache, mesh, (None, HEAD_AXIS, None, None))
+        print(f"{_ts()}: marked sharding")
+        torch_xla.sync(wait=True)
+        xm.wait_device_ops()
+        print(f"{_ts()}: synced")
+        _run_mock(k_cache, mesh, device)
+
+    _log(f"unsharded init failed as expected: {excinfo.value}")
+
+
+def _make_k_cache(mesh, shape, device):
+    k_cache = torch.zeros(shape, dtype=KV_DTYPE, device=device)
+    return sharding_constraint_tensor(k_cache, mesh, (None, HEAD_AXIS, None, None))
+
+
+def _make_k_v_cache(mesh, shape, device):
+    k_cache = torch.zeros(shape, dtype=KV_DTYPE, device=device)
+    v_cache = torch.full(shape, 1.0, dtype=KV_DTYPE, device=device)
+    return (
+        sharding_constraint_tensor(k_cache, mesh, (None, HEAD_AXIS, None, None)),
+        sharding_constraint_tensor(v_cache, mesh, (None, HEAD_AXIS, None, None)),
+    )
+
+
+@pytest.mark.bh_galaxy
+@pytest.mark.parametrize(
+    "overcommit",
+    [0.25, 2.5, 3.0, 1.0, 2.0, 6.0, 7.5],
+    ids=["0.25x", "2.5x", "3.0x", "1.0x", "2.0x", "6.0x", "7.5x"],
+)
+@torch.inference_mode()
+def test_oversized_kv_cache_via_constrained_fill(overcommit: float) -> None:
+    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+    tp = TP_SIZE
+    target = _kv_dims(tp, overcommit)
+
+    compiled_make_k = torch.compile(_make_k_v_cache, backend="tt")
+    print(f"{_ts()}: compiled cache creation function")
+    k_cache, v_cache = compiled_make_k(mesh, target, device)
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+    print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
+    print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+
+    _run_mock_kv(k_cache, v_cache, mesh, device)
+
+
+@pytest.mark.bh_galaxy
+@torch.inference_mode()
+def test_oversized_kv_cache_via_constrained_fill_k_only() -> None:
+    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+    target = _kv_dims(TP_SIZE, 1.0)
+    compiled_make_k = torch.compile(_make_k_cache, backend="tt")
+    k_cache = compiled_make_k(mesh, target, device)
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+    print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
+    print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+    _run_mock(k_cache, mesh, device)
+
+
+def _make_kv_cache_nonce(mesh, shape, device, group_id: int):
+    k = torch.zeros(shape, dtype=KV_DTYPE, device=device)
+    v = torch.zeros(shape, dtype=KV_DTYPE, device=device)
+    # Between our torch passes and vhlo, the ttnn.zeros are folded into a single constant. BUG 1
+    # When consteval is enabled, calling this function for the same shape will return the same pointer 
+    # as the previous call - no new allocation. BUG 2
+    # The change below fixes both of these for unit testing - not scalable.
+    #k = k + (group_id * 2 - 1) 
+    #v = v + (group_id * 2)
+
+    # TODO: make a custom op that is blacklisted from consteval and skips the FX pass that is folding 
+    # the zeros into a shared constant.
+    return (
+        sharding_constraint_tensor(k, mesh, (None, HEAD_AXIS, None, None)),
+        sharding_constraint_tensor(v, mesh, (None, HEAD_AXIS, None, None)),
+    )
+
+
+@torch.inference_mode()
+def test_mock_vllm_kv_cache_initialization():
+    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+    tp = TP_SIZE
+
+    # vLLM interates over kv_cache_groups and generates multiple kv_cache pairs
+    kv_cache_groups = [
+        {"group": 1, "kv_cache_shape": (1024*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
+        {"group": 2, "kv_cache_shape": (1024*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
+        {"group": 3, "kv_cache_shape": (556*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
+    ]
+    for kv_cache_group in kv_cache_groups:
+        nonce = kv_cache_group["group"]
+
+        print(f"{_ts()}: allocating cache for group {kv_cache_group['group']}")
+        compiled_make_kv_pair = torch.compile(_make_kv_cache_nonce, backend="tt")
+        print(f"{_ts()}: compiled cache creation function")
+        k_cache, v_cache = compiled_make_kv_pair(mesh, kv_cache_group["kv_cache_shape"], device, nonce)
+        print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
+        print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+        torch_xla.sync(wait=True)
+        print(f"{_ts()}: synced")
+        xm.wait_device_ops()
+        kv_cache_group["k_cache"] = k_cache
+        kv_cache_group["v_cache"] = v_cache
+        print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
+        print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+    
+    _run_mock_kv(kv_cache_groups[0]["k_cache"], kv_cache_groups[0]["v_cache"], mesh, device)
+
+
+"""
+THESE DON'T WORK :( 
+"""
+
+# def create_cache_with_seed_and_sharding_pinned(k_seed, v_seed, mesh, shape):
+#     """Broadcast two seeds up to the full cache shape, sharding pinned in-graph.
+
+#     `expand` only grows singleton dims, so every dim the cache grows on must be
+#     1 in the seed. The head dim is the exception: it carries its full extent so
+#     the seed itself can be sharded on it, which is what gives this graph a real
+#     mesh (see the test).
+#     """
+#     spec = (None, HEAD_AXIS, None, None)
+#     return (
+#         sharding_constraint_tensor(k_seed.expand(shape), mesh, spec),
+#         sharding_constraint_tensor(v_seed.expand(shape), mesh, spec),
+#     )
+
+
+# def test_create_cache_with_seed_and_sharding_pinned():
+#     mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+#     target = _kv_dims(TP_SIZE, 1.0)
+
+#     # Singleton everywhere the broadcast grows, full extent on the head dim.
+#     # Passing the *target* shape here instead would make `expand` an identity:
+#     # the graph body collapses to `func.return(%arg0, %arg1)`, Shardy treats it
+#     # as already solved and drops the tensor shardings, and the surviving
+#     # `@mesh` references in the arg attrs resolve to nothing -- which is the
+#     # "'func.func' op arg 0 - unknown mesh: @mesh" failure.
+#     seed_shape = (1, NUM_KV_HEADS, 1, 1)
+#     k_seed = torch.zeros(seed_shape, dtype=KV_DTYPE, device=device)
+#     v_seed = torch.zeros(seed_shape, dtype=KV_DTYPE, device=device)
+
+#     # Also not optional. An unannotated seed still enters the graph as a
+#     # *replicated* argument, which is enough to make the plugin's `isSpmdMode`
+#     # true and take the module off the path the input-less fill used, where
+#     # `mesh_shape` stamped a real 2x4 `sdy.mesh` before the `mesh_idx_N`
+#     # placeholder was resolved. Sharding the seeds makes the graph carry its own
+#     # mesh via its arg shardings, so nothing has to be synthesized.
+#     xs.mark_sharding(k_seed, mesh, (None, HEAD_AXIS, None, None))
+#     xs.mark_sharding(v_seed, mesh, (None, HEAD_AXIS, None, None))
+#     torch_xla.sync(wait=True)
+#     _log(f"seed spec: {torch_xla._XLAC._get_xla_sharding_spec(k_seed)!r}")
+
+#     compiled_create_cache = torch.compile(
+#         create_cache_with_seed_and_sharding_pinned, backend="tt"
+#     )
+#     k_cache, v_cache = compiled_create_cache(k_seed, v_seed, mesh, target)
+#     torch_xla.sync(wait=True)
+#     xm.wait_device_ops()
+
+#     assert tuple(k_cache.shape) == target
+#     assert tuple(v_cache.shape) == target
+#     _log(f"created caches, shape {tuple(k_cache.shape)}")
+#     _log(f"k spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)!r}")
+#     _log(f"v spec: {torch_xla._XLAC._get_xla_sharding_spec(v_cache)!r}")
+
+#     # Distinct device buffers, not one aliased by both handles.
+#     k_handle, v_handle = torch_xla._XLAC._get_tensors_handle([k_cache, v_cache])
+#     assert k_handle != v_handle, f"K and V share device buffer {k_handle}"
+
+
+
+# # Fails to do repeat on device
+# # @pytest.mark.bh_galaxy
+# # @torch.inference_mode()
+# # def test_oversized_kv_cache_fits_when_grown_from_sharded_seed() -> None:
+# #     """Shard first, then grow: each chip only ever allocates its own slice."""
+# #     mesh, device = _setup()
+# #     tp = TP_SIZE
+# #     target = _kv_dims(tp)
+# #     num_blocks = target[0]
+
+# #     # 1) tiny seed, with the TP-axis extent on the head dim so each device holds
+# #     #    a single element after sharding.
+# #     k_seed = torch.zeros(1, tp, BLOCK_SIZE, 32, dtype=KV_DTYPE).to(device)
+# #     xs.mark_sharding(k_seed, mesh, (None, HEAD_AXIS, None, None))
+# #     torch_xla.sync(wait=True)  # force the shard before it grows
+
+# #     # 2) grow to full size. Repeat factors apply to the global logical shape, so
+# #     #    dim 1 grows by NUM_KV_HEADS // tp on top of the seed's tp.
+# #     k_cache = k_seed.repeat(num_blocks, NUM_KV_HEADS // tp, 1, HEAD_SIZE // 32)
+# #     xs.mark_sharding(k_cache, mesh, (None, HEAD_AXIS, None, None))  # re-pin
+# #     assert tuple(k_cache.shape) == target
+
+# #     # The repeat is lazy IR until something executes; this is what makes the
+# #     # cache resident. It overcommits one chip several times over and only
+# #     # survives because every chip holds one slice.
+# #     _run_mock(k_cache, mesh, device)
+
+
+# def _grow_cache(seed, mesh, num_blocks, head_mult, dim3_mult):
+#     """Tile the seed up to full cache size, pinning the result's sharding.
+
+#     Two things matter here, and both are why this runs inside a compiled graph
+#     rather than eagerly:
+
+#     - `seed` arrives as a graph *parameter*, so `zeros -> repeat` is no longer a
+#       constant expression the compiler can fold into a full-size literal. Done
+#       eagerly, that fold materializes the whole cache on the host.
+#     - `sharding_constraint_tensor` puts an `sdy.sharding_constraint` *in* the
+#       graph, so Shardy has to produce the tile already split on the head axis.
+#       Annotating the result afterwards only constrains the final layout and
+#       leaves the compiler free to build it replicated and reshard.
+#     """
+#     out = seed.repeat(num_blocks, head_mult, 1, dim3_mult)
+#     return sharding_constraint_tensor(out, mesh, (None, HEAD_AXIS, None, None))
+
+
 # @pytest.mark.bh_galaxy
 # @torch.inference_mode()
 # def test_oversized_kv_cache_fits_when_grown_from_sharded_seed() -> None:
-#     """Shard first, then grow: each chip only ever allocates its own slice."""
+#     """Shard first, then grow on device: each chip only allocates its own slice."""
 #     mesh, device = _setup()
 #     tp = TP_SIZE
 #     target = _kv_dims(tp)
@@ -229,164 +503,28 @@ def _run_mock(k_cache, mesh, device):
 #     #    a single element after sharding.
 #     k_seed = torch.zeros(1, tp, BLOCK_SIZE, 32, dtype=KV_DTYPE).to(device)
 #     xs.mark_sharding(k_seed, mesh, (None, HEAD_AXIS, None, None))
-#     torch_xla.sync(wait=True)  # force the shard before it grows
+#     torch_xla.sync(wait=True)
 
-#     # 2) grow to full size. Repeat factors apply to the global logical shape, so
-#     #    dim 1 grows by NUM_KV_HEADS // tp on top of the seed's tp.
-#     k_cache = k_seed.repeat(num_blocks, NUM_KV_HEADS // tp, 1, HEAD_SIZE // 32)
-#     xs.mark_sharding(k_cache, mesh, (None, HEAD_AXIS, None, None))  # re-pin
+#     # 2) grow to full size as a device execution. Repeat factors apply to the
+#     #    global logical shape, so dim 1 grows by NUM_KV_HEADS // tp on top of the
+#     #    seed's tp. The output is a real device buffer (execution outputs come
+#     #    back from tt::runtime::submit), unlike a host-staged .to(device) tensor.
+#     compiled_grow = torch.compile(_grow_cache, backend="tt")
+#     _log("growing cache on device")
+#     k_cache = compiled_grow(
+#         k_seed, mesh, num_blocks, NUM_KV_HEADS // tp, HEAD_SIZE // 32
+#     )
+#     torch_xla.sync(wait=True)
+#     xm.wait_device_ops()
+#     _log(f"grow done, shape {tuple(k_cache.shape)}")
 #     assert tuple(k_cache.shape) == target
 
-#     # The repeat is lazy IR until something executes; this is what makes the
-#     # cache resident. It overcommits one chip several times over and only
-#     # survives because every chip holds one slice.
+#     # 3) second execution against the same cache. If it stays device-resident
+#     #    between runs this is cheap; if the plugin round-trips it to host, that
+#     #    shows up as a host RSS spike here.
 #     _run_mock(k_cache, mesh, device)
 
 
-def _grow_cache(seed, mesh, num_blocks, head_mult, dim3_mult):
-    """Tile the seed up to full cache size, pinning the result's sharding.
-
-    Two things matter here, and both are why this runs inside a compiled graph
-    rather than eagerly:
-
-    - `seed` arrives as a graph *parameter*, so `zeros -> repeat` is no longer a
-      constant expression the compiler can fold into a full-size literal. Done
-      eagerly, that fold materializes the whole cache on the host.
-    - `sharding_constraint_tensor` puts an `sdy.sharding_constraint` *in* the
-      graph, so Shardy has to produce the tile already split on the head axis.
-      Annotating the result afterwards only constrains the final layout and
-      leaves the compiler free to build it replicated and reshard.
-    """
-    out = seed.repeat(num_blocks, head_mult, 1, dim3_mult)
-    return sharding_constraint_tensor(out, mesh, (None, HEAD_AXIS, None, None))
-
-
-@pytest.mark.bh_galaxy
-@torch.inference_mode()
-def test_oversized_kv_cache_fits_when_grown_from_sharded_seed() -> None:
-    """Shard first, then grow on device: each chip only allocates its own slice."""
-    mesh, device = _setup()
-    tp = TP_SIZE
-    target = _kv_dims(tp)
-    num_blocks = target[0]
-
-    # 1) tiny seed, with the TP-axis extent on the head dim so each device holds
-    #    a single element after sharding.
-    k_seed = torch.zeros(1, tp, BLOCK_SIZE, 32, dtype=KV_DTYPE).to(device)
-    xs.mark_sharding(k_seed, mesh, (None, HEAD_AXIS, None, None))
-    torch_xla.sync(wait=True)
-
-    # 2) grow to full size as a device execution. Repeat factors apply to the
-    #    global logical shape, so dim 1 grows by NUM_KV_HEADS // tp on top of the
-    #    seed's tp. The output is a real device buffer (execution outputs come
-    #    back from tt::runtime::submit), unlike a host-staged .to(device) tensor.
-    compiled_grow = torch.compile(_grow_cache, backend="tt")
-    _log("growing cache on device")
-    k_cache = compiled_grow(
-        k_seed, mesh, num_blocks, NUM_KV_HEADS // tp, HEAD_SIZE // 32
-    )
-    torch_xla.sync(wait=True)
-    xm.wait_device_ops()
-    _log(f"grow done, shape {tuple(k_cache.shape)}")
-    assert tuple(k_cache.shape) == target
-
-    # 3) second execution against the same cache. If it stays device-resident
-    #    between runs this is cheap; if the plugin round-trips it to host, that
-    #    shows up as a host RSS spike here.
-    _run_mock(k_cache, mesh, device)
-
-
-@pytest.mark.bh_galaxy
-@torch.inference_mode()
-def test_oversized_kv_cache_oom_without_workaround() -> None:
-    """Allocate unsharded first: expected to OOM.
-
-    Built directly on device rather than host-then-`.to()`. At these dims a host
-    tensor would exhaust system RAM instead, which is not the failure under test.
-    With no sharding annotation the tensor is replicated under SPMD, so every
-    chip is asked for the full size -- the vLLM failure mode, where the cache has
-    to be resident before a shard annotation can apply.
-    """
-    mesh, device = _setup()
-    target = _kv_dims(TP_SIZE)
-
-    with pytest.raises(Exception) as excinfo:
-        k_cache = torch.zeros(target, dtype=KV_DTYPE)
-        print(f"{_ts()}: created cache")
-        k_cache = k_cache.to(device)
-        print(f"{_ts()}: marked .to(device)")
-        # Annotating after the fact does not save it: the unsharded allocation
-        # has to succeed first.
-        xs.mark_sharding(k_cache, mesh, (None, HEAD_AXIS, None, None))
-        print(f"{_ts()}: marked sharding")
-        torch_xla.sync(wait=True)
-        xm.wait_device_ops()
-        print(f"{_ts()}: synced")
-        _run_mock(k_cache, mesh, device)
-
-    # Printed rather than pattern-matched: the allocator's wording is not a
-    # stable contract, and a different failure here is still informative.
-    _log(f"unsharded init failed as expected: {excinfo.value}")
-
-
-def _make_cache(mesh, shape, device):
-    """Allocate a zeroed cache with its sharding pinned in-graph.
-
-    `device` is not optional: without it `torch.zeros` fills on CPU, and
-    `tt::sharding_constraint` silently no-ops on a CPU tensor (it just clones),
-    so the whole cache would be allocated in host RAM without an error.
-
-    No seed and no `repeat`: just a fill. A fill has no data dependence between
-    output elements, so each device can allocate its own slice and zero it
-    locally -- there is no cross-shard gather to tempt the compiler into
-    building a full-size intermediate first.
-
-    `repeat` is the opposite. Under global semantics output head index `j` comes
-    from seed index `j % tp_size`, so every output shard needs every seed shard;
-    that interleaving is what both earlier attempts resolved by materializing the
-    whole tensor on the host.
-    """
-    cache = torch.zeros(shape, dtype=KV_DTYPE, device=device)
-    return sharding_constraint_tensor(cache, mesh, (None, HEAD_AXIS, None, None))
-
-
-# Run the small size FIRST. If it materializes host-side it costs ~8-24 GiB of
-# RSS and fails in under a minute; the 3.0 case would take the box down instead.
-#   pytest -svv <file> -k "constrained_fill and 0.25"
-@pytest.mark.bh_galaxy
-@pytest.mark.parametrize(
-    "overcommit",
-    [0.25, 2.5, 3.0, 1.0, 2.0, 6.0, 7.5],
-    ids=["0.25x", "2.5x", "3.0x", "1.0x", "2.0x", "6.0x", "7.5x"],
-)
-@torch.inference_mode()
-def test_oversized_kv_cache_via_constrained_fill(overcommit: float) -> None:
-    """Allocate the cache directly as a sharded device-side fill.
-
-    The premise being tested: a program can declare a tensor whose *global*
-    logical size exceeds one chip's DRAM, as long as the sharding is pinned
-    before anything materializes it, so each chip only ever allocates its slice.
-    At overcommit=3.0 this cannot succeed unless that holds.
-
-    Watch host RSS while it runs. Flat RSS means the fill stayed distributed;
-    RSS climbing by the full logical size means it did not, and no
-    global-logical-tensor approach will work in this stack.
-    """
-    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
-    tp = TP_SIZE
-    target = _kv_dims(tp, overcommit)
-
-    compiled_make = torch.compile(_make_cache, backend="tt")
-    print(f"{_ts()}: compiled cache creation function")
-    k_cache = compiled_make(mesh, target, device)
-    torch_xla.sync(wait=True)
-    xm.wait_device_ops()
-    print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
-    print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
-
-    # Second execution against the same buffer: cheap if the cache stayed
-    # device-resident between runs, a host RSS spike if the plugin round-trips it.
-    _run_mock(k_cache, mesh, device)
 
 
 """
