@@ -11,7 +11,7 @@ Two layers are instrumented, because they answer different questions:
 | Layer | Process | Answers |
 |---|---|---|
 | **Scheduler** (`AscendScheduler`) | EngineCore | *intent* — what each step decided: prefill vs decode, preemption, queue depth, KV/batch utilization |
-| **Runner** (`TTModelRunner`) | Worker | *reality* — batch occupancy, executed prefill/decode pass split, actual decode rate, per-request lifecycle |
+| **Runner** (`TTModelRunnerV2` / `TTModelRunner`) | Worker | *reality* — slot occupancy, executed prefill/decode pass split, actual decode rate, per-request lifecycle |
 
 The two run in separate processes and each writes its own sink; records carry
 `request_id` (+ a monotonic `step`) so you can join them offline.
@@ -54,21 +54,28 @@ llm = vllm.LLM(
 
 ### Requirements
 
-- **The v1 model runner** (`TTModelRunner`) — the runner-side collector lives
-  there, so no `additional_config` routing knob is needed. Pooling models use
-  `pooling_runner.py` and emit no runner telemetry.
+- **Either generative runner.** The collector lives in both
+  `TTModelRunnerV2` and `TTModelRunner`, so no routing knob is needed;
+  `use_v2_model_runner` selects between them and defaults to v2. Pooling models
+  use `pooling_runner.py` and emit no runner telemetry.
 - Scheduler-side telemetry is emitted for any non-pooling model (which use
   `AscendScheduler`), independent of the runner.
 
-### Reading v1 slot output
+### Reading slot output
 
-v1's `InputBatch` is a *condensing* batch: when a request leaves, later rows
-compact down to fill the gap, so a row index is not a stable identity across
-steps. Occupancy, utilization, and the pass split are exact; a per-row timeline
-shows row **reuse** rather than a request holding one slot for its lifetime.
-Join on `request_id` (not `slot`) when following a single request.
+The two runners model slots differently, and it shows up in the sinks.
 
-Two consequences show up in real output. From a 4-prompt run on n150:
+v2's `TTRequestState` is a persistent slot table: a request holds one slot for
+its lifetime, so `slot` is a stable identity and a per-row timeline reads as one
+request per row. Re-admission happens only on abort + resubmit.
+
+v1's `InputBatch` condenses: when a request leaves, later rows compact down to
+fill the gap, so a row index identifies a position rather than a request.
+Occupancy, utilization, and the pass split stay exact; a per-row timeline shows
+row **reuse**, with consecutive segments of one row belonging to different
+requests. Join on `request_id` when following a single request.
+
+Two consequences show up in v1 output. From a 4-prompt run on n150:
 
 ```
 adm 0-94dd32b8 slot 0 step 0 prompt 8 cached 0 hit False readmission False
