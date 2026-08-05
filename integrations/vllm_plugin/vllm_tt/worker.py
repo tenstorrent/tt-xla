@@ -145,8 +145,7 @@ class TTWorker:
         self.device = torch_xla.device()
         self.device_config.device = self.device
 
-        # Apply PJRT compile options once per worker after the XLA runtime is
-        # initialized and before any model runner is constructed.
+        # Must run after the XLA runtime is up and before the model runner is built.
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         # Set random seed.
@@ -176,8 +175,7 @@ class TTWorker:
             xr.initialize_cache(per_rank_path, readonly=False)
 
         # Init ModelRunner here, so that we have access to self.device.
-        # Opt-in MRv2 runner (default off): gated on TTConfig.use_v2_model_runner.
-        # Generate-only for now, so keep the v1 runner as the default path.
+        # Pooling models always use the v1 runner.
         use_v2 = self.tt_config.use_v2_model_runner
         if use_v2 and self.model_config.runner_type != "pooling":
             from .model_runner_v2 import TTModelRunnerV2

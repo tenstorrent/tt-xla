@@ -3,10 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """CPU unit tests for the MRv2 runner sampled-token writeback.
 
-``TTModelRunnerV2.postprocess`` (see vllm_tt/model_runner_v2.py) is the host
-substitute for upstream's post_update Triton kernel. It is pure numpy over
-``TTRequestState``, so it runs on cpu with no TT hardware; only ``req_states``
-is injected.
+``TTModelRunnerV2.postprocess`` (see vllm_tt/model_runner_v2.py) is pure numpy
+over ``TTRequestState``, so it runs on cpu with no TT hardware; only
+``req_states`` is injected.
 
 They pin the writeback math TT owns: appending the sampled token at total_len so
 the next step's input-prep reads it, discarding tokens from still-prefilling

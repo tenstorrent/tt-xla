@@ -4,9 +4,8 @@
 """CPU unit tests for the MRv2 runner host input-token preparation.
 
 ``TTModelRunnerV2._prepare_input_tokens`` (see vllm_tt/model_runner_v2.py) is
-the host substitute for upstream's Triton input-prep kernels. It is pure numpy
-over ``TTRequestState``, so it runs on cpu with no TT hardware and no model:
-the runner is allocated without ``__init__`` and only ``req_states`` is injected.
+pure numpy over ``TTRequestState``, so it runs on cpu with no TT hardware and no
+model: only ``req_states`` is injected.
 
 They pin the index math that is TT's own responsibility: the unified
 prefill/decode gather, the computed-token position offset (chunked prefill), the

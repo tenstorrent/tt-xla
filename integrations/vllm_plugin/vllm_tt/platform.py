@@ -124,8 +124,7 @@ class TTConfig:
     # TPU model loader to share the model across multiple devices.
     enable_tensor_parallel: bool = False
 
-    # Model Runner v2 (TTModelRunnerV2) is the default runner; set False in
-    # additional_config to fall back to v1. Ignored for pooling models (always v1).
+    # Set False to fall back to the v1 runner. Ignored for pooling models.
     use_v2_model_runner: bool = True
 
     # Optimization level (0, 1, or 2) that controls multiple optimization passes.
@@ -370,8 +369,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def get_punica_wrapper(cls) -> str:
-        # vllm 0.20.2 removed punica_tpu (which TT previously used); the CPU
-        # wrapper is the only remaining non-Triton LoRA punica implementation.
+        # The CPU wrapper is the only non-Triton LoRA punica implementation.
         return "vllm.lora.punica_wrapper.punica_cpu.PunicaWrapperCPU"
 
     @classmethod

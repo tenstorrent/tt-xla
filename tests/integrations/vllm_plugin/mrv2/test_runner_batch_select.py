@@ -8,10 +8,9 @@ vllm_tt/model_runner_v2.py) are pure host logic: they order a step's scheduled
 requests decodes-first and carve out one pass's sub-batch under the SMEM row
 caps. They run on cpu with no TT hardware; the SMEM-cap scalars are injected.
 
-They pin the selection math TT owns: decode-first ordering, the max/most model-len
-row cap, the prefill-cap
-multi-pass split, and the decode/prefill target-bucket + padded query length.
-The outputs feed ``_prepare_input_tokens`` and ``_prepare_attn_tensors``.
+They pin the selection math: decode-first ordering, the model-len row cap, the
+prefill-cap multi-pass split, and the decode/prefill target-bucket + padded query
+length.
 """
 
 from types import SimpleNamespace

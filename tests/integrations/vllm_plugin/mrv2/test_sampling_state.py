@@ -8,9 +8,8 @@ per-slot sampling-param table, and ``XLASupportedSamplingMetadata.from_v2_states
 gathers a batch-ordered view from it + ``TTRequestState``. Both are pure
 host-side (numpy/torch-on-cpu), so these run with no TT hardware and no model.
 
-They pin the invariants that are TT's own responsibility: the ``SamplingParams``
-extraction matching the v1 fork, the stable-slot reset on removal, and the
-batch->slot gather (via ``idx_mapping``) that feeds the sampler.
+They pin the ``SamplingParams`` extraction, the stable-slot reset on removal, and
+the batch->slot gather (via ``idx_mapping``) that feeds the sampler.
 """
 
 from types import SimpleNamespace
@@ -278,7 +277,7 @@ def test_from_v2_states_allowed_token_ids_mask():
         vocab_size=VOCAB,
     )
     assert md.no_allowed_token_ids is False
-    bool_mask = md.allowed_token_ids_mask  # upstream contract: True == disallowed
+    bool_mask = md.allowed_token_ids_mask  # True == disallowed
     assert tuple(bool_mask.shape) == (2, VOCAB)
     assert bool_mask[0, 5].item() is False
     assert bool_mask[0, 7].item() is False

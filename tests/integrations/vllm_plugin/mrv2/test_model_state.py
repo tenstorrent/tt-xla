@@ -4,11 +4,9 @@
 """CPU unit tests for the MRv2 ``TTModelState.prepare_attn`` assembler.
 
 ``prepare_attn`` (see vllm_tt/model_state.py) packages the per-step device
-arrays the runner computes host-side into a single ``TTMetadata`` and fans it
-out to every attention layer -- mirroring the v1 fork's
-``dict.fromkeys(self._attention_layer_names, attn_metadata)``. It uses no
-instance state, so these run on cpu with no TT hardware and no model
-(the state object is allocated without ``__init__``).
+arrays the runner computes host-side into a single ``TTMetadata`` and fans it out
+to every attention layer. It uses no instance state, so these run on cpu with no
+TT hardware and no model.
 """
 
 import pytest

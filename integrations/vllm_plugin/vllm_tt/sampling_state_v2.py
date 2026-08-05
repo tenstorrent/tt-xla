@@ -1,16 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""TT ``SamplingStates`` for vLLM Model Runner v2 (MRv2).
+"""TT ``SamplingStates`` for the vLLM v2 model runner.
 
-MRv2 keeps sampling params out of RequestState/InputBatch, in a sampler-owned
-table. TT applies sampling host-side / on the XLA graph via
-XLASupportedSamplingMetadata (metadata.py), so this is a plain host-side slot
-table keyed by req_state_idx (the stable TTRequestState slot). Each step the
-runner maps batch position -> slot via TTInputBatch.idx_mapping_np, and
-make_batch_view gathers a batch-ordered padded view for from_v2_states.
-Extraction from SamplingParams mirrors the v1 input_batch.py::add_request
-(greedy -> temperature 0.0; disabled top_k -> vocab_size).
+A host-side sampling-param table keyed by ``req_state_idx``; sampling itself runs
+through ``XLASupportedSamplingMetadata`` (metadata.py). Each step
+``make_batch_view`` gathers a batch-ordered padded view for ``from_v2_states``.
 """
 
 from __future__ import annotations
@@ -34,11 +29,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class SamplingBatchView:
-    """Batch-ordered, padded view built each step from the slot table.
-
-    Exposes exactly the attributes ``XLASupportedSamplingMetadata.from_input_batch``
-    reads, so the v2 path reuses that tested constructor unchanged.
-    """
+    """Padded, batch-ordered view exposing exactly what ``from_input_batch`` reads."""
 
     num_reqs: int
     vocab_size: int
@@ -62,11 +53,11 @@ class SamplingBatchView:
     num_prompt_tokens: np.ndarray
     token_ids_cpu: np.ndarray
     max_num_logprobs: int
-    # Pooling-only in upstream; always False on the v2 generation path.
+    # Always False: only pooling models need token ids here.
     logits_processing_needs_token_ids: np.ndarray
-    # v2 hard-codes num_speculative_steps=0, so no drafts to expose.
+    # TODO(mrv2): plumb drafts through for penalties/bad-words under spec decode.
     spec_token_ids: list[list[int]]
-    # Neither TT runner builds custom logits processors.
+    # Neither runner builds custom logits processors.
     logitsprocs: LogitsProcessors
     logitsprocs_need_output_token_ids: bool
 
@@ -182,9 +173,7 @@ class TTSamplingStates:
     ) -> SamplingBatchView:
         """Gather a batch-ordered, padded view for the current step.
 
-        ``input_batch.idx_mapping_np[b]`` gives the slot backing batch position b.
-        Active rows carry real params; padded rows [num_reqs:padded] carry the
-        sampler defaults (``from_input_batch`` overwrites them via fill_slice too).
+        Rows [num_reqs:padded] carry the sampler defaults.
         """
         num_reqs = input_batch.num_reqs
         slots = [int(input_batch.idx_mapping_np[b]) for b in range(num_reqs)]

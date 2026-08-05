@@ -3,11 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """CPU smoke test for the MRv2 ``TTInputBatch.make_dummy`` builder.
 
-``TTInputBatch`` (see vllm_tt/input_batch_v2.py) is a near-verbatim port of
-upstream's transient per-step view, so coverage here is intentionally light --
-one shape/layout invariant check on the dummy builder used for warmup. The
-real per-step population logic lives in the Phase 3 runner and is tested there.
-Runs on cpu (device=torch.device("cpu")), no TT hardware.
+``make_dummy`` only builds the warmup batch, so coverage is one shape/layout
+invariant check. The real per-step input prep lives in the runner and is tested
+in test_runner_input_prep.py. Runs on cpu, no TT hardware.
 """
 
 import pytest

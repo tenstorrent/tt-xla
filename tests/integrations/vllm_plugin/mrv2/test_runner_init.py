@@ -6,8 +6,7 @@
 ``TTModelRunnerV2.__init__`` (see vllm_tt/model_runner_v2.py) extracts config
 scalars and builds the split v2 state. It reads a fixed set of vllm_config
 attributes, so a duck-typed fake config exercises it on cpu with no engine, no
-model, and no TT hardware (device=cpu). ``load_model`` needs a real model/loader
-and is validated at engine stand-up, not here.
+model, and no TT hardware. ``load_model`` is not covered here.
 
 They pin the wiring: scalar/SMEM-cap derivation, the token-padding ladder, the
 constructed state tables, the not-yet-loaded (None) model handles, and the
