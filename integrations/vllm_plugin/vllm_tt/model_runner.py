@@ -4256,28 +4256,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: shard KV heads on "model" axis (TP dimension). Blocks
-            # stay replicated across DP to avoid replica-aware block allocation.
-            # Each device holds [num_blocks, num_kv_heads/tp_size, block_size,
-            # head_size] instead of the full [num_blocks, num_kv_heads, ...].
-            # Must update kv_cache_shard_factor() to return tp_size (line ~124).
-            for entry in self.kv_caches:
-                is_pair = isinstance(entry, (list, tuple))
-                caches = entry if is_pair else [entry]
-                for cache in caches:
-                    assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    if is_pair:
-                        safe_mark_sharding(
-                            cache, self.mesh, (None, "model", None, None)
-                        )
-                    else:
-                        # Replicate the MLA latent KV cache tensor
-                        xs.mark_sharding(cache, self.mesh, (None, None, None, None))
-        elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
-            # buffer can appear under multiple layers (cross-layer sharing), so
-            # dedup by tensor identity to mark each buffer's sharding exactly once.
+        if self.enable_tensor_parallel:
+            # Shard KV heads on the "model" axis, for TP-only and DP+TP alike:
+            # each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size]. Under DP+TP blocks stay replicated on "batch" — that
+            # would need replica-aware block allocation (#5796 follow-up).
+            # kv_cache_shard_factor() mirrors this; keep the two in sync.
+            # The same physical buffer can appear under multiple layers
+            # (cross-layer sharing), so dedup by tensor identity to mark each
+            # buffer's sharding exactly once.
             _sharded_ids: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))

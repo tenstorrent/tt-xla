@@ -89,8 +89,9 @@ def kv_cache_shard_factor(runner) -> int:
     un-sharded num_kv_heads) with what each chip really holds.
 
     Must stay in sync with the mark_sharding call in
-    ``TTModelRunner.initialize_kv_cache``; KV heads are now sharded on "model"
-    for both TP-only and DP+TP modes (blocks stay replicated).
+    ``TTModelRunner.initialize_kv_cache``; KV heads shard on "model" for
+    TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
+    blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
     """
     if not runner.enable_tensor_parallel:
         return 1
