@@ -97,15 +97,24 @@ server process, send a request, then shut the server down.
 These steps were run end to end on an n300. Use a checkout dedicated to this — installing
 vLLM pulls several GB of packages you will not want in a general-purpose environment.
 
-1. Install vLLM and the TT plugin into the activated venv. `vllm==0.26.0` does not displace
-   the venv's `torch` or `torch-xla`, but it does add its CUDA-flavoured dependencies.
+1. Install vLLM and register the TT plugin. `venv/activate` puts
+   `integrations/vllm_plugin` on `PYTHONPATH`, which makes `vllm_tt` importable; vLLM finds
+   the platform through a `vllm.platform_plugins` entry point, and that scan reads installed
+   distribution metadata. An editable install supplies the metadata and leaves the code where
+   it is. The pinned `vllm` leaves the venv's `torch` and `torch-xla` alone, and adds its
+   CUDA-flavoured dependencies.
 
    ```bash
    source venv/activate
-   (cd integrations/vllm_plugin && python setup.py bdist_wheel)
-   pip install --force-reinstall --no-deps \
-       integrations/vllm_plugin/dist/vllm_tt-0.1-cp312-cp312-linux_x86_64.whl
-   pip install "vllm==0.26.0" "transformers==5.14.1"
+   pip install --no-deps -e integrations/vllm_plugin
+   pip install -r integrations/vllm_plugin/requirements-vllm-plugin.txt
+   ```
+
+   Confirm the plugin is visible before starting a server — this prints `TTPlatform xla`
+   when it is and `UnspecifiedPlatform` when the metadata is missing:
+
+   ```bash
+   python -c "from vllm.platforms import current_platform as p; print(type(p).__name__, p.device_type)"
    ```
 
 2. Enable capture for the server process. `SKIP` has to clear weight loading — see the
