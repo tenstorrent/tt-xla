@@ -123,7 +123,7 @@ def _setup(mesh_shape_override=None):
     compile_options = {
         "enable_const_eval_inputs_to_system_memory": False,
         "enable_const_eval_on_cpu": False,
-        #"enable_const_eval": False,
+        "enable_const_eval": False,
     }
     # Hand the compiler the intended (DP x TP) mesh explicitly. Without it the
     # plugin derives a flat 1xN mesh from the device list, so `mesh_idx_1` binds
@@ -332,18 +332,69 @@ def test_oversized_kv_cache_via_constrained_fill_k_only() -> None:
     _run_mock(k_cache, mesh, device)
 
 
-def _make_kv_cache_nonce(mesh, shape, device, group_id: int):
-    k = torch.zeros(shape, dtype=KV_DTYPE, device=device)
-    v = torch.zeros(shape, dtype=KV_DTYPE, device=device)
-    # Between our torch passes and vhlo, the ttnn.zeros are folded into a single constant. BUG 1
-    # When consteval is enabled, calling this function for the same shape will return the same pointer 
-    # as the previous call - no new allocation. BUG 2
-    # The change below fixes both of these for unit testing - not scalable.
-    #k = k + (group_id * 2 - 1) 
-    #v = v + (group_id * 2)
 
-    # TODO: make a custom op that is blacklisted from consteval and skips the FX pass that is folding 
-    # the zeros into a shared constant.
+def _make_kv_cache_zeros(mesh, shape, device):
+    k = torch.zeros(shape, dtype=KV_DTYPE, device=device)
+    v = torch.ones(shape, dtype=KV_DTYPE, device=device)
+    return (
+        sharding_constraint_tensor(k, mesh, (None, HEAD_AXIS, None, None)),
+        sharding_constraint_tensor(v, mesh, (None, HEAD_AXIS, None, None)),
+    )
+
+@torch.inference_mode()
+def test_failing_make_kv_cache_zeros():
+    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+
+    kv_cache_groups = [
+        {
+            "group": 1,
+            "kv_cache_shape": (1024 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
+        {
+            "group": 2,
+            "kv_cache_shape": (1024 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
+        {
+            "group": 3,
+            "kv_cache_shape": (556 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
+    ]
+    for kv_cache_group in kv_cache_groups:
+        _log(f"allocating cache for group {kv_cache_group['group']}")
+        compiled_make_kv_pair = torch.compile(_make_kv_cache_zeros, backend="tt")
+        _log("compiled cache creation function")
+        k_cache, v_cache = compiled_make_kv_pair(
+            mesh, kv_cache_group["kv_cache_shape"], device
+        )
+        torch_xla.sync(wait=True)
+        xm.wait_device_ops()
+        kv_cache_group["k_cache"] = k_cache
+        kv_cache_group["v_cache"] = v_cache
+        _log(f"allocated cache, shape {tuple(k_cache.shape)}")
+        _log(f"shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+
+    time.sleep(0.5)
+
+
+def _make_kv_cache(mesh, shape, device):
+    """One K/V pair, each its own device allocation.
+
+    `torch.zeros` cannot be used here. Two of them fold into a single buffer
+    before tt-mlir sees the graph, and with const-eval on, the creation is
+    hoisted behind `ttcore.load_cached`, so calling this again for a shape
+    already seen hands back the previous pointer instead of allocating. The
+    custom op exists precisely to opt out of both: `has_side_effect` on the
+    custom call stops the fold, and `TTCore_NonCacheableTrait` on
+    `ttir.zeros_buffer` keeps it out of const-eval.
+    """
+    k = torch.ops.tt.zeros_buffer(list(shape), KV_DTYPE, device)
+    v = torch.ops.tt.zeros_buffer(list(shape), KV_DTYPE, device)
     return (
         sharding_constraint_tensor(k, mesh, (None, HEAD_AXIS, None, None)),
         sharding_constraint_tensor(v, mesh, (None, HEAD_AXIS, None, None)),
@@ -353,36 +404,70 @@ def _make_kv_cache_nonce(mesh, shape, device, group_id: int):
 @torch.inference_mode()
 def test_mock_vllm_kv_cache_initialization():
     mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
-    tp = TP_SIZE
 
-    # vLLM interates over kv_cache_groups and generates multiple kv_cache pairs
+    # vLLM iterates over kv_cache_groups and generates multiple kv_cache pairs.
+    # Groups 1 and 2 share a shape deliberately: that pair is the re-invocation
+    # case, where a cached allocation would hand back group 1's buffer.
     kv_cache_groups = [
-        {"group": 1, "kv_cache_shape": (1024*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
-        {"group": 2, "kv_cache_shape": (1024*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
-        {"group": 3, "kv_cache_shape": (556*8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE), "k_cache": None, "v_cache": None},
+        {
+            "group": 1,
+            "kv_cache_shape": (1024 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
+        {
+            "group": 2,
+            "kv_cache_shape": (1024 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
+        {
+            "group": 3,
+            "kv_cache_shape": (556 * 8, NUM_KV_HEADS, BLOCK_SIZE, HEAD_SIZE),
+            "k_cache": None,
+            "v_cache": None,
+        },
     ]
     for kv_cache_group in kv_cache_groups:
-        nonce = kv_cache_group["group"]
-
-        print(f"{_ts()}: allocating cache for group {kv_cache_group['group']}")
-        compiled_make_kv_pair = torch.compile(_make_kv_cache_nonce, backend="tt")
-        print(f"{_ts()}: compiled cache creation function")
-        k_cache, v_cache = compiled_make_kv_pair(mesh, kv_cache_group["kv_cache_shape"], device, nonce)
-        print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
-        print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+        _log(f"allocating cache for group {kv_cache_group['group']}")
+        compiled_make_kv_pair = torch.compile(_make_kv_cache, backend="tt")
+        _log("compiled cache creation function")
+        k_cache, v_cache = compiled_make_kv_pair(
+            mesh, kv_cache_group["kv_cache_shape"], device
+        )
         torch_xla.sync(wait=True)
-        print(f"{_ts()}: synced")
         xm.wait_device_ops()
         kv_cache_group["k_cache"] = k_cache
         kv_cache_group["v_cache"] = v_cache
-        print(f"{_ts()}: allocated cache, shape {tuple(k_cache.shape)}")
-        print(f"{_ts()}: shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
-    
-    _run_mock_kv(kv_cache_groups[0]["k_cache"], kv_cache_groups[0]["v_cache"], mesh, device)
+        _log(f"allocated cache, shape {tuple(k_cache.shape)}")
+        _log(f"shard spec: {torch_xla._XLAC._get_xla_sharding_spec(k_cache)}")
+
+    # Every cache must be its own allocation. `_get_tensors_handle` is the probe
+    # to use: the plugin stubs out PJRT_Buffer_UnsafePointer, so there is no way
+    # to ask for a real device address, but distinct handles are exactly what
+    # "no two caches alias" means here.
+    # handles = []
+    # for kv_cache_group in kv_cache_groups:
+    #     k_handle, v_handle = torch_xla._XLAC._get_tensors_handle(
+    #         [kv_cache_group["k_cache"], kv_cache_group["v_cache"]]
+    #     )
+    #     _log(f"group {kv_cache_group['group']} handles: k={k_handle} v={v_handle}")
+    #     assert k_handle != v_handle, (
+    #         f"group {kv_cache_group['group']}: k and v share device buffer "
+    #         f"{k_handle}"
+    #     )
+    #     handles += [k_handle, v_handle]
+
+    # assert len(set(handles)) == len(handles), f"aliased cache buffers: {handles}"
+    time.sleep(0.5)
+
+    # _run_mock_kv(
+    #     kv_cache_groups[0]["k_cache"], kv_cache_groups[0]["v_cache"], mesh, device
+    # )
 
 
 """
-THESE DON'T WORK :( 
+THESE DON'T WORK :(
 """
 
 # def create_cache_with_seed_and_sharding_pinned(k_seed, v_seed, mesh, shape):
@@ -441,7 +526,6 @@ THESE DON'T WORK :(
 #     # Distinct device buffers, not one aliased by both handles.
 #     k_handle, v_handle = torch_xla._XLAC._get_tensors_handle([k_cache, v_cache])
 #     assert k_handle != v_handle, f"K and V share device buffer {k_handle}"
-
 
 
 # # Fails to do repeat on device
@@ -525,13 +609,11 @@ THESE DON'T WORK :(
 #     _run_mock(k_cache, mesh, device)
 
 
-
-
 """
 Some basic math:
 Running without run mock passes for 7.5x but fails at 8.0x with NO PREV ALLOCATED DRAM
-The muliplications are happening in the mock function after the cache is init. 
-Running with run mock pass for 2.5x passes but fails at 3.0x with 2 caches worth of DRAM 
+The muliplications are happening in the mock function after the cache is init.
+Running with run mock pass for 2.5x passes but fails at 3.0x with 2 caches worth of DRAM
 previously allocated. This means it's trying to allocate 3 copies of the cache per device.. why?
 """
 """
