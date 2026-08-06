@@ -25,12 +25,12 @@ from vllm_tt.sampling_state_v2 import TTSamplingStates
 VOCAB = 1000
 
 
-def make_rs(max_num_reqs=4, max_model_len=32):
+def make_rs(max_num_reqs=4, max_model_len=32, num_speculative_steps=0):
     return TTRequestState(
         max_num_reqs=max_num_reqs,
         max_model_len=max_model_len,
         max_num_batched_tokens=64,
-        num_speculative_steps=0,
+        num_speculative_steps=num_speculative_steps,
         vocab_size=VOCAB,
         device="cpu",
     )
@@ -147,6 +147,45 @@ def test_make_batch_view_gather_order_and_padding():
 
 @pytest.mark.push
 @pytest.mark.cpu
+def test_make_batch_view_carries_draft_tokens():
+    rs = make_rs(num_speculative_steps=3)
+    ss = make_ss()
+    rs.add_request("A", prompt_len=2, all_token_ids=[10, 11, 12], num_computed_tokens=0)
+    rs.add_request("B", prompt_len=1, all_token_ids=[20], num_computed_tokens=0)
+    slot_a = rs.req_id_to_index["A"]
+    slot_b = rs.req_id_to_index["B"]
+    ss.add_request(slot_a, SamplingParams(temperature=0.0))
+    ss.add_request(slot_b, SamplingParams(temperature=0.0))
+    rs.set_draft_tokens(slot_a, [71, 72])
+
+    view = ss.make_batch_view(rs, ib([slot_a, slot_b]), padded_num_reqs=4)
+
+    # Drafts follow batch order; undrafted and padding rows stay empty.
+    assert view.spec_token_ids[0] == [71, 72]
+    assert view.spec_token_ids[1] == []
+    assert view.spec_token_ids[2:] == [[], []]
+    # Drafts are unverified, so they stay out of the committed output tokens.
+    assert view.req_output_token_ids[0] == [12]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_make_batch_view_drops_cleared_draft_tokens():
+    rs = make_rs(num_speculative_steps=3)
+    ss = make_ss()
+    rs.add_request("A", prompt_len=2, all_token_ids=[10, 11, 12], num_computed_tokens=0)
+    slot_a = rs.req_id_to_index["A"]
+    ss.add_request(slot_a, SamplingParams(temperature=0.0))
+    rs.set_draft_tokens(slot_a, [71, 72])
+    rs.clear_draft_tokens(slot_a)
+
+    view = ss.make_batch_view(rs, ib([slot_a]), padded_num_reqs=2)
+
+    assert view.spec_token_ids[0] == []
+
+
+@pytest.mark.push
+@pytest.mark.cpu
 def test_make_batch_view_rekeys_dicts_to_batch_index():
     rs = make_rs()
     ss = make_ss()
@@ -208,6 +247,31 @@ def test_from_v2_states_all_greedy_minimal():
     assert md.no_penalties is True
     # Early-return minimal path leaves the param tensors unset.
     assert md.temperature is None
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_from_v2_states_penalties_path_carries_drafts():
+    """Drafts must reach the metadata: the rejection sampler expands the output
+    tokens over them, and a request with an empty draft list is dropped from
+    that expansion while the penalty path still builds a row per draft."""
+    rs = make_rs(num_speculative_steps=3)
+    ss = make_ss()
+    rs.add_request("A", 2, [10, 11], 0)
+    slot_a = rs.req_id_to_index["A"]
+    ss.add_request(slot_a, SamplingParams(temperature=0.7, frequency_penalty=0.5))
+    rs.set_draft_tokens(slot_a, [71, 72])
+
+    md = XLASupportedSamplingMetadata.from_v2_states(
+        rs,
+        ss,
+        ib([slot_a]),
+        padded_num_reqs=4,
+        xla_device=torch.device("cpu"),
+        vocab_size=VOCAB,
+    )
+    assert md.no_penalties is False
+    assert md.spec_token_ids == [[71, 72]]
 
 
 @pytest.mark.push
