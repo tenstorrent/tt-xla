@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
@@ -1595,6 +1596,32 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_decode_step,
             actual_num_reqs,
         )
+
+        # TTXLA_SLOT_TRACE=1 dumps the row -> DP-device assignment for every
+        # pass. Structural only (depends on dp_size / bucket / row index), so it
+        # is valid at any layer count even when the text is garbage.
+        if os.environ.get("TTXLA_SLOT_TRACE"):
+            _dp = max(int(getattr(self, "dp_size", 1) or 1), 1)
+            _rows_per_dev = max(target_num_reqs // _dp, 1)
+            _ids = list(self.input_batch.req_ids[start_index : start_index + num_reqs])
+            _sched = list(num_scheduled_tokens_per_req)
+            _entries = []
+            for _lr, _rid in enumerate(_ids):
+                _entries.append(
+                    "%s:row=%d:dev=%d:tok=%d"
+                    % (_rid, _lr, _lr // _rows_per_dev, _sched[_lr] if _lr < len(_sched) else -1)
+                )
+            logger.warning(
+                "SLOTTRACE phase=%s start_index=%d actual=%d target=%d dp=%d "
+                "rows_per_dev=%d | %s",
+                "decode" if is_decode_step else "prefill",
+                start_index,
+                actual_num_reqs,
+                target_num_reqs,
+                _dp,
+                _rows_per_dev,
+                " ".join(_entries),
+            )
 
         # Block-align a multi-token row that sits on a cached prefix.
         #

@@ -945,3 +945,50 @@ def test_dptp_qwen_bucket_ab(
         f"all {len(outputs)} rows degenerate: this configuration cannot "
         f"distinguish corruption from model truncation"
     )
+
+
+# --------------------------------------------------------------------------
+# Slot trace: does a request occupy the same DP device during prefill and
+# decode? Purely structural (dp_size / bucket / row index), so a tiny truncated
+# model on the right MESH answers it -- output quality is irrelevant.
+# Run with TTXLA_SLOT_TRACE=1 and parse the SLOTTRACE lines.
+# --------------------------------------------------------------------------
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.notimeout
+@pytest.mark.parametrize("prefill_batch_threshold", [16, 0])
+@pytest.mark.parametrize("batch_size", [8])
+@pytest.mark.parametrize(
+    "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
+)
+def test_dptp_slot_trace(mesh_shape, batch_size, prefill_batch_threshold):
+    """Tiny model on Devstral's (4,8) mesh; emits row->device assignment."""
+    model_name = "Qwen/Qwen3-0.6B"
+    prompts, _ = _mixed_batch(batch_size)
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=8)
+
+    llm = vllm.LLM(
+        model=model_name,
+        max_num_seqs=batch_size,
+        max_model_len=4096,
+        gpu_memory_utilization=0.1,
+        additional_config={
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "enable_const_eval": True,
+            "optimization_level": 1,
+            "enable_trace": True,
+            "prefill_chunk_size": 128,
+            "min_num_seqs": 1,
+            "prefill_batch_threshold": prefill_batch_threshold,
+            "num_hidden_layers": 2,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+        },
+    )
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    print(f"SLOTTRACE_DONE pbt={prefill_batch_threshold} rows={len(outputs)}")
