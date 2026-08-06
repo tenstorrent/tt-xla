@@ -4,10 +4,14 @@ Status: **COMPLETE** (2026-08-06, 04:25 - 09:31 UTC)
 
 ## TL;DR
 
-1. **The tt-mlir chunked-SDPA users factor works.** Qwen3-32B and
-   Devstral-2-123B both compile and run chunked prefill on a 2D DP+TP mesh at
-   4096 context with **zero** `Result shape must match query shape` errors, the
-   verifier failure #9142 fixes.
+1. **The tt-mlir chunked-SDPA users factor works — positively, not just "no
+   crash".** The strongest evidence is not the absent verifier error, it is that
+   Qwen's multi-chunk rows returned **on-topic content for a ~356-token prefix
+   that exists only in the paged KV cache**. Producing text about the city
+   bridge archive requires correctly reading back cached-prefix KV across three
+   prefill chunks on a 2D DP+TP mesh. Shapes being right is necessary; content
+   being right is the proof. Secondarily: **zero** `Result shape must match
+   query shape` in any run, which is the verifier failure #9142 fixes.
 2. **Qwen3-32B (8,4) batch 32 @ 4096: PASS**, all 32 rows coherent, multi-chunk
    rows correctly attend their long prefix.
 3. **Devstral (4,8) batch 8 @ 4096 failed — and it is NOT the users factor.**
@@ -74,6 +78,23 @@ Driver: `run_4k_mixed.sh` (runs in the container). Started 04:42:18 UTC.
 | 4 | Devstral-2-123B | (4,8) | 8 | 4096 | **0** | **PASS** | 82 min | `devstral_4k_b8_nob1.log` |
 
 (`pbt` = `prefill_batch_threshold`. All logs under `logs/4k_mixed/`.)
+
+> **`pbt=0` is a bisect result, NOT a recommended setting.** It disables the b1
+> serial-prefill path, which exists deliberately for low-concurrency
+> small-graph prefill. Run 4 changes it only to isolate the variable. Do not
+> ship it as a config.
+
+### Working-tree state you will come back to
+
+- **`third_party/CMakeLists.txt` is intentionally dirty and uncommitted.** It
+  overrides `TT_MLIR_VERSION` to the branch
+  `ssalice/chunked-sdpa-users-factor-ttxla-pin` instead of main's
+  `724d2ff7b4`. Every result here was produced with that override in place;
+  reverting it changes what a rebuild produces.
+- **`logs/4k_mixed/` is 3.9 GB and untracked.** Mostly whitespace — ~447k blank
+  lines per log from progress output — so the useful content is a tiny fraction.
+  `grep -aE "^\[ *[0-9]+\] (MULTI|single)"` pulls the per-row results out of any
+  of them.
 
 ## Headline
 
@@ -247,7 +268,13 @@ Isolate the b1-prefill bug directly: batch 8, `prefill_batch_threshold: 16`, but
 with an **all-short** batch (no multi-chunk prompts). If that passes, the bug
 needs the mixed-length batch and is about how b1 serial prefill sequences fresh
 short prompts against a request that is mid-chunk. The test is already
-parametrized on `prefill_batch_threshold`, so this is a small addition.
+parametrized on `prefill_batch_threshold`, so this is a small addition —
+`_mixed_batch(8, long_fraction=0)` would need the `max(1, ...)` floor relaxed.
+
+**Not run deliberately.** That is a ~70 min run on a shared galaxy, it opens a
+new investigation rather than finishing the one asked for, and this session
+already spent 4 device runs against a stated ~3-run budget. Left written down
+and ready instead.
 
 Both use `prefill_chunk_size=128`, greedy sampling, full depth (no
 `num_hidden_layers` override), `experimental_kv_cache_dtype=bfp_bf8`,
