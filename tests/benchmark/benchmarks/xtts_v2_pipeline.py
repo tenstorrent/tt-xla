@@ -4,32 +4,20 @@
 
 """XTTS-v2 (coqui/XTTS-v2) — benchmark-side wiring for the TTS harness.
 
-``XTTSPipeline`` in tt-forge-models does its own per-stage ``_perf`` timing, places
-every learned module on device once in ``setup()`` and never moves them again, and
-reuses one KV cache across ``run()`` calls. That is the whole steady-state story,
-so the measured code path is the upstream one and this module adds exactly one
-thing that cannot live upstream:
-
-* ``compile_curve`` — cumulative ``CompileTime`` after each decode call, which
-  feeds the harness's ``assert_decode_graph_reused``. Reading it needs
-  ``torch_xla.debug.metrics``, and tt-forge-models stays framework-agnostic, so
-  it is recorded from this side.
-
-The generated length is the pipeline's business too: ``test_tts.py`` sets
-``XTTSConfig.stop_early=False``, so a run always produces the full
-``max_audio_tokens`` budget and the length-shaped stages (``gpt_latents``,
-``hifigan``) see identical shapes every pass without the benchmark pinning
-anything.
+``XTTSPipeline`` in tt-forge-models handles the steady state itself: per-stage
+``_perf`` timing, all modules placed on device once in ``setup()``, one reused KV
+cache, and a fixed generated length via ``XTTSConfig.stop_early=False``. So the
+measured path is the upstream one and this module adds only ``compile_curve`` --
+cumulative ``CompileTime`` after each decode call, which feeds the harness's
+``assert_decode_graph_reused`` and needs ``torch_xla.debug.metrics``.
 
 Stages the pipeline times, in the order ``run()`` executes them:
 ``speaker_encoder`` -> ``conditioning`` (summed over mel chunks) -> ``gpt_prefill``
 -> the audio-token decode loop (``steps``) -> ``gpt_latents`` -> ``hifigan``.
 """
 
-# Audio-token budget for the benchmark run. With ``stop_early=False`` the decode
-# loop always spends it, so the generated duration -- and therefore the real-time
-# factor -- is the same from one nightly to the next. Large enough that the decode
-# loop dominates the measurement rather than the one-shot stages around it.
+# Audio-token budget. With stop_early=False the loop always spends it, so the
+# duration -- and the real-time factor -- is stable nightly to nightly.
 MAX_AUDIO_TOKENS = 128
 DEFAULT_SEED = 0
 
@@ -48,14 +36,10 @@ def make_bench_xtts_pipeline_cls():
     class _CompileCounted(torch.nn.Module):
         """Records the cumulative compile count after each call of a stage.
 
-        A wrapper rather than a forward hook: ``XTTSPipeline.setup()`` has already
-        ``torch.compile``d each stage, and registering hooks on a compiled module
-        can invalidate its guards and trigger a recompile -- the exact thing this
-        benchmark asserts against. The wrapper sits outside the compiled region, so
-        it observes the stage without perturbing it.
-
-        The wrapper holds no parameters of its own, so it does not disturb the
-        placement ``setup()`` already did for the module it wraps.
+        A wrapper rather than a forward hook: the stage is already
+        ``torch.compile``d, and hooks on a compiled module can invalidate its
+        guards and trigger the very recompile this benchmark asserts against. It
+        holds no parameters, so it does not disturb the placement from ``setup()``.
         """
 
         def __init__(self, inner, record):
@@ -65,11 +49,8 @@ def make_bench_xtts_pipeline_cls():
 
         def forward(self, *args, **kwargs):
             out = self.inner(*args, **kwargs)
-            # A compile count is only meaningful once the graph has actually been
-            # launched. The pipeline forces that a moment later with its
-            # ``.to("cpu")``, but the counter has to be read after the sync, not
-            # before it. The sync sits inside the region the pipeline is timing,
-            # so it does not change what that timer measures.
+            # The counter is only meaningful once the graph has launched, so sync
+            # before reading it. This sits inside the region the pipeline times.
             sync_device()
             self._record()
             return out

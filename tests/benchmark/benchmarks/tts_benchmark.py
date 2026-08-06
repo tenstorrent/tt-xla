@@ -41,20 +41,13 @@ The ``_perf`` contract a pipeline must populate on each generation:
         "compile_curve": [int, ...],                 # cumulative compiles per step
     }
 
-``compile_curve`` is required. It is the only thing that can show a decode loop
-recompiling on every token: the aggregate before/after check cannot see that if
-warmup absorbed the compiles. Recording it needs torch-xla's counters, so a
-pipeline living in tt-forge-models cannot do it -- the per-model wiring in
-tests/benchmark has to, as ``xtts_v2_pipeline.py`` does. Making it optional would
-mean a model silently opting out of the guard by leaving the key off.
+``compile_curve`` is required: it is the only thing that can show a decode loop
+recompiling per token, which the aggregate check misses if warmup absorbed it.
+Reading it needs torch-xla's counters, so the per-model wiring records it.
 
-Stage times are wall time around a forward plus its XLA sync. A pipeline is
-expected to place its modules on device once and leave them there, so a stage time
-is that stage's compute and never a weight upload -- which is what makes the
-per-stage numbers comparable with each other, and matches the other harnesses in
-tests/benchmark. A pipeline that instead moves modules on and off the device per
-stage folds those transfers into its own numbers and, worse, re-enters the compile
-path on the next pass; the recompile guards below will catch that.
+Stage times are wall time around a forward plus its XLA sync. Pipelines are
+expected to place modules on device once and leave them there, so a stage time is
+compute rather than a weight upload, and the numbers stay comparable.
 """
 
 import socket
@@ -126,12 +119,8 @@ def assert_no_recompiles(before: int, after: int, what: str) -> None:
 def assert_decode_graph_reused(compile_curve) -> None:
     """Fail if the decode loop kept compiling instead of reusing one graph.
 
-    The aggregate before/after check cannot see a decode graph that recompiles
-    every token when pass 1 absorbed all of it. The per-step cumulative compile
-    curve can: once the loop has warmed up, the curve must be flat.
-
-    Required, not best-effort: an absent or too-short curve is a wiring bug, and
-    skipping the check on that basis would let a model opt out of the guard.
+    Once the loop has warmed up the cumulative curve must be flat. An absent or
+    too-short curve is a wiring bug, not a reason to skip the check.
     """
     assert compile_curve, (
         "the pipeline recorded no _perf['compile_curve'], so the decode loop "
@@ -232,12 +221,9 @@ def benchmark_tts_torch_xla(
     # first forward, i.e. during the warmup pass below).
     pipeline, generate_fn = build_pipeline_fn(options)
 
-    # Warmup: full syntheses that compile every graph at the exact shapes the
-    # measured pass reuses. Two passes, not one -- measured on XTTS-v2: the first
-    # compiles the graphs, the second settles the configuration once weights are
-    # resident (a handful of extra, cheap graphs), and from the third onward the
-    # compile count is flat. One warmup pass leaves those stragglers inside the
-    # measured pass, which the recompile guard below would (correctly) fail on.
+    # Warmup: full syntheses at the shapes the measured pass reuses. Two passes,
+    # not one -- measured on XTTS-v2, pass 1 compiles the graphs, pass 2 compiles a
+    # few more once buffers are in their steady state, pass 3 onward is flat.
     pass_tokens = []
     for i in range(WARMUP_PASSES):
         print(f"Starting warmup pass {i + 1}/{WARMUP_PASSES} (includes compile)...")
@@ -252,10 +238,8 @@ def benchmark_tts_torch_xla(
         )
         assert warmup_tokens > 0, f"warmup pass {i + 1} generated no audio tokens"
 
-    # The pipeline owns the generated length; the harness only checks it held it
-    # steady. A length that drifts between passes reshapes the vocoder and latents
-    # stages, so it would surface downstream as a recompile in the measured pass --
-    # fail here instead, where the cause is legible.
+    # The pipeline owns the length; the harness only checks it held steady. A drift
+    # reshapes the vocoder/latents stages and would surface as a recompile later.
     assert len(set(pass_tokens)) == 1, (
         f"the pipeline generated a different number of audio tokens across warmup "
         f"passes ({pass_tokens}) for the same text and max_audio_tokens; the "
