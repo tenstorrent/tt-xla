@@ -13,6 +13,8 @@ first test pins it.
 import pytest
 from vllm_tt.replica_block_pool import ReplicaBlockPool
 
+pytestmark = [pytest.mark.push, pytest.mark.cpu]
+
 SLOTS = 8
 ROWS_PER_REPLICA = 2
 REPLICAS = 2

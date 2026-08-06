@@ -13,11 +13,14 @@ test_replica_block_pool.py.
 
 from types import SimpleNamespace
 
+import pytest
 from vllm.sampling_params import SamplingParams
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.replica_block_pool import ReplicaBlockPool
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates
+
+pytestmark = [pytest.mark.push, pytest.mark.cpu]
 
 VOCAB = 1000
 MAX_NUM_REQS = 4
