@@ -17,10 +17,11 @@ Status: **COMPLETE** (2026-08-06, 04:25 - 09:31 UTC)
 3. **Devstral (4,8) batch 8 @ 4096 failed — and it is NOT the users factor.**
    Disabling the b1 serial-prefill path (`prefill_batch_threshold: 0`) makes the
    identical config pass on the identical build, so the fault is somewhere in
-   that path. The *mechanism* is still unknown. My row->device bucket-mismatch
-   explanation is **untested** — the A/B that appeared to falsify it used a
-   broken metric (see retraction below). Qwen3-32B did not reproduce the bug at
-   full depth, batch 32.
+   that path. **Root cause confirmed**: under the b1 cap, prefill runs on a
+   4-row bucket (row r -> dev r) while decode runs on an 8-row bucket
+   (row r -> dev r//2), so requests 1,2,3 write their KV to one DP device and
+   read it back from another. Measured directly via `TTXLA_SLOT_TRACE`; the
+   mismatched set is exactly the corrupted set.
 
 ## What is under test
 
@@ -228,7 +229,60 @@ Also ruled out as a cause: the `TT_FATAL: Chip N logical eth core ... connects t
 a remote mmio device` lines appear identically in the **passing** Qwen log, so
 they are benign discovery noise.
 
-## RETRACTED: the bucket-mismatch "falsification" was a broken metric
+## ROOT CAUSE CONFIRMED: prefill/decode DP-device mismatch
+
+Measured directly with `TTXLA_SLOT_TRACE=1`, which dumps each request's
+row -> DP-device assignment per pass. This is **structural** (a function of
+`dp_size`, the row-count bucket and the row index), so it is valid at any layer
+count even when the generated text is garbage — a 2-layer Qwen3-0.6B on
+Devstral's (4,8) mesh answers it in ~20 min instead of ~80.
+
+| request | prefill dev (bucket) | decode dev (bucket) | agree |
+|---|---|---|---|
+| 0 | 0 (4) | 0 (8) | OK |
+| 1 | **1** (4) | **0** (8) | **MISMATCH** |
+| 2 | **2** (4) | **1** (8) | **MISMATCH** |
+| 3 | **3** (4) | **1** (8) | **MISMATCH** |
+| 4-7 | 2,2,3,3 (8) | 2,2,3,3 (8) | OK |
+
+`pbt=16` -> **3 of 8** requests change device between prefill and decode.
+`pbt=0`  -> **0 of 8**.
+
+**The mismatched set {1,2,3} is exactly the set of corrupted rows in both
+full-depth Devstral runs.** Row 0 survives because it is the only index where
+`r == r//2`.
+
+### Mechanism
+
+1. The b1 cap (`fresh_prefill_cap = min_num_seqs = 1`) admits one fresh request
+   per step, so `input_batch` grows 1,2,3,... and early prefill passes select the
+   **small** bucket: `target=4, rows_per_dev=1` -> row `r` lands on **dev r**.
+2. Once `actual_num_reqs >= 5` the bucket flips to **big**: `target=8,
+   rows_per_dev=2` -> row `r` lands on **dev r//2**.
+3. Decode *always* uses the decode bucket, here also 8 -> `dev r//2`.
+4. So a request prefilled in the small-bucket window writes its KV on one device
+   and decode reads it from another. The first token is right (produced by the
+   prefill step itself); everything after degenerates.
+
+With `pbt=0` there is no cap, the first prefill pass already has
+`actual_num_reqs = 8 > small`, so prefill and decode share the 8-row bucket and
+every request keeps its device.
+
+### Why this is not the chunked-SDPA users factor
+
+Nothing here touches the sharding rule. The same tt-mlir binary produces correct
+output at `pbt=0`, and the defect is a row->device bookkeeping mismatch in the
+tt-xla model runner between two graph buckets.
+
+### Note on an earlier retraction
+
+An intermediate A/B (`test_dptp_qwen_bucket_ab`) appeared to *falsify* this
+hypothesis. That result was invalid: its degeneracy check used
+`c.isalpha()`, which is True for CJK, so multilingual token soup scored 0.985
+and read as "clean" while both arms were in fact garbage. Details kept below as
+a caution. The slot trace supersedes it and confirms the original hypothesis.
+
+## Superseded detail: the broken-metric A/B
 
 **The A/B below did not test anything. Its result must not be relied on.**
 
