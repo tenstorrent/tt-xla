@@ -1,6 +1,19 @@
 # Chunked SDPA users-factor: 4k mixed-batch validation
 
-Status: **IN PROGRESS** (started 2026-08-06 ~04:25 UTC)
+Status: **COMPLETE** (2026-08-06, 04:25 - 09:31 UTC)
+
+## TL;DR
+
+1. **The tt-mlir chunked-SDPA users factor works.** Qwen3-32B and
+   Devstral-2-123B both compile and run chunked prefill on a 2D DP+TP mesh at
+   4096 context with **zero** `Result shape must match query shape` errors, the
+   verifier failure #9142 fixes.
+2. **Qwen3-32B (8,4) batch 32 @ 4096: PASS**, all 32 rows coherent, multi-chunk
+   rows correctly attend their long prefix.
+3. **Devstral (4,8) batch 8 @ 4096 failed — and it is NOT the users factor.**
+   The corruption is caused by the **b1 serial-prefill path**. Disabling it
+   (`prefill_batch_threshold: 0`) makes the identical config pass on the
+   identical build. See "Root cause" below.
 
 ## What is under test
 
@@ -53,10 +66,14 @@ recompile only, no tt-metal rebuild.
 
 Driver: `run_4k_mixed.sh` (runs in the container). Started 04:42:18 UTC.
 
-| # | Model | Mesh | Batch | Ctx | Result | Wall | Log |
-|---|---|---|---|---|---|---|---|
-| 1 | Qwen3-32B | (8,4) | 32 | 4096 | **PASS** | 48 min | `logs/4k_mixed/qwen3-32b_4k_b32.log` |
-| 2 | Devstral-2-123B | (4,8) | 8 | 4096 | **FAIL** (3/8 rows garbage) | 80 min | `logs/4k_mixed/devstral_4k_b8.log` |
+| # | Model | Mesh | Batch | Ctx | `pbt` | Result | Wall | Log |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Qwen3-32B | (8,4) | 32 | 4096 | 16 | **PASS** | 48 min | `qwen3-32b_4k_b32.log` |
+| 2 | Devstral-2-123B | (4,8) | 8 | 4096 | 16 | **FAIL** 3/8 rows | 80 min | `devstral_4k_b8.log` |
+| 3 | Devstral-2-123B | (4,8) | 8 | 4096 | 16 | **FAIL** identical (post device reset) | 68 min | `devstral_4k_b8_retry.log` |
+| 4 | Devstral-2-123B | (4,8) | 8 | 4096 | **0** | **PASS** | 82 min | `devstral_4k_b8_nob1.log` |
+
+(`pbt` = `prefill_batch_threshold`. All logs under `logs/4k_mixed/`.)
 
 ## Headline
 
@@ -183,14 +200,54 @@ with the corruption landing on single-chunk rows while both multi-chunk rows are
 correct, the suspicion points at b1-prefill row handling rather than the chunked
 SDPA op.
 
-Cheap discriminator if the retry still fails: re-run Devstral at batch 32 (above
-the threshold, same path as the passing Qwen run) or drop
-`prefill_batch_threshold` to 4 at batch 8. If either comes back clean, the
-chunked-SDPA users factor is exonerated and the bug is in b1-prefill.
-
 Also ruled out as a cause: the `TT_FATAL: Chip N logical eth core ... connects to
 a remote mmio device` lines appear identically in the **passing** Qwen log, so
 they are benign discovery noise.
+
+## Root cause: b1 serial prefill, confirmed by controlled experiment
+
+Run 4 changed **one variable** — `prefill_batch_threshold: 16 -> 0`, which
+disables the b1 serial-prefill cap. Same model, same batch, same context, same
+mesh, same tt-mlir build, same prompts, devices reset identically before both.
+
+**Result: PASS.** The three rows that were deterministically corrupted across
+two prior runs are now coherent:
+
+| Row | `pbt=16` (FAIL) | `pbt=0` (PASS) |
+|---|---|---|
+| 1 | `' sunny, ", ", "1", "1", " "1"...'` | `' sunny and hot. The temperature is 30 degrees Celsius...'` |
+| 2 | `' summer 11 (11.111 \|11 (1 \|1...'` | `' summer. I like summer because I can go to the beach...'` |
+| 3 | `' the (1) the "s" and "s "1"...'` | `' the book of the book of the book...'` |
+
+### Conclusion
+
+**The chunked-SDPA users factor is exonerated.** The same binary that produced
+garbage at `pbt=16` produces correct output at `pbt=0`, so nothing in the
+tt-mlir sharding rule can be responsible. The bug is in the **b1 serial-prefill
+path** (`scheduler/ascend_scheduler.py:128`), in how it interacts with a
+mixed-length batch under DP.
+
+This also **defuses the tt-mlir pin skew** as a concern for these results: the
+skewed build passes both the Qwen run and the Devstral `pbt=0` run. The skew
+would only need revisiting to chase the b1-prefill bug itself.
+
+### Caveats on the pass
+
+- Row 3 at `pbt=0` is repetitive (`the book of the book of the book`) — it
+  clears the 0.35 word-ratio bar but is degenerate text. Row 7 repeats similarly
+  in every run including Qwen's. Worth a look, but it is a quality issue, not
+  corruption.
+- Devstral was only tested at batch 8. Whether the b1 bug also bites at batch 32
+  (where `num_pending` starts above the threshold, as in the passing Qwen run)
+  is untested.
+
+### Suggested next step
+
+Isolate the b1-prefill bug directly: batch 8, `prefill_batch_threshold: 16`, but
+with an **all-short** batch (no multi-chunk prompts). If that passes, the bug
+needs the mixed-length batch and is about how b1 serial prefill sequences fresh
+short prompts against a request that is mid-chunk. The test is already
+parametrized on `prefill_batch_threshold`, so this is a small addition.
 
 Both use `prefill_chunk_size=128`, greedy sampling, full depth (no
 `num_hidden_layers` override), `experimental_kv_cache_dtype=bfp_bf8`,
