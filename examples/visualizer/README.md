@@ -90,8 +90,73 @@ Absent, and not fixable with a build flag:
 
 `capture_graph_report.py` drives its own model, but the same environment variables work on
 anything that runs through the plugin, including `vllm serve`. Export them around the
-server process — for example alongside `examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh`
-— then send a request and shut the server down.
+server process, send a request, then shut the server down.
+
+### TinyLlama, step by step
+
+These steps were run end to end on an n300. Use a checkout dedicated to this — installing
+vLLM pulls several GB of packages you will not want in a general-purpose environment.
+
+1. Install vLLM and the TT plugin into the activated venv. `vllm==0.26.0` does not displace
+   the venv's `torch` or `torch-xla`, but it does add its CUDA-flavoured dependencies.
+
+   ```bash
+   source venv/activate
+   (cd integrations/vllm_plugin && python setup.py bdist_wheel)
+   pip install --force-reinstall --no-deps \
+       integrations/vllm_plugin/dist/vllm_tt-0.1-cp312-cp312-linux_x86_64.whl
+   pip install "vllm==0.26.0" "transformers==5.14.1"
+   ```
+
+2. Enable capture for the server process. `SKIP` has to clear weight loading — see the
+   warning below — and `COUNT` stays small because a decode step is one execution each.
+
+   ```bash
+   export TT_RUNTIME_GRAPH_CAPTURE_DIR=$PWD/vllm_reports
+   export TT_RUNTIME_GRAPH_CAPTURE_SKIP=40
+   export TT_RUNTIME_GRAPH_CAPTURE_COUNT=2
+   mkdir -p "$TT_RUNTIME_GRAPH_CAPTURE_DIR"
+   ```
+
+3. Start the server in that same shell, so it inherits those variables. The weights
+   download on first run.
+
+   ```bash
+   bash examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh
+   ```
+
+4. Wait for it to come up — measured at 7m31s with weights already cached — then send one
+   request from a second shell.
+
+   ```bash
+   until curl -sf http://localhost:8000/v1/models >/dev/null; do sleep 5; done
+   curl -s http://localhost:8000/v1/completions \
+       -H 'Content-Type: application/json' \
+       -d '{"model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            "prompt": "The capital of France is",
+            "max_tokens": 64, "temperature": 0}'
+   ```
+
+5. Confirm the report landed, then stop the server. The window closes as soon as `COUNT`
+   executions are done, so the file appears while the server is still serving.
+
+   ```bash
+   ls -la "$TT_RUNTIME_GRAPH_CAPTURE_DIR"   # main_pid<pid>_tid<tid>_exec40.json
+   ```
+
+   Then interrupt the server. It did not exit within 120 s of `SIGINT` in this run and
+   needed `SIGKILL`; the report is already written by then, so killing it costs nothing.
+
+6. Import it.
+
+   ```bash
+   python examples/visualizer/import_graph_report.py \
+       "$TT_RUNTIME_GRAPH_CAPTURE_DIR"/main_pid*_exec40.json --out vllm_dbs
+   ```
+
+If step 5 shows an empty directory, the run performed fewer than `SKIP` executions — lower
+`SKIP` and repeat. If the server dies during startup with `Unsupported buffer type!`,
+`SKIP` was too low; raise it.
 
 **The window must open after weight loading, not merely after warm-up.** Weight load
 allocates host-side `SYSTEM_MEMORY` buffers, and the per-op buffer snapshot the capture
