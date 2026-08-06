@@ -992,3 +992,66 @@ def test_dptp_slot_trace(mesh_shape, batch_size, prefill_batch_threshold):
     outputs = llm.generate(prompts, sampling_params)
     assert len(outputs) == len(prompts)
     print(f"SLOTTRACE_DONE pbt={prefill_batch_threshold} rows={len(outputs)}")
+
+
+# --------------------------------------------------------------------------
+# Causal test on a SMALL model at FULL depth (Qwen3-0.6B, 28 layers).
+# Full depth keeps output coherent, so corruption is distinguishable from the
+# truncation damage that makes 2-10 layer runs useless as an oracle. Greedy +
+# 64 tokens gives a deterministic per-row signal to diff between arms.
+#
+# Same mesh/batch as the slot trace, where pbt=16 measured mismatches on
+# {1,2,3} and pbt=0 measured none. H predicts: pbt=16 corrupts exactly those
+# rows; pbt=0 is clean.
+# --------------------------------------------------------------------------
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.notimeout
+@pytest.mark.parametrize("prefill_batch_threshold", [16, 0])
+@pytest.mark.parametrize(
+    "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
+)
+def test_dptp_small_model_causal_ab(mesh_shape, prefill_batch_threshold):
+    """Qwen3-0.6B full depth on (4,8): does slot relocation corrupt decode?"""
+    model_name = "Qwen/Qwen3-0.6B"
+    batch_size = 8
+    prompts, long_indices = _mixed_batch(batch_size)
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=64)
+
+    llm = vllm.LLM(
+        model=model_name,
+        max_num_seqs=batch_size,
+        max_model_len=4096,
+        gpu_memory_utilization=0.1,
+        additional_config={
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "enable_const_eval": True,
+            "optimization_level": 1,
+            "enable_trace": True,
+            "prefill_chunk_size": 128,
+            "min_num_seqs": 1,
+            "prefill_batch_threshold": prefill_batch_threshold,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+        },
+    )
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    _report(
+        "qwen0.6b full-depth pbt%d" % prefill_batch_threshold,
+        prompts, long_indices, outputs,
+    )
+    bad = []
+    for i, out in enumerate(outputs):
+        try:
+            assert_output_coherent(out.outputs[0].text)
+        except AssertionError:
+            bad.append(i)
+    print(f"DEGENERATE_ROWS={bad}")
+    # Machine-diffable per-row output so the two arms can be compared exactly.
+    for i, out in enumerate(outputs):
+        print(f"ROWTEXT[{i}]={out.outputs[0].text!r}")
