@@ -637,6 +637,13 @@
         "skip-device-perf": true
       },
       {
+        "name": "vllm_llama_3_2_3b_instruct_production",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-instruct-production]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "p150-perf"
+      },
+      {
         "name": "vllm_llama_3_2_1b_instruct",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]",
         "vllm": true,
@@ -647,6 +654,13 @@
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b]",
         "vllm": true,
         "skip-device-perf": true
+      },
+      {
+        "name": "vllm_llama_3_1_8b_instruct_production",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b-instruct-production]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "p150-perf"
       },
       {
         "name": "vllm_qwen2_5_0_5b_instruct",
@@ -691,10 +705,24 @@
         "skip-device-perf": true
       },
       {
+        "name": "vllm_qwen3_4b_production",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b-production]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "p150-perf"
+      },
+      {
         "name": "vllm_qwen3_8b",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b]",
         "vllm": true,
         "skip-device-perf": true
+      },
+      {
+        "name": "vllm_qwen3_8b_production",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b-production]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "p150-perf"
       },
       {
         "name": "vllm_phi_1",
