@@ -6,6 +6,24 @@ import json
 import sys
 from pathlib import Path
 
+# Scheduled nightly that owns a benchmark. Not consulted for accuracy-testing
+# entries, which are selected by the accuracy axis instead.
+VALID_GROUPS = ("regular", "experimental")
+
+# Fields compared for equality between a filter condition and a matrix entry,
+# mapped to the value assumed when an entry omits them. A condition that omits
+# a field does not constrain it.
+EQUALITY_FIELDS = {"accuracy-testing": False, "group": "regular"}
+
+
+def _validate_group(group, context):
+    """Reject unknown groups so a typo cannot silently drop a benchmark."""
+    if group is None or group in VALID_GROUPS:
+        return group
+
+    valid = ", ".join(VALID_GROUPS)
+    raise ValueError(f"Invalid group '{group}' in {context}. Expected one of: {valid}.")
+
 
 def flatten_matrix(data):
     """Flatten the matrix."""
@@ -16,6 +34,10 @@ def flatten_matrix(data):
             if test.get("skip"):
                 continue
             merged_test = {**test_defaults, **test, "project": proj["project"]}
+            merged_test.setdefault("group", EQUALITY_FIELDS["group"])
+            _validate_group(
+                merged_test["group"], f"test '{merged_test.get('name', '<unnamed>')}'"
+            )
 
             runs_on = merged_test.get("runs-on", [])
             if isinstance(runs_on, list):
@@ -40,8 +62,12 @@ def filter_matrix_adv(matrix, adv_filter):
       - "filter": string (or comma-separated list / list of strings) that should be present in the test name (include match).
       - "exclude": string (or comma-separated list / list of strings) — any test whose name contains one of these substrings is dropped. Applied AFTER "filter".
       - "accuracy-testing": whether to include accuracy testing or not.
+      - "group": scheduled nightly that owns the test ("regular" or "experimental"). If ommited, the group is not constrained.
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
+    for condition in adv_filter:
+        _validate_group(condition.get("group"), "filter condition")
+
     # Create initial structure with all runners marked as skip=True
     runners = get_unique_runners(matrix)
     runner_conditions = {runner: {"skip": True} for runner in runners}
@@ -83,10 +109,9 @@ def filter_matrix_adv(matrix, adv_filter):
                         runner_conditions[runner][key].extend(
                             v.lower() for v in value.split(",")
                         )
-            if condition.get("accuracy-testing") is not None:
-                runner_conditions[runner]["accuracy-testing"] = condition[
-                    "accuracy-testing"
-                ]
+            for field in EQUALITY_FIELDS:
+                if condition.get(field) is not None:
+                    runner_conditions[runner][field] = condition[field]
             if condition.get("skip") is not None:
                 runner_conditions[runner]["skip"] = condition["skip"]
 
@@ -105,9 +130,10 @@ def filter_matrix_adv(matrix, adv_filter):
             if "exclude" in conditions and conditions["exclude"]:
                 if any(e in name_lc for e in conditions["exclude"]):
                     continue
-            if "accuracy-testing" in conditions and conditions[
-                "accuracy-testing"
-            ] != item.get("accuracy-testing", False):
+            if any(
+                field in conditions and conditions[field] != item.get(field, default)
+                for field, default in EQUALITY_FIELDS.items()
+            ):
                 continue
             filtered_matrix.append(item)
 
