@@ -663,3 +663,167 @@ def test_dptp_qwen(
         # issue with condense() corrupting slots when requests finish early.
 
     check_host_memory(model_name)
+
+
+# --------------------------------------------------------------------------
+# Mixed chunked / non-chunked batches at 4k context, full depth.
+#
+# The DP+TP repros above pin num_hidden_layers=2 and (for qwen) disable the
+# coherence assert, so they answer "does it compile and run" rather than "is
+# the output right". These two run the real model and check the text.
+# --------------------------------------------------------------------------
+
+_SHORT_PROMPTS = [
+    "Continue in English: I like taking walks in the",
+    "Continue in English: The weather today is",
+    "Continue in English: My favourite season is",
+    "Continue in English: The best book I have read is",
+    "Continue in English: The most interesting place I visited is",
+    "Continue in English: My favourite food is",
+    "Continue in English: The thing I enjoy most about weekends is",
+    "Continue in English: The future of technology will",
+]
+
+_LONG_PROMPT = (
+    _MULTI_CHUNK_PREFIX
+    + "Continue in English: The main thing this archive record shows is"
+)
+
+
+def _mixed_batch(batch_size: int, long_fraction: float = 0.25):
+    """Half-and-half-ish batch of multi-chunk and single-chunk prompts.
+
+    At prefill_chunk_size=128 the long prompt (~356 tokens) needs three prefill
+    chunks and so exercises the cached-prefix chunked-SDPA path for real; the
+    short ones fit in one chunk and never enter it. Spread evenly so every DP
+    replica gets some of each.
+
+    Returns (prompts, long_indices). Callers assert both classes are non-empty:
+    a batch where nothing chunked looks like a pass but tests nothing.
+    """
+    num_long = max(1, int(round(batch_size * long_fraction)))
+    num_long = min(num_long, batch_size - 1)  # always keep at least one short
+    stride = max(1, batch_size // num_long)
+
+    prompts = [_SHORT_PROMPTS[i % len(_SHORT_PROMPTS)] for i in range(batch_size)]
+    long_indices = list(range(0, batch_size, stride))[:num_long]
+    for i in long_indices:
+        prompts[i] = _LONG_PROMPT
+
+    assert 0 < len(long_indices) < batch_size, (
+        f"mixed batch degenerate: {len(long_indices)} long of {batch_size}"
+    )
+    return prompts, long_indices
+
+
+def _report(tag, prompts, long_indices, outputs):
+    """Print a per-row table and return (num_empty, num_long_ok)."""
+    long_set = set(long_indices)
+    num_empty = 0
+    print(f"\n===== {tag}: {len(outputs)} rows "
+          f"({len(long_set)} multi-chunk, {len(outputs) - len(long_set)} single-chunk) =====")
+    for i, out in enumerate(outputs):
+        text = out.outputs[0].text
+        kind = "MULTI" if i in long_set else "single"
+        if not text.strip():
+            num_empty += 1
+        print(f"[{i:>3}] {kind:<6} | {text!r}")
+    print(f"===== {tag}: {num_empty} empty of {len(outputs)} =====\n")
+    return num_empty
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.notimeout
+@pytest.mark.parametrize("batch_size", [32])
+@pytest.mark.parametrize("max_model_len", [4096])
+@pytest.mark.parametrize(
+    "mesh_shape", [pytest.param([8, 4], marks=pytest.mark.bh_galaxy)]
+)
+def test_dptp_qwen_mixed_4k(mesh_shape, max_model_len, batch_size):
+    """Qwen3-32B, mesh (8,4), full depth, 4k context, mixed chunked batch."""
+    model_name = "Qwen/Qwen3-32B"
+    prompts, long_indices = _mixed_batch(batch_size)
+
+    # Greedy: with cpu_sampling=False and >32 concurrent decodes the tt::sampling
+    # kernel requires exactly batch=32. Greedy takes the argmax path instead.
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+
+    llm = vllm.LLM(
+        model=model_name,
+        max_num_seqs=batch_size,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=0.2,
+        additional_config={
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "experimental_kv_cache_dtype": "bfp_bf8",
+            "enable_const_eval": True,
+            "optimization_level": 1,
+            "enable_trace": True,
+            "prefill_chunk_size": 128,
+            "min_num_seqs": 1,
+            "prefill_batch_threshold": 16,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+        },
+    )
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    num_empty = _report("qwen3-32b 4k b%d" % batch_size, prompts, long_indices, outputs)
+    assert num_empty == 0, f"{num_empty} rows produced empty output"
+    for out in outputs:
+        assert_output_coherent(out.outputs[0].text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.notimeout
+@pytest.mark.parametrize("batch_size", [8])
+@pytest.mark.parametrize("max_model_len", [4096])
+@pytest.mark.parametrize(
+    "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
+)
+def test_dptp_devstral_mixed_4k(mesh_shape, max_model_len, batch_size):
+    """Devstral-123B, mesh (4,8), full depth, 4k context, mixed chunked batch."""
+    model_name = "mistralai/Devstral-2-123B-Instruct-2512"
+    prompts, long_indices = _mixed_batch(batch_size)
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+
+    llm = vllm.LLM(
+        model=model_name,
+        max_num_seqs=batch_size,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=0.1,
+        additional_config={
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "experimental_kv_cache_dtype": "bfp_bf8",
+            "enable_const_eval": True,
+            "optimization_level": 1,
+            "enable_trace": True,
+            "prefill_chunk_size": 128,
+            "min_num_seqs": 1,
+            "prefill_batch_threshold": 16,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+        },
+    )
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    num_empty = _report("devstral 4k b%d" % batch_size, prompts, long_indices, outputs)
+    assert num_empty == 0, f"{num_empty} rows produced empty output"
+    for out in outputs:
+        assert_output_coherent(out.outputs[0].text)
+
+    check_host_memory(model_name)
