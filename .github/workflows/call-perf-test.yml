@@ -39,6 +39,11 @@ on:
         required: false
         type: boolean
         default: false
+      regression_baseline_workflow:
+        description: "Workflow file to use for regression baseline results"
+        required: false
+        type: string
+        default: ""
       check_fusions:
         description: "Verify expected fusion ops are present in compiled IR"
         required: false
@@ -446,12 +451,19 @@ jobs:
       run: |
         echo "display_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.config.display_name')" >> $GITHUB_OUTPUT
 
+        workflow_file="${{ inputs.regression_baseline_workflow }}"
+        if [[ -z "$workflow_file" ]]; then
+          if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
+            workflow_file="schedule-benchmark-experimental.yml"
+          else
+            workflow_file="schedule-nightly.yml"
+          fi
+        fi
+
         if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
           mode="accuracy"
-          workflow_file="schedule-benchmark-experimental.yml"
         else
           mode="perf"
-          workflow_file="schedule-nightly.yml"
         fi
         echo "mode=$mode" >> $GITHUB_OUTPUT
         workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
