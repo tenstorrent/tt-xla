@@ -125,14 +125,22 @@ mixed-batch row-corruption bug.
 
 ### Leading hypothesis if the retry reproduces: b1-prefill, not chunked SDPA
 
-Both tests set `prefill_batch_threshold: 16`, which arms the small-graph
-**serial (batch-1) prefill** path when the batch is below it. That threshold
-splits the two runs:
+Both tests set `prefill_batch_threshold: 16` and `min_num_seqs: 1`. From
+`scheduler/ascend_scheduler.py:128`:
 
-| Run | Batch | vs threshold 16 | Prefill path |
+```python
+if self.prefill_batch_threshold > 0 and self.b1_min_num_seqs > 0:
+    num_pending = len(self.waiting) + len(self.skipped_waiting)
+    if num_pending <= self.prefill_batch_threshold:
+        fresh_prefill_cap = self.b1_min_num_seqs      # = 1 -> serial prefill
+```
+
+The gate is on **pending request count**, not batch size. That splits the runs:
+
+| Run | Prompts | Initial `num_pending` vs 16 | Fresh-prefill path |
 |---|---|---|---|
-| Qwen3-32B | 32 | above | batched prefill |
-| Devstral | 8 | **below** | **b1 serial prefill** |
+| Qwen3-32B | 32 | 32 > 16 | batched prefill (until the queue drains below 16) |
+| Devstral | 8 | **8 <= 16** | **b1 serial prefill from the first step** |
 
 So the run that passed and the run that failed took *different prefill paths*,
 and the failing one is the path chunked prefill interacts with least. Combined
