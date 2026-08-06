@@ -233,9 +233,8 @@ subprograms, then 5.70 MB each — and importing all three together gives 93 ope
 
 ## What a tt-xla capture does and does not contain
 
-Present: the operation list, tensors, buffers and buffer pages, per-op device-operation trees,
-tensor lifetimes, devices, the cluster descriptor, and report metadata carrying the tt-xla git
-URL and SHA.
+Present: the operation list, tensors, buffers, per-op device-operation trees, tensor lifetimes,
+devices, the cluster descriptor, and report metadata carrying the tt-xla git URL and SHA.
 
 Operations are named after the program op — `Conv2dOp`, `LinearOp`, `Pool2dOp` — with the
 device operations each one dispatched nested inside it as its captured sub-graph. Every
@@ -265,6 +264,13 @@ Absent:
 - **Source files.** The Source tab resolves a stack trace by parsing Python frames, and an
   MLIR location is not one, so `source_files` stays empty. The location names the HLO
   instruction, not the line of model code behind it.
+- **Per-page buffer detail.** `buffer_chunks` stays empty — 0 rows for the mnist capture,
+  against 10463 for a native ttnn capture of the same network. The importer attaches pages to
+  an operation by address, and the buffers live at a program-op boundary are program tensors
+  allocated before the window opened, so no page snapshot exists for them; the intermediates
+  that were snapshotted are freed by then. tt-metal takes that snapshot only at graph stacking
+  level 1, which the hook's per-op scope now occupies. The buffer list and totals are
+  unaffected.
 - **The perf half of a report.** Tracy zones exist in Metalium and tt-mlir, but tt-xla's
   wheel build forces `TTMLIR_ENABLE_PERF_TRACE` off, so kernel timings need a source
   build under the tracy wrapper.
@@ -283,3 +289,12 @@ That path records `python_io` from ttnn's decorators, so its operations are name
 API level (`ttnn.matmul`) and its stack traces are real Python frames, which the Source tab
 can resolve to files. A tt-xla capture names operations at the program-op level and locates
 them in MLIR instead.
+
+The two are worth comparing on one network. The mnist model of `examples/pytorch/mnist.py`,
+hand-written in ttnn and captured this way, gives 17 operations — `ttnn.conv2d`,
+`ttnn.max_pool2d`, `ttnn.linear`, `ttnn.softmax` — each with its Python call stack and every
+keyword argument recorded by name, in a single graph component with nothing isolated. The
+tt-xla capture of the same network gives 71, because it records what the compiler produced:
+25 compute ops where the native path has 11, since `log_softmax` becomes eight, plus 6
+`LoadCachedOp`, a `GetDeviceOp` and 39 explicit `DeallocateOp`. Reach for the native path to
+study a ttnn op, and for the tt-xla path to study what a model lowered to.
