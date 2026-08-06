@@ -36,6 +36,7 @@ from tests.runner.test_utils import (
     get_input_shape_info,
     get_xla_device_arch,
     record_model_test_properties,
+    sanitize_ir_dump_dir_name,
     update_test_metadata_for_exception,
 )
 from tests.runner.testers import (
@@ -117,7 +118,13 @@ def _run_model_test_impl(
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
         if request.config.getoption("--dump-irs", default=False):
-            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+            # Sanitized: op-by-op recovers the model name from this directory
+            # name, so spaces here would land in the ops-status database.
+            ir_dump_path = os.path.join(
+                PROJECT_ROOT,
+                "collected_irs",
+                sanitize_ir_dump_dir_name(model_info.name),
+            )
 
         if compiler_config is None:
             compiler_config = CompilerConfig()
@@ -727,7 +734,11 @@ def test_all_models_op_by_op(
         text=True,
     )
 
-    artifacts_dir = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+    # Must use the same sanitization as the dump path above, or this lookup
+    # misses the directory the dump actually wrote to.
+    artifacts_dir = os.path.join(
+        PROJECT_ROOT, "collected_irs", sanitize_ir_dump_dir_name(model_info.name)
+    )
     matches = find_dumped_ir_files(artifacts_dir)
 
     results = []
