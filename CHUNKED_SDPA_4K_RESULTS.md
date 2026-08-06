@@ -131,6 +131,33 @@ That is informative:
 
 Remaining confound is the **tt-mlir pin skew** documented above.
 
+### The corrupted rows start correct and then degenerate
+
+Lining the failing outputs up against their prompts:
+
+| Row | Prompt ends | Output starts | Then |
+|---|---|---|---|
+| 1 | `The weather today is` | ` sunny,` | `", ", "1", "1", " "1"...` |
+| 2 | `My favourite season is` | ` summer` | `11 (11.111 \|11 (1 \|1...` |
+| 3 | `The best book I have read is` | ` the` | `(1) the "s" and "s "1"...` |
+
+**The first token or two are correct, then it collapses into punctuation and
+digits.** Prefill produced a sensible first token for every corrupted row, so
+prefill read the prompt correctly; the degeneration begins in decode. That
+points at KV/state corruption after the prefill step rather than at the prefill
+attention output itself — again away from chunked SDPA, which is a prefill-path
+op.
+
+Positional pattern (batch 8, mesh (4,8) = 4 DP replicas x 2 users):
+
+- Corrupted: rows 1, 2, 3 — all short prompts in the **first half** of the batch.
+- Clean: rows 5, 6, 7 — the *same* short prompts in the second half.
+- Clean: rows 0 and 4 — both long/multi-chunk.
+
+Under round-robin DP assignment (`replica = i % 4`) that reads as: each of
+replicas 1/2/3 has its first-half row corrupted and its second-half row clean,
+while replica 0 holds both long prompts and is entirely clean.
+
 ### Leading hypothesis if the retry reproduces: b1-prefill, not chunked SDPA
 
 Both tests set `prefill_batch_threshold: 16` and `min_num_seqs: 1`. From
