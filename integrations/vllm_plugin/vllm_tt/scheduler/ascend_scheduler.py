@@ -63,7 +63,22 @@ class AscendScheduler(Scheduler):
         # TTConfig.prefill_kv_watermark.
         self.prefill_kv_watermark = float(add_cfg.get("prefill_kv_watermark") or 0.0)
 
-    def schedule(self) -> SchedulerOutput:
+        # Gating resolved in TTPlatform.check_and_update_config.
+        from vllm_tt.telemetry import SchedulerTelemetry, resolve_config
+
+        tele_enabled, tele_dir, tele_flush_s = resolve_config(
+            enabled=add_cfg.get("telemetry_enabled", False),
+            directory=add_cfg.get("telemetry_dir"),
+            flush_ms=add_cfg.get("telemetry_flush_ms"),
+        )
+        self._telemetry = SchedulerTelemetry(tele_enabled, tele_dir, tele_flush_s)
+
+    def schedule(self, throttle_prefills: bool = False) -> SchedulerOutput:
+        # v0.25.1: EngineCore calls schedule(self._should_throttle_prefills())
+        # positionally, so the parameter must exist. TT is single-instance, so
+        # DP prefill throttling is ignored. current_step advances to match the
+        # base (decode-cadence gating / stats read it).
+        self.current_step += 1
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
         # if self.scheduler_config.tt_chunked_prefill_enabled:
         #     return super().schedule()
@@ -91,6 +106,10 @@ class AscendScheduler(Scheduler):
         # Partial prefill chunks scheduled this step: kept out of self.running
         # until prefill completes, so excluded from the scheduled-vs-running check.
         num_partial_prefill_scheduled = 0
+
+        # TT-specific decisions this step, for telemetry.
+        tele_watermark_rejects = 0
+        tele_b1_cap_hit = False
 
         # Stage (num_computed_tokens) of the first prefill scheduled this step.
         # Only same-stage prefills batch together; mixing a fresh request with a
@@ -139,6 +158,8 @@ class AscendScheduler(Scheduler):
                 and len(scheduled_new_reqs) + len(scheduled_resumed_reqs)
                 >= fresh_prefill_cap
             ):
+                if self._telemetry.enabled:
+                    tele_b1_cap_hit = True
                 break
 
             def skip_cur_request(req=request):
@@ -187,17 +208,27 @@ class AscendScheduler(Scheduler):
 
             # Get already-cached tokens.
             if request.num_computed_tokens == 0:
-                new_computed_blocks, num_new_local_computed_tokens = (
-                    self.kv_cache_manager.get_computed_blocks(request)
-                )
+                (
+                    new_computed_blocks,
+                    num_new_local_computed_tokens,
+                    # Junction to pin for sparse-retention shared-prefix
+                    # handling; 0 when no uncached shared prefix is found.
+                    request.shared_prefix_boundary,
+                ) = self.kv_cache_manager.get_computed_blocks(request)
 
                 # Get externally-cached tokens if using a KVConnector.
                 if self.connector is not None:
-                    num_external_computed_tokens, load_kv_async = (
+                    ext_tokens, load_kv_async = (
                         self.connector.get_num_new_matched_tokens(
                             request, num_new_local_computed_tokens
                         )
                     )
+                    if ext_tokens is None:
+                        # Connector could not determine the number of matched
+                        # tokens for this step; defer request.
+                        skip_cur_request()
+                        continue
+                    num_external_computed_tokens = ext_tokens
 
                 # Total computed tokens (local + external).
                 num_computed_tokens = (
@@ -354,6 +385,8 @@ class AscendScheduler(Scheduler):
                 request, num_new_tokens, blocks, watermark
             ):
                 # Scheduling would exceed watermark, skip.
+                if self._telemetry.enabled:
+                    tele_watermark_rejects += 1
                 skip_cur_request()
                 continue
 
@@ -446,6 +479,10 @@ class AscendScheduler(Scheduler):
         # Put back any skipped requests at the head of the waiting queue
         if step_skipped_waiting:
             self.skipped_waiting.prepend_requests(step_skipped_waiting)
+
+        # Any prefill scheduled here skips the decode gate below.
+        tele_decode_gated = len(self.scheduled_req_ids) != 0
+        tele_decodes_displaced = len(self.running) if tele_decode_gated else 0
 
         # If no prefill requests are scheduled (or prefill skipped),
         # schedule decode requests next (unless prefill is forced).
@@ -620,6 +657,27 @@ class AscendScheduler(Scheduler):
             free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
         )
 
+        # schedule() has one exit; an early return added above here would
+        # silently drop steps.
+        if self._telemetry.enabled:
+            self._telemetry.on_schedule(
+                num_running=len(self.running),
+                max_running=self.max_num_running_reqs,
+                num_waiting=len(self.waiting) + len(self.skipped_waiting),
+                num_free_blocks=self.kv_cache_manager.block_pool.get_num_free_blocks(),
+                num_total_blocks=self.kv_cache_config.num_blocks,
+                prefill_new=len(scheduled_new_reqs),
+                prefill_resumed=len(scheduled_resumed_reqs),
+                prefill_partial=num_partial_prefill_scheduled,
+                running_scheduled=len(scheduled_running_reqs),
+                preempted=len(preempted_reqs),
+                decode_gated=tele_decode_gated,
+                decodes_displaced=tele_decodes_displaced,
+                total_scheduled_tokens=total_num_scheduled_tokens,
+                watermark_rejects=tele_watermark_rejects,
+                b1_cap_hit=tele_b1_cap_hit,
+            )
+
         # NOTE(Kuntai): this function is designed for multiple purposes:
         # 1. Plan the KV cache store
         # 2. Wrap up all the KV cache load / save ops into an opaque object
@@ -633,26 +691,13 @@ class AscendScheduler(Scheduler):
             batch = KVEventBatch(ts=time.time(), events=events)
             self.kv_event_publisher.publish(batch)
 
-        # Advance the number of computed tokens for the request AFTER
-        # the request is scheduled.
-        # 1. The scheduler_output of the current step has to include the
-        #    original number of scheduled tokens to determine input IDs.
-        # 2. Advance the number of computed tokens here allowing us to
-        #    schedule the prefill request again immediately in the next
-        #    scheduling step.
-        # 3. If some tokens (e.g. spec tokens) are rejected later, the number of
-        #    computed tokens will be adjusted in update_from_output.
-        for req_id, num_scheduled_token in num_scheduled_tokens.items():
-            request = self.requests[req_id]
-            request.num_computed_tokens += num_scheduled_token
-            request.is_prefill_chunk = request.num_computed_tokens < (
-                request.num_tokens + request.num_output_placeholders
-            )
-            scheduler_output.has_structured_output_requests |= (
-                request.use_structured_output and not request.is_prefill_chunk
-            )
-
-        self.finished_req_ids = set()  # type: ignore
+        # Advance num_computed_tokens, set is_prefill_chunk, and clear the
+        # finished/preempted id sets. Delegated to the base (v0.25.1 also
+        # records the deferred-free fence and prunes the in-flight-prefill set
+        # here); calling it keeps this override in sync with future changes.
+        if self.defer_block_free and total_num_scheduled_tokens > 0:
+            self.sched_step_seq += 1
+        self._update_after_schedule(scheduler_output)
         return scheduler_output
 
     def _block_aligned_chunk(self, num_new_tokens: int, token_budget: int) -> int:

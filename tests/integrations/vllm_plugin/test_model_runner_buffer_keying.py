@@ -87,8 +87,8 @@ def test_per_batch_buffers_keyed_by_smem_clamped_count(
     assert set(runner._batch_idx_dev) == reachable
     # ...which includes the clamped decode target the runtime will request...
     assert runner.num_reqs_max_model_len in input_ids_keys
-    # ...and page tables share the max-path subset.
-    assert runner._max_len_num_reqs <= set(runner._page_table_dev_max)
+    # ...and page tables (nested per kv-cache group) share the max-path subset.
+    assert runner._max_len_num_reqs <= set(runner._page_table_dev_max[0])
 
     # Regression guard: the pre-#5416 keying used max_num_reqs, which under the
     # clamp is absent from the (now consistent) key set.

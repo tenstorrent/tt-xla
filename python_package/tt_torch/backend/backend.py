@@ -611,9 +611,10 @@ class XLAExecutor:
         for arg in args:
             if isinstance(arg, torch.Tensor) and arg.device.type != "xla":
                 logger.warning(
-                    f"Found an argument on non-XLA device: {arg}. "
+                    f"Found an argument on non-XLA device: {arg.shape}, {arg.dtype}. "
                     "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
                 )
+                logger.debug(f"Moving an argument to XLA device: {arg}")
                 arg = arg.to(torch.device("xla"))
             moved_args.append(arg)
         args = tuple(moved_args)

@@ -33,7 +33,12 @@ from vllm.tasks import SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE, set_random_seed
 from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
+from vllm.v1.kv_cache_interface import (
+    AttentionSpec,
+    KVCacheConfig,
+    KVCacheSpec,
+    SlidingWindowSpec,
+)
 from vllm.v1.outputs import DraftTokenIds, ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
@@ -44,6 +49,8 @@ from .logger import tt_init_logger
 from .model_runner import TTModelRunner
 from .platform import TTConfig
 from .pooling_runner import TTPoolingModelRunner
+from .swa_cache_utils import sliding_ring_reserve_bytes, sliding_window_blocks
+from .vllm_distributed_utils import kv_cache_shard_factor
 
 logger = tt_init_logger(__name__)
 
@@ -247,8 +254,8 @@ class TTWorker:
 
                 # Use an empty tensor instead of `None`` to force Dynamo to pass
                 # it by reference, rather by specializing on the value ``None``.
-                tpu_kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
-                kv_caches[layer_name] = tpu_kv_cache
+                kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
+                kv_caches[layer_name] = kv_cache
             else:
                 raise NotImplementedError(
                     f"Unsupported KV cache spec '{type(layer_spec)}'"
@@ -305,11 +312,20 @@ class TTWorker:
         # use the heuristic of 2% of weights.
         profiled = current_mem * 1.02
 
-        # Calculate the TPU KV cache size based on profiling.
+        # Calculate the KV cache size based on profiling.
         usable_memory_size = int(
             total_memory_size * self.cache_config.gpu_memory_utilization
         )
-        tpu_kv_cache_bytes = max(usable_memory_size - profiled, 0)
+        # vLLM's KV-cache budget math (max_memory_usage_bytes) uses the full,
+        # un-sharded num_kv_heads with no TP awareness, even though the cache
+        # tensor is already correctly sharded tp_size-ways via mark_sharding
+        # (confirmed in the compiled IR). Counterbalance by inflating the
+        # available budget here instead of touching the cache tensor's shape
+        # or sharding. Returns 1 where the cache is not actually sharded
+        # (no TP, or DP+TP), leaving the budget untouched.
+        kv_shard_factor = kv_cache_shard_factor(self.model_runner)
+        usable_memory_size *= kv_shard_factor
+        kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()
         if head_size > 0:
             padded_head_size = (
@@ -319,15 +335,56 @@ class TTWorker:
                 logger.warning_once("head size is padded to %d", padded_head_size)
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
-            tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+            kv_cache_bytes = kv_cache_bytes * head_size // padded_head_size
+        # Reserve physical bytes for sliding-window layers' small ring buffers.
+        # Every layer gets its own tensor (no byte-overlay on TT), so carving the
+        # rings out here keeps the full-attention pool + rings within the budget.
+        max_num_reqs = self.model_runner.max_num_reqs
+        sliding_reserve = 0
+        num_sliding = 0
+        for layer_spec in kv_cache_spec.values():
+            if isinstance(layer_spec, SlidingWindowSpec):
+                # Same helpers the model runner sizes the rings with, so the
+                # reservation here cannot drift from what it later allocates.
+                window_blocks = sliding_window_blocks(
+                    layer_spec.sliding_window,
+                    layer_spec.block_size,
+                    self.model_runner.max_model_len,
+                )
+                sliding_reserve += sliding_ring_reserve_bytes(
+                    window_blocks, max_num_reqs, layer_spec.page_size_bytes
+                )
+                num_sliding += 1
+        if sliding_reserve > 0:
+            logger.info(
+                "Reserving %.3f GiB for %d sliding-window per-user rings "
+                "(max_num_reqs=%d, kv_shard_factor=%d)",
+                sliding_reserve / 1024**3,
+                num_sliding,
+                max_num_reqs,
+                kv_shard_factor,
+            )
+            if sliding_reserve >= kv_cache_bytes:
+                logger.warning(
+                    "Sliding ring reservation (%.2f GiB) >= KV budget "
+                    "(%.2f GiB); no room for full-attention pool. Raise "
+                    "gpu_memory_utilization or lower max_num_seqs.",
+                    sliding_reserve / 1024**3,
+                    kv_cache_bytes / 1024**3,
+                )
+            # Leave the full-attention pool whatever remains (vLLM's own check
+            # will error clearly if that is too small for max_model_len).
+            kv_cache_bytes = max(kv_cache_bytes - sliding_reserve, 0)
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
-            "KV cache budget = %.2f GiB",
+            "kv_shard_factor = %d, KV cache budget = %.2f GiB (%.2f GiB per chip)",
             total_memory_size / 1024**3,
             self.cache_config.gpu_memory_utilization,
-            tpu_kv_cache_bytes / 1024**3,
+            kv_shard_factor,
+            kv_cache_bytes / 1024**3,
+            kv_cache_bytes / kv_shard_factor / 1024**3,
         )
-        return int(tpu_kv_cache_bytes)
+        return int(kv_cache_bytes)
 
     def sample_tokens(self, grammar_output: "GrammarOutput") -> ModelRunnerOutput:
         return self.model_runner.sample_tokens(grammar_output)

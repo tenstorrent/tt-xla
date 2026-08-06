@@ -1,0 +1,162 @@
+name: Schedule Transformers Uplift
+
+permissions:
+  contents: write       # push the WIP branch
+  actions:  write       # gh workflow run downstream
+  checks:   none
+  packages: none
+  id-token: none
+  pull-requests: none
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC daily
+  workflow_dispatch: {}
+
+concurrency:
+  group: schedule-transformers-uplift
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_update:      ${{ steps.check.outputs.has_update }}
+      new_version:     ${{ steps.check.outputs.new_version }}
+      current_version: ${{ steps.check.outputs.current_version }}
+      skip:            ${{ steps.branch-check.outputs.skip }}
+      branch:          ${{ steps.branch-check.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Detect new transformers release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REQ_FILE="venv/requirements-dev.txt"
+
+          CURRENT=$(grep -oP '^transformers==\K[0-9]+\.[0-9]+\.[0-9]+([a-zA-Z0-9.+-]*)?' "$REQ_FILE" || true)
+          if [[ -z "$CURRENT" ]]; then
+            echo "::error::could not parse 'transformers==X.Y.Z' pin from $REQ_FILE" >&2
+            exit 1
+          fi
+
+          RELEASE_TAGS=$(gh release list --repo huggingface/transformers \
+            --limit 100 --json tagName,isPrerelease \
+            -q '.[] | select(.isPrerelease == false) | .tagName')
+
+          NEW_VERSION=$(python3 - "$CURRENT" <<PY
+          import sys
+          from packaging.version import Version, InvalidVersion
+          cur = Version(sys.argv[1])
+          nexts = []
+          for t in """$RELEASE_TAGS""".split():
+              try:
+                  v = Version(t.lstrip("v"))
+              except InvalidVersion:
+                  continue
+              if v > cur:
+                  nexts.append(v)
+          print(min(nexts) if nexts else "")
+          PY
+          )
+
+          if [[ -n "$NEW_VERSION" ]]; then
+            HAS_UPDATE="true"
+          else
+            HAS_UPDATE="false"
+          fi
+
+          echo "Current pin:            $CURRENT"
+          echo "Next release after pin: ${NEW_VERSION:-(none)}"
+          echo "Update available:       $HAS_UPDATE"
+
+          {
+            echo "current_version=$CURRENT"
+            echo "new_version=$NEW_VERSION"
+            echo "has_update=$HAS_UPDATE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check if an uplift branch for this version already exists
+        if: steps.check.outputs.has_update == 'true'
+        id: branch-check
+        env:
+          NEW: ${{ steps.check.outputs.new_version }}
+        run: |
+          BRANCH="transformers-uplift/${NEW}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists on origin; orchestrator handles continuation. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+
+  bump-and-dispatch:
+    needs: detect
+    if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
+    runs-on: ubuntu-latest
+    outputs:
+      baseline_run_id: ${{ steps.baseline.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Resolve baseline nightly run
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          RUN_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/schedule-nightly.yml/runs?branch=main&status=completed&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::warning::no completed schedule-nightly runs on main found — claude-fix will run without a baseline filter"
+          else
+            echo "Picked baseline nightly run $RUN_ID"
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Bump pin + push WIP branch
+        env:
+          BRANCH: ${{ needs.detect.outputs.branch }}
+          NEW:    ${{ needs.detect.outputs.new_version }}
+          CUR:    ${{ needs.detect.outputs.current_version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          bash .github/scripts/uplift/transformers/bump-transformers.sh "$NEW"
+
+          # Ignore claude-fix's transient inputs/outputs on this branch
+          printf '\n%s\n%s\n%s\n%s\n' \
+            '# transformers-uplift: transient claude-fix artifacts (WIP branch only)' \
+            '/failure_context.txt' \
+            '/baseline_failures.txt' \
+            '/.github/transformers-uplift/fix-summary.md' >> .gitignore
+
+          git add venv/requirements-dev.txt .gitignore
+          git commit -m "transformers uplift: bump pin ${CUR} -> ${NEW}"
+          git push origin "$BRANCH"
+
+      - name: Dispatch iteration 1 at WIP branch ref
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BRANCH:   ${{ needs.detect.outputs.branch }}
+          NEW:      ${{ needs.detect.outputs.new_version }}
+          CUR:      ${{ needs.detect.outputs.current_version }}
+          BASELINE: ${{ steps.baseline.outputs.run_id }}
+        run: |
+          gh workflow run call-transformers-uplift.yml \
+            --ref "$BRANCH" \
+            -f iteration=1 \
+            -f target_version="$NEW" \
+            -f current_version="$CUR" \
+            -f baseline_run_id="$BASELINE"
