@@ -15,9 +15,11 @@ Status: **COMPLETE** (2026-08-06, 04:25 - 09:31 UTC)
 2. **Qwen3-32B (8,4) batch 32 @ 4096: PASS**, all 32 rows coherent, multi-chunk
    rows correctly attend their long prefix.
 3. **Devstral (4,8) batch 8 @ 4096 failed — and it is NOT the users factor.**
-   The corruption is caused by the **b1 serial-prefill path**. Disabling it
-   (`prefill_batch_threshold: 0`) makes the identical config pass on the
-   identical build. See "Root cause" below.
+   Disabling the b1 serial-prefill path (`prefill_batch_threshold: 0`) makes the
+   identical config pass on the identical build, so the fault is somewhere in
+   that path. The *mechanism* is still unknown: my row->device bucket-mismatch
+   explanation was tested and **falsified** (see below). Qwen3-32B does not
+   reproduce the bug in any configuration tried.
 
 ## What is under test
 
@@ -225,7 +227,55 @@ Also ruled out as a cause: the `TT_FATAL: Chip N logical eth core ... connects t
 a remote mmio device` lines appear identically in the **passing** Qwen log, so
 they are benign discovery noise.
 
-## Root cause: b1 serial prefill, confirmed by controlled experiment
+## FALSIFIED HYPOTHESIS: row->device bucket mismatch
+
+An earlier revision of this document argued the corruption came from prefill and
+decode using different row-count buckets, so a request's row landed on a
+different DP device for the KV write than for the read. **That is wrong.**
+
+Tested directly with `test_dptp_qwen_bucket_ab` (Qwen3-32B, 10 layers, mesh
+(8,4), `pbt=16` armed in both arms, only `max_num_seqs` differing):
+
+| Arm | small | decode | Mapping | Predicted | **Actual** |
+|---|---|---|---|---|---|
+| `max_num_seqs=16` | 8 | 16 | `r` vs `r//2` | FAIL rows 1-7 | **PASS**, `DEGENERATE_ROWS=[]` |
+| `max_num_seqs=8` | 8 | 8 | identical | PASS | PASS, `DEGENERATE_ROWS=[]` |
+
+The experiment was valid, not vacuous — the log confirms the mismatch condition
+existed in arm A: `min_num_reqs 1 -> 8`, prefill graphs compiled at **both**
+`reqs=8` and `reqs=16`, decode at `reqs=16`. The predicted corruption simply did
+not occur.
+
+Conclusion: a prefill/decode bucket mismatch is **not sufficient** to cause the
+corruption. Whatever the b1 path does wrong on Devstral, it is not this.
+
+### What this run does establish
+
+- **Qwen3-32B does not reproduce the bug** at 10 layers on mesh (8,4), with the
+  b1 cap armed, at either bucket alignment. Two more clean data points for Qwen.
+- **Layer count is a usable lever**: 10-layer runs took 71 min and 12 min versus
+  48-82 min at full depth, and behave sanely. A cheap repro loop is feasible
+  *if* it is built on Devstral, which is the config that actually fails.
+- Graph compilation is identical regardless of `prefill_batch_threshold`; the
+  threshold changes dispatch only.
+
+### Still true, still unexplained
+
+`pbt=0` fixes Devstral deterministically (runs 2/3 vs 4). That is solid
+empirical fact and is untouched by this falsification. The mechanism is simply
+still unknown.
+
+Remaining differences between the failing Devstral config and the passing Qwen
+A/B, any of which could matter: **model** (Devstral-2-123B vs Qwen3-32B),
+**depth** (full vs 10), **mesh** (4,8) dp=4 tp=8 vs (8,4) dp=8 tp=4.
+
+### Suggested next discriminator
+
+Run Devstral at 10 layers, batch 8, `pbt=16`. It changes only depth from the
+known-failing config. If it still fails, there is a ~15 min repro loop to
+iterate on. If it passes, depth is implicated and the bug needs full weights.
+
+## Superseded: b1 serial prefill, confirmed by controlled experiment
 
 Run 4 changed **one variable** — `prefill_batch_threshold: 16 -> 0`, which
 disables the b1 serial-prefill cap. Same model, same batch, same context, same
