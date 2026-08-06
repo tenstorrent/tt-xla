@@ -111,12 +111,10 @@ class Sampler(nn.Module):
     ) -> torch.Tensor:
         if vocab_sharded and mesh is not None:
             # The distributed composite_argmax mis-executes at runtime in the
-            # full graph. Use explicit JAX collective (all_gather) instead of
-            # relying on compiler-inferred gather from sharding constraint change,
-            # which generates stablehlo.reduce that tt-mlir cannot legalize.
-            import jax.lax as lax
+            # full graph; gather logits to full and take a plain argmax instead.
+            from tt_torch.sharding import sharding_constraint_tensor
 
-            logits = lax.all_gather(logits, axis_name="model")
+            logits = sharding_constraint_tensor(logits, mesh, (None, None))
             return logits.argmax(dim=-1).view(-1)
         if vocab_sharded:
             from tt_torch.composite_ops import composite_argmax
