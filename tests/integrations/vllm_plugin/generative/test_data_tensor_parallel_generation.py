@@ -844,3 +844,87 @@ def test_dptp_devstral_mixed_4k(
         assert_output_coherent(out.outputs[0].text)
 
     check_host_memory(model_name)
+
+
+# --------------------------------------------------------------------------
+# Bucket-mismatch A/B (10 layers, cheap). Isolates the row->DP-device mapping.
+#
+# Buckets: small = min_num_reqs (min_num_seqs, rounded UP to dp_size)
+#          big   = max_prefill_num_reqs (defaults to max_num_seqs)
+#          decode= num_reqs_max_model_len (= max_num_seqs here)
+# Rows split contiguously over the dp axis, so a G-row graph puts row r on
+# device r // (G / dp). Prefill and decode agree only when both use the same
+# bucket.
+#
+# On mesh (8,4) dp=8 with min_num_seqs=1 -> small=8:
+#   max_num_seqs=16 -> decode=16. small(8): row r -> dev r
+#                      decode(16):        row r -> dev r//2
+#                      agree only at r=0  => rows 1..7 corrupted   EXPECT FAIL
+#   max_num_seqs=8  -> decode=8 == small  => every row agrees      EXPECT PASS
+# Both arm the b1 cap (pending <= prefill_batch_threshold=16), so the ONLY
+# difference is bucket alignment.
+# --------------------------------------------------------------------------
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.notimeout
+@pytest.mark.parametrize(
+    "max_num_seqs,expect",
+    [
+        pytest.param(16, "fail", id="mismatch16"),
+        pytest.param(8, "pass", id="aligned8"),
+    ],
+)
+@pytest.mark.parametrize("num_layers", [10])
+@pytest.mark.parametrize("max_model_len", [4096])
+@pytest.mark.parametrize(
+    "mesh_shape", [pytest.param([8, 4], marks=pytest.mark.bh_galaxy)]
+)
+def test_dptp_qwen_bucket_ab(
+    mesh_shape, max_model_len, num_layers, max_num_seqs, expect
+):
+    """Qwen3-32B bucket-mismatch A/B at 10 layers."""
+    model_name = "Qwen/Qwen3-32B"
+    prompts, long_indices = _mixed_batch(max_num_seqs)
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+
+    llm = vllm.LLM(
+        model=model_name,
+        max_num_seqs=max_num_seqs,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=0.2,
+        additional_config={
+            "min_context_len": 32,
+            "enable_data_parallel": True,
+            "enable_tensor_parallel": True,
+            "shard_weights_on_batch_axis": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "experimental_kv_cache_dtype": "bfp_bf8",
+            "enable_const_eval": True,
+            "optimization_level": 1,
+            "enable_trace": True,
+            "prefill_chunk_size": 128,
+            "min_num_seqs": 1,
+            "prefill_batch_threshold": 16,
+            "num_hidden_layers": num_layers,
+            "mesh_shape": mesh_shape,
+            "cpu_sampling": False,
+        },
+    )
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    _report(
+        "qwen bucket-ab L%d b%d (expect %s)" % (num_layers, max_num_seqs, expect),
+        prompts, long_indices, outputs,
+    )
+    # Report which rows are degenerate rather than asserting -- the point is the
+    # PATTERN. Prediction for max_num_seqs=16: rows 1..7 bad, 0 and 8..15 good.
+    bad = []
+    for i, out in enumerate(outputs):
+        text = out.outputs[0].text
+        words = sum(c.isalpha() or c.isspace() for c in text)
+        if not text.strip() or words / max(len(text), 1) < 0.75:
+            bad.append(i)
+    print(f"DEGENERATE_ROWS={bad}")
+    print(f"EXPECTATION={expect}")
