@@ -100,12 +100,27 @@ def _make_pcc_pipeline_cls():
             finally:
                 hook.remove()
 
-            # The parent moves decode_step back to CPU before returning, so the
-            # replay below runs on CPU weights.
-            self.step_pccs = self._replay_on_cpu(
-                gpt_cond_latent, text_tokens, codes, tt_logits
-            )
+            # Replay after run() finishes, not here -- see run() below.
+            self._replay_inputs = (gpt_cond_latent, text_tokens, codes, tt_logits)
             return codes
+
+        def run(self):
+            """Run the pipeline, then take the CPU golden.
+
+            The replay has to happen *after* the whole chain is done. The pipeline
+            keeps every module on device for its lifetime, so at this point in
+            ``_generate_codes_tt`` a wrapper built over ``self.xtts`` would share
+            *device* weights and the "CPU" replay would silently run on TT,
+            comparing the device against itself. Deep-copying to the host instead
+            would duplicate the GPT2 trunk on device before moving it, which is a
+            lot of device memory to ask for on a small card.
+
+            Once ``run()`` has returned, those device weights are finished with, so
+            the replay can simply move them to the host and cost nothing.
+            """
+            wav = super().run()
+            self.step_pccs = self._replay_on_cpu(*self._replay_inputs)
+            return wav
 
         def _replay_on_cpu(self, gpt_cond_latent, text_tokens, codes, tt_logits):
             """Re-run TT's own token sequence on CPU, returning per-step PCC.
@@ -114,6 +129,11 @@ def _make_pcc_pipeline_cls():
             the pipeline (no second model in memory) but has no ``tt`` backend
             attached, so it really executes on CPU.
             """
+            # gpt_latents wraps the whole of xtts.gpt, so this one move brings the
+            # trunk, the mel embeddings and the head the step module needs back to
+            # the host. The pipeline is done with them.
+            self.gpt_latents = self.gpt_latents.to("cpu")
+
             gpt = self.xtts.gpt
             cpu_step = GptCachedStep(self.xtts).eval()
 
