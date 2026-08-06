@@ -543,6 +543,25 @@ class TTPlatform(Platform):
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
+
+        # Prefix caching is unsound under data parallelism. The KV cache is
+        # replicated per DP replica and each replica only writes its own slots'
+        # KV, but the block manager shares cached block ids across requests
+        # regardless of replica -- so a prefix-cache hit can read block ids whose
+        # KV was only written in another replica, corrupting the output. Disable
+        # it whenever DP is active (pure TP keeps its single sharded cache).
+        if (
+            tt_config.enable_data_parallel
+            and cache_config is not None
+            and cache_config.enable_prefix_caching
+        ):
+            logger.warning(
+                "[TT] Disabling prefix caching under data parallelism: the KV "
+                "cache is replicated per DP replica, so cross-request block "
+                "reuse would read KV written for a different replica."
+            )
+            cache_config.enable_prefix_caching = False
+
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_TRACE_ONCE compilation level

@@ -170,8 +170,8 @@ def test_data_tensor_parallel_chunked_prefill_llmbox_large(
         "and the streets are quiet enough that I can hear my own footsteps, and "
         "it gives me time to think about everything that happened during the day "
         "before I go home and start cooking dinner, which is why the part of the "
-        "day I look forward to most is",
-        "Continue in English: The weather today is",
+        "day I look forward to most is", # prompt 0
+        "Continue in English: The weather today is", # prompt 1
         "Continue in English: My favourite season is autumn, mostly because the "
         "air turns cool enough for a jacket but not so cold that you dread going "
         "outside, and the trees along my street change colour over about two "
@@ -182,8 +182,8 @@ def test_data_tensor_parallel_chunked_prefill_llmbox_large(
         "and on the weekends there is usually enough sun to sit outside with a "
         "coffee for an hour, and I always tell myself that this year I will take "
         "more photographs before the leaves are gone, so the thing I look "
-        "forward to every year is",
-        "Continue in English: The best book I have read is",
+        "forward to every year is", # prompt 2
+        "Continue in English: The best book I have read is", # prompt 3
     ] * (batch_size // 4)
     sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
     llm_args = {
@@ -191,6 +191,7 @@ def test_data_tensor_parallel_chunked_prefill_llmbox_large(
         "max_num_seqs": batch_size,
         "max_model_len": 1024,
         "gpu_memory_utilization": 0.25,
+        "enable_prefix_caching": False,
         "additional_config": {
             "min_context_len": 32,
             "enable_tensor_parallel": True,

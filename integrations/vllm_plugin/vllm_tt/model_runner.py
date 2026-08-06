@@ -1755,22 +1755,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[req_slice]
-        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
-        )
+        active_rows = num_scheduled_tokens_per_req > 0
+        num_computed_active = num_computed_for_reqs[active_rows]
+        if self._spec_prefix_rows():
+            # Speculative decode: same-stage rows share one offset; row_lead
+            # re-aligned each row to its block boundary. Unchanged.
+            prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
+                np.any(num_computed_for_reqs > 0)
+            )
+            chunk_offset = int(num_computed_for_reqs[0]) - int(row_lead[0])
+        else:
+            # Plain chunked prefill: only use chunked SDPA when every scheduled
+            # row is mid-prefix. A mixed batch (any fresh row) takes the standard
+            # path, so one shared offset is never misapplied to a row at a
+            # different stage.
+            prefix_chunk_step = (
+                padded_total_num_scheduled_tokens > 1
+                and num_computed_active.size > 0
+                and bool(np.all(num_computed_active > 0))
+            )
+            chunk_offset = (
+                int(num_computed_active.min()) if num_computed_active.size else 0
+            )
         chunk_start_idx = None
         if prefix_chunk_step and (
             self._chunked_sdpa_active or self._spec_prefix_rows()
         ):
-            # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask). row_lead
-            # moved the row back to its block boundary, so the read offset must
-            # match, otherwise it disagrees with where paged_fill_cache wrote.
+            # One shared [1] prefix offset; the op masks causally and applies it
+            # internally (no host attn_mask). The read offset must match where
+            # paged_fill_cache wrote.
             self._chunk_start_idx_dev.copy_(
-                torch.tensor(
-                    [int(num_computed_for_reqs[0]) - int(row_lead[0])],
-                    dtype=torch.int32,
-                )
+                torch.tensor([chunk_offset], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
