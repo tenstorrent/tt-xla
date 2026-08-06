@@ -17,9 +17,10 @@ Status: **COMPLETE** (2026-08-06, 04:25 - 09:31 UTC)
 3. **Devstral (4,8) batch 8 @ 4096 failed — and it is NOT the users factor.**
    Disabling the b1 serial-prefill path (`prefill_batch_threshold: 0`) makes the
    identical config pass on the identical build, so the fault is somewhere in
-   that path. The *mechanism* is still unknown: my row->device bucket-mismatch
-   explanation was tested and **falsified** (see below). Qwen3-32B does not
-   reproduce the bug in any configuration tried.
+   that path. The *mechanism* is still unknown. My row->device bucket-mismatch
+   explanation is **untested** — the A/B that appeared to falsify it used a
+   broken metric (see retraction below). Qwen3-32B did not reproduce the bug at
+   full depth, batch 32.
 
 ## What is under test
 
@@ -227,7 +228,56 @@ Also ruled out as a cause: the `TT_FATAL: Chip N logical eth core ... connects t
 a remote mmio device` lines appear identically in the **passing** Qwen log, so
 they are benign discovery noise.
 
-## FALSIFIED HYPOTHESIS: row->device bucket mismatch
+## RETRACTED: the bucket-mismatch "falsification" was a broken metric
+
+**The A/B below did not test anything. Its result must not be relied on.**
+
+`test_dptp_qwen_bucket_ab` reported `DEGENERATE_ROWS=[]` for both arms. That was
+a bug in my degeneracy check, not a clean result:
+
+```python
+words = sum(c.isalpha() or c.isspace() for c in text)   # WRONG
+if words / max(len(text), 1) < 0.75: ...
+```
+
+`str.isalpha()` is **True for CJK**, so multilingual token soup scores higher
+than real English:
+
+```
+broken_metric(CJK soup)  = 0.985   -> "clean"
+broken_metric(English)   = 0.926
+non-Latin ratio(soup)    = 0.246   -> the real checker fails at >0.03
+```
+
+Both arms were emitting total garbage at 10 layers. The test also "PASSED" only
+because it was report-only with no assertion.
+
+Consequences:
+
+1. **The row->device bucket-mismatch hypothesis is UNTESTED, not falsified.**
+   The retraction below stands retracted; the hypothesis is open again.
+2. **10 layers is not a viable cheap repro for either model.** Truncation alone
+   destroys output quality, so bug-corruption cannot be distinguished from
+   truncation-garbage. Confirmed on both Qwen (soup) and Devstral (soup, and
+   `assert_output_coherent` correctly failed it on non-Latin ratio 0.200).
+3. This is consistent with the pre-existing `test_dptp_qwen`, which pins
+   `num_hidden_layers=2` **and has its coherence assert commented out** — a
+   truncated model cannot pass it.
+
+The test has been fixed to use `assert_output_coherent` and to fail loudly when
+every row is degenerate, so a run that cannot discriminate reports as an error
+rather than a pass.
+
+### A valid bucket A/B needs full depth
+
+At full depth Qwen is ~48 min/arm and Devstral ~80 min/arm. On Devstral's mesh
+the arms would be `max_num_seqs=8` (small=4, decode=8, mismatched) vs
+`max_num_seqs=4` (all buckets 4, aligned), both with `pbt=16` armed.
+
+Not run: the machine is shared and this session is already well over its run
+budget.
+
+## SUPERSEDED (see retraction above): row->device bucket mismatch
 
 An earlier revision of this document argued the corruption came from prefill and
 decode using different row-count buckets, so a request's row landed on a

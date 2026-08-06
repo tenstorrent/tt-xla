@@ -926,11 +926,22 @@ def test_dptp_qwen_bucket_ab(
     )
     # Report which rows are degenerate rather than asserting -- the point is the
     # PATTERN. Prediction for max_num_seqs=16: rows 1..7 bad, 0 and 8..15 good.
+    # Use the shared checker, NOT a hand-rolled alpha ratio: str.isalpha() is
+    # True for CJK, so multilingual token soup scores ~0.99 and looks clean.
+    # That bug made an earlier run of this A/B report DEGENERATE_ROWS=[] for a
+    # batch that was entirely garbage.
     bad = []
     for i, out in enumerate(outputs):
-        text = out.outputs[0].text
-        words = sum(c.isalpha() or c.isspace() for c in text)
-        if not text.strip() or words / max(len(text), 1) < 0.75:
+        try:
+            assert_output_coherent(out.outputs[0].text)
+        except AssertionError:
             bad.append(i)
     print(f"DEGENERATE_ROWS={bad}")
     print(f"EXPECTATION={expect}")
+    # A truncated model emits soup regardless of any bug, so an all-bad batch
+    # means the run cannot discriminate -- fail loudly instead of reporting it
+    # as a clean result.
+    assert len(bad) < len(outputs), (
+        f"all {len(outputs)} rows degenerate: this configuration cannot "
+        f"distinguish corruption from model truncation"
+    )
