@@ -55,7 +55,8 @@ class SamplingBatchView:
     max_num_logprobs: int
     # Always False: only pooling models need token ids here.
     logits_processing_needs_token_ids: np.ndarray
-    # TODO(mrv2): plumb drafts through for penalties/bad-words under spec decode.
+    # This step's drafts per row; penalties and bad-words expand output tokens
+    # over them, one logits row per draft.
     spec_token_ids: list[list[int]]
     # Neither runner builds custom logits processors.
     logitsprocs: LogitsProcessors
@@ -204,6 +205,7 @@ class TTSamplingStates:
         req_output_token_ids: list[Optional[list[int]]] = [None] * padded_num_reqs
 
         logit_bias: list[Optional[dict[int, float]]] = [None] * padded_num_reqs
+        spec_token_ids: list[list[int]] = [[] for _ in range(padded_num_reqs)]
         bad_words: dict[int, list[list[int]]] = {}
         min_tokens: dict[int, tuple[int, set[int]]] = {}
         generators: dict[int, torch.Generator] = {}
@@ -245,6 +247,12 @@ class TTSamplingStates:
                 slot, prompt_len:total_len
             ].tolist()
 
+            num_drafts = int(request_state.num_draft_tokens[slot])
+            if num_drafts:
+                spec_token_ids[b] = request_state.draft_tokens[
+                    slot, :num_drafts
+                ].tolist()
+
             logit_bias[b] = self.logit_bias[slot]
             if slot in self.bad_words_token_ids:
                 bad_words[b] = self.bad_words_token_ids[slot]
@@ -284,7 +292,7 @@ class TTSamplingStates:
             token_ids_cpu=token_ids_cpu,
             max_num_logprobs=max_num_logprobs,
             logits_processing_needs_token_ids=np.zeros(padded_num_reqs, dtype=bool),
-            spec_token_ids=[[] for _ in range(padded_num_reqs)],
+            spec_token_ids=spec_token_ids,
             logitsprocs=LogitsProcessors(),
             logitsprocs_need_output_token_ids=False,
         )
