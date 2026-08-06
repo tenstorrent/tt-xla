@@ -41,7 +41,6 @@ jobs:
       sh-runner: false
       skip-device-perf: true
       regression_check: true
-      regression_baseline_workflow: schedule-benchmark-experimental.yml
 
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]

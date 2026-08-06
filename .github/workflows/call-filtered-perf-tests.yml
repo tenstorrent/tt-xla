@@ -45,11 +45,6 @@ on:
         required: false
         type: boolean
         default: false
-      regression_baseline_workflow:
-        description: "Workflow file to use for regression baseline results"
-        required: false
-        type: string
-        default: ""
       check_fusions:
         description: "Verify expected fusion ops are present in compiled IR"
         required: false
@@ -113,5 +108,4 @@ jobs:
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
-      regression_baseline_workflow: ${{ inputs.regression_baseline_workflow }}
       check_fusions: ${{ inputs.check_fusions }}
