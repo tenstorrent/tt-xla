@@ -232,17 +232,26 @@ Absent, and not fixable with a build flag:
   device-op level** (`MatmulDeviceOperation` rather than `ttnn.matmul`). All three come
   from `python_io` records, which only ttnn's Python decorators write; ops arriving from
   a C++ caller get none.
-- **The Graph tab fragments, by an amount that depends on the op mix.** Without
-  `python_io` the importer falls back to the graph tracker's own argument scan, which
-  matches only plain `Tensor`-shaped types. Convolutional graphs fare badly, because halo
-  and conv ops pass tensors inside attribute structs that match nothing: in one measured
-  run 160 of 339 captured ops recorded no inputs, and after the importer folds
-  `Tensor::to_device`, `reshape`, `to_dtype` and `deallocate` away and rejects inputs whose
-  producer went with them, 111 operations were left with 65 links across 58 components. A
-  transformer decode fares much better — a TinyLlama capture gave 1236 operations with
-  *every* one recording an input, 1287 links from 1948 references, and a largest component
-  of 414 ops (191 components in total, 617 orphaned inputs). A JAX-driven capture fragments
-  the same way as a torch one, so none of this is a property of the hook.
+- **The Graph tab never comes out connected.** Without `python_io` the importer falls back
+  to the graph tracker's own argument scan, which matches only plain `Tensor`-shaped types,
+  and it folds `Tensor::to_device`, `reshape`, `to_dtype` and `deallocate` away, rejecting
+  inputs whose producer went with them. Every capture measured breaks into many components:
+
+  | Capture | Operations | Edges | Components | Largest | Isolated |
+  | --- | --- | --- | --- | --- | --- |
+  | mnist, one program | 59 | 28 | 31 | 11 | 20 |
+  | ConvNet, three programs | 67 | 17 | 50 | 4 | 39 |
+  | JAX, three programs | 9 | 5 | 4 | 3 | 1 |
+  | TinyLlama, one program | 19 | 11 | 8 | 9 | 6 |
+  | TinyLlama, wide window | 1236 | 1287 | 191 | 414 | 164 |
+
+  The op mix moves the degree of fragmentation, not the outcome, and single-program captures
+  fragment as much as merged ones. Recording an input is not the same as having an edge to
+  draw: in the 1236-operation capture every operation records at least one input, yet 617 of
+  its 1948 input references name a tensor with no producer in the database. Convolutional
+  graphs fare worst, because halo and conv ops pass tensors inside attribute structs that
+  match nothing. A JAX-driven capture fragments like a torch one, so none of this is a
+  property of the hook.
 - **The perf half of a report.** Tracy zones exist in Metalium and tt-mlir, but tt-xla's
   wheel build forces `TTMLIR_ENABLE_PERF_TRACE` off, so kernel timings need a source
   build under the tracy wrapper.
