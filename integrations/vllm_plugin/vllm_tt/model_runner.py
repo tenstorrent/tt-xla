@@ -6,6 +6,7 @@ import bisect
 import contextlib
 import gc
 import time
+from datetime import datetime, timezone
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -113,6 +114,22 @@ from .vllm_utils import (
     determine_mesh_shape,
     prev_power_of_2,
 )
+
+
+def _ts() -> str:
+    """UTC timestamp matching memory_logger.py's `timestamp_utc` column, so test
+    prints line up directly with rows in the RSS/DRAM CSV."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _log(msg: str) -> None:
+    """Timestamped, flushed print.
+
+    Flushing matters: stdout is block-buffered when the run is piped to a log
+    file, so unflushed prints would interleave wrongly with the plugin's
+    unbuffered stderr logging.
+    """
+    print(f"{_ts()}: {msg}", flush=True)
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -3331,6 +3348,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.debug("%s reuses KV cache of %s", layer_name, target_layer_name)
             kv_caches[layer_name] = kv_caches[target_layer_name]
 
+
+    
+    @torch.compile(backend="tt")
+    def make_kv_cache_buffers_compiled(
+        self, mesh, shape, device
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compiled wrapper for hidden-state selection warmup and reuse."""
+        return self.make_kv_cache_buffers(mesh, shape, device)
+
+    def make_kv_cache_buffers(self, mesh, shape, device):
+        k = torch.ops.tt.zeros_buffer(list(shape), self.kv_cache_dtype, device)
+        v = torch.ops.tt.zeros_buffer(list(shape), self.kv_cache_dtype, device)
+
+        k = sharding_constraint_tensor(k, mesh, (None, mesh.axis_names[1] , None, None))
+        v = sharding_constraint_tensor(v, mesh, (None, mesh.axis_names[1] , None, None))
+        return (k, v)
+
     def initialize_kv_cache(self, kv_cache_config: KVCacheConfig) -> None:
         """
         Initialize KV cache based on `kv_cache_config`.
@@ -3387,6 +3421,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
 
         kv_caches: dict[str, torch.Tensor] = {}
+        print("CHECK PID NOW")
+        time.sleep(10) # REMOVE THIS
         for kv_cache_group in kv_cache_config.kv_cache_groups:
             for layer_name in kv_cache_group.layer_names:
                 kv_cache_spec = _get_layer_kv_cache_spec(
@@ -3430,8 +3466,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                     # Allocate separate K and V cache tensors to avoid
                     # slice/concat copies in the compiled decode graph.
-                    k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
-                    v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    
+                    if self.enable_tensor_parallel and self.parallel_mode != ParallelismMode.DATA_TENSOR_PARALLEL:
+                        k_cache, v_cache = self.make_kv_cache_buffers_compiled(self.mesh, kv_cache_shape, self.device)
+                        torch_xla.sync(wait=True)
+                        xm.wait_device_ops()
+                        _log(f"k_cache: {k_cache.shape}, v_cache: {v_cache.shape} made by compiled function")
+                        time.sleep(0.2) # REMOVE THIS
+                    else: 
+                        k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                        v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
                     kv_caches[layer_name] = [k_cache, v_cache]
                 else:
@@ -3459,17 +3503,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 caches = entry if is_pair else [entry]
                 for cache in caches:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    if is_pair:
-                        safe_mark_sharding(
-                            cache, self.mesh, (None, "model", None, None)
-                        )
-                    else:
+                    if not is_pair:
                         # Replicate the MLA latent KV cache tensor
                         xs.mark_sharding(cache, self.mesh, (None, None, None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
             get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
+
+        exit(0)
 
     def reset_dynamo_cache(self):
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`

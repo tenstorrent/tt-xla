@@ -62,7 +62,7 @@ def test_tensor_parallel_generation_llmbox_small(
         "max_num_batched_tokens": 32,
         "max_num_seqs": 1,
         "max_model_len": 32,
-        "gpu_memory_utilization": 0.002,
+        "gpu_memory_utilization": 0.10,
         "additional_config": {
             "min_context_len": 32,
             "enable_tensor_parallel": True,
