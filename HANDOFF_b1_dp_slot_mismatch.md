@@ -49,6 +49,31 @@ Note `min_num_seqs` is rounded **up to a multiple of dp_size**
 (`model_runner.py:500`), so `min_num_seqs=1` becomes 4 on dp=4, 8 on dp=8.
 Inputs are genuinely sharded (1 row/device), **not** replicated.
 
+## The invariant is already known to the codebase
+
+`model_runner.py:1203` (the `condense()` guard) states it outright:
+
+```python
+# TODO(dp-aware-condense): skipped under DP because relocating a request
+# breaks its slot->replica KV-cache affinity and corrupts decode. A
+# DP-aware condense (within each replica's slot range) is the fix. #5896.
+if removed_req_indices and not dp_active:
+    self.input_batch.condense(removed_req_indices)
+```
+
+So "a request must keep its slot -> replica affinity or decode corrupts" is
+established, previously observed behaviour with its own issue (#5896). What this
+handoff documents is a **second, unhandled way to break the same invariant**:
+
+| Mechanism | Relocates a request? | Status |
+|---|---|---|
+| `condense()` compaction | yes | known; disabled under DP (#5896) |
+| **prefill/decode bucket change** | **yes** | **unhandled — measured here** |
+
+Condense is *not* the cause here: it is disabled under DP, and in this repro no
+request finished early so there were no holes to compact. Related prior work on
+the same invariant: #5799, #5778.
+
 ## Reproduce in ~20 min
 
 ```bash
