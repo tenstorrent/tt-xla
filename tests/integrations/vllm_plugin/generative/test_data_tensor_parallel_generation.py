@@ -794,6 +794,10 @@ def test_dptp_qwen_mixed_4k(mesh_shape, max_model_len, batch_size):
 # is always armed. 0 disables it, so the run takes the same batched-prefill path
 # as the passing qwen case -- the single-variable discriminator for whether the
 # row corruption is a b1-prefill bug or a chunked-SDPA one.
+# num_layers=None runs full depth. 10 is a cheap repro loop: the failure is a
+# row/scheduling defect, so it should be layer-count independent -- if 10 layers
+# reproduces, debugging costs ~15 min instead of ~80.
+@pytest.mark.parametrize("num_layers", [10, None])
 @pytest.mark.parametrize("prefill_batch_threshold", [16, 0])
 @pytest.mark.parametrize("batch_size", [8])
 @pytest.mark.parametrize("max_model_len", [4096])
@@ -801,7 +805,7 @@ def test_dptp_qwen_mixed_4k(mesh_shape, max_model_len, batch_size):
     "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
 )
 def test_dptp_devstral_mixed_4k(
-    mesh_shape, max_model_len, batch_size, prefill_batch_threshold
+    mesh_shape, max_model_len, batch_size, prefill_batch_threshold, num_layers
 ):
     """Devstral-123B, mesh (4,8), full depth, 4k context, mixed chunked batch."""
     model_name = "mistralai/Devstral-2-123B-Instruct-2512"
@@ -830,13 +834,15 @@ def test_dptp_devstral_mixed_4k(
             "prefill_batch_threshold": prefill_batch_threshold,
             "mesh_shape": mesh_shape,
             "cpu_sampling": False,
+            **({"num_hidden_layers": num_layers} if num_layers else {}),
         },
     )
 
     outputs = llm.generate(prompts, sampling_params)
     assert len(outputs) == len(prompts)
     num_empty = _report(
-        "devstral 4k b%d pbt%d" % (batch_size, prefill_batch_threshold),
+        "devstral 4k b%d pbt%d L%s"
+        % (batch_size, prefill_batch_threshold, num_layers or "full"),
         prompts, long_indices, outputs,
     )
     assert num_empty == 0, f"{num_empty} rows produced empty output"
