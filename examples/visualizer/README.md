@@ -290,11 +290,47 @@ API level (`ttnn.matmul`) and its stack traces are real Python frames, which the
 can resolve to files. A tt-xla capture names operations at the program-op level and locates
 them in MLIR instead.
 
-The two are worth comparing on one network. The mnist model of `examples/pytorch/mnist.py`,
-hand-written in ttnn and captured this way, gives 17 operations — `ttnn.conv2d`,
+`capture_ttnn_mnist.py` writes that report for the network of `examples/pytorch/mnist.py`,
+built op by op in ttnn, which makes the two paths comparable on one model. ttnn is not in the
+tt-xla venv, so point at the tt-metal the plugin was built against:
+
+```bash
+export TT_METAL_HOME=third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+export PYTHONPATH=$TT_METAL_HOME/ttnn:$TT_METAL_HOME
+python examples/visualizer/capture_ttnn_mnist.py --report graph_reports_ttnn/report.json
+python examples/visualizer/import_graph_report.py graph_reports_ttnn/report.json \
+    --out visualizer_dbs_ttnn
+```
+
+The report is 11.79 MB with a 350 KB sidecar, importing to 17 operations — `ttnn.conv2d`,
 `ttnn.max_pool2d`, `ttnn.linear`, `ttnn.softmax` — each with its Python call stack and every
-keyword argument recorded by name, in a single graph component with nothing isolated. The
-tt-xla capture of the same network gives 71, because it records what the compiler produced:
-25 compute ops where the native path has 11, since `log_softmax` becomes eight, plus 6
-`LoadCachedOp`, a `GetDeviceOp` and 39 explicit `DeallocateOp`. Reach for the native path to
-study a ttnn op, and for the tt-xla path to study what a model lowered to.
+keyword argument recorded by name, in a single graph component with nothing isolated, over
+585 buffers and 10463 buffer chunks. The tt-xla capture of the same network gives 71
+operations, because it records what the compiler produced: 25 compute ops where the native
+path has 11, since `log_softmax` becomes eight, plus 6 `LoadCachedOp`, a `GetDeviceOp` and 39
+explicit `DeallocateOp`. Reach for the native path to study a ttnn op, and for the tt-xla path
+to study what a model lowered to.
+
+For the Source tab to populate, run the import from a directory that contains the captured
+script: the importer only reads a stack-trace path lying under the current directory, the venv
+or `sys.path`, and drops the source silently otherwise.
+
+## References
+
+- [ttnn-visualizer](https://github.com/tenstorrent/ttnn-visualizer) — the viewer these reports
+  are for, and its [installation and usage
+  docs](https://github.com/tenstorrent/ttnn-visualizer/blob/main/README.md).
+- [Graph tracing in ttnn](https://github.com/tenstorrent/tt-metal/blob/main/tech_reports/ttnn/graph-tracing.md)
+  — the tech report for the mechanism underneath: what the graph tracker records, what
+  `python_io` adds, and how tensor ids link operations.
+- [`ttnn/ttnn/graph.py`](https://github.com/tenstorrent/tt-metal/blob/main/ttnn/ttnn/graph.py) —
+  the Python capture entry points, including `full_graph_capture`.
+- [`ttnn/ttnn/graph_report.py`](https://github.com/tenstorrent/tt-metal/blob/main/ttnn/ttnn/graph_report.py)
+  — the importer `import_graph_report.py` calls, and the authority on the database schema and
+  on which report keys fill which table.
+- [`ttnn/core/graph/graph_processor.cpp`](https://github.com/tenstorrent/tt-metal/blob/main/ttnn/core/graph/graph_processor.cpp)
+  — the C++ side that records the graph and takes the buffer snapshots.
+- [`runtime/lib/ttnn/program_executor.cpp`](https://github.com/tenstorrent/tt-mlir/blob/main/runtime/lib/ttnn/program_executor.cpp)
+  in tt-mlir — where the capture hook lives once it lands.
+- [tt-xla issue #5816](https://github.com/tenstorrent/tt-xla/issues/5816) — the validation work
+  this directory came out of, including the tab-by-tab state of a tt-xla capture.
