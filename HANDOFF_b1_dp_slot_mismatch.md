@@ -1,6 +1,6 @@
 # Handoff: b1-prefill DP device mismatch (tt-xla)
 
-Branch: `ssalice/devstral-qwen-5893` @ `69826ea84`
+Branch: `ssalice/devstral-qwen-5893` (see git log for latest)
 Full detail: `CHUNKED_SDPA_4K_RESULTS.md` in the same branch.
 
 ## The bug in one paragraph
@@ -48,6 +48,39 @@ num_reqs_max_model_len)` — `_bucket_num_reqs`, `model_runner.py:5181`.
 Note `min_num_seqs` is rounded **up to a multiple of dp_size**
 (`model_runner.py:500`), so `min_num_seqs=1` becomes 4 on dp=4, 8 on dp=8.
 Inputs are genuinely sharded (1 row/device), **not** replicated.
+
+## Causal confirmation (not just correlation)
+
+Qwen3-0.6B at **full depth** (28 layers -> coherent output, unlike a truncated
+big model), mesh (4,8) dp=4, batch 8, greedy, 64 tokens. Slot trace and text
+captured in the *same* run, so the relocation set and the corruption set are
+measured together rather than compared across configs:
+
+| arm | requests that relocate | rows failing `assert_output_coherent` |
+|---|---|---|
+| `pbt=0`  | **none** | **none** |
+| `pbt=16` | **{1,2,3}** | **{1,2,3}** |
+
+Identical sets, same run. Example rows:
+
+```
+row 1  (RELOCATED)
+  pbt=0 : ' very cold, and the temperature is 20 degrees. The temperature is...'
+  pbt=16: " very''\n\n''\n\n''\n\n''\n\n''..."      <- correct first token, then collapse
+
+row 5  (not relocated)
+  pbt=0 : ' a type of food that I have never had before. I have never had...'
+  pbt=16: ' a type of food that I have never had before. I have always been...'
+```
+
+This closes the loop the earlier full-depth Devstral runs left open: there the
+corrupted set `{1,2,3}` matched a relocation set measured in a *separate*
+2-layer run. Here both come from one run on a model whose baseline is coherent.
+
+**Caveat on diffing arms byte-for-byte:** rows 5,6,7 also differ between arms
+while staying perfectly coherent. Different bucket usage changes padding and
+collective reduction order, so benign numeric divergence is expected. Use
+coherence, not equality, to decide whether a row is corrupted.
 
 ## The invariant is already known to the codebase
 
