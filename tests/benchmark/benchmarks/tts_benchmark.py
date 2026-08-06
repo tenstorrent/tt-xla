@@ -55,11 +55,6 @@ per-stage numbers comparable with each other, and matches the other harnesses in
 tests/benchmark. A pipeline that instead moves modules on and off the device per
 stage folds those transfers into its own numbers and, worse, re-enters the compile
 path on the next pass; the recompile guards below will catch that.
-
-``compile_curve`` is optional because a pipeline living in tt-forge-models cannot
-read torch-xla's counters. When it is absent the per-step decode check below is
-skipped -- so a model that wants that guard has to record it from the benchmark
-side, as ``xtts_v2_pipeline.py`` does.
 """
 
 import socket
