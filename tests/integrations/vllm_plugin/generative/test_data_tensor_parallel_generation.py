@@ -701,11 +701,15 @@ def _mixed_batch(batch_size: int, long_fraction: float = 0.25):
     Returns (prompts, long_indices). Callers assert both classes are non-empty:
     a batch where nothing chunked looks like a pass but tests nothing.
     """
+    prompts = [_SHORT_PROMPTS[i % len(_SHORT_PROMPTS)] for i in range(batch_size)]
+    if long_fraction == 0:
+        # All-short batch: nothing spans a chunk, so the chunked-SDPA path never
+        # executes. Used to test whether a defect needs chunking at all.
+        return prompts, []
+
     num_long = max(1, int(round(batch_size * long_fraction)))
     num_long = min(num_long, batch_size - 1)  # always keep at least one short
     stride = max(1, batch_size // num_long)
-
-    prompts = [_SHORT_PROMPTS[i % len(_SHORT_PROMPTS)] for i in range(batch_size)]
     long_indices = list(range(0, batch_size, stride))[:num_long]
     for i in long_indices:
         prompts[i] = _LONG_PROMPT
@@ -1008,15 +1012,31 @@ def test_dptp_slot_trace(mesh_shape, batch_size, prefill_batch_threshold):
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
 @pytest.mark.notimeout
-@pytest.mark.parametrize("prefill_batch_threshold", [16, 0])
+# (batch, prefill_batch_threshold, long_fraction) per case:
+#   baseline    - b1 off, mixed          -> no relocation, expect clean
+#   relocate    - b1 on,  mixed          -> relocation {1,2,3}, expect corrupt
+#   aligned     - b1 ON but all buckets equal (max_num_seqs=4 => small=big=
+#                 decode=4) -> H forbids corruption with the cap still armed
+#   allshort    - b1 on, NO chunked prompts -> H says relocation alone corrupts,
+#                 so chunking should be irrelevant
+@pytest.mark.parametrize(
+    "batch_size,prefill_batch_threshold,long_fraction",
+    [
+        pytest.param(8, 0, 0.25, id="baseline"),
+        pytest.param(8, 16, 0.25, id="relocate"),
+        pytest.param(4, 16, 0.25, id="aligned"),
+        pytest.param(8, 16, 0.0, id="allshort"),
+    ],
+)
 @pytest.mark.parametrize(
     "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
 )
-def test_dptp_small_model_causal_ab(mesh_shape, prefill_batch_threshold):
+def test_dptp_small_model_causal_ab(
+    mesh_shape, batch_size, prefill_batch_threshold, long_fraction
+):
     """Qwen3-0.6B full depth on (4,8): does slot relocation corrupt decode?"""
     model_name = "Qwen/Qwen3-0.6B"
-    batch_size = 8
-    prompts, long_indices = _mixed_batch(batch_size)
+    prompts, long_indices = _mixed_batch(batch_size, long_fraction)
     sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=64)
 
     llm = vllm.LLM(
@@ -1042,7 +1062,8 @@ def test_dptp_small_model_causal_ab(mesh_shape, prefill_batch_threshold):
     outputs = llm.generate(prompts, sampling_params)
     assert len(outputs) == len(prompts)
     _report(
-        "qwen0.6b full-depth pbt%d" % prefill_batch_threshold,
+        "qwen0.6b full-depth b%d pbt%d lf%.2f"
+        % (batch_size, prefill_batch_threshold, long_fraction),
         prompts, long_indices, outputs,
     )
     bad = []
