@@ -14,7 +14,8 @@
       "libreq": "libgl1 libglib2.0-0",
       "skip-ttir-dump": false,
       "skip-ttnn-dump": false,
-      "skip-device-perf": true
+      "skip-device-perf": true,
+      "group": "regular"
     },
     "tests": [
       {
@@ -23,55 +24,66 @@
       },
       {
         "name": "playground_v2_5",
-        "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
+        "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5",
+        "group": "experimental"
       },
       {
         "name": "stable_diffusion_1_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_stable_diffusion_1_5",
-        "runs-on": "n150-perf"
+        "runs-on": "n150-perf",
+        "group": "experimental"
       },
       {
         "name": "stable_diffusion_3",
         "pytest": "tests/benchmark/test_imagegen.py::test_stable_diffusion_3",
-        "runs-on": "n150-perf"
+        "runs-on": "n150-perf",
+        "group": "experimental"
       },
       {
         "name": "sdxl_lightning",
-        "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
+        "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning",
+        "group": "experimental"
       },
       {
         "name": "flux2",
         "pytest": "tests/benchmark/test_imagegen.py::test_flux2",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
       },
       {
         "name": "flux1",
         "pytest": "tests/benchmark/test_imagegen.py::test_flux",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
       },
       {
         "name": "hunyuan_image_2_1",
         "pytest": "tests/benchmark/test_imagegen.py::test_hunyuan_image_2_1",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
       },
       {
         "name": "janus_pro_1b",
-        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
+        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro",
+        "group": "experimental"
       },
       {
         "name": "janus_pro_7b",
         "runs-on": ["p150-perf"],
-        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b"
+        "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b",
+        "group": "experimental"
       },
       {
         "name": "zimage",
         "pytest": "tests/benchmark/test_imagegen.py::test_zimage",
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "experimental"
       },
       {
         "name": "glm_image",
         "pytest": "tests/benchmark/test_imagegen.py::test_glm_image",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
       },
       {
         "name": "llama_3_1_8b_instruct",
@@ -492,77 +504,88 @@
         "pytest": "tests/benchmark/test_wan.py::test_wan_umt5[14b-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_encoder_480p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-unsharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_encoder_720p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-unsharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_encoder_480p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-480p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_encoder_720p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_encoder[14b-720p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_decoder_480p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-unsharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_decoder_720p_unsharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-unsharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_decoder_480p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-480p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_vae_decoder_720p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_vae_decoder[14b-720p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_dit_480p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       },
       {
         "name": "wan14b_dit_720p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-720p-sharded]",
         "runs-on": [
           "qb2-blackhole"
-        ]
+        ],
+        "group": "experimental"
       }
     ]
   }

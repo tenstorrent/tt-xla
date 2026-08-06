@@ -105,31 +105,7 @@ jobs:
       skip-device-perf: true
       regression_check: true
       adv_filter: '[
-        { "accuracy-testing": false },
-        { "exclude": [
-          "playground_v2_5",
-          "stable_diffusion_1_5",
-          "stable_diffusion_3",
-          "sdxl_lightning",
-          "flux2",
-          "flux1",
-          "hunyuan_image_2_1",
-          "janus_pro_1b",
-          "janus_pro_7b",
-          "zimage",
-          "glm_image",
-          "wan_umt5_sharded",
-          "wan14b_vae_encoder_480p_unsharded",
-          "wan14b_vae_encoder_720p_unsharded",
-          "wan14b_vae_encoder_480p_sharded",
-          "wan14b_vae_encoder_720p_sharded",
-          "wan14b_vae_decoder_480p_unsharded",
-          "wan14b_vae_decoder_720p_unsharded",
-          "wan14b_vae_decoder_480p_sharded",
-          "wan14b_vae_decoder_720p_sharded",
-          "wan14b_dit_480p_sharded",
-          "wan14b_dit_720p_sharded"
-        ] },
+        { "accuracy-testing": false, "group": "regular" },
         { "runs-on": "n150-perf" },
         { "runs-on": "p150-perf" },
         { "runs-on": "galaxy-wh-6u" },

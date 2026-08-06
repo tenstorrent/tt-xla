@@ -31,38 +31,10 @@ jobs:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
       adv_filter: '[
-        { "accuracy-testing": false },
-        { "runs-on": "n150-perf", "filter": [
-          "playground_v2_5",
-          "stable_diffusion_1_5",
-          "stable_diffusion_3",
-          "sdxl_lightning",
-          "janus_pro_1b"
-        ] },
-        { "runs-on": "p150-perf", "filter": [
-          "playground_v2_5",
-          "sdxl_lightning",
-          "janus_pro_1b",
-          "janus_pro_7b",
-          "zimage"
-        ] },
-        { "runs-on": "qb2-blackhole", "filter": [
-          "flux2",
-          "flux1",
-          "hunyuan_image_2_1",
-          "glm_image",
-          "wan_umt5_sharded",
-          "wan14b_vae_encoder_480p_unsharded",
-          "wan14b_vae_encoder_720p_unsharded",
-          "wan14b_vae_encoder_480p_sharded",
-          "wan14b_vae_encoder_720p_sharded",
-          "wan14b_vae_decoder_480p_unsharded",
-          "wan14b_vae_decoder_720p_unsharded",
-          "wan14b_vae_decoder_480p_sharded",
-          "wan14b_vae_decoder_720p_sharded",
-          "wan14b_dit_480p_sharded",
-          "wan14b_dit_720p_sharded"
-        ] }
+        { "accuracy-testing": false, "group": "experimental" },
+        { "runs-on": "n150-perf" },
+        { "runs-on": "p150-perf" },
+        { "runs-on": "qb2-blackhole" }
       ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
