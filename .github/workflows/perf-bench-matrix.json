@@ -116,8 +116,7 @@
       },
       {
         "name": "xtts_v2",
-        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2",
-        "runs-on": "n150-perf"
+        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2"
       },
       {
         "name": "bge_m3_encode",
