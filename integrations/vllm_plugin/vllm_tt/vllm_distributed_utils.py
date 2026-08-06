@@ -105,6 +105,26 @@ def kv_cache_shard_factor(runner) -> int:
     return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
 
 
+def kv_budget_scale_factor(runner) -> int:
+    """How much smaller each chip's KV cache is than the logical one.
+
+    vLLM budgets blocks against the full, un-sharded cache, so the worker
+    inflates its budget by this. Head sharding divides each chip's copy by
+    tp_size; a per-replica block pool divides it again by dp_size.
+    """
+    if not runner.enable_tensor_parallel:
+        return 1
+    if not getattr(runner, "shard_kv_blocks", False):
+        return kv_cache_shard_factor(runner)
+    mesh = runner.mesh
+    axes = (
+        mesh.shape()
+        if hasattr(mesh, "shape")
+        else dict(zip(mesh.axis_names, mesh.mesh_shape))
+    )
+    return axes["model"] * runner.dp_size
+
+
 class XlaMergedColumnParallelLinear(nn.Module):
 
     def __init__(
