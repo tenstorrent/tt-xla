@@ -760,6 +760,9 @@ def test_dptp_qwen_mixed_4k(mesh_shape, max_model_len, batch_size):
             "enable_data_parallel": True,
             "enable_tensor_parallel": True,
             "shard_weights_on_batch_axis": True,
+            # bfp_bf8 weights: full-depth 123B at bf16 does not fit 8-way TP on
+            # 31.88 GiB/chip. ~1 byte/param -> ~15 GiB/chip for Devstral.
+            "experimental_weight_dtype": "bfp_bf8",
             "experimental_kv_cache_dtype": "bfp_bf8",
             "enable_const_eval": True,
             "optimization_level": 1,
@@ -807,6 +810,9 @@ def test_dptp_devstral_mixed_4k(mesh_shape, max_model_len, batch_size):
             "enable_data_parallel": True,
             "enable_tensor_parallel": True,
             "shard_weights_on_batch_axis": True,
+            # bfp_bf8 weights: full-depth 123B at bf16 does not fit 8-way TP on
+            # 31.88 GiB/chip. ~1 byte/param -> ~15 GiB/chip for Devstral.
+            "experimental_weight_dtype": "bfp_bf8",
             "experimental_kv_cache_dtype": "bfp_bf8",
             "enable_const_eval": True,
             "optimization_level": 1,
