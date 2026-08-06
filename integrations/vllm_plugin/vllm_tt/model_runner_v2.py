@@ -1698,7 +1698,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _pin_input_shardings(self, input_ids, positions, inputs_embeds) -> None:
         """Pin model inputs on the batch/mesh axis so warmup and inference trace
         the same graph. No-op off the SPMD path."""
-        if not self.enable_tensor_parallel and self.parallel_mode not in (
+        # DP modes only. Pure TP replicates the batch across the mesh, so pinning
+        # the request dim there is wrong: it shards requests over the TP axis
+        # whenever num_reqs divides that axis, and otherwise perturbs GSPMD into
+        # a batch-axis reduce_scatter that miscompiles distributed_rms_norm.
+        if self.parallel_mode not in (
             ParallelismMode.DATA_PARALLEL_ONLY,
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
@@ -1709,13 +1713,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
-        # positions: pin only for DP modes; under pure-TP it drives GSPMD into a
-        # batch-axis reduce_scatter that hits a tt-mlir to_layout bug.
-        if self.parallel_mode in (
-            ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PARALLEL,
-        ):
-            safe_mark_sharding(positions, self.mesh, (batch_axis, None))
+        safe_mark_sharding(positions, self.mesh, (batch_axis, None))
 
     def _prepare_model_call_tensors(self, input_ids, positions, inputs_embeds):
         """Optionally flatten the 2D [reqs, tokens] tensors to 1D for flat_model_io."""

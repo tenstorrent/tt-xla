@@ -39,6 +39,42 @@ def test_tensor_parallel_generation_n300(model_name: str):
     assert_output_coherent(output_text)
 
 
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
+def test_tensor_parallel_generation_wider_batch_n300(model_name: str):
+    """Wide batch (>1 seq) under pure TP, greedy + grounded.
+
+    The other pure-TP tests on two chips run at max_num_seqs=1, where the
+    request dim is degenerate. At batch > 1 pinning that dim on the mesh either
+    shards requests across the TP axis or perturbs GSPMD into a graph that
+    fails to compile.
+    """
+    checks = GROUNDED_BATCH_CHECKS
+    prompts = [p for p, _ in checks]
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=10)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 128,
+        "max_num_seqs": len(checks),
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.002,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    for (prompt, _), out in zip(checks, outputs):
+        print(f"prompt: {prompt}, output: {out.outputs[0].text}")
+    assert_batch_grounded(outputs, checks)
+
+    check_host_memory(model_name)
+
+
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
