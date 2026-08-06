@@ -1826,6 +1826,34 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
+        # EXPERIMENT (padmask): explicit per-row causal + padding mask for the DP
+        # standard-prefill SDPA. Tests whether masking padding key columns removes
+        # the heavily-padded-row divergence. Only for DP standard prefill (not
+        # decode, not the chunked-prefix path).
+        pad_attn_mask_dev = None
+        dp_active = self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        )
+        if dp_active and chunk_start_idx is None and not is_decode_step:
+            T = int(padded_total_num_scheduled_tokens)
+            U = int(target_num_reqs)
+            ar = torch.arange(T)
+            neg = float("-inf")
+            m = torch.zeros((U, 1, T, T), dtype=torch.bfloat16)
+            m[:, 0].masked_fill_(ar[None, :] > ar[:, None], neg)  # causal: block j>i
+            lens = torch.full((U,), T, dtype=torch.long)
+            lens_np = num_scheduled_tokens_per_req
+            for u in range(min(U, len(lens_np))):
+                if lens_np[u] > 0:
+                    lens[u] = int(lens_np[u])
+            # block key columns >= this row's real length (padding)
+            m[:, 0].masked_fill_((ar[None, :] >= lens[:, None])[:, None, :], neg)
+            pad_attn_mask_dev = m.to(self.device)
+            safe_mark_sharding(
+                pad_attn_mask_dev, self.mesh, ("batch", None, None, None)
+            )
+
         # Build one TTMetadata per kv_cache group, each carrying that group's own
         # page_table / fill_page_table. The per-layer fan-out below hands each
         # attention layer its group's metadata, so a sliding-window layer never
@@ -1941,8 +1969,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 TTMetadata(
                     page_table=page_table_dev,
                     cache_position=cache_position,
-                    is_causal=True,
-                    attn_mask=None,
+                    is_causal=pad_attn_mask_dev is None,
+                    attn_mask=pad_attn_mask_dev,
                     fill_page_table=fill_page_table_dev,
                     dp_size=self.dp_size,
                     chunk_start_idx=chunk_start_idx,
