@@ -222,3 +222,28 @@ def _test_timeout(request):
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old_handler)
+
+
+def assert_slots_agree(outputs, prompts) -> None:
+    """Slots sharing a prompt must generate identical, coherent output.
+
+    The batch repeats a few base prompts, so greedy sampling makes slots holding
+    the same prompt directly comparable and a mismatch names the corrupted slot.
+    Coherence is checked too, since equality alone would pass if every slot were
+    identically garbled.
+    """
+    n = len(dict.fromkeys(prompts))
+    token_ids = [list(out.outputs[0].token_ids) for out in outputs]
+
+    for i, out in enumerate(outputs):
+        text = out.outputs[0].text
+        print(f"slot {i} (prompt {i % n}): {text}")
+        assert_output_coherent(text)
+
+    for i in range(n, len(token_ids)):
+        ref = i % n
+        assert token_ids[i] == token_ids[ref], (
+            f"slot {i} disagrees with slot {ref} on an identical prompt under "
+            "greedy decoding -- that slot's KV state is corrupt.\n"
+            f"  slot {ref}: {token_ids[ref]}\n  slot {i}: {token_ids[i]}"
+        )

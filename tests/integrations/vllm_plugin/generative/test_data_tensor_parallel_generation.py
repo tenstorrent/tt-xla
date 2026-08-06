@@ -14,6 +14,7 @@ from conftest import (
     GROUNDED_BATCH_CHECKS,
     assert_batch_grounded,
     assert_output_coherent,
+    assert_slots_agree,
     check_host_memory,
 )
 
@@ -89,6 +90,121 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
     for (prompt, _), out in zip(checks, outputs):
         print(f"prompt: {prompt}, output: {out.outputs[0].text}")
     assert_batch_grounded(outputs, checks)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [32, 64])
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
+def test_data_tensor_parallel_chunked_prefill_llmbox(model_name: str, batch_size: int):
+    """Chunked prefill under DP+TP on llmbox (tt-xla #4986/#5691)."""
+    prompts = [
+        "Continue in English: I like taking walks in the evening after work, "
+        "usually along the river path that starts behind the old train station "
+        "and follows the water for about two miles before it turns back toward "
+        "the main road, and on a clear night you can see the lights of the town "
+        "reflected in the water while people cycle past and dogs run ahead of "
+        "their owners, and by the time I reach the bridge the shops have closed "
+        "and the streets are quiet enough that I can hear my own footsteps, and "
+        "it gives me time to think about everything that happened during the day "
+        "before I go home and start cooking dinner, which is why the part of the "
+        "day I look forward to most is",
+        "Continue in English: The weather today is",
+        "Continue in English: My favourite season is autumn, mostly because the "
+        "air turns cool enough for a jacket but not so cold that you dread going "
+        "outside, and the trees along my street change colour over about two "
+        "weeks until the whole road is orange and red and the pavement is "
+        "covered in leaves that crunch when you step on them, and the evenings "
+        "get dark early enough that the windows of the houses all light up by "
+        "six o'clock, which makes the walk home feel warmer than it actually is, "
+        "and on the weekends there is usually enough sun to sit outside with a "
+        "coffee for an hour, and I always tell myself that this year I will take "
+        "more photographs before the leaves are gone, so the thing I look "
+        "forward to every year is",
+        "Continue in English: The best book I have read is",
+    ] * (batch_size // 4)
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": batch_size,
+        "max_model_len": 1024,
+        "gpu_memory_utilization": 0.25,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "enable_data_parallel": True,
+            "cpu_sampling": False,
+            "prefill_chunk_size": 128,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    assert_slots_agree(outputs, prompts)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.data_parallel
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [32, 64])
+@pytest.mark.parametrize("model_name", ["Qwen/Qwen3-8B"])
+def test_data_tensor_parallel_chunked_prefill_llmbox_large(
+    model_name: str, batch_size: int
+):
+    """Chunked prefill under DP+TP on llmbox with TP-sharded 8B weights."""
+    prompts = [
+        "Continue in English: I like taking walks in the evening after work, "
+        "usually along the river path that starts behind the old train station "
+        "and follows the water for about two miles before it turns back toward "
+        "the main road, and on a clear night you can see the lights of the town "
+        "reflected in the water while people cycle past and dogs run ahead of "
+        "their owners, and by the time I reach the bridge the shops have closed "
+        "and the streets are quiet enough that I can hear my own footsteps, and "
+        "it gives me time to think about everything that happened during the day "
+        "before I go home and start cooking dinner, which is why the part of the "
+        "day I look forward to most is", # prompt 0
+        "Continue in English: The weather today is", # prompt 1
+        "Continue in English: My favourite season is autumn, mostly because the "
+        "air turns cool enough for a jacket but not so cold that you dread going "
+        "outside, and the trees along my street change colour over about two "
+        "weeks until the whole road is orange and red and the pavement is "
+        "covered in leaves that crunch when you step on them, and the evenings "
+        "get dark early enough that the windows of the houses all light up by "
+        "six o'clock, which makes the walk home feel warmer than it actually is, "
+        "and on the weekends there is usually enough sun to sit outside with a "
+        "coffee for an hour, and I always tell myself that this year I will take "
+        "more photographs before the leaves are gone, so the thing I look "
+        "forward to every year is", # prompt 2
+        "Continue in English: The best book I have read is", # prompt 3
+    ] * (batch_size // 4)
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_seqs": batch_size,
+        "max_model_len": 1024,
+        "gpu_memory_utilization": 0.25,
+        "enable_prefix_caching": False,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "enable_data_parallel": True,
+            "cpu_sampling": False,
+            "prefill_chunk_size": 128,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == len(prompts)
+    assert_slots_agree(outputs, prompts)
 
     check_host_memory(model_name)
 
