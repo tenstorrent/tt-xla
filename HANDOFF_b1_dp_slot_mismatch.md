@@ -82,6 +82,27 @@ while staying perfectly coherent. Different bucket usage changes padding and
 collective reduction order, so benign numeric divergence is expected. Use
 coherence, not equality, to decide whether a row is corrupted.
 
+### Full 2x2: relocation is necessary AND sufficient
+
+Four cases, same model/mesh, `test_dptp_small_model_causal_ab`, ~60 min total.
+Slot trace and coherence measured in each run:
+
+| case | b1 cap | relocation | chunked prompts | corruption |
+|---|---|---|---|---|
+| `baseline` | off | none | yes | none |
+| `relocate` | on | {1,2,3} | yes | {1,2,3} |
+| `aligned` | **ON** | **none** | yes | **none** |
+| `allshort` | on | {1,2,3} | **no** | {1,2,3} |
+
+- `aligned` (batch 4 -> `small=big=decode=4`) keeps the b1 cap armed but makes
+  relocation impossible: **clean**. The cap alone does not corrupt.
+- `allshort` (`long_fraction=0`) removes chunked prefill entirely but keeps
+  relocation: **corrupts the same three rows**. Chunked SDPA is not involved.
+
+Corruption tracks relocation in all four cases and never appears without it.
+The b1 cap and chunked prefill are both eliminated as causes; **slot relocation
+is necessary and sufficient**.
+
 ## The invariant is already known to the codebase
 
 `model_runner.py:1203` (the `condense()` guard) states it outright:
