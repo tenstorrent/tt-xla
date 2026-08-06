@@ -80,18 +80,26 @@ def test_xtts_v2(output_file, request):
 
         def build_pipeline_fn(compile_options):
             pipeline_cls = make_bench_xtts_pipeline_cls()
-            pipeline = pipeline_cls(
-                XTTSConfig(
-                    text=DEFAULT_TEXT,
-                    max_audio_tokens=MAX_AUDIO_TOKENS,
-                    seed=DEFAULT_SEED,
-                )
+            config = XTTSConfig(
+                text=DEFAULT_TEXT,
+                max_audio_tokens=MAX_AUDIO_TOKENS,
+                seed=DEFAULT_SEED,
+                # Always spend the full token budget instead of stopping on the
+                # model's stop token. The generated length then depends only on
+                # max_audio_tokens, so every pass drives gpt_latents and hifigan
+                # at identical shapes and none of them can recompile inside the
+                # measured pass.
+                stop_early=False,
             )
+            pipeline = pipeline_cls(config)
             pipeline.setup()
 
-            # Text and token cap already live in the config the pipeline was built
-            # with; the harness passes them for harnesses that need them per call.
             def generate_fn(text, max_audio_tokens):
+                # Honour what the harness asked for rather than silently using
+                # whatever the pipeline was built with. Both are the same values
+                # on every call here, which is what keeps the shapes stable.
+                config.text = text
+                config.max_audio_tokens = max_audio_tokens
                 return pipeline.run()
 
             return pipeline, generate_fn

@@ -38,15 +38,28 @@ The ``_perf`` contract a pipeline must populate on each generation:
         "total": seconds,                            # full generate() wall time
         "audio_samples": int,                        # output waveform length
         "text_tokens": int,                          # optional, for reporting
-        "compile_curve": [int, ...],                 # optional, cumulative compiles
+        "compile_curve": [int, ...],                 # cumulative compiles per step
     }
 
-Stage times are wall time around a forward plus its XLA sync. Whether they include
-a weight upload depends on the pipeline: one that evicts a stage back to the host
-after its forward pays to re-upload it next pass, and that cost lands in the stage
-time. Pipelines are free to keep stages resident instead (as the XTTS-v2 wiring
-does for the stages that would otherwise recompile), in which case stage times are
-compute only, matching the other harnesses in tests/benchmark.
+``compile_curve`` is required. It is the only thing that can show a decode loop
+recompiling on every token: the aggregate before/after check cannot see that if
+warmup absorbed the compiles. Recording it needs torch-xla's counters, so a
+pipeline living in tt-forge-models cannot do it -- the per-model wiring in
+tests/benchmark has to, as ``xtts_v2_pipeline.py`` does. Making it optional would
+mean a model silently opting out of the guard by leaving the key off.
+
+Stage times are wall time around a forward plus its XLA sync. A pipeline is
+expected to place its modules on device once and leave them there, so a stage time
+is that stage's compute and never a weight upload -- which is what makes the
+per-stage numbers comparable with each other, and matches the other harnesses in
+tests/benchmark. A pipeline that instead moves modules on and off the device per
+stage folds those transfers into its own numbers and, worse, re-enters the compile
+path on the next pass; the recompile guards below will catch that.
+
+``compile_curve`` is optional because a pipeline living in tt-forge-models cannot
+read torch-xla's counters. When it is absent the per-step decode check below is
+skipped -- so a model that wants that guard has to record it from the benchmark
+side, as ``xtts_v2_pipeline.py`` does.
 """
 
 import socket
@@ -121,9 +134,19 @@ def assert_decode_graph_reused(compile_curve) -> None:
     The aggregate before/after check cannot see a decode graph that recompiles
     every token when pass 1 absorbed all of it. The per-step cumulative compile
     curve can: once the loop has warmed up, the curve must be flat.
+
+    Required, not best-effort: an absent or too-short curve is a wiring bug, and
+    skipping the check on that basis would let a model opt out of the guard.
     """
-    if not compile_curve or len(compile_curve) < 4:
-        return
+    assert compile_curve, (
+        "the pipeline recorded no _perf['compile_curve'], so the decode loop "
+        "cannot be checked for per-token recompilation; the per-model wiring "
+        "must append compile_count() after each decode call"
+    )
+    assert len(compile_curve) >= 4, (
+        f"too few decode steps to judge graph reuse: {compile_curve}; the "
+        f"benchmark needs a generation long enough for the curve to settle"
+    )
     settled_from = len(compile_curve) // 2
     tail_growth = compile_curve[-1] - compile_curve[settled_from]
     assert tail_growth == 0, (
@@ -168,12 +191,18 @@ def benchmark_tts_torch_xla(
             ``compile_options`` is forwarded so the pipeline can merge instead of
             overwrite if it needs to switch an option inline.
             ``generate_fn(text, max_audio_tokens) -> waveform tensor`` runs one full
-            synthesis and populates ``pipeline._perf``. The pipeline must also
-            accept a ``force_num_tokens`` attribute (see below).
+            synthesis with those settings and populates ``pipeline._perf``. It must
+            honour both arguments, and must generate the same number of audio
+            tokens every time it is called with the same ones -- see
+            ``max_audio_tokens``.
         model_info_name: Model name for identification and reporting.
         text: Text to synthesize.
-        max_audio_tokens: Cap on generated audio tokens (fixes the work per run so
-            the reported RTF is comparable across nightlies).
+        max_audio_tokens: Audio tokens to generate per run. The pipeline is
+            expected to produce a length that depends only on this value, not on
+            what sampling happened to yield, so that the length-shaped stages
+            (vocoder, latents) see identical shapes in the warmup and measured
+            passes and cannot recompile mid-measurement. Fixing the work per run
+            is also what makes the reported RTF comparable across nightlies.
         sample_rate: Output waveform sample rate in Hz.
         optimization_level: tt-mlir optimization level for compilation.
         trace_enabled: Whether to enable tracing.
@@ -214,25 +243,30 @@ def benchmark_tts_torch_xla(
     # resident (a handful of extra, cheap graphs), and from the third onward the
     # compile count is flat. One warmup pass leaves those stragglers inside the
     # measured pass, which the recompile guard below would (correctly) fail on.
-    warmup_tokens = 0
+    pass_tokens = []
     for i in range(WARMUP_PASSES):
         print(f"Starting warmup pass {i + 1}/{WARMUP_PASSES} (includes compile)...")
         warmup_start = time.perf_counter()
         generate_fn(text, max_audio_tokens)
         warmup_time = time.perf_counter() - warmup_start
         warmup_tokens = len(pipeline._perf["steps"])
+        pass_tokens.append(warmup_tokens)
         print(
             f"Warmup pass {i + 1}/{WARMUP_PASSES}: {warmup_time:.3f}s "
             f"({warmup_tokens} audio tokens, cumulative compiles={compile_count()})"
         )
         assert warmup_tokens > 0, f"warmup pass {i + 1} generated no audio tokens"
 
-        # Pin every later pass to the token count the first one produced. Sampling
-        # is seeded so they agree anyway; pinning makes the shape guarantee
-        # explicit rather than incidental, which is what keeps the
-        # token-count-shaped stages (vocoder, latents) off the recompile path.
-        if pipeline.force_num_tokens is None:
-            pipeline.force_num_tokens = warmup_tokens
+    # The pipeline owns the generated length; the harness only checks it held it
+    # steady. A length that drifts between passes reshapes the vocoder and latents
+    # stages, so it would surface downstream as a recompile in the measured pass --
+    # fail here instead, where the cause is legible.
+    assert len(set(pass_tokens)) == 1, (
+        f"the pipeline generated a different number of audio tokens across warmup "
+        f"passes ({pass_tokens}) for the same text and max_audio_tokens; the "
+        f"length-shaped stages will recompile. The pipeline must make the length "
+        f"depend only on its config (for XTTS-v2, XTTSConfig.stop_early=False)."
+    )
 
     # Measured pass (steady-state): every forward must be a cache hit. This is the
     # pass whose audio is saved and whose timing is reported.
@@ -247,6 +281,11 @@ def benchmark_tts_torch_xla(
     assert_no_recompiles(compiles_before, compiles_after, "the steady-state pass")
 
     perf = pipeline._perf
+    assert len(perf["steps"]) == pass_tokens[0], (
+        f"the measured pass generated {len(perf['steps'])} audio tokens against "
+        f"{pass_tokens[0]} in warmup; the reported throughput is not describing "
+        f"the same work the warmed-up graphs were compiled for"
+    )
     assert_decode_graph_reused(perf.get("compile_curve"))
 
     if output_wav_path is not None and save_wav_fn is not None:
