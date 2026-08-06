@@ -392,3 +392,35 @@ def test_no_row_lead_when_spec_decode_is_off():
         )
         is None
     )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_dp_mixed_boundaries_are_refused():
+    """The attention op takes one shared offset ([1]), and a DP row cannot be
+    trimmed away, so a multi-boundary DP batch has no valid representation."""
+    r = aligned_spec_runner()
+    r.dp_size = 2
+    slots = [
+        seed_at(r, computed=c, n_sched=3, req_id=rid)[0]
+        for rid, c in (("A", 20), ("B", 40))
+    ]
+    with pytest.raises(AssertionError, match="multiple block boundaries"):
+        r._chunk_start_idx_for(
+            np.array(slots, dtype=np.int32), np.array([3, 3], dtype=np.int32), 32
+        )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_dp_single_boundary_still_uses_one_shared_offset():
+    r = aligned_spec_runner()
+    r.dp_size = 2
+    slots = [
+        seed_at(r, computed=c, n_sched=3, req_id=rid)[0]
+        for rid, c in (("A", 20), ("B", 22))  # both in block 16
+    ]
+    starts = r._chunk_start_idx_for(
+        np.array(slots, dtype=np.int32), np.array([3, 3], dtype=np.int32), 32
+    )
+    assert starts is not None and starts.tolist() == [16]

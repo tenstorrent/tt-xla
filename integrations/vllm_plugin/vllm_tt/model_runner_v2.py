@@ -1139,6 +1139,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         None off the spec path, so every other path keeps the standard attention
         branch. The offset must equal the block boundary the row was extended to,
         otherwise the read disagrees with where paged_fill_cache wrote.
+
+        The attention op takes shape [1] -- one offset shared by all users -- so
+        the pass must have been trimmed to a single block boundary first.
         """
         if not self._spec_prefix_rows() or padded_query_len <= 1:
             return None
@@ -1150,15 +1153,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         if not np.any(computed > 0):
             return None
-        lead = _row_lead(computed, self.block_size)
-        # The pass was trimmed to one block boundary, so a single offset describes
-        # every row. Rows scheduled 0 tokens (DP padding) are never read.
+        starts = (computed - _row_lead(computed, self.block_size)).astype(np.int32)
+
+        # Under DP a row cannot be trimmed away (its batch position selects its
+        # replica), so a multi-boundary DP batch cannot be expressed with one
+        # shared offset and asserts below. Fixing that needs a per-user offset in
+        # the attention op; see the note in _spec_prefix_rows' callers.
+        # Rows scheduled 0 tokens (DP padding) are never read.
         active = np.asarray(num_scheduled_tokens) > 0
-        starts = np.unique((computed - lead)[active])
+        uniq = np.unique(starts[active])
         assert (
-            len(starts) <= 1
-        ), f"spec pass spans multiple block boundaries: {starts.tolist()}"
-        return np.array([int(computed[0]) - int(lead[0])], dtype=np.int32)
+            len(uniq) <= 1
+        ), f"spec pass spans multiple block boundaries: {uniq.tolist()}"
+        return starts[:1]
 
     def execute_model(
         self,
