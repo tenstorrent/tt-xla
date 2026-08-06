@@ -1111,6 +1111,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return tuple(tasks)
 
+    def _fill_page_table_width(self, group_idx: int, read_width: int) -> int:
+        """Columns the fill page table needs, far fewer than the read table.
+
+        paged_fill_cache only indexes ``cdiv(step_tokens, block_size)`` entries --
+        the bound its validator enforces -- but reads the whole row with a single
+        noc_async_read, and a large single read from interleaved DRAM can hang the
+        device. The roll in _prepare_inputs puts the chunk's blocks up front, so the
+        leading columns are the ones it wants.
+        """
+        block_size = (
+            self._group_block_sizes[group_idx]
+            if group_idx < len(self._group_block_sizes)
+            else self.block_size
+        )
+        # Round to 8 entries: a ttnn page-table stick must be 32B-aligned, the
+        # same rule _chunked_sdpa_active checks against max_num_blocks_per_req.
+        width = cdiv(cdiv(self.max_num_tokens, block_size), 8) * 8
+        return min(width, read_width)
+
     def _alloc_page_table_device_buffers(self, num_groups: int) -> None:
         """(Re)allocate per-group page_table / fill_page_table device buffers.
 
@@ -1139,6 +1158,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             return base_width
 
+        def _fill_pt_width(group_idx, base_width):
+            return self._fill_page_table_width(
+                group_idx, _pt_width(group_idx, base_width)
+            )
+
         self._page_table_dev_max = {
             g: {
                 nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
@@ -1148,7 +1172,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         }
         self._fill_page_table_dev_max = {
             g: {
-                nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
+                nr: _alloc_dev((nr, _fill_pt_width(g, self.max_num_blocks_per_req)), dt)
                 for nr in max_reqs
             }
             for g in range(num_groups)
@@ -1169,7 +1193,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._fill_page_table_dev_most = {
                 g: {
                     nr: _alloc_dev(
-                        (nr, _pt_width(g, self.num_blocks_per_most_len_req)), dt
+                        (nr, _fill_pt_width(g, self.num_blocks_per_most_len_req)), dt
                     )
                     for nr in most_reqs
                 }
@@ -1684,11 +1708,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # cache_position (computed above; shared across sliding groups).
                 # fill == read except for inactive-row null redirect (also above).
                 page_table_dev.copy_(sliding_page_table)
-                if sliding_fill_page_table is sliding_page_table:
-                    fill_page_table_dev = page_table_dev
-                else:
-                    fill_page_table_dev_buf.copy_(sliding_fill_page_table)
-                    fill_page_table_dev = fill_page_table_dev_buf
+                # Narrower than the read table, so never an alias.
+                fw = fill_page_table_dev_buf.shape[1]
+                fill_page_table_dev_buf.copy_(sliding_fill_page_table[:, :fw])
+                fill_page_table_dev = fill_page_table_dev_buf
                 if self.parallel_mode in (
                     ParallelismMode.DATA_PARALLEL_ONLY,
                     ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -1759,11 +1782,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 fill_page_table[actual_num_reqs:, :] = 0
 
             page_table_dev.copy_(page_table)
-            if fill_page_table is page_table:
-                fill_page_table_dev = page_table_dev
-            else:
-                fill_page_table_dev_buf.copy_(fill_page_table)
-                fill_page_table_dev = fill_page_table_dev_buf
+            # Narrowed like the sliding branch, so never an alias.
+            fw = fill_page_table_dev_buf.shape[1]
+            fill_page_table_dev_buf.copy_(fill_page_table[:, :fw])
+            fill_page_table_dev = fill_page_table_dev_buf
 
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
@@ -2912,13 +2934,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
                 self.device
             )
-            fill_page_table = None
-            if prefix_chunk:
-                # A continuation chunk uses a distinct fill_page_table at runtime;
-                # pass a separate tensor so the traced graph has matching arity.
-                fill_page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
-                    self.device
-                )
+            # Runtime fill table is narrower and always distinct; trace it so.
+            fill_w = self._fill_page_table_width(_g, pt_w)
+            fill_page_table = torch.zeros((num_reqs, fill_w), dtype=torch.int32).to(
+                self.device
+            )
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
@@ -3387,11 +3407,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_reqs, pt_w),
                 dtype=torch.int32,
             ).to(self.device)
-            fill_page_table = page_table
-            if prefix_chunk:
-                fill_page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
-                    self.device
-                )
+            fill_w = self._fill_page_table_width(_g, pt_w)
+            fill_page_table = torch.zeros((num_reqs, fill_w), dtype=torch.int32).to(
+                self.device
+            )
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
