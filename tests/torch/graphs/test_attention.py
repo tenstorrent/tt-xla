@@ -2584,21 +2584,15 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 @parametrize_arch(["single_device", "llmbox", "galaxy"])
-def test_gpt_oss_attention_decode(variant, variant_config, arch, request):
-    # NOTE: only the llmbox variants are covered here; galaxy-120B is intentionally left failing.
-    if arch == "llmbox":
-        request.node.add_marker(
-            pytest.mark.xfail(
-                reason="llmbox: PCC comparison failed (pcc=nan). Tracked by https://github.com/tenstorrent/tt-xla/issues/5683.",
-                strict=False,
-            )
-        )
+def test_gpt_oss_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
     config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
+    # sinks is nn.Parameter(torch.empty(...)) — uninitialized bits → bfloat16 NaN
+    attention.sinks.data.zero_()
     batch_size = 1
 
     if arch in ("llmbox", "galaxy"):
@@ -2622,6 +2616,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch, request):
             shard_specs[attention.v_proj.bias] = ("model",)
             shard_specs[attention.o_proj.weight] = ("batch", "model")
             shard_specs[attention.o_proj.bias] = ("batch",)
+            shard_specs[attention.sinks] = ("model",)
             return shard_specs
 
     else:
