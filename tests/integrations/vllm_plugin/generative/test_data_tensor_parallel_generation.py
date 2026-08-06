@@ -197,7 +197,6 @@ def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
         temperature=0.0,
         top_p=1.0,
         max_tokens=32,
-        ignore_eos=True,  # TODO(@ddilbaz): Remove when https://github.com/tenstorrent/tt-xla/issues/5778 is fixed.
     )
 
     llm_args = {
@@ -208,7 +207,7 @@ def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
         "max_num_batched_tokens": 8192,
         "max_num_seqs": 64,
         "max_model_len": 128,
-        "gpu_memory_utilization": 0.3,
+        "gpu_memory_utilization": 0.4,
         "additional_config": {
             "min_context_len": 32,
             "enable_data_parallel": True,
