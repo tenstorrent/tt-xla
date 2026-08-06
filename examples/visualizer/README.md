@@ -134,8 +134,8 @@ vLLM pulls several GB of packages you will not want in a general-purpose environ
    bash examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh
    ```
 
-4. Wait for it to come up — measured at 7m31s with weights already cached — then send one
-   request from a second shell.
+4. Wait for it to come up — 5m35s and 7m31s on two runs with weights already cached — then
+   send one request from a second shell.
 
    ```bash
    until curl -sf http://localhost:8000/v1/models >/dev/null; do sleep 5; done
