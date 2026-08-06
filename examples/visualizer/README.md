@@ -23,37 +23,30 @@ variables work on a torch_xla script, a JAX script and a `vllm serve` process al
 | Variable | Meaning |
 | --- | --- |
 | `TT_RUNTIME_GRAPH_CAPTURE_DIR` | Where to write reports. Unset disables capture entirely. |
-| `TT_RUNTIME_GRAPH_CAPTURE_SKIP` | Execution scopes to run before the window opens. |
-| `TT_RUNTIME_GRAPH_CAPTURE_COUNT` | Execution scopes the window stays open for, merged into one report. |
+| `TT_RUNTIME_GRAPH_CAPTURE_FIRST` | Top-level program executions to run before the first report. Defaults to 0. |
+| `TT_RUNTIME_GRAPH_CAPTURE_REPORTS` | Reports to write, one per top-level execution. Defaults to 1; 0 records every execution. |
 
 Set `TT_METAL_HOME` during capture if you want the Topology tab's mesh coordinate mapping.
 
-## Sizing the window
+## What lands in a report
 
-Both counters count every `ProgramExecutor::execute()` scope, and a const-eval subprogram
-executes nested inside the program that needs its result. The window is flushed when the
-`COUNT`th scope exits, so a count smaller than a program's subprogram tree closes the window
-inside that tree: the report then holds the weight-preparation ops that ran first, and
-imports to zero operations because the importer folds `to_device`, `to_dtype`, `reshape` and
-`deallocate` away. A count equal to the whole tree closes the window as the top-level
-program's own scope exits, and the report holds that program entire.
+One report holds one top-level program execution, whole. A const-eval subprogram executes
+nested inside the program that needs its result and is recorded in that program's report, so
+a file carries a complete program tree rather than a slice of one. Reports are named
+`<program>_pid<pid>_tid<tid>_exec<index>.json` after the program and its execution index.
 
-To find the count for a run, capture with `COUNT=1` and raise `SKIP` until no report
-appears; that first empty `SKIP` is the run's total scope count. `examples/pytorch/mnist.py`
-produced a report at `SKIP` 0 through 6 and none at 7, so `COUNT=7` captures its single
-forward pass whole — 59 operations against 5 for `COUNT=5`.
+`REPORTS=0` records every execution from `FIRST` onwards, which is the mode to reach for on a
+short script. `capture_graph_report.py --steps 3 --reports 0` writes three files: 5.88 MB for
+the first step, which carries the const-eval subprograms, and 5.90 MB for each later step,
+which reuses their results.
 
-Reports are named `<program>_pid<pid>_tid<tid>_exec<index>.json` after the program that
-opened the window, which is how you tell where a window landed: `main_const_eval_3_…` means
-it opened inside a subprogram, so lower `SKIP`.
+Both counters exist to bound cost, and detailed buffer tracing is what makes that cost real.
+One mnist forward is 12.19 MB. On a TinyLlama server the programs range from 5 KB to 188 MB
+apiece, and `REPORTS=0` wrote 1.7 GB over 23 reports before the server had finished starting
+— so `REPORTS=0` is a mode for a short script, not for a serving model.
 
-Two limits of the current hook are worth knowing.
-
-- **`COUNT` must not exceed the run's total scope count.** A window still open when the
-  process exits is flushed by a `thread_local` destructor after the mesh device is gone, and
-  the process dumps core inside `ttnn::reports::get_buffer_pages`.
-- **One window per process.** It cannot reopen once closed, so a run produces a single
-  report. Capturing a different program means another run with a different `SKIP`.
+Import merges as many reports as you point it at, so capturing several executions separately
+and merging at import time gives the same database as one wide window would.
 
 ## Import
 
@@ -69,13 +62,10 @@ files to keep them separate. Then point ttnn-visualizer at `visualizer_dbs`.
 Every step below assumes an activated venv (`source venv/activate`) and a plugin carrying
 the hook. Numbers are measured on an n300 (wh-17).
 
-1. Enable capture. The whole forward is 7 scopes, one program plus six const-eval
-   subprograms.
+1. Enable capture. The sample runs one forward pass, so the defaults are what you want.
 
    ```bash
    export TT_RUNTIME_GRAPH_CAPTURE_DIR=$PWD/reports_mnist
-   export TT_RUNTIME_GRAPH_CAPTURE_SKIP=0
-   export TT_RUNTIME_GRAPH_CAPTURE_COUNT=7
    mkdir -p "$TT_RUNTIME_GRAPH_CAPTURE_DIR"
    ```
 
@@ -85,7 +75,7 @@ the hook. Numbers are measured on an n300 (wh-17).
    python examples/pytorch/mnist.py
    ```
 
-3. Import the report. Expect one file of about 12 MB named `main_pid<pid>_tid<tid>_exec0.json`
+3. Import the report. Expect one file of 12.19 MB named `main_pid<pid>_tid<tid>_exec0.json`
    — the pid and tid differ because torch_xla executes on a worker thread.
 
    ```bash
@@ -93,21 +83,19 @@ the hook. Numbers are measured on an n300 (wh-17).
        "$TT_RUNTIME_GRAPH_CAPTURE_DIR" --out dbs_mnist
    ```
 
-   The database holds 59 operations over 1813 buffers, including `Conv2dDeviceOperation`,
-   `HaloDeviceOperation` and `InterleavedToShardedDeviceOperation`. A database with 0
-   operations means the window closed inside the const-eval tree — raise `COUNT`.
+   The database holds 59 operations, 104 tensors and 1813 buffers, including
+   `Conv2dDeviceOperation`, `HaloDeviceOperation` and `InterleavedToShardedDeviceOperation`.
 
 ## JAX — `examples/jax/simple_regression.py`
 
-This example's programs carry no const-eval subprograms, so one scope is one execution of
-the jitted gradient and `COUNT` is simply how many training steps to merge.
+This example trains for 500 steps, each one a separate program execution, which makes it the
+place to see numbered reports.
 
-1. Enable capture for four steps. The example runs 500, so nothing here can outrun it.
+1. Ask for three of them.
 
    ```bash
    export TT_RUNTIME_GRAPH_CAPTURE_DIR=$PWD/reports_jax
-   export TT_RUNTIME_GRAPH_CAPTURE_SKIP=0
-   export TT_RUNTIME_GRAPH_CAPTURE_COUNT=4
+   export TT_RUNTIME_GRAPH_CAPTURE_REPORTS=3
    mkdir -p "$TT_RUNTIME_GRAPH_CAPTURE_DIR"
    ```
 
@@ -117,17 +105,17 @@ the jitted gradient and `COUNT` is simply how many training steps to merge.
    python examples/jax/simple_regression.py
    ```
 
-3. Import the report — about 182 KB, named `main_pid<pid>_tid<tid>_exec0.json` with pid and
-   tid equal, since JAX executes on the calling thread.
+3. Import them. Expect `main_pid<pid>_tid<tid>_exec{0,1,2}.json` at 34, 48 and 36 KB, with
+   pid and tid equal because JAX executes on the calling thread.
 
    ```bash
    python examples/visualizer/import_graph_report.py \
        "$TT_RUNTIME_GRAPH_CAPTURE_DIR" --out dbs_jax
    ```
 
-   The database holds 14 operations, 20 tensors, 143 buffers and 2 devices: the tilize,
-   matmul, binary and untilize of four gradient steps. Raising `SKIP` past 4 on this example
-   lands on a different program, and past 5 on a const-eval subprogram.
+   The merged database holds 9 operations, 17 tensors and 88 buffers — the tilize, matmul and
+   binary of three gradient steps. Pass the JSONs individually instead to get one database
+   per step.
 
 ## vLLM — `examples/vllm/TinyLlama-1.1B-Chat-v1.0`
 
@@ -154,13 +142,13 @@ want in a general-purpose environment.
    python -c "from vllm.platforms import current_platform as p; print(type(p).__name__, p.device_type)"
    ```
 
-2. Enable capture for the server process. `SKIP` has to clear weight loading — see the
-   warning below — and `COUNT` stays small because a decode step is one scope each.
+2. Enable capture for the server process. `FIRST` picks which program to record — 40 lands on
+   a serving program on this model — and one report keeps the run bounded.
 
    ```bash
    export TT_RUNTIME_GRAPH_CAPTURE_DIR=$PWD/reports_vllm
-   export TT_RUNTIME_GRAPH_CAPTURE_SKIP=40
-   export TT_RUNTIME_GRAPH_CAPTURE_COUNT=2
+   export TT_RUNTIME_GRAPH_CAPTURE_FIRST=40
+   export TT_RUNTIME_GRAPH_CAPTURE_REPORTS=1
    mkdir -p "$TT_RUNTIME_GRAPH_CAPTURE_DIR"
    ```
 
@@ -171,8 +159,8 @@ want in a general-purpose environment.
    bash examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh
    ```
 
-4. Wait for it to come up — 5m35s and 7m31s on two runs with weights already cached — then
-   send one request from a second shell.
+4. Wait for it to come up — between 4m50s and 7m31s across four runs with weights already
+   cached — then send one request from a second shell.
 
    ```bash
    until curl -sf http://localhost:8000/v1/models >/dev/null; do sleep 5; done
@@ -183,8 +171,8 @@ want in a general-purpose environment.
             "max_tokens": 64, "temperature": 0}'
    ```
 
-5. Confirm the report landed, then stop the server. The window closes as soon as `COUNT`
-   scopes are done, so the file appears while the server is still serving.
+5. Confirm the report landed, then stop the server. The window closes when the recorded
+   program finishes, so the file appears while the server is still serving.
 
    ```bash
    ls -la "$TT_RUNTIME_GRAPH_CAPTURE_DIR"   # main_pid<pid>_tid<tid>_exec40.json
@@ -200,23 +188,22 @@ want in a general-purpose environment.
        "$TT_RUNTIME_GRAPH_CAPTURE_DIR"/main_pid*_exec40.json --out dbs_vllm
    ```
 
-If step 5 shows an empty directory, the run performed fewer than `SKIP` scopes — lower
-`SKIP` and repeat. If the server dies during startup with `Unsupported buffer type!`,
-`SKIP` was too low; raise it.
+If step 5 shows an empty directory, the run performed fewer top-level executions than
+`FIRST` — lower it and repeat.
 
-**The window must open after weight loading, not merely after warm-up.** Weight load
-allocates host-side `SYSTEM_MEMORY` buffers, and the per-op buffer snapshot the capture
-takes walks every buffer on the device and asks the allocator for its bank count.
-`AllocatorImpl::get_num_banks` handles `DRAM`, `L1`, `L1_SMALL` and `TRACE` and throws
-`Unsupported buffer type!` on `SYSTEM_MEMORY`, which surfaces as a `TT_THROW` inside
-`Tensor::to_device` and kills vLLM's engine core during startup. Those buffers are
-transient, so a window opened later is unaffected: `TT_RUNTIME_GRAPH_CAPTURE_SKIP=0` failed
-on TinyLlama while `SKIP=40` served requests normally.
+**Keep `REPORTS` bounded on a server.** Weight loading and warm-up allocate host-side
+`SYSTEM_MEMORY` buffers, and the per-op buffer snapshot walks every buffer on the device and
+asks the allocator for its bank count. `AllocatorImpl::get_num_banks` handles `DRAM`, `L1`,
+`L1_SMALL` and `TRACE` and throws `Unsupported buffer type!` on `SYSTEM_MEMORY`, which
+surfaces as a `TT_THROW` and kills vLLM's engine core. `REPORTS=0` on TinyLlama died that way
+23 reports and 1.7 GB into startup, while a single report at `FIRST=0` and at `FIRST=40` both
+served requests normally. The gap is upstream in tt-metal, so a bounded window is the way
+around it.
 
-Measured on TinyLlama-1.1B-Chat-v1.0 with `SKIP=40 COUNT=2` and a 64-token completion: a
-223 MB report, importing in 8 s to a 22 MB database with 1236 operations, 1701 tensors and
-581456 buffer rows. Reports scale with the window, so keep `COUNT` small for a serving
-model.
+Measured on TinyLlama-1.1B-Chat-v1.0 with `FIRST=40 REPORTS=1` and a 64-token completion: a
+3.65 MB report, importing in 4 s to a 438 KB database with 19 operations, 33 tensors and 8393
+buffer rows. One program is a slice of a decode step rather than the whole model, so raise
+`REPORTS` to follow consecutive programs — each lands as its own numbered file.
 
 ## Checking the hook without picking a sample
 
@@ -228,11 +215,10 @@ python examples/visualizer/capture_graph_report.py --out graph_reports
 python examples/visualizer/import_graph_report.py graph_reports --out visualizer_dbs
 ```
 
-At the default `--steps 3` the run is 6 scopes: `main` plus three const-evals for the first
-step, then one scope per later step, because the const-eval results are reused. The default
-`--skip 0 --count 4` therefore captures the first step whole, at 5.9 MB and 25 operations
-over 335 buffers; `--skip 4 --count 1` captures a steady-state step instead, at the same
-size.
+`--first` and `--reports` map straight onto the two variables. At `--steps 3 --reports 0` the
+run writes one report per step — 5.88 MB for the first, which carries the const-eval
+subprograms, then 5.90 MB each — and importing all three together gives 67 operations over
+1581 buffers.
 
 ## What a tt-xla capture does and does not contain
 

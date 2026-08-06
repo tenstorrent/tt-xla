@@ -26,17 +26,16 @@ def parse_args():
         help="directory to write capture JSONs to",
     )
     parser.add_argument(
-        "--skip",
+        "--first",
         type=int,
         default=0,
-        help="execution scopes to run before the window opens",
+        help="top-level program executions to run before the first report",
     )
     parser.add_argument(
-        "--count",
+        "--reports",
         type=int,
-        default=4,
-        help="execution scopes the window stays open for, merged into one report; "
-        "must not exceed the run's total scope count (see README.md)",
+        default=1,
+        help="reports to write, one per top-level execution; 0 records every execution",
     )
     parser.add_argument("--steps", type=int, default=3, help="model invocations to run")
     return parser.parse_args()
@@ -48,8 +47,8 @@ def main():
 
     # The runtime reads these once, on the first program execution.
     os.environ["TT_RUNTIME_GRAPH_CAPTURE_DIR"] = str(args.out.resolve())
-    os.environ["TT_RUNTIME_GRAPH_CAPTURE_SKIP"] = str(args.skip)
-    os.environ["TT_RUNTIME_GRAPH_CAPTURE_COUNT"] = str(args.count)
+    os.environ["TT_RUNTIME_GRAPH_CAPTURE_FIRST"] = str(args.first)
+    os.environ["TT_RUNTIME_GRAPH_CAPTURE_REPORTS"] = str(args.reports)
 
     import torch
     import torch.nn as nn
