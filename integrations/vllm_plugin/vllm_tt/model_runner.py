@@ -485,6 +485,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.tt_config.max_prefill_num_seqs is not None
             else self.max_num_reqs
         )
+        # Resolved from the *unpadded* max_num_seqs in platform.py, so under DP
+        # they can land on a non-multiple of dp_size. Align them up.
+        if self.dp_size > 1:
+            for _name in ("min_num_reqs", "max_prefill_num_reqs"):
+                _old = getattr(self, _name)
+                _new = min(
+                    _align_num_reqs_for_dp(_old, self.dp_size, round_up=True),
+                    self.max_num_reqs,
+                )
+                if _new != _old:
+                    logger.warning(
+                        "Data parallel requires %s divisible by dp_size; "
+                        "adjusting from %d to %d.",
+                        _name,
+                        _old,
+                        _new,
+                    )
+                    setattr(self, _name, _new)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -662,6 +680,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # absolute block ids. Set in initialize_kv_cache.
         self._group_is_sliding: list[bool] = [False]
         self._group_window_blocks: list[int] = [0]
+        # SMEM-capped, so round DOWN to stay under the limit. Rounding to 0
+        # means this context length cannot host dp_size rows at all.
+        if self.dp_size > 1:
+            _old = self.num_reqs_max_model_len
+            _new = _align_num_reqs_for_dp(_old, self.dp_size, round_up=False)
+            if _new == 0:
+                raise ValueError(
+                    f"num_reqs_max_model_len={_old} is below dp_size="
+                    f"{self.dp_size}: this max_model_len/block_size only fits "
+                    f"{_old} rows in SMEM, so a data-parallel batch cannot be "
+                    f"sharded across {self.dp_size} replicas. Lower dp_size or "
+                    f"max_model_len."
+                )
+            if _new != _old:
+                logger.warning(
+                    "Data parallel requires num_reqs_max_model_len divisible by "
+                    "dp_size; adjusting from %d to %d.",
+                    _old,
+                    _new,
+                )
+                self.num_reqs_max_model_len = _new
         self.query_start_loc_cpu = torch.zeros(
             self.max_num_reqs + 1,
             dtype=torch.int32,
@@ -1755,22 +1794,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[req_slice]
+        # Only rows contributing tokens this step matter. An inactive re-batched
+        # row (see zero_sched_rows above) says nothing about what the prefilling
+        # rows need, and handing its offset to a fresh row made that row attend
+        # a prefix it does not have.
+        active_rows = np.nonzero(num_scheduled_tokens_per_req > 0)[0]
+        active_computed = num_computed_for_reqs[active_rows]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+            np.any(active_computed > 0)
         )
         chunk_start_idx = None
         if prefix_chunk_step and (
             self._chunked_sdpa_active or self._spec_prefix_rows()
         ):
-            # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask). row_lead
-            # moved the row back to its block boundary, so the read offset must
-            # match, otherwise it disagrees with where paged_fill_cache wrote.
-            self._chunk_start_idx_dev.copy_(
-                torch.tensor(
-                    [int(num_computed_for_reqs[0]) - int(row_lead[0])],
-                    dtype=torch.int32,
+            # One offset for the whole batch, so take it from an active row and
+            # refuse mixed stages rather than applying one row's offset to
+            # another. row_lead moved the row back to its block boundary, so the
+            # read offset must match where paged_fill_cache wrote.
+            active_starts = active_computed - row_lead[active_rows]
+            offsets = {int(v) for v in active_starts}
+            if len(offsets) > 1:
+                raise RuntimeError(
+                    "chunked-prefill SDPA takes a single prefix offset for the "
+                    f"batch, but active rows are at different stages: "
+                    f"start={sorted(offsets)} for rows "
+                    f"{active_rows.tolist()}. Batching mixed stages would apply "
+                    "one row's offset to another."
                 )
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(active_starts[0])], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
@@ -2296,8 +2348,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
-        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
+        # Only pure 1D-TP (mesh (1, N)) lacks a batch axis. Keying off
+        # use_2d_mesh instead picked size-1 "model" for DP-only (dp, 1), a
+        # silent no-op that left activations replicated.
+        batch_axis = "model" if self.mesh.mesh_shape[0] == 1 else "batch"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
@@ -5073,6 +5127,20 @@ def _row_lead(num_computed: np.ndarray, block_size: int) -> np.ndarray:
     of a speculative decode row.
     """
     return (num_computed % block_size).astype(np.int32)
+
+
+def _align_num_reqs_for_dp(value: int, dp_size: int, *, round_up: bool) -> int:
+    """Round a request-count bucket to a multiple of ``dp_size``.
+
+    A bucket that is not a multiple leaves the batch dim indivisible by the
+    mesh's "batch" axis, so ``safe_mark_sharding`` replicates it and DP
+    degenerates into every device computing the whole batch.
+    """
+    if dp_size <= 1 or value % dp_size == 0:
+        return value
+    if round_up:
+        return ((value + dp_size - 1) // dp_size) * dp_size
+    return (value // dp_size) * dp_size
 
 
 def _bucket_num_reqs(
