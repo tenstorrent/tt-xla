@@ -115,7 +115,10 @@ class Sampler(nn.Module):
             from tt_torch.sharding import sharding_constraint_tensor
 
             logits = sharding_constraint_tensor(logits, mesh, (None, None))
-            return logits.argmax(dim=-1).view(-1)
+            # torch.argmax, not Tensor.argmax: only call_function nodes are
+            # rewritten to composite_argmax, and a raw aten argmax lowers to a
+            # stablehlo.reduce tt-mlir cannot legalize.
+            return torch.argmax(logits, dim=-1).view(-1)
         if vocab_sharded:
             from tt_torch.composite_ops import composite_argmax
 
@@ -223,8 +226,11 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
+        # Must forward vocab_sharded/mesh: without them greedy_sample runs a plain
+        # argmax on vocab-sharded logits, which yields a shard-local index and a
+        # stablehlo.reduce over the sharded dim that tt-mlir cannot legalize.
         if sampling_metadata.all_greedy:
-            return self.greedy_sample(logits)
+            return self.greedy_sample(logits, vocab_sharded=vocab_sharded, mesh=mesh)
 
         assert sampling_metadata.temperature is not None
 
