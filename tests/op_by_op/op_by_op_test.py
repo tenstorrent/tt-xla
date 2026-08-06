@@ -46,6 +46,7 @@ Note:
     - Each file should contain a MLIR module in StableHLO/TTIR/TTNN dialect
 """
 
+import json
 from pathlib import Path
 from typing import List
 
@@ -96,6 +97,48 @@ def match_and_extract_model_name(file_path: Path, ir_file_prefix: str) -> str | 
             return dir_parts[0]
 
     return None
+
+
+# Written into the extraction output root by
+# `.github/scripts/ir_process_analyzer.py extract-unique-ops`.
+UNIQUE_OPS_MANIFEST_FILENAME = "unique_ops_manifest.json"
+
+
+def load_origin_models_by_op_dir(folder_path: Path) -> dict:
+    """
+    Map each unique-op directory to the models its op actually came from.
+
+    In the unique-ops flow the IRs are single-op modules living in generated
+    directories (``unique_ops/op_00042_stablehlo_add/irs/...``), so the model
+    name recovered from the path is that generated directory name rather than a
+    model. The extraction step records the real origin models per op in a
+    manifest; this reads it back so the recorded ``model_name`` stays meaningful.
+
+    Returns an empty dict when no manifest is present, which is the normal
+    whole-model flow where the directory name *is* the model name.
+    """
+    manifest_path = folder_path / UNIQUE_OPS_MANIFEST_FILENAME
+    if not manifest_path.is_file():
+        return {}
+
+    try:
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+    except (OSError, ValueError) as e:
+        print(f"WARNING: could not read unique-ops manifest {manifest_path}: {e}")
+        return {}
+
+    mapping = {}
+    for entry in manifest.get("manifest", []):
+        op_dir = entry.get("op_dir")
+        origin_models = [m for m in entry.get("origin_models", []) if m]
+        if op_dir and origin_models:
+            mapping[op_dir] = origin_models
+    print(
+        f"Loaded unique-ops manifest: {len(mapping)} op directories mapped to "
+        f"their origin models ({manifest_path})"
+    )
+    return mapping
 
 
 def filter_and_deduplicate_ops(
@@ -160,6 +203,8 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
         else:
             pytest.skip(f"No .mlir files found in {folder_path}")
 
+    origin_models_by_op_dir = load_origin_models_by_op_dir(folder_path)
+
     ops = []
     # Collect per-file failures so that a single unreadable or unsplittable IR does
     # not abort the whole job (which would drop every remaining model/op). Each
@@ -182,8 +227,18 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
             continue
         print(f"Processing IR file: {ir_file_path}")
 
+        # In the unique-ops flow `origin_model` is the generated op directory
+        # name; swap in the real models recorded at extraction time.
+        models_for_file = origin_models_by_op_dir.get(origin_model) or [origin_model]
+
         try:
-            module_ops = extract_ops_from_module(module, origin_model=origin_model)
+            module_ops = extract_ops_from_module(
+                module, origin_model=models_for_file[0]
+            )
+            # An op deduplicated across several models carries all of them.
+            for extra_model in models_for_file[1:]:
+                for op_wrapper in module_ops:
+                    op_wrapper.add_origin_model(extra_model)
         except Exception as e:
             print(
                 f"WARNING: Failed to extract ops from IR file, skipping.\n"

@@ -12,6 +12,11 @@ from pathlib import Path
 
 SECONDS_PER_MB = 120
 
+# Name of the unique-ops manifest written inside the extraction output root, so
+# it travels with the unique-op tree into the processing jobs. Kept in sync with
+# tests/op_by_op/op_by_op_test.py, which reads it to recover origin models.
+MANIFEST_FILENAME = "unique_ops_manifest.json"
+
 # Max model/op names listed inline per job in the human-readable plan summary.
 SUMMARY_MODEL_LIMIT = 25
 
@@ -289,6 +294,14 @@ def materialize_job(
         destination_dir.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source_dir), str(destination_dir))
 
+    # Carry top-level files across. Only the assigned directories are moved, so
+    # anything else at the root would be destroyed by the rmtree below -- which
+    # would take the unique-ops manifest with it, and op_by_op_test needs that
+    # manifest to report the models an op actually came from.
+    for entry in root.iterdir():
+        if entry.is_file():
+            shutil.move(str(entry), str(target_root / entry.name))
+
     shutil.rmtree(root)
     shutil.move(str(target_root), str(root))
 
@@ -523,6 +536,15 @@ def command_extract_unique_ops(args: argparse.Namespace) -> int:
 
     if args.manifest is not None:
         args.manifest.write_text(json.dumps(stats, indent=2), encoding="utf-8")
+
+    # Always drop a copy inside the output root as well. The processing jobs
+    # download only the unique-op tree, so this is what makes the op -> origin
+    # models mapping travel with the ops it describes; op_by_op_test reads it to
+    # report the real model names instead of the generated op directory names.
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    (args.output_root / MANIFEST_FILENAME).write_text(
+        json.dumps(stats, indent=2), encoding="utf-8"
+    )
 
     total = stats["total_ops_after_filter"]
     unique = stats["unique_ops"]
