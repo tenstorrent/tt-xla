@@ -960,6 +960,75 @@ def fill_cache_fake(
 
 
 @torch.library.custom_op(
+    "tt::zeros_buffer",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+    tags=(torch.Tag.nondeterministic_seeded,),
+)
+def zeros_buffer(
+    shape: List[int], dtype: torch.dtype, device: torch.device
+) -> torch.Tensor:
+    """
+    Allocate a zero-filled buffer that is guaranteed to be its own device allocation.
+
+    This function is a custom registered operator accessible as torch.ops.tt.zeros_buffer.
+    It creates a stablehlo.custom_call @tt.zeros_buffer op that tt-mlir converts to
+    ttir.zeros_buffer -> ttnn.zeros_buffer, which executes as ::ttnn::zeros.
+
+    Unlike torch.zeros, two calls with identical arguments never collapse into a
+    single buffer, and re-invoking a compiled function that contains one always
+    allocates again rather than returning the previously cached result. Use it only
+    where each call must yield its own buffer -- e.g. per-group vLLM KV caches.
+    Everywhere else torch.zeros is correct and cheaper, since this op is exempt from
+    CSE and const-eval by design.
+
+    Args:
+        shape: The shape of the buffer to allocate
+        dtype: The element type of the buffer
+        device: The device to allocate on
+
+    Returns:
+        A freshly allocated zero-filled tensor
+    """
+    if device.type != "xla":
+        return torch.zeros(shape, dtype=dtype, device=device)
+
+    # tt-mlir expects @tt.zeros_buffer with no operands -- shape and element type
+    # are read off the result type. torch-xla cannot emit that: its custom call
+    # builds the result tensors from inputs.front() and takes no device argument,
+    # so it rejects an empty operand list outright. Pass an anchor operand and let
+    # the plugin's stripZerosBufferAnchorOperands frontend pass remove it (and
+    # dead-code the constant) before tt-mlir sees the module.
+    #
+    # The anchor's own shape has to spell out the request. torch-xla hashes a
+    # custom call node from its target and its *operands* only -- the result type
+    # takes no part -- so with an anchor of some fixed shape, allocating (64, 128)
+    # and then (8, 16, 32, 128) collides in the lazy-tensor computation cache and
+    # the second call silently hands back a (64, 128) buffer. Encoding the shape
+    # in the anchor keeps distinct requests distinct, and the trailing zero
+    # dimension keeps the anchor itself empty, so nothing is materialized for it.
+    anchor = torch.zeros((*shape, 0), dtype=dtype, device=device)
+
+    return stablehlo_custom_call.stablehlo_custom_call(
+        [anchor],
+        "tt.zeros_buffer",
+        [shape],
+        [dtype],
+        # Load-bearing: without it XLA folds several identical allocations into
+        # one before tt-mlir ever sees them. Nothing downstream verifies this, so
+        # dropping it fails silently as "only one allocation appeared".
+        has_side_effect=True,
+    )
+
+
+@zeros_buffer.register_fake
+def zeros_buffer_fake(
+    shape: List[int], dtype: torch.dtype, device: torch.device
+) -> torch.Tensor:
+    return torch.empty(shape, dtype=dtype, device=device)
+
+
+@torch.library.custom_op(
     "tt::paged_update_cache", mutates_args=[], device_types=["xla", "cpu"]
 )
 def paged_update_cache(

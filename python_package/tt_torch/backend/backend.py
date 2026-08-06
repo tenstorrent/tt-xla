@@ -542,6 +542,8 @@ def torch_pass_pipeline(
     hlo_debug = os.environ.get("XLA_HLO_DEBUG", "0") == "1"
     node_info = extract_nodes_info(compiled_graph) if hlo_debug else {}
 
+    compiled_graph.graph.print_tabular()
+
     return compiled_graph, graph_signature, node_info, params_and_consts
 
 

@@ -4,6 +4,7 @@
 
 import pytest
 import torch
+import torch_xla
 import torch_xla.core.xla_model as xm
 from infra.utilities.types import Framework
 
@@ -355,3 +356,64 @@ def test_paged_flash_mla_decode(
         ],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("shape", [(64, 128), (8, 16, 32, 128)])
+def test_zeros_buffer(shape):
+    """Each call must yield its own device buffer, with torch.zeros contents.
+
+    Two calls with identical arguments are the interesting case: `torch.zeros`
+    would collapse them into one buffer before tt-mlir sees the graph, which is
+    exactly what `tt::zeros_buffer` exists to prevent. `run_op_test` is not used
+    here because it drives tensor operands against a CPU golden, and this op
+    takes shape/dtype/device instead.
+    """
+    device = torch_xla.device()
+
+    def make_two():
+        a = torch.ops.tt.zeros_buffer(list(shape), torch.bfloat16, device)
+        b = torch.ops.tt.zeros_buffer(list(shape), torch.bfloat16, device)
+        return a, b
+
+    a, b = torch.compile(make_two, backend="tt")()
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+
+    a_handle, b_handle = torch_xla._XLAC._get_tensors_handle([a, b])
+    assert a_handle != b_handle, f"both allocations share device buffer {a_handle}"
+
+    # Same result as torch.zeros: both execute as ::ttnn::zeros on device.
+    golden = torch.zeros(shape, dtype=torch.bfloat16)
+    assert torch.equal(a.cpu(), golden)
+    assert torch.equal(b.cpu(), golden)
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_zeros_buffer_reinvocation_allocates_again():
+    """Re-running the same compiled function must not hand back the old buffer.
+
+    Const-eval would otherwise hoist the allocation behind `ttcore.load_cached`,
+    which by design returns the cached result. Left at its default (enabled)
+    here on purpose -- a run with const-eval off would prove nothing.
+    """
+    device = torch_xla.device()
+
+    def make_one():
+        return torch.ops.tt.zeros_buffer([64, 128], torch.bfloat16, device)
+
+    compiled = torch.compile(make_one, backend="tt")
+
+    first = compiled()
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+    second = compiled()
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+
+    first_handle, second_handle = torch_xla._XLAC._get_tensors_handle([first, second])
+    assert (
+        first_handle != second_handle
+    ), f"re-invocation returned the previous buffer {first_handle}"
