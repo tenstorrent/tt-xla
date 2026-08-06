@@ -110,18 +110,26 @@ Ruled out from the log:
 - PR #5893's active-row offset guard never fired (no "active rows disagree").
 - Not empty output — 0 empty of 8. The rows generate, they generate wrong.
 
-Two confounds mean this **cannot yet be called a real bug**:
+### Retry on freshly reset devices: reproduces byte-for-byte
 
-1. **Devices were never reset between the runs.** `tt-smi -glx_reset` exited
-   **127 — `tt-smi: No such file or directory`** inside the container (tt-smi
-   lives on the host, not in the image). So Devstral ran on a mesh left in
-   whatever state a 48-minute Qwen run at a *different mesh shape* ((8,4) vs
-   (4,8)) left it.
-2. **The tt-mlir pin skew** documented above.
+The first run had a confound — `tt-smi -glx_reset` exited **127
+(`tt-smi: No such file or directory`)** inside the container, because tt-smi
+lives on the host and not in the image. So Devstral ran on a mesh left dirty by
+a 48-minute Qwen run at a *different mesh shape*.
 
-Next step is a re-run of Devstral alone with a device reset actually performed
-from the host. That distinguishes stale device state from a genuine
-mixed-batch row-corruption bug.
+Re-ran Devstral alone after a real host-side `tt-smi -glx_reset` (all 32 chips
+re-initialized). Result (`logs/4k_mixed/devstral_4k_b8_retry.log`, rc=1, 68 min):
+
+**Identical output on all 8 rows, character for character.** Same rows 1/2/3
+corrupted, same token soup, same assertion (word ratio 0.086).
+
+That is informative:
+
+- **Not stale device state.** The reset changed nothing.
+- **Not flaky.** Fully deterministic across two runs 1.5 h apart.
+- **Not thermal/timing.** Deterministic corruption of the *same* rows.
+
+Remaining confound is the **tt-mlir pin skew** documented above.
 
 ### Leading hypothesis if the retry reproduces: b1-prefill, not chunked SDPA
 

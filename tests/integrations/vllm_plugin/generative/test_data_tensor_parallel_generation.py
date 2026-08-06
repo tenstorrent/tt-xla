@@ -789,12 +789,20 @@ def test_dptp_qwen_mixed_4k(mesh_shape, max_model_len, batch_size):
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
 @pytest.mark.notimeout
+# prefill_batch_threshold gates the b1 serial-prefill path: ascend_scheduler
+# caps fresh prefills to min_num_seqs when pending <= threshold. At batch 8 that
+# is always armed. 0 disables it, so the run takes the same batched-prefill path
+# as the passing qwen case -- the single-variable discriminator for whether the
+# row corruption is a b1-prefill bug or a chunked-SDPA one.
+@pytest.mark.parametrize("prefill_batch_threshold", [16, 0])
 @pytest.mark.parametrize("batch_size", [8])
 @pytest.mark.parametrize("max_model_len", [4096])
 @pytest.mark.parametrize(
     "mesh_shape", [pytest.param([4, 8], marks=pytest.mark.bh_galaxy)]
 )
-def test_dptp_devstral_mixed_4k(mesh_shape, max_model_len, batch_size):
+def test_dptp_devstral_mixed_4k(
+    mesh_shape, max_model_len, batch_size, prefill_batch_threshold
+):
     """Devstral-123B, mesh (4,8), full depth, 4k context, mixed chunked batch."""
     model_name = "mistralai/Devstral-2-123B-Instruct-2512"
     prompts, long_indices = _mixed_batch(batch_size)
@@ -819,7 +827,7 @@ def test_dptp_devstral_mixed_4k(mesh_shape, max_model_len, batch_size):
             "enable_trace": True,
             "prefill_chunk_size": 128,
             "min_num_seqs": 1,
-            "prefill_batch_threshold": 16,
+            "prefill_batch_threshold": prefill_batch_threshold,
             "mesh_shape": mesh_shape,
             "cpu_sampling": False,
         },
@@ -827,7 +835,10 @@ def test_dptp_devstral_mixed_4k(mesh_shape, max_model_len, batch_size):
 
     outputs = llm.generate(prompts, sampling_params)
     assert len(outputs) == len(prompts)
-    num_empty = _report("devstral 4k b%d" % batch_size, prompts, long_indices, outputs)
+    num_empty = _report(
+        "devstral 4k b%d pbt%d" % (batch_size, prefill_batch_threshold),
+        prompts, long_indices, outputs,
+    )
     assert num_empty == 0, f"{num_empty} rows produced empty output"
     for out in outputs:
         assert_output_coherent(out.outputs[0].text)
