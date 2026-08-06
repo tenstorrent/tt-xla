@@ -35,15 +35,24 @@ nested inside the program that needs its result and is recorded in that program'
 a file carries a complete program tree rather than a slice of one. Reports are named
 `<program>_pid<pid>_tid<tid>_exec<index>.json` after the program and its execution index.
 
+Each report is written with a `<report>.python_io.json` sidecar holding one record per program
+operation: its op name, its MLIR location and op text, and the tensor ids it read and wrote.
+The importer reads the sidecar when it sits next to the report, and that is what fills the
+operation names, arguments, stack traces and the Graph tab — so keep the pair together when
+you move reports around. The format is ttnn's
+[`python_io`](https://github.com/tenstorrent/tt-metal/blob/main/tech_reports/ttnn/graph-tracing.md),
+which ttnn's own Python decorators write when a capture starts from Python.
+
 `REPORTS=0` records every execution from `FIRST` onwards, which is the mode to reach for on a
-short script. `capture_graph_report.py --steps 3 --reports 0` writes three files: 5.88 MB for
-the first step, which carries the const-eval subprograms, and 5.90 MB for each later step,
+short script. `capture_graph_report.py --steps 3 --reports 0` writes three files: 5.78 MB for
+the first step, which carries the const-eval subprograms, and 5.70 MB for each later step,
 which reuses their results.
 
 Both counters exist to bound cost, and detailed buffer tracing is what makes that cost real.
-One mnist forward is 12.19 MB. On a TinyLlama server the programs range from 5 KB to 188 MB
+One mnist forward is 12.15 MB. On a TinyLlama server the programs range from 5 KB to 188 MB
 apiece, and `REPORTS=0` wrote 1.7 GB over 23 reports before the server had finished starting
-— so `REPORTS=0` is a mode for a short script, not for a serving model.
+— so `REPORTS=0` is a mode for a short script, not for a serving model. Sidecars are small
+next to that: 8 KB to 53 KB across every capture measured here.
 
 Import merges as many reports as you point it at, so capturing several executions separately
 and merging at import time gives the same database as one wide window would.
@@ -75,16 +84,17 @@ the hook. Numbers are measured on an n300 (wh-17).
    python examples/pytorch/mnist.py
    ```
 
-3. Import the report. Expect one file of 12.19 MB named `main_pid<pid>_tid<tid>_exec0.json`
-   — the pid and tid differ because torch_xla executes on a worker thread.
+3. Import the report. Expect one file of 12.15 MB named `main_pid<pid>_tid<tid>_exec0.json`
+   plus its 53 KB sidecar — the pid and tid differ because torch_xla executes on a worker
+   thread.
 
    ```bash
    python examples/visualizer/import_graph_report.py \
        "$TT_RUNTIME_GRAPH_CAPTURE_DIR" --out dbs_mnist
    ```
 
-   The database holds 59 operations, 104 tensors and 1813 buffers, including
-   `Conv2dDeviceOperation`, `HaloDeviceOperation` and `InterleavedToShardedDeviceOperation`.
+   The database holds 71 operations, 82 tensors and 2491 buffers, including `Conv2dOp`,
+   `LinearOp` and `Pool2dOp`, each carrying the HLO instruction it came from.
 
 ## JAX — `examples/jax/simple_regression.py`
 
@@ -105,17 +115,17 @@ place to see numbered reports.
    python examples/jax/simple_regression.py
    ```
 
-3. Import them. Expect `main_pid<pid>_tid<tid>_exec{0,1,2}.json` at 34, 48 and 36 KB, with
-   pid and tid equal because JAX executes on the calling thread.
+3. Import them. Expect `main_pid<pid>_tid<tid>_exec{0,1,2}.json` at 52, 72 and 56 KB with
+   8–12 KB sidecars, and pid equal to tid because JAX executes on the calling thread.
 
    ```bash
    python examples/visualizer/import_graph_report.py \
        "$TT_RUNTIME_GRAPH_CAPTURE_DIR" --out dbs_jax
    ```
 
-   The merged database holds 9 operations, 17 tensors and 88 buffers — the tilize, matmul and
-   binary of three gradient steps. Pass the JSONs individually instead to get one database
-   per step.
+   The merged database holds 23 operations, 17 tensors and 220 buffers — the matmul, binary
+   and layout changes of three gradient steps, located as `loc("a")` and `loc("b")` after the
+   HLO argument names. Pass the JSONs individually instead to get one database per step.
 
 ## vLLM — `examples/vllm/TinyLlama-1.1B-Chat-v1.0`
 
@@ -201,9 +211,10 @@ served requests normally. The gap is upstream in tt-metal, so a bounded window i
 around it.
 
 Measured on TinyLlama-1.1B-Chat-v1.0 with `FIRST=40 REPORTS=1` and a 64-token completion: a
-3.65 MB report, importing in 4 s to a 438 KB database with 19 operations, 33 tensors and 8393
-buffer rows. One program is a slice of a decode step rather than the whole model, so raise
-`REPORTS` to follow consecutive programs — each lands as its own numbered file.
+2.99 MB report and a 17 KB sidecar, importing in 4 s to a 756 KB database with 38 operations,
+27 tensors and 17222 buffer rows. The server was ready in 4m51s and answered normally. One
+program is a slice of a decode step rather than the whole model, so raise `REPORTS` to follow
+consecutive programs — each lands as its own numbered file.
 
 ## Checking the hook without picking a sample
 
@@ -216,42 +227,44 @@ python examples/visualizer/import_graph_report.py graph_reports --out visualizer
 ```
 
 `--first` and `--reports` map straight onto the two variables. At `--steps 3 --reports 0` the
-run writes one report per step — 5.88 MB for the first, which carries the const-eval
-subprograms, then 5.90 MB each — and importing all three together gives 67 operations over
-1581 buffers.
+run writes one report per step — 5.78 MB for the first, which carries the const-eval
+subprograms, then 5.70 MB each — and importing all three together gives 93 operations over
+1820 buffers.
 
 ## What a tt-xla capture does and does not contain
 
-Present: the operation list, tensors, buffers and buffer pages, per-op device-operation
-trees, devices, the cluster descriptor, and report metadata carrying the tt-xla git URL
-and SHA.
+Present: the operation list, tensors, buffers and buffer pages, per-op device-operation trees,
+tensor lifetimes, devices, the cluster descriptor, and report metadata carrying the tt-xla git
+URL and SHA.
 
-Absent, and not fixable with a build flag:
+Operations are named after the program op — `Conv2dOp`, `LinearOp`, `Pool2dOp` — with the
+device operations each one dispatched nested inside it as its captured sub-graph. Every
+operation carries two arguments: `loc`, the MLIR location, which on a torch_xla or JAX capture
+is the HLO instruction name (`loc("convolution.49")`); and `mlir`, the op with all of its
+attributes. The stack-trace panel shows the same location. A few ops carry `loc(unknown)` — 3
+of 38 in the TinyLlama capture, among them the const-eval hoisting call and the typecasts
+around it, which no HLO instruction stands behind.
 
-- **Stack traces, source files and tensor lifetimes are empty, and operation names are
-  device-op level** (`MatmulDeviceOperation` rather than `ttnn.matmul`). All three come
-  from `python_io` records, which only ttnn's Python decorators write; ops arriving from
-  a C++ caller get none.
-- **The Graph tab never comes out connected.** Without `python_io` the importer falls back
-  to the graph tracker's own argument scan, which matches only plain `Tensor`-shaped types,
-  and it folds `Tensor::to_device`, `reshape`, `to_dtype` and `deallocate` away, rejecting
-  inputs whose producer went with them. Every capture measured breaks into many components:
+The Graph tab connects. What stays isolated is what has no edge to draw — the deallocation of
+a program input, and `GetDeviceOp`:
 
-  | Capture | Operations | Edges | Components | Largest | Isolated |
-  | --- | --- | --- | --- | --- | --- |
-  | mnist, one program | 59 | 28 | 31 | 11 | 20 |
-  | ConvNet, three programs | 67 | 17 | 50 | 4 | 39 |
-  | JAX, three programs | 9 | 5 | 4 | 3 | 1 |
-  | TinyLlama, one program | 19 | 11 | 8 | 9 | 6 |
-  | TinyLlama, wide window | 1236 | 1287 | 191 | 414 | 164 |
+| Capture | Operations | Edges | Components | Largest | Isolated |
+| --- | --- | --- | --- | --- | --- |
+| mnist, one program | 71 | 62 | 11 | 61 | 10 |
+| ConvNet, three programs | 93 | 72 | 25 | 69 | 24 |
+| JAX, three programs | 23 | 14 | 9 | 7 | 6 |
+| TinyLlama, one program | 38 | 33 | 5 | 34 | 4 |
 
-  The op mix moves the degree of fragmentation, not the outcome, and single-program captures
-  fragment as much as merged ones. Recording an input is not the same as having an edge to
-  draw: in the 1236-operation capture every operation records at least one input, yet 617 of
-  its 1948 input references name a tensor with no producer in the database. Convolutional
-  graphs fare worst, because halo and conv ops pass tensors inside attribute structs that
-  match nothing. A JAX-driven capture fragments like a torch one, so none of this is a
-  property of the hook.
+Every input reference naming a tensor that some operation in the report produced resolves to
+an edge. The ones left over name program inputs: in the mnist capture all 18 are weights or
+the input image, each referenced by the first op that touches it and by the deallocation that
+follows.
+
+Absent:
+
+- **Source files.** The Source tab resolves a stack trace by parsing Python frames, and an
+  MLIR location is not one, so `source_files` stays empty. The location names the HLO
+  instruction, not the line of model code behind it.
 - **The perf half of a report.** Tracy zones exist in Metalium and tt-mlir, but tt-xla's
   wheel build forces `TTMLIR_ENABLE_PERF_TRACE` off, so kernel timings need a source
   build under the tracy wrapper.
@@ -266,6 +279,7 @@ with ttnn.graph.full_graph_capture(out_path):
     ...
 ```
 
-That path records `python_io`, so its reports carry framework op names, stack traces and
-a fully connected Graph tab. It is the right reference to compare a tt-xla capture
-against.
+That path records `python_io` from ttnn's decorators, so its operations are named at the ttnn
+API level (`ttnn.matmul`) and its stack traces are real Python frames, which the Source tab
+can resolve to files. A tt-xla capture names operations at the program-op level and locates
+them in MLIR instead.
