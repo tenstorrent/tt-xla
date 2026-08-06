@@ -14,13 +14,13 @@
       "libreq": "libgl1 libglib2.0-0",
       "skip-ttir-dump": false,
       "skip-ttnn-dump": false,
-      "skip-device-perf": true,
-      "group": "regular"
+      "skip-device-perf": true
     },
     "tests": [
       {
         "name": "resnet",
-        "pytest": "tests/benchmark/test_vision.py::test_resnet50"
+        "pytest": "tests/benchmark/test_vision.py::test_resnet50",
+        "group": "regular"
       },
       {
         "name": "playground_v2_5",
@@ -87,391 +87,459 @@
       },
       {
         "name": "llama_3_1_8b_instruct",
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
+        "group": "regular"
       },
       {
         "name": "llama_3_1_70b_tp_galaxy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy",
-        "runs-on": "galaxy-wh-6u"
+        "runs-on": "galaxy-wh-6u",
+        "group": "regular"
       },
       {
         "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
-        "runs-on": "galaxy-wh-6u"
+        "runs-on": "galaxy-wh-6u",
+        "group": "regular"
       },
       {
         "name": "llama_3_1_70b_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "gpt_oss_20b_tp_batch_size_1_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1_qb2",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "llama_3_1_8b_instruct_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp_qb2",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "gpt_oss_120b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_1_70b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_qb2",
         "runs-on": "qb2-blackhole",
         "accuracy-testing": true,
-        "batch-size": 16
+        "batch-size": 16,
+        "group": "experimental"
       },
       {
         "name": "gpt_oss_20b_tp_batch_size_1_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "falcon3_7b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "falcon3_10b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_10b_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_1_8b_instruct_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "mistral_small_24b_instruct_2501_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_2_5_coder_32b_instruct_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_3_32b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_2_1b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_2_3b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_1_8b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "mistral_7b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_2_5_7b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "google_gemma-1.1-2b-it_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "google_gemma-2-2b-it_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gemma_2_2b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "microsoft_phi-1_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_phi1",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "microsoft_phi-1_5_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_phi1_5",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "microsoft_phi-2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_phi2",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "tiiuae_falcon3-1b-base_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "tiiuae_falcon3-3b-base_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "tiiuae_falcon3-7b-base_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_2_5_0_5b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_2_5_1_5b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_1_5b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_2_5_3b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_3b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_3_0_6b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_3_1_7b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_3_4b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "qwen_3_8b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "ministral_8b_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "llama_3_1_70b_tp_galaxy_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_galaxy",
         "runs-on": "galaxy-wh-6u",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "gpt_oss_20b_tp_galaxy_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "runs-on": "galaxy-wh-6u",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "gpt_oss_120b_tp_galaxy_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_galaxy_batch_size_64",
         "runs-on": "galaxy-wh-6u",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "gpt_oss_120b_tp_dp_galaxy_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
         "runs-on": "galaxy-wh-6u",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_llama_3_2_1b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_llama_3_2_3b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_llama_3_1_8b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen2_5_0_5b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-0.5b-instruct]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen2_5_1_5b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-1.5b-instruct]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen2_5_3b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-3b-instruct]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen2_5_7b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-7b-instruct]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen3_0_6b_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-0.6b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen3_1_7b_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-1.7b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen3_4b_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen3_8b_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_gemma_1_1_2b_it_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[gemma-1.1-2b-it]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_phi_1_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_phi_1_5_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1_5]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_phi_2_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-2]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_falcon3_1b_base_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_falcon3_3b_base_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-3b-base]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_falcon3_7b_base_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-7b-base]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_mistral_7b_instruct_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[mistral-7b-instruct]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_ministral_8b_accuracy",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[ministral-8b]",
         "vllm": true,
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_llama_3_2_3b_instruct_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-instruct-production]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "regular"
       },
       {
         "name": "vllm_llama_3_1_8b",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b]",
         "vllm": true,
-        "skip-device-perf": true
+        "skip-device-perf": true,
+        "group": "regular"
       },
       {
         "name": "vllm_llama_3_1_8b_instruct_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b-instruct-production]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "regular"
       },
       {
         "name": "vllm_qwen3_4b_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b-production]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "regular"
       },
       {
         "name": "vllm_qwen3_8b_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b-production]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "regular"
       },
       {
         "name": "vllm_falcon3_7b_instruct_production",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-7b-instruct-production]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "p150-perf"
+        "runs-on": "p150-perf",
+        "group": "regular"
       },
       {
         "name": "vllm_gemma4_31b_it_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gemma4-31b-it-tp]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "vllm_llama_3_1_8b_qb2_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-8b-qb2-tp]",
         "vllm": true,
         "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "vllm_llama_3_1_8b_qb2_tp_accuracy",
@@ -479,7 +547,8 @@
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_qwen3_32b_qb2_tp_accuracy",
@@ -487,7 +556,8 @@
         "vllm": true,
         "skip-device-perf": true,
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "group": "experimental"
       },
       {
         "name": "vllm_llama_3_1_70b_qb2_tp",
@@ -497,7 +567,8 @@
         "skip-ttir-dump": true,
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "regular"
       },
       {
         "name": "wan_umt5_sharded",
