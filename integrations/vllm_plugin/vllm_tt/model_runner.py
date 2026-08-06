@@ -602,6 +602,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.speculative_config.method == "ngram":
                 self.drafter = NgramProposer(vllm_config)
 
+        self._dp_free_slots: list[int] = []
+
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
             max_num_reqs=self.max_num_reqs,
@@ -954,6 +956,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             True if there is a new/resumed/paused/finished request.
             If False, we can skip copying SamplingMetadata to the GPU.
         """
+        dp_active = self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
+        )
+
+        # A request aborted and resubmitted with the same ID in one step appears
+        # in both finished_req_ids and scheduled_new_reqs. Under DP we reserve
+        # its slot and refresh it in place, rather than parking (which would
+        # duplicate the row) or freeing it (which could leave a hole).
+        resubmitted = (
+            scheduler_output.finished_req_ids
+            & {new.req_id for new in scheduler_output.scheduled_new_reqs}
+            if dp_active
+            else frozenset()
+        )
+
         # Remove finished requests from the cached states.
         for req_id in scheduler_output.finished_req_ids:
             if self._telemetry.enabled:
@@ -966,6 +984,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         int(done.num_prompt_tokens),
                         len(done.output_token_ids),
                     )
+            if dp_active and req_id not in resubmitted:
+                continue
             self.requests.pop(req_id, None)
             self.num_prompt_logprobs.pop(req_id, None)
 
@@ -977,6 +997,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # and handling the second as a new request.
         removed_req_indices: list[int] = []
         for req_id in scheduler_output.finished_req_ids:
+            if dp_active:
+                if req_id in resubmitted:
+                    # Reserve the slot; reclaim refreshes it in place below.
+                    continue
+                idx = self.input_batch.req_id_to_index.get(req_id)
+                if idx is not None and idx not in self._dp_free_slots:
+                    self._dp_free_slots.append(idx)
+                continue
             req_index = self.input_batch.remove_request(req_id)
             if req_index is not None:
                 removed_req_indices.append(req_index)
@@ -1098,9 +1126,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         for req_id in req_ids_to_add:
             req_state = self.requests[req_id]
-            # Fill the empty index or append to the end
-            req_index = removed_req_indices.pop() if removed_req_indices else None
-            self.input_batch.add_request(req_state, req_index)
+            existing_index = (
+                self.input_batch.req_id_to_index.get(req_id) if dp_active else None
+            )
+            if existing_index is not None:
+                # Resubmit: clear the old incarnation's batch metadata, then
+                # reinstall the fresh state at the same reserved slot.
+                self.input_batch.remove_request(req_id)
+                self.input_batch.add_request(req_state, existing_index)
+            elif dp_active and self._dp_free_slots:
+                req_index = self._dp_free_slots.pop(0)
+                old_id = self.input_batch.req_ids[req_index]
+                # Evict the parked occupant before reusing its slot.
+                if old_id is not None and old_id != req_id:
+                    self.requests.pop(old_id, None)
+                    self.num_prompt_logprobs.pop(old_id, None)
+                    self.input_batch.remove_request(old_id)
+                self.input_batch.add_request(req_state, req_index)
+            else:
+                # Fill the empty index or append to the end
+                req_index = removed_req_indices.pop() if removed_req_indices else None
+                self.input_batch.add_request(req_state, req_index)
             if self._telemetry.enabled:
                 # req_index is None for an appended row, so read back the
                 # assigned index. A prefix-cache hit shows as nonzero cached tokens.
@@ -1114,7 +1160,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
         # Condense the batched states if there are empty indices.
-        if removed_req_indices:
+        # TODO(dp-aware-condense): skipped under DP because relocating a request
+        # breaks its slot->replica KV-cache affinity and corrupts decode. A
+        # DP-aware condense (within each replica's slot range) is the fix. #5896.
+        if removed_req_indices and not dp_active:
             self.input_batch.condense(removed_req_indices)
 
         # Write scheduled speculative tokens into the input batch token buffer.
@@ -1684,13 +1733,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
-        # A running (already-prefilled) request re-batched into a later prefill
-        # step contributes 0 new tokens. paged_fill_cache still writes its row,
-        # and since fill_page_table[row] points at that request's real blocks, it
-        # clobbers the KV written in the earlier step with padding. Under DP+TP
-        # such an inactive row lands inside the active range (row 0), not at the
-        # tail, so the tail-clearing below misses it. Redirect these rows' fill to
-        # the null block (0); the read-path page_table keeps the real blocks.
+        # Rows scheduled 0 tokens this step are parked (finished/unscheduled)
+        # under DP and land inside the active range (e.g. row 0), not at the
+        # tail. Both their fill and read page tables are redirected to the null
+        # block below (see the masking after the tail-clear) so they can't
+        # clobber real KV; the discarded read is harmless.
         zero_sched_rows = np.nonzero(num_scheduled_tokens_per_req == 0)[0]
 
         batch_idx = self._batch_idx_dev[target_num_reqs]
@@ -1806,16 +1853,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
             else:
                 fill_page_table = page_table
-            if len(zero_sched_rows) > 0:
-                if fill_page_table is page_table:
-                    fill_page_table = page_table.clone()
-                fill_page_table[zero_sched_rows, :] = 0
 
             # Clear unused rows so persistent device buffers don't keep stale
             # block indices from a previous call (would surface as KV bleed).
             page_table[actual_num_reqs:, :] = 0
             if fill_page_table is not page_table:
                 fill_page_table[actual_num_reqs:, :] = 0
+
+            # A parked (0-token) row points at the null block so its KV write
+            # can't touch blocks the scheduler freed and reassigned.
+            # fill_page_table IS page_table unless a prefix roll split them, so
+            # guard the second write.
+            if len(zero_sched_rows) > 0:
+                page_table[zero_sched_rows, :] = 0
+                if fill_page_table is not page_table:
+                    fill_page_table[zero_sched_rows, :] = 0
 
             page_table_dev.copy_(page_table)
             if fill_page_table is page_table:
