@@ -4099,6 +4099,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dtype=self._hidden_states_dtype,
         )
         dummy_logits = dummy_logits.to(self.device)
+        # This warm-up graph is compiled standalone, so nothing else defines the
+        # @mesh symbol that structured_decode's gather constraint names; without
+        # this the module fails to verify with "unknown mesh: @mesh".
+        if self.is_sharded_compute_logits:
+            safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
         dummy_require_struct_decoding = self.require_structured_out_cpu[
             : self.max_num_reqs
         ].to(self.device)
@@ -4986,17 +4991,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> torch.Tensor:
         # Grammar masking operates over the full vocab via a packed bitmask laid
         # out as (vocab/32, 32); vocab/32 is not divisible by the model-axis
-        # mesh size, so the mask cannot be vocab-sharded. Gather the (possibly
-        # vocab-sharded) lm_head logits to replicated first. No-op when not
-        # tensor-parallel; only paid on the grammar path, which needs full vocab.
-        if self.enable_tensor_parallel:
+        # mesh size, so the mask cannot be vocab-sharded. Gather the
+        # vocab-sharded lm_head logits to replicated first. With a tied lm_head
+        # they already arrive replicated, so skip it there.
+        if self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         masked = torch.where(
             require_struct_decoding,
             self.apply_grammar_bitmask(logits, grammar_bitmask, bitmasks),
             logits,
         )
-        if self.enable_tensor_parallel:
+        if self.is_sharded_compute_logits:
             # Anchor the result replicated so a downstream vocab-sharding
             # constraint (sample_from_logits) does not back-propagate into the
             # unshardable grammar-mask reshape.
