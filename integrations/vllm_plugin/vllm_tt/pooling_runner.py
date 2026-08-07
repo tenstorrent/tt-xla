@@ -233,7 +233,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
 
         self.tt_config = TTConfig(**vllm_config.additional_config)
-        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -378,7 +377,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.vocab_size = model_config.get_vocab_size()
 
         if self.lora_config is not None:
-            self.vocab_size += self.lora_config.lora_extra_vocab_size
+            self.vocab_size += getattr(self.lora_config, "lora_extra_vocab_size", 0)
 
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY

@@ -127,10 +127,13 @@ def test_ngram_spec_decode_matches_greedy_tensor_parallel():
 def test_ngram_spec_decode_matches_greedy_data_parallel():
     """Data parallel, where rows are sharded across chips and the batch is padded
     with zero-token rows, which is what the boundary trim has to cope with."""
+    # v1 runner: the chunked SDPA prefix offset is one value shared by the whole
+    # pass, and under DP a row cannot be trimmed away to leave a single block
+    # boundary, so v2 asserts. Needs a per-user offset in the attention op.
     _assert_spec_matches_greedy(
         "data parallel",
         model=MULTICHIP_MODEL,
-        extra_config={"enable_data_parallel": True},
+        extra_config={"enable_data_parallel": True, "use_v2_model_runner": False},
         gpu_memory_utilization=0.1,
     )
 
@@ -147,13 +150,18 @@ def test_ngram_spec_decode_matches_greedy_data_tensor_parallel():
     open correctness bug (first local user of each replica), so going wider here
     would corrupt the baseline and make the comparison meaningless.
 
-    Per-device batch 1 means each pass carries one row, so this does not exercise
-    the boundary trim; it checks that spec decode works at all with the cache
-    sharded on both axes.
+    It checks that spec decode works at all with the cache sharded on both axes.
+    Per-device batch 1 does not by itself keep a pass on one block boundary: the
+    v2 runner hits the multi-boundary assert here too.
     """
+    # v1 runner, for the same shared prefix-offset reason as the DP variant.
     _assert_spec_matches_greedy(
         "data + tensor parallel",
         model=MULTICHIP_MODEL,
-        extra_config={"enable_tensor_parallel": True, "enable_data_parallel": True},
+        extra_config={
+            "enable_tensor_parallel": True,
+            "enable_data_parallel": True,
+            "use_v2_model_runner": False,
+        },
         gpu_memory_utilization=0.1,
     )

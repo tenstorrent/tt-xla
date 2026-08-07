@@ -188,7 +188,6 @@ class TTWorker:
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
     def init_device(self):
-        # os.environ["PJRT_DEVICE"] = "TT"
         xr.set_device_type("TT")
         torch.set_grad_enabled(False)
         torch.set_default_dtype(self.model_config.dtype)
@@ -202,6 +201,9 @@ class TTWorker:
         # the distributed runtime.
         self.device = torch_xla.device()
         self.device_config.device = self.device
+
+        # Must run after the XLA runtime is up and before the model runner is built.
+        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         # Set random seed.
         set_random_seed(self.model_config.seed)
@@ -230,13 +232,21 @@ class TTWorker:
             xr.initialize_cache(per_rank_path, readonly=False)
 
         # Init ModelRunner here, so that we have access to self.device.
-        ModelRunnerClass = TTModelRunner
-        if self.model_config.runner_type == "pooling":
-            ModelRunnerClass = TTPoolingModelRunner
+        # Pooling models always use the v1 runner.
+        use_v2 = self.tt_config.use_v2_model_runner
+        if use_v2 and self.model_config.runner_type != "pooling":
+            from .model_runner_v2 import TTModelRunnerV2
 
-        self.model_runner = ModelRunnerClass(
-            self.vllm_config, self.device, self.original_parallel_config
-        )
+            self.model_runner = TTModelRunnerV2(
+                self.vllm_config, self.device, self.original_parallel_config
+            )
+        else:
+            ModelRunnerClass = TTModelRunner
+            if self.model_config.runner_type == "pooling":
+                ModelRunnerClass = TTPoolingModelRunner
+            self.model_runner = ModelRunnerClass(
+                self.vllm_config, self.device, self.original_parallel_config
+            )
 
         if rank == 0:
             # If usage stat is enabled, collect relevant info.
