@@ -708,3 +708,251 @@ def test_tensor_parallel_generation_deepseek_v32_dsa(mesh_shape: list[int], tmp_
     )
 
     check_host_memory(model_dir)
+
+
+DSA_FULL_NUM_LAYERS = 61  # deepseek-ai/DeepSeek-V3.2-Exp config.json: num_hidden_layers
+
+
+def _dsa_full_model_dir():
+    """The offline BF16 checkpoint for all 61 layers, or skip with build instructions.
+
+    Same rationale as ``_dsa_model_dir`` (published checkpoint is fp8, which
+    routes to CUDA-only GEMMs). At ``n_layers=DSA_FULL_NUM_LAYERS`` the cache
+    holds every layer, so -- unlike the 3-layer tests -- no
+    ``additional_config["num_hidden_layers"]`` override is needed at load time.
+    """
+    import sys
+    from pathlib import Path
+
+    script_dir = Path(__file__).resolve().parents[3] / "torch/models/deepseek_v3_2_exp"
+    sys.path.insert(0, str(script_dir))
+    from build_weight_cache import _has_cache, _vllm_cache_dir
+
+    cache_dir = _vllm_cache_dir(DSA_REPO, DSA_FULL_NUM_LAYERS)
+    if not _has_cache(cache_dir):
+        pytest.skip(
+            f"DSA bf16 checkpoint not found at {cache_dir}. Build it once with:\n"
+            f"  python {script_dir}/build_weight_cache.py "
+            f"--repo {DSA_REPO} --n-layers {DSA_FULL_NUM_LAYERS} --vllm-keys"
+        )
+    return cache_dir
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.bh_galaxy
+def test_tensor_parallel_generation_deepseek_v32_full():
+    """All 61 layers of DeepSeek-V3.2 generate 10 tokens end to end.
+
+    Unlike ``test_tensor_parallel_generation_deepseek_v32_3l``, this loads every
+    dense layer (0-2) and every MoE layer (3-60), so the output is expected to be
+    coherent English rather than the 3-layer stub's gibberish.
+
+    ``mesh_shape=[8, 4]`` is the 32-device Blackhole Galaxy (``bh_galaxy``)
+    shape; its model axis of 4 gives 128 / 4 = 32 query heads per device, which
+    would satisfy ``tt.sparse_sdpa``'s "heads >= 32 and a multiple of 32"
+    constraint (docs/dsa-blackhole-handoff.md 5.1) if a DSA op were emitted
+    here. At the stock ``index_topk=2048`` and a 128-token prefill bucket, the
+    sparse predicate (``seq_len >= index_topk``) does not clear, so this run
+    stays on the dense MLA path -- it is a full-model smoke test, not a DSA
+    correctness gate (that lives in the 3-layer tests above).
+
+    ``optimization_level=0``: DeepSeek-V2-Lite (also MoE) needed this in
+    ``test_tensor_parallel_generation_llmbox_large`` because opt_level=1's MoE
+    all_to_all_dispatch requires row-major layout (tt-mlir#8920); the 58 MoE
+    layers here (``first_k_dense_replace=3``) hit the same op.
+
+    ``weight_dtype_overrides``: the 256 routed experts (58 MoE layers) are
+    ~654B params, and ``partition_fused_moe`` (vllm_distributed_utils.py)
+    expert-shards them across the full ``mesh_shape`` product (32-way here)
+    regardless of ``shard_weights_on_batch_axis``, giving ~20.4B params/device.
+    At bf16 that alone is ~38 GiB -- already over this chip's ~31.88 GiB DRAM,
+    which is what OOM'd (tt-metal bank_manager, "Not enough space to allocate
+    ... DRAM buffer") before quantization was added.
+
+    An earlier version of this test used the coarse ``experimental_weight_dtype
+    = "bfp_bf8"`` compile flag, which converts *every* matmul/linear weight in
+    the graph. Exported IR from 2- and 4-layer diagnostics confirmed it hit the
+    attention/indexer projections too (e.g. ``fused_qkv_a_proj``, the DSA
+    indexer's ``wk_weights_proj``) -- unintended, since only the MoE expert
+    weights need it for memory, and quantizing attention weights is pure
+    downside risk. (The router, ``mlp.gate.weight``, and ``lm_head``/
+    ``embed_tokens`` were never touched by either mechanism -- confirmed bf16
+    in the same IR dumps.) ``weight_dtype_overrides`` is the per-tensor
+    mechanism (``tt_torch/weight_dtype.py``, applied via
+    ``apply_weight_dtype_overrides`` in ``model_runner.py`` after weight load,
+    before compile) that scopes the conversion to just ``w13_weight`` /
+    ``w2_weight`` -- the two tensors ``partition_fused_moe`` treats specially
+    -- via fnmatch globs against vLLM's parameter names, leaving attention,
+    indexer, router, and lm_head at bf16. bfp_bf8 roughly halves the ~38 GiB
+    expert footprint to ~20 GiB/device, the same memory win as before with a
+    much narrower blast radius.
+
+    ``ignore_eos=True`` forces exactly 10 tokens regardless of where the real
+    model (unlike the 3-layer stub) might otherwise stop on EOS.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "weight_dtype_overrides": {
+                "*.mlp.experts.w13_weight": "bfp_bf8",
+                "*.mlp.experts.w2_weight": "bfp_bf8",
+            },
+        },
+    )
+
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+    assert (
+        len(output.token_ids) == 10
+    ), f"expected exactly 10 tokens (ignore_eos=True), got {len(output.token_ids)}"
+    assert_output_coherent(output.text)
+
+    check_host_memory(model_dir)
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_2layer_bfp8_ir_diagnostic():
+    """DIAGNOSTIC, not a correctness gate -- investigating the garbage output from
+    test_tensor_parallel_generation_deepseek_v32_full.
+
+    2 layers (both dense: first_k_dense_replace=3, so no MoE/router is present
+    yet) at the same experimental_weight_dtype="bfp_bf8" + optimization_level=0
+    settings, reusing the already-downloaded 61-layer cache via
+    num_hidden_layers override (no new download). Exports IR to a fixed path so
+    it can be inspected after the run without hunting through pytest tmp dirs.
+    Fast (~2 layers) sanity check that bfp_bf8 conversion is actually reaching
+    the compiled graph (e.g. on lm_head) before testing the MoE-router
+    hypothesis at 4+ layers.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+    export_dir = "/tmp/claude-1003/-home-ubuntu-hshah-tt-xla-dsa/9bcd6cb1-e2d7-407a-9395-1034fa048273/scratchpad/dsa_2layer_ir"
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 2,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "export_path": export_dir,
+            "export_model_name": "dsa_2l_bfp8",
+        },
+    )
+
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_4layer_bfp8_ir_diagnostic():
+    """DIAGNOSTIC, not a correctness gate -- follow-up to
+    test_dsa_v32_2layer_bfp8_ir_diagnostic.
+
+    4 layers: first_k_dense_replace=3, so layer 3 is the first real MoE layer
+    (router + 256 experts). The 2-layer check confirmed bfp_bf8 conversion
+    reaches ordinary attention/indexer weights but NOT lm_head/embed_tokens.
+    This checks whether it also reaches mlp.gate.weight (the MoE router) and
+    the expert FFN weights (w13_weight/w2_weight) -- the mechanism most
+    directly implicated in the garbage output from the full 61-layer run.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+    export_dir = "/tmp/claude-1003/-home-ubuntu-hshah-tt-xla-dsa/9bcd6cb1-e2d7-407a-9395-1034fa048273/scratchpad/dsa_4layer_ir"
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 4,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "export_path": export_dir,
+            "export_model_name": "dsa_4l_bfp8",
+        },
+    )
+
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_4layer_scoped_moe_bfp8_ir_diagnostic():
+    """DIAGNOSTIC, not a correctness gate -- validates the scoped-quantization
+    fix in test_tensor_parallel_generation_deepseek_v32_full.
+
+    Same 4-layer setup as test_dsa_v32_4layer_bfp8_ir_diagnostic, but with
+    weight_dtype_overrides scoped to just *.mlp.experts.{w13,w2}_weight
+    instead of the blanket experimental_weight_dtype flag. Confirms (via
+    exported IR) that attention/indexer weights now stay bf16 while the
+    expert weights still get bfp8'd, and that model_runner.py logs "Applied 2
+    per-tensor weight dtype override(s)" (one MoE layer present -> w13 + w2).
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+    export_dir = "/tmp/claude-1003/-home-ubuntu-hshah-tt-xla-dsa/9bcd6cb1-e2d7-407a-9395-1034fa048273/scratchpad/dsa_4layer_scoped_ir"
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 4,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "weight_dtype_overrides": {
+                "*.mlp.experts.w13_weight": "bfp_bf8",
+                "*.mlp.experts.w2_weight": "bfp_bf8",
+            },
+            "export_path": export_dir,
+            "export_model_name": "dsa_4l_scoped_bfp8",
+        },
+    )
+
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")

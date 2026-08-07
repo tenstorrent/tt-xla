@@ -3748,5 +3748,6 @@
     "tests/integrations/vllm_plugin/sampling/test_sampling_params.py::test_structured_outputs_regex[n300_llmbox]": 5.14,
     "tests/integrations/vllm_plugin/sampling/test_sampling_params.py::test_structured_outputs_regex[single_device]": 1.46,
     "tests/integrations/vllm_plugin/sampling/test_sampling_params.py::test_truncate_prompt_tokens[single_device]": 0.9,
-    "tests/integrations/vllm_plugin/sampling/test_trace_logprobs.py::test_opt125m_trace_logprobs": 50.97
+    "tests/integrations/vllm_plugin/sampling/test_trace_logprobs.py::test_opt125m_trace_logprobs": 50.97,
+    "tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py::test_tensor_parallel_generation_deepseek_v32_full": 21600.0
 }
