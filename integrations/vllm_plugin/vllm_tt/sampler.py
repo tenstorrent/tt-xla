@@ -31,7 +31,23 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
 
 
 _SAMPLING_EPS = 1e-5
-_TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
+# Max rows per ttnn.sampling invocation (one Tensix core per user). Also the
+# width where multi-core ttnn.topk is fastest, so batches are padded up to it.
+_TTNN_SAMPLING_BATCH_SIZE = 32
+
+
+def sampling_pad_rows(batch: int, dp_size: int) -> int:
+    """Rows to append to a global batch to make it legal for the ttnn kernels.
+
+    Never negative: F.pad crops on a negative amount, dropping requests.
+
+    Under data parallelism the kernel only sees batch / dp_size rows, already
+    within the limit, so pad just enough for Shardy to split dim 0 evenly.
+    Padding to 32 * dp_size would inflate the logits tensor dp_size-fold.
+    """
+    if dp_size > 1:
+        return -batch % dp_size
+    return max(0, _TTNN_SAMPLING_BATCH_SIZE - batch)
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -57,13 +73,15 @@ def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Te
 
 
 class Sampler(nn.Module):
-    def __init__(self):
+    def __init__(self, dp_size: int = 1):
         # TODO(houseroad): Add support for logprobs_mode.
         # Note: basic logprob support is already working — when logprobs are
         # requested, model_runner.py calls gather_logprobs() after forward()
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
+        # Shapes here are SPMD global; the kernel sees global / dp_size rows.
+        self.dp_size = dp_size
 
     def forward(
         self,
@@ -217,7 +235,9 @@ class Sampler(nn.Module):
         # Build the candidate set via chunked multi-core topk. The fused
         # tt::sampling kernel applies user top-k, top-p, softmax, and
         # multinomial downstream — no need to filter twice here.
-        filtered_logits, candidate_indices = chunked_topk_candidates(logits)
+        filtered_logits, candidate_indices = chunked_topk_candidates(
+            logits, self.dp_size
+        )
         random_sampled = self._ttnn_sampling_padded(
             filtered_logits, candidate_indices, sampling_metadata
         )
@@ -357,9 +377,18 @@ class Sampler(nn.Module):
             is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp
         ).to(torch.bfloat16)
 
-        # Pad batch to 32 (kernel requirement).
-        if batch < _TTNN_SAMPLING_BATCH_SIZE:
-            pad_size = _TTNN_SAMPLING_BATCH_SIZE - batch
+        pad_size = sampling_pad_rows(batch, self.dp_size)
+        local_batch = (batch + pad_size) // self.dp_size
+        if local_batch > _TTNN_SAMPLING_BATCH_SIZE:
+            raise ValueError(
+                f"on-device sampling needs at most {_TTNN_SAMPLING_BATCH_SIZE} rows "
+                f"per device (one Tensix core per user), got {local_batch} "
+                f"(global batch {batch} over dp_size {self.dp_size}). Lower "
+                f"max_num_seqs, raise the data-parallel degree, or set "
+                f"cpu_sampling=True."
+            )
+
+        if pad_size:
             values = torch.nn.functional.pad(
                 values, (0, 0, 0, pad_size), value=float("-inf")
             )
@@ -374,6 +403,7 @@ class Sampler(nn.Module):
 
 def chunked_topk_candidates(
     logits: torch.Tensor,
+    dp_size: int = 1,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Build a per-row top-K candidate set via multi-core ttnn.topk.
 
@@ -389,13 +419,14 @@ def chunked_topk_candidates(
     batch = logits.shape[0]
     chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
 
-    # Multi-core topk is 14x faster at batch=32 vs small batches — pad
-    # with -inf rows so dummy entries can't win the topk.
-    logits = torch.nn.functional.pad(
-        logits,
-        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
-        value=float("-inf"),
-    )
+    # Pad with -inf rows so dummy entries can't win the topk.
+    pad_rows = sampling_pad_rows(batch, dp_size)
+    if pad_rows:
+        logits = torch.nn.functional.pad(
+            logits,
+            (0, 0, 0, pad_rows),
+            value=float("-inf"),
+        )
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
