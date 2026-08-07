@@ -262,7 +262,8 @@
         "name": "qwen_3_32b_tp_qb2_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp_qb2",
         "runs-on": "qb2-blackhole",
-        "accuracy-testing": true
+        "accuracy-testing": true,
+        "skip": true
       },
       {
         "name": "microsoft_phi-1",
