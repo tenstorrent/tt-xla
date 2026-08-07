@@ -115,6 +115,10 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "xtts_v2",
+        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
