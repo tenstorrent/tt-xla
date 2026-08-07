@@ -4669,14 +4669,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
         if indices_do_sample.ndim == 1:
-            batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-            result = hidden_states[batch_indices, indices_do_sample, :]
+            # Gather the per-row position along the seq dim. Advanced indexing
+            # hidden_states[batch_indices, indices_do_sample, :] lowers to a flat
+            # gather (flat = row*seq + pos) that returns the wrong row once the
+            # flat index exceeds num_cores*TILE_HEIGHT (=2048), corrupting logits
+            # for batch rows past that boundary. torch.gather along dim 1 indexes
+            # within each row (0..seq-1) and never forms that large flat index.
+            _H = hidden_states.shape[-1]
+            _idx = indices_do_sample.to(torch.int64).view(-1, 1, 1).expand(-1, 1, _H)
+            result = torch.gather(hidden_states, 1, _idx).squeeze(1)
         else:
-            batch_indices = torch.arange(
-                indices_do_sample.shape[0], dtype=torch.int32
-            ).unsqueeze(1)
-            batch_indices = batch_indices.expand_as(indices_do_sample)
-            result = hidden_states[batch_indices, indices_do_sample, :]
+            # Same flat-index gather hazard as above (spec-decode: several
+            # positions per row). Gather along the seq dim per (row, position).
+            _H = hidden_states.shape[-1]
+            _idx = indices_do_sample.to(torch.int64).unsqueeze(-1).expand(
+                -1, -1, _H
+            )
+            result = torch.gather(hidden_states, 1, _idx)
             result = result.reshape(-1, result.shape[-1])
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
