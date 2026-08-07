@@ -79,13 +79,7 @@ def topk_both_comparator(device_output, golden_output, args, kwargs):
         ((1, 30), 5),
         ((1, 40), 5),
         ((1, 50000), 100),
-        pytest.param(
-            (1, 8400),
-            300,
-            marks=pytest.mark.xfail(
-                reason="Bad PCC due to ttnn sort bug for greater than 256 elements - https://github.com/tenstorrent/tt-xla/issues/1797"
-            ),
-        ),
+        ((1, 8400), 300),
     ],
 )
 def test_topk_indices(input_shape: tuple, k: int):
@@ -160,13 +154,7 @@ def test_topk_values(input_shape: tuple, k: int):
         ((1, 30), 5),
         ((1, 40), 5),
         ((1, 50000), 100),
-        pytest.param(
-            (1, 8400),
-            300,
-            marks=pytest.mark.xfail(
-                reason="Bad PCC due to ttnn sort bug for greater than 256 elements - https://github.com/tenstorrent/tt-xla/issues/1797"
-            ),
-        ),
+        ((1, 8400), 300),
     ],
 )
 def test_topk_both(input_shape: tuple, k: int):

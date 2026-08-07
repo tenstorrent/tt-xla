@@ -485,6 +485,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.tt_config.max_prefill_num_seqs is not None
             else self.max_num_reqs
         )
+        # Resolved from the *unpadded* max_num_seqs in platform.py, so under DP
+        # they can land on a non-multiple of dp_size. Align them up.
+        if self.dp_size > 1:
+            for _name in ("min_num_reqs", "max_prefill_num_reqs"):
+                _old = getattr(self, _name)
+                _new = min(
+                    _align_num_reqs_for_dp(_old, self.dp_size, round_up=True),
+                    self.max_num_reqs,
+                )
+                if _new != _old:
+                    logger.warning(
+                        "Data parallel requires %s divisible by dp_size; "
+                        "adjusting from %d to %d.",
+                        _name,
+                        _old,
+                        _new,
+                    )
+                    setattr(self, _name, _new)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -662,6 +680,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # absolute block ids. Set in initialize_kv_cache.
         self._group_is_sliding: list[bool] = [False]
         self._group_window_blocks: list[int] = [0]
+        # SMEM-capped, so round DOWN to stay under the limit. Rounding to 0
+        # means this context length cannot host dp_size rows at all.
+        if self.dp_size > 1:
+            _old = self.num_reqs_max_model_len
+            _new = _align_num_reqs_for_dp(_old, self.dp_size, round_up=False)
+            if _new == 0:
+                raise ValueError(
+                    f"num_reqs_max_model_len={_old} is below dp_size="
+                    f"{self.dp_size}: this max_model_len/block_size only fits "
+                    f"{_old} rows in SMEM, so a data-parallel batch cannot be "
+                    f"sharded across {self.dp_size} replicas. Lower dp_size or "
+                    f"max_model_len."
+                )
+            if _new != _old:
+                logger.warning(
+                    "Data parallel requires num_reqs_max_model_len divisible by "
+                    "dp_size; adjusting from %d to %d.",
+                    _old,
+                    _new,
+                )
+                self.num_reqs_max_model_len = _new
         self.query_start_loc_cpu = torch.zeros(
             self.max_num_reqs + 1,
             dtype=torch.int32,
@@ -1212,6 +1251,60 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return tuple(tasks)
 
+    def _fill_page_table_width(self, group_idx: int, read_width: int) -> int:
+        """Columns the fill page table needs, far fewer than the read table.
+
+        paged_fill_cache only indexes ``cdiv(step_tokens, block_size)`` entries --
+        the bound its validator enforces -- but reads the whole row with a single
+        noc_async_read, and a large single read from interleaved DRAM can hang the
+        device. The roll in _prepare_inputs puts the chunk's blocks up front, so the
+        leading columns are the ones it wants.
+
+        The bound is the per-step token budget, not the context length: without
+        chunked prefill the width comes back at the read table's.
+
+        Guarded here rather than at each caller so allocation and both warmup
+        graph builders fail on the host at startup, not on the device.
+        """
+        block_size = (
+            self._group_block_sizes[group_idx]
+            if group_idx < len(self._group_block_sizes)
+            else self.block_size
+        )
+        # Round to 8 entries: a ttnn page-table stick must be 32B-aligned, the
+        # same rule _chunked_sdpa_active checks against max_num_blocks_per_req.
+        width = cdiv(cdiv(self.max_num_tokens, block_size), 8) * 8
+        fill_width = min(width, read_width)
+        # Do not relax: paged_fill_cache's page-table lookup is unbounded, so a
+        # sliding ring shorter than the chunk hangs or silently corrupts KV.
+        # https://github.com/tenstorrent/tt-xla/issues/5911
+        assert fill_width * block_size >= self.max_num_tokens, (
+            f"group {group_idx} fill page table ({fill_width} cols x block_size "
+            f"{block_size}) cannot cover a {self.max_num_tokens}-token step"
+        )
+        return fill_width
+
+    def _copy_narrow_fill_page_table(
+        self,
+        dev_buf: torch.Tensor,
+        host_table: torch.Tensor,
+        block_size: int,
+        step_tokens: int,
+        group_idx: int,
+    ) -> None:
+        """Stage the leading columns of ``host_table`` into the narrow fill buffer.
+
+        Narrower than the read table (see ``_fill_page_table_width``), so this
+        always truncates; assert the truncation still spans the step.
+        """
+        fill_width = dev_buf.shape[1]
+        # Per-step backstop for the invariant _fill_page_table_width pins.
+        assert fill_width * block_size >= step_tokens, (
+            f"group {group_idx} fill page table ({fill_width} cols x block_size "
+            f"{block_size}) cannot cover this step's {step_tokens} tokens"
+        )
+        dev_buf.copy_(host_table[:, :fill_width])
+
     def _alloc_page_table_device_buffers(self, num_groups: int) -> None:
         """(Re)allocate per-group page_table / fill_page_table device buffers.
 
@@ -1240,6 +1333,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             return base_width
 
+        def _fill_pt_width(group_idx, base_width):
+            return self._fill_page_table_width(
+                group_idx, _pt_width(group_idx, base_width)
+            )
+
         self._page_table_dev_max = {
             g: {
                 nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
@@ -1249,7 +1347,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         }
         self._fill_page_table_dev_max = {
             g: {
-                nr: _alloc_dev((nr, _pt_width(g, self.max_num_blocks_per_req)), dt)
+                nr: _alloc_dev((nr, _fill_pt_width(g, self.max_num_blocks_per_req)), dt)
                 for nr in max_reqs
             }
             for g in range(num_groups)
@@ -1755,22 +1853,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # prefill take the standard path (chunk_start_idx stays None). Shared
         # across all groups.
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[req_slice]
+        # Only rows contributing tokens this step matter. An inactive re-batched
+        # row (see zero_sched_rows above) says nothing about what the prefilling
+        # rows need, and handing its offset to a fresh row made that row attend
+        # a prefix it does not have.
+        active_rows = np.nonzero(num_scheduled_tokens_per_req > 0)[0]
+        active_computed = num_computed_for_reqs[active_rows]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
+            np.any(active_computed > 0)
         )
         chunk_start_idx = None
         if prefix_chunk_step and (
             self._chunked_sdpa_active or self._spec_prefix_rows()
         ):
-            # Same-stage batching => one shared [1] prefix offset; the op masks
-            # causally and applies it internally (no host attn_mask). row_lead
-            # moved the row back to its block boundary, so the read offset must
-            # match, otherwise it disagrees with where paged_fill_cache wrote.
-            self._chunk_start_idx_dev.copy_(
-                torch.tensor(
-                    [int(num_computed_for_reqs[0]) - int(row_lead[0])],
-                    dtype=torch.int32,
+            # One offset for the whole batch, so take it from an active row and
+            # refuse mixed stages rather than applying one row's offset to
+            # another. row_lead moved the row back to its block boundary, so the
+            # read offset must match where paged_fill_cache wrote.
+            active_starts = active_computed - row_lead[active_rows]
+            offsets = {int(v) for v in active_starts}
+            if len(offsets) > 1:
+                raise RuntimeError(
+                    "chunked-prefill SDPA takes a single prefix offset for the "
+                    f"batch, but active rows are at different stages: "
+                    f"start={sorted(offsets)} for rows "
+                    f"{active_rows.tolist()}. Batching mixed stages would apply "
+                    "one row's offset to another."
                 )
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(active_starts[0])], dtype=torch.int32)
             )
             chunk_start_idx = self._chunk_start_idx_dev
 
@@ -1789,20 +1900,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # cache_position (computed above; shared across sliding groups).
                 # fill == read except for inactive-row null redirect (also above).
                 page_table_dev.copy_(sliding_page_table)
-                if sliding_fill_page_table is sliding_page_table:
-                    fill_page_table_dev = page_table_dev
-                else:
-                    fill_page_table_dev_buf.copy_(sliding_fill_page_table)
-                    fill_page_table_dev = fill_page_table_dev_buf
+                # Narrower than the read table, so never an alias.
+                self._copy_narrow_fill_page_table(
+                    fill_page_table_dev_buf,
+                    sliding_fill_page_table,
+                    self._group_block_sizes[g],
+                    padded_total_num_scheduled_tokens,
+                    g,
+                )
+                fill_page_table_dev = fill_page_table_dev_buf
                 if self.parallel_mode in (
                     ParallelismMode.DATA_PARALLEL_ONLY,
                     ParallelismMode.DATA_TENSOR_PARALLEL,
                 ):
                     safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
-                    if fill_page_table_dev is not page_table_dev:
-                        safe_mark_sharding(
-                            fill_page_table_dev, self.mesh, ("batch", None)
-                        )
+                    safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
                 attn_metadata_per_group.append(
                     TTMetadata(
                         page_table=page_table_dev,
@@ -1870,11 +1982,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     fill_page_table[zero_sched_rows, :] = 0
 
             page_table_dev.copy_(page_table)
-            if fill_page_table is page_table:
-                fill_page_table_dev = page_table_dev
-            else:
-                fill_page_table_dev_buf.copy_(fill_page_table)
-                fill_page_table_dev = fill_page_table_dev_buf
+            # Narrowed like the sliding branch, so never an alias.
+            self._copy_narrow_fill_page_table(
+                fill_page_table_dev_buf,
+                fill_page_table,
+                block_size_g,
+                padded_total_num_scheduled_tokens,
+                g,
+            )
+            fill_page_table_dev = fill_page_table_dev_buf
 
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
@@ -1882,8 +1998,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ):
                 # page_table shares the K/V input's per-device leading dim.
                 safe_mark_sharding(page_table_dev, self.mesh, ("batch", None))
-                if fill_page_table_dev is not page_table_dev:
-                    safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
+                safe_mark_sharding(fill_page_table_dev, self.mesh, ("batch", None))
 
             attn_metadata_per_group.append(
                 TTMetadata(
@@ -2296,8 +2411,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             return
-        # 2D mesh: batch dim -> "batch"; pure 1D-TP: "batch" is size 1, use "model".
-        batch_axis = "batch" if self.use_2d_mesh else "model"
+        # Only pure 1D-TP (mesh (1, N)) lacks a batch axis. Keying off
+        # use_2d_mesh instead picked size-1 "model" for DP-only (dp, 1), a
+        # silent no-op that left activations replicated.
+        batch_axis = "model" if self.mesh.mesh_shape[0] == 1 else "batch"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
@@ -3133,20 +3250,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
                 self.device
             )
-            fill_page_table = None
-            if prefix_chunk:
-                # A continuation chunk uses a distinct fill_page_table at runtime;
-                # pass a separate tensor so the traced graph has matching arity.
-                fill_page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
-                    self.device
-                )
+            # Runtime fill table is narrower and always distinct; trace it so.
+            fill_w = self._fill_page_table_width(_g, pt_w)
+            fill_page_table = torch.zeros((num_reqs, fill_w), dtype=torch.int32).to(
+                self.device
+            )
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
             ):
                 safe_mark_sharding(page_table, self.mesh, ("batch", None))
-                if fill_page_table is not None:
-                    safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             attn_metadata_per_group.append(
                 TTMetadata(
                     page_table=page_table,
@@ -3608,18 +3722,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_reqs, pt_w),
                 dtype=torch.int32,
             ).to(self.device)
-            fill_page_table = page_table
-            if prefix_chunk:
-                fill_page_table = torch.zeros((num_reqs, pt_w), dtype=torch.int32).to(
-                    self.device
-                )
+            fill_w = self._fill_page_table_width(_g, pt_w)
+            fill_page_table = torch.zeros((num_reqs, fill_w), dtype=torch.int32).to(
+                self.device
+            )
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
                 ParallelismMode.DATA_TENSOR_PARALLEL,
             ):
                 safe_mark_sharding(page_table, self.mesh, ("batch", None))
-                if fill_page_table is not page_table:
-                    safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
+                safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
             attn_metadata_per_group.append(
                 TTMetadata(
                     page_table=page_table,
@@ -5073,6 +5185,20 @@ def _row_lead(num_computed: np.ndarray, block_size: int) -> np.ndarray:
     of a speculative decode row.
     """
     return (num_computed % block_size).astype(np.int32)
+
+
+def _align_num_reqs_for_dp(value: int, dp_size: int, *, round_up: bool) -> int:
+    """Round a request-count bucket to a multiple of ``dp_size``.
+
+    A bucket that is not a multiple leaves the batch dim indivisible by the
+    mesh's "batch" axis, so ``safe_mark_sharding`` replicates it and DP
+    degenerates into every device computing the whole batch.
+    """
+    if dp_size <= 1 or value % dp_size == 0:
+        return value
+    if round_up:
+        return ((value + dp_size - 1) // dp_size) * dp_size
+    return (value // dp_size) * dp_size
 
 
 def _bucket_num_reqs(
