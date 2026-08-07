@@ -12,6 +12,11 @@ out blocks the chip cannot hold and OOMs at runtime.
 import types
 
 import pytest
+from vllm.v1.kv_cache_interface import (
+    FullAttentionSpec,
+    MLAAttentionSpec,
+    SlidingWindowMLASpec,
+)
 from vllm_tt.vllm_distributed_utils import ParallelismMode, kv_cache_shard_factor
 
 
@@ -59,6 +64,30 @@ def _runner(mode, shape, mesh_style="shape"):
 )
 def test_shard_factor(mode, shape, expected, mesh_style):
     assert kv_cache_shard_factor(_runner(mode, shape, mesh_style)) == expected
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+@pytest.mark.parametrize("mla_spec_cls", [MLAAttentionSpec, SlidingWindowMLASpec])
+def test_mla_is_replicated_not_head_sharded(mla_spec_cls):
+    """MLA holds one replicated latent cache, so TP must not inflate the budget.
+
+    num_kv_heads is 1 for MLA, which is not divisible by tp_size; returning
+    tp_size here would hand out tp_size times more blocks than a chip holds.
+    """
+    runner = _runner(ParallelismMode.DATA_TENSOR_PARALLEL, (2, 4))
+    spec = object.__new__(mla_spec_cls)
+    assert kv_cache_shard_factor(runner, {"layer.0": spec}) == 1
+    # Without the specs the function cannot know, and still reports the axis.
+    assert kv_cache_shard_factor(runner) == 4
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_non_mla_spec_still_shards():
+    runner = _runner(ParallelismMode.TENSOR_PARALLEL_ONLY_1D, (1, 4))
+    spec = object.__new__(FullAttentionSpec)
+    assert kv_cache_shard_factor(runner, {"layer.0": spec}) == 4
 
 
 @pytest.mark.push

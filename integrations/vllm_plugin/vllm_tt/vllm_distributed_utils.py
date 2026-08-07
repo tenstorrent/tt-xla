@@ -23,6 +23,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
 
 from .logger import tt_init_logger
 
@@ -80,7 +81,7 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
-def kv_cache_shard_factor(runner) -> int:
+def kv_cache_shard_factor(runner, kv_cache_spec=None) -> int:
     """How many ways the KV cache is actually sharded across the mesh.
 
     Only the "model" axis shards KV heads, so this is that axis' size — 1 when
@@ -92,8 +93,17 @@ def kv_cache_shard_factor(runner) -> int:
     ``TTModelRunner.initialize_kv_cache``; KV heads shard on "model" for
     TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
     blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
+
+    ``kv_cache_spec`` (layer name -> spec) lets the caller account for MLA,
+    whose single latent cache is replicated rather than head-sharded; pass it
+    wherever the specs are known.
     """
     if not runner.enable_tensor_parallel:
+        return 1
+    if kv_cache_spec and any(
+        isinstance(s, (MLAAttentionSpec, SlidingWindowMLASpec))
+        for s in kv_cache_spec.values()
+    ):
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):

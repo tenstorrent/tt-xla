@@ -4208,7 +4208,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 phys_blocks = pool_num_blocks
             for layer_name in kv_cache_group.layer_names:
                 spec = layer_to_spec[layer_name]
-                if isinstance(spec, AttentionSpec):
+                shape = _kv_shape(spec, phys_blocks)
+                if _is_mla(spec):
+                    # The latent KV cache is replicated, not head-sharded, so
+                    # num_kv_heads (1) need not divide tp_size.
+                    kv_caches[layer_name] = torch.zeros(shape, dtype=spec.dtype).to(
+                        self.device
+                    )
+                elif isinstance(spec, AttentionSpec):
                     tp_size = kv_cache_shard_factor(self)
                     if tp_size > 1:
                         # mark_sharding() below does the real sharding; this
@@ -4218,12 +4225,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             f"num_kv_heads {spec.num_kv_heads} must be divisible "
                             f"by tp_size {tp_size} for correct KV-head sharding"
                         )
-                shape = _kv_shape(spec, phys_blocks)
-                if _is_mla(spec):
-                    kv_caches[layer_name] = torch.zeros(shape, dtype=spec.dtype).to(
-                        self.device
-                    )
-                elif isinstance(spec, AttentionSpec):
                     # spec.dtype may be a 1-byte accounting dtype; the staged
                     # buffer uses the real transfer dtype (converted on device).
                     # Separate K and V avoid slice/concat copies in the decode graph.
