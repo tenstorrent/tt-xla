@@ -7,9 +7,7 @@ Input prep is host-side numpy and the model runs through
 ``@torch.compile(backend="tt")`` graphs. Two structural notes:
 
 * The forward takes 2D ``[num_reqs, padded_query_len]`` inputs (reshaped to 1D at
-  the call boundary for ``flat_model_io`` models), built here; ``TTInputBatch``
-  is the flat per-step bookkeeping view consumed by ``from_v2_states`` and the
-  attn build.
+  the call boundary for ``flat_model_io`` models), built here.
 * A request keeps a stable ``TTRequestState`` slot for its lifetime (no
   condense). Preempted requests are freed and resumed ones return via
   ``scheduled_new_reqs``, so ``update_requests`` has no resumed branch.
@@ -130,7 +128,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TPU_STR_DTYPE_TO_TORCH_DTYPE,
             TTAttentionBackend,
         )
-        from .input_batch_v2 import TTInputBuffers
         from .platform import TTConfig
         from .request_state import TTRequestState
         from .sampling_state_v2 import TTSamplingStates
@@ -288,9 +285,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_sizes=[self.block_size],
             kernel_block_sizes=[self.block_size],
             max_num_blocks=[cdiv(self.max_model_len, self.block_size)],
-        )
-        self.input_buffers = TTInputBuffers(
-            self.max_num_reqs, self.max_num_tokens, self.device
         )
 
         self.encoder_cache: dict = {}
@@ -839,7 +833,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         query_start_loc = np.zeros(target_num_reqs + 1, dtype=np.int32)
         np.cumsum(num_scheduled_tokens, out=query_start_loc[1 : num_reqs + 1])
-        # Non-decreasing pad tail (matches TTInputBatch.make_dummy).
+        # Non-decreasing pad tail.
         query_start_loc[num_reqs + 1 :] = query_start_loc[num_reqs]
 
         if self.uses_mrope:
