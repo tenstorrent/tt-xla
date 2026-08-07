@@ -11,7 +11,7 @@ through ``XLASupportedSamplingMetadata`` (metadata.py). Each step
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import torch
@@ -23,7 +23,6 @@ from .metadata import DEFAULT_SAMPLING_PARAMS
 if TYPE_CHECKING:
     from vllm.sampling_params import SamplingParams
 
-    from .input_batch_v2 import TTInputBatch
     from .request_state import TTRequestState
 
 
@@ -169,12 +168,14 @@ class TTSamplingStates:
     def make_batch_view(
         self,
         request_state: "TTRequestState",
-        input_batch: "TTInputBatch",
+        input_batch: Any,
         padded_num_reqs: int,
     ) -> SamplingBatchView:
         """Gather a batch-ordered, padded view for the current step.
 
-        Rows [num_reqs:padded] carry the sampler defaults.
+        ``input_batch`` is any object exposing ``num_reqs`` + ``idx_mapping_np``;
+        the runner passes a per-pass namespace, not a vLLM InputBatch. Rows
+        [num_reqs:padded] carry the sampler defaults.
         """
         num_reqs = input_batch.num_reqs
         slots = [int(input_batch.idx_mapping_np[b]) for b in range(num_reqs)]

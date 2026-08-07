@@ -41,7 +41,7 @@ def make_ss(max_num_reqs=4):
 
 
 def ib(idx_list):
-    """Minimal TTInputBatch stand-in: make_batch_view only reads these two."""
+    """Batch view stand-in: make_batch_view only reads these two."""
     return SimpleNamespace(
         num_reqs=len(idx_list),
         idx_mapping_np=np.array(idx_list, dtype=np.int32),

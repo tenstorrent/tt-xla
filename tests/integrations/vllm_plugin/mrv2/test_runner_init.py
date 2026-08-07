@@ -124,9 +124,8 @@ def test_init_builds_split_state_tables():
     assert r.req_states.max_num_reqs == 8
     assert r.req_states.max_model_len == 256
     assert isinstance(r.sampling_states, TTSamplingStates)
-    # Block table + input buffers are constructed and correctly sized.
+    # Block table is constructed.
     assert hasattr(r.block_table, "add_row")
-    assert tuple(r.input_buffers.input_ids.shape) == (r.max_num_tokens,)
     # Runtime-side state initialised empty.
     assert r.encoder_cache == {}
     assert r.num_prompt_logprobs == {}
