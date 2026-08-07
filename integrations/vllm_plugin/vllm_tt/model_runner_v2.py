@@ -2422,17 +2422,30 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if has_kv_transfer_group():
             ensure_kv_transfer_shutdown()
 
-    def _warmup_buckets(self) -> list[tuple[int, int]]:
-        """(target_num_reqs, padded_query_len) pairs to precompile.
+    def _warmup_buckets(self) -> list[tuple[int, int, bool]]:
+        """(target_num_reqs, padded_query_len, spec) triples to precompile.
 
         Decode always runs at max_num_reqs; prefill runs at the min / max prefill
         buckets. Each request-count bucket is compiled at every token-length
         padding, matching the shapes _select_batch can produce at runtime.
+
+        A drafting pass is a distinct graph -- packed [reqs, spec_width]
+        logits_indices and a shared prefix offset on the attention -- so with spec
+        decode on, every multi-token bucket is compiled both ways. A spec run
+        still takes the flat shape whenever no request carries drafts.
         """
         targets = sorted(
             {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs}
         )
-        return [(t, q) for t in targets for q in self.num_tokens_paddings]
+        buckets = [(t, q, False) for t in targets for q in self.num_tokens_paddings]
+        if self.num_spec_tokens:
+            buckets += [
+                (t, q, True)
+                for t in targets
+                for q in self.num_tokens_paddings
+                if q > 1  # _chunk_start_idx_for returns None at query_len 1
+            ]
+        return buckets
 
     def capture_model(self) -> None:
         """Precompile the forward/sample graph at every runtime bucket shape.
@@ -2456,29 +2469,36 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Activate dummy LoRAs for the warmup so the compiled graphs match the
         # LoRA runtime shapes (no-op context when lora_config is None).
         with self.maybe_setup_dummy_loras(self.lora_config):
-            for target_num_reqs, padded_query_len in buckets:
+            for target_num_reqs, padded_query_len, spec in buckets:
                 logger.info(
-                    "MRv2 warmup: num_reqs=%d, query_len=%d",
+                    "MRv2 warmup: num_reqs=%d, query_len=%d, spec=%s",
                     target_num_reqs,
                     padded_query_len,
+                    spec,
                 )
                 if self.lora_config is not None:
                     self.maybe_select_dummy_loras(
                         self.lora_config,
                         np.array([target_num_reqs], dtype=np.int32),
                     )
-                self._precompile_bucket(target_num_reqs, padded_query_len)
+                self._precompile_bucket(target_num_reqs, padded_query_len, spec)
                 # Sync per bucket so prefill and decode graphs stay separate.
                 torch_xla.sync()
         torch_xla.sync()
         logger.info("MRv2 warmup finished in %.2f [secs].", time.perf_counter() - start)
 
-    def _precompile_bucket(self, target_num_reqs: int, padded_query_len: int) -> None:
+    def _precompile_bucket(
+        self, target_num_reqs: int, padded_query_len: int, spec: bool = False
+    ) -> None:
         """Trace the fused forward+sample graph for one bucket with valid dummies.
 
         Mirrors _run_model_pass's device-tensor + sharding sequence so the warmed
         graph matches inference exactly (input shardings pinned eagerly; page /
         cache / batch_idx sharded on the DP batch axis).
+
+        ``spec`` traces the drafting variant instead: packed logits_indices, a
+        shared prefix offset, and no sampling graph (spec rejection-samples the
+        logits on the host).
         """
         from .metadata import XLASupportedSamplingMetadata
 
@@ -2492,7 +2512,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else (target_num_reqs, padded_query_len)
         )
         positions = torch.zeros(positions_shape, dtype=torch.int32).to(dev)
-        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32).to(dev)
+        logits_indices_shape = (
+            (target_num_reqs, self.num_spec_tokens + 1) if spec else (target_num_reqs,)
+        )
+        logits_indices = torch.zeros(logits_indices_shape, dtype=torch.int32).to(dev)
         page_table = torch.zeros(
             (target_num_reqs, self.max_num_blocks_per_req), dtype=torch.int32
         ).to(dev)
@@ -2514,6 +2537,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(batch_idx, self.mesh, ("batch",))
             safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
+        # Offset 0 is a block boundary, matching the all-zero dummy page table.
+        chunk_start_idx = torch.zeros(1, dtype=torch.int32).to(dev) if spec else None
+
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
             page_table,
@@ -2522,9 +2548,15 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             batch_idx=batch_idx,
             num_users=target_num_reqs,
             dp_size=self.dp_size,
+            chunk_start_idx=chunk_start_idx,
         )
         # Defaults are all-greedy -> warms the argmax fast-path.
         sampling_metadata = XLASupportedSamplingMetadata(all_greedy=True)
         self._forward_and_sample(
-            input_ids, positions, logits_indices, attn_metadata, sampling_metadata
+            input_ids,
+            positions,
+            logits_indices,
+            attn_metadata,
+            sampling_metadata,
+            logits_only=spec,
         )
