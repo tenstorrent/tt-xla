@@ -18,6 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 from vllm.sampling_params import SamplingParams
+from vllm.v1.outputs import LogprobsTensors
 from vllm_tt.model_runner_v2 import TTModelRunnerV2
 from vllm_tt.request_state import TTRequestState
 from vllm_tt.sampling_state_v2 import TTSamplingStates
@@ -56,6 +57,7 @@ def make_runner(max_num_reqs=4, max_model_len=32):
     r.block_table = FakeBlockTable()
     r.encoder_cache = {}
     r.num_prompt_logprobs = {}
+    r.in_progress_prompt_logprobs = {}
     r.lora_requests_by_slot = {}
     r.mm_features_by_slot = {}
     r.lora_config = None
@@ -161,6 +163,28 @@ def test_readd_same_id_clears_stale_slot():
     slot = r.req_states.req_id_to_index["A"]
     assert r.req_states.prompt_len[slot] == 1
     assert r.req_states.total_len[slot] == 1
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_readd_same_id_clears_prompt_logprobs_state():
+    # Both logprob dicts are keyed by req_id, so an abort+resubmit must not leave
+    # the aborted request's partially filled buffer for the new one to write into.
+    r = make_runner()
+    sp = SamplingParams(temperature=0.0, prompt_logprobs=2)
+    r.add_requests(sched(new=[new_req("A", [1, 2, 3], sp=sp)]))
+    assert r.num_prompt_logprobs["A"] == 2
+    # Stand in for a partially filled buffer sized for the 3-token prompt.
+    r.in_progress_prompt_logprobs["A"] = LogprobsTensors.empty_cpu(2, 3)
+
+    r.add_requests(sched(new=[new_req("A", [1, 2, 3, 4, 5], sp=sp)]))
+
+    assert "A" not in r.in_progress_prompt_logprobs
+    assert r.num_prompt_logprobs["A"] == 2
+
+    r.finish_requests(sched(finished=["A"]))
+    assert "A" not in r.num_prompt_logprobs
+    assert "A" not in r.in_progress_prompt_logprobs
 
 
 @pytest.mark.push

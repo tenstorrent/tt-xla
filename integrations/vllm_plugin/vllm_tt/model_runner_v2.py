@@ -527,6 +527,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sampling_states.remove_request(slot)
         self.block_table.clear_row(slot)
         self.num_prompt_logprobs.pop(req_id, None)
+        # Both logprob dicts are keyed by req_id: a stale in-progress buffer is
+        # sized for the old prompt and would be reused on abort+resubmit.
+        self.in_progress_prompt_logprobs.pop(req_id, None)
         self.lora_requests_by_slot.pop(slot, None)
         self.mm_features_by_slot.pop(slot, None)
 
