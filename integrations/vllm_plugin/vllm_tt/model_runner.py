@@ -4684,15 +4684,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.select_hidden_states(hidden_states, indices_do_sample)
 
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
+        # Select each row's sampled position(s) along the seq dim via a one-hot
+        # matmul. Advanced indexing hidden_states[batch_indices, indices, :]
+        # lowers to a flat gather (flat = row*seq + pos) that returns the wrong
+        # row once the flat index exceeds num_cores*TILE_HEIGHT (=2048),
+        # corrupting logits for batch rows past that boundary. A one-hot over the
+        # seq dim times the hidden states picks the exact row (bit-identical:
+        # 1*row + 0*others) and never forms that large flat index.
+        seq = hidden_states.shape[1]
+        ar = torch.arange(seq, device=hidden_states.device, dtype=indices_do_sample.dtype)
         if indices_do_sample.ndim == 1:
-            batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
-            result = hidden_states[batch_indices, indices_do_sample, :]
+            onehot = (ar.view(1, seq) == indices_do_sample.view(-1, 1)).to(
+                hidden_states.dtype
+            )
+            result = torch.bmm(onehot.unsqueeze(1), hidden_states).squeeze(1)
         else:
-            batch_indices = torch.arange(
-                indices_do_sample.shape[0], dtype=torch.int32
-            ).unsqueeze(1)
-            batch_indices = batch_indices.expand_as(indices_do_sample)
-            result = hidden_states[batch_indices, indices_do_sample, :]
+            onehot = (ar.view(1, 1, seq) == indices_do_sample.unsqueeze(-1)).to(
+                hidden_states.dtype
+            )
+            result = torch.bmm(onehot, hidden_states)
             result = result.reshape(-1, result.shape[-1])
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
