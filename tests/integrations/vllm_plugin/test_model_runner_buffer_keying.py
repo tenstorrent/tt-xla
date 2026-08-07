@@ -93,3 +93,33 @@ def test_per_batch_buffers_keyed_by_smem_clamped_count(
     # Regression guard: the pre-#5416 keying used max_num_reqs, which under the
     # clamp is absent from the (now consistent) key set.
     assert runner.max_num_reqs not in input_ids_keys
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_fill_page_tables_are_narrow_but_cover_the_largest_step():
+    """Every allocated fill page table spans a full token bucket.
+
+    The fill table is deliberately narrower than the read table, so "wide enough
+    for the step" is an invariant the allocation must hold up. Companion to the
+    device-free checks in ``test_fill_page_table_width.py``.
+    """
+    runner = TTModelRunner(_build_clamp_config(None, None), xm.xla_device())
+
+    read = runner._page_table_dev_max
+    fill = runner._fill_page_table_dev_max
+    # Both are looked up by the same (group, target_num_reqs) key at runtime.
+    assert fill.keys() == read.keys()
+
+    for group, per_num_reqs in fill.items():
+        assert per_num_reqs.keys() == read[group].keys()
+        block_size = runner._group_block_sizes[group]
+        for num_reqs, buf in per_num_reqs.items():
+            assert buf.shape[0] == num_reqs
+            # The bound paged_fill_cache's validator enforces on device.
+            assert buf.shape[1] * block_size >= runner.max_num_tokens, (
+                f"group {group} fill page table ({buf.shape[1]} cols x block_size "
+                f"{block_size}) cannot cover {runner.max_num_tokens} tokens"
+            )
+            # ...and the narrowing is actually active, else this proves nothing.
+            assert buf.shape[1] < read[group][num_reqs].shape[1]
