@@ -34,7 +34,13 @@ def mm_feature(identifier, offset, length):
     return SimpleNamespace(identifier=identifier, mm_position=pos_info(offset, length))
 
 
-def gather_runner(mm_features_by_slot, num_computed_by_slot, encoder_cache):
+def gather_runner(
+    mm_features_by_slot,
+    num_computed_by_slot,
+    encoder_cache,
+    num_spec_tokens=0,
+    block_size=8,
+):
     r = object.__new__(TTModelRunnerV2)
     r.device = torch.device("cpu")
     r.mm_features_by_slot = mm_features_by_slot
@@ -43,6 +49,10 @@ def gather_runner(mm_features_by_slot, num_computed_by_slot, encoder_cache):
     r.req_states = SimpleNamespace(num_computed_tokens=np.zeros(8, dtype=np.int32))
     for slot, c in num_computed_by_slot.items():
         r.req_states.num_computed_tokens[slot] = c
+    # Spec decode is off by default, so _row_lead_for returns an all-zero lead.
+    r.num_spec_tokens = num_spec_tokens
+    r._prefix_sdpa_usable = True
+    r.block_size = block_size
     return r
 
 
@@ -80,6 +90,32 @@ def test_gather_mm_embeddings_no_features_is_empty():
     nst = np.array([2], dtype=np.int32)
     mm_embeds, is_mm_embed, mm_indices = r._gather_mm_embeddings(idx, nst, 2)
     assert mm_embeds == []
+    assert not is_mm_embed.any()
+    assert mm_indices.numel() == 0
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_gather_mm_embeddings_rejects_in_flight_placeholder_while_drafting():
+    # A drafting row is block-realigned (num_computed 10 % block 8 -> lead 2), so
+    # its column 0 is no longer num_computed. Refuse rather than mask the wrong
+    # columns; the placeholder here still has uncomputed tokens.
+    enc = torch.arange(6 * HID, dtype=torch.float32).reshape(6, HID)
+    r = gather_runner(
+        mm_features_by_slot={0: [mm_feature("h0", offset=8, length=6)]},
+        num_computed_by_slot={0: 10},
+        encoder_cache={"h0": enc},
+        num_spec_tokens=2,
+    )
+    idx = np.array([0], dtype=np.int32)
+    nst = np.array([3], dtype=np.int32)
+
+    with pytest.raises(AssertionError, match="speculative decode is not supported"):
+        r._gather_mm_embeddings(idx, nst, 8)
+
+    # A fully computed placeholder on the same drafting row is skipped, not an error.
+    r.mm_features_by_slot = {0: [mm_feature("h0", offset=0, length=6)]}
+    _, is_mm_embed, mm_indices = r._gather_mm_embeddings(idx, nst, 8)
     assert not is_mm_embed.any()
     assert mm_indices.numel() == 0
 

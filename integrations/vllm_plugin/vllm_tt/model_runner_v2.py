@@ -905,11 +905,13 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
         """Build the per-pass mm-embed mask + flat scatter indices.
 
-        The mask is [target_num_reqs, padded_query_len] to match input_ids (each
-        request's scheduled tokens start at column 0); mm_indices are its
-        row-major True positions, consumed by get_mm_embeddings' index_copy.
+        The mask is [target_num_reqs, padded_query_len] to match input_ids, whose
+        row b starts at ``num_computed_tokens - row_lead[b]`` (see
+        _prepare_input_tokens); mm_indices are its row-major True positions,
+        consumed by get_mm_embeddings' index_copy.
         """
         target_num_reqs = len(idx_mapping_np)
+        row_lead = self._row_lead_for(idx_mapping_np, num_scheduled_tokens)
         is_mm_embed = torch.zeros(
             (target_num_reqs, padded_query_len), dtype=torch.bool, device="cpu"
         )
@@ -921,6 +923,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
             slot = int(idx_mapping_np[b])
             num_computed_tokens = int(self.req_states.num_computed_tokens[slot])
+            lead = int(row_lead[b])
             for mm_feature in self.mm_features_by_slot.get(slot, []):
                 pos_info = mm_feature.mm_position
                 start_pos = pos_info.offset
@@ -930,6 +933,16 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     break
                 if start_pos + num_encoder_tokens <= num_computed_tokens:
                     continue
+
+                # A drafting row is extended left to its KV block boundary, so it
+                # would also have to re-feed embeds for the placeholder tokens in
+                # that head — whose encoder output the scheduler may already have
+                # freed.
+                assert lead == 0, (
+                    f"req at slot {slot} has an in-flight multimodal placeholder "
+                    "while drafting; multimodal + speculative decode is not "
+                    "supported yet."
+                )
 
                 start_idx = max(num_computed_tokens - start_pos, 0)
                 end_idx = min(num_computed_tokens - start_pos + n, num_encoder_tokens)
