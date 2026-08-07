@@ -116,9 +116,10 @@ def test_warmup_buckets_cover_all_shapes():
     r.min_num_reqs = 2
     r.max_prefill_num_reqs = 4
     r.num_tokens_paddings = [1, 32, 64]
+    r.num_spec_tokens = 0
     buckets = r._warmup_buckets()
     # Every distinct request-count crossed with every token padding.
-    assert set(buckets) == {(t, q) for t in (2, 4, 8) for q in (1, 32, 64)}
+    assert set(buckets) == {(t, q, False) for t in (2, 4, 8) for q in (1, 32, 64)}
     assert len(buckets) == 9
 
 
@@ -130,6 +131,28 @@ def test_warmup_buckets_dedup_equal_counts():
     r.min_num_reqs = 4
     r.max_prefill_num_reqs = 4
     r.num_tokens_paddings = [1, 16]
+    r.num_spec_tokens = 0
     buckets = r._warmup_buckets()
     # Collapsed to a single request-count bucket.
-    assert buckets == [(4, 1), (4, 16)]
+    assert buckets == [(4, 1, False), (4, 16, False)]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_warmup_buckets_cover_the_spec_decode_graph():
+    # Drafting traces a different graph (packed logits_indices + shared prefix
+    # offset), so it must be warmed too or the first draft step compiles live.
+    r = object.__new__(TTModelRunnerV2)
+    r.max_num_reqs = 4
+    r.min_num_reqs = 4
+    r.max_prefill_num_reqs = 4
+    r.num_tokens_paddings = [1, 16, 32]
+    r.num_spec_tokens = 3
+    buckets = r._warmup_buckets()
+
+    # Flat shape still runs whenever no request carries drafts, so both variants.
+    assert set(buckets) == {(4, q, False) for q in (1, 16, 32)} | {
+        (4, q, True) for q in (16, 32)
+    }
+    # query_len 1 has no spec variant: a drafting row is always multi-token.
+    assert (4, 1, True) not in buckets
