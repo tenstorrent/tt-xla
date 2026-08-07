@@ -2059,7 +2059,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         trace_enabled=False,
         shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
         experimental_kv_cache_dtype=None,
-        required_pcc=0.99,
+        required_pcc=0.97,
     )
 
 

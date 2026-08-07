@@ -12,6 +12,9 @@ from pathlib import Path
 
 SECONDS_PER_MB = 120
 
+# Max model/op names listed inline per job in the human-readable plan summary.
+SUMMARY_MODEL_LIMIT = 25
+
 
 def estimate_seconds(size_bytes: int) -> int:
     return math.ceil((size_bytes * SECONDS_PER_MB / (1024 * 1024)))
@@ -96,7 +99,9 @@ def remove_duplicate_models(root: Path, preferred_machine: str) -> tuple[int, in
     return duplicate_model_count, removed_dir_count
 
 
-def collect_model_directories(root: Path, model_filter: str) -> tuple[list[dict], int]:
+def collect_model_directories(
+    root: Path, model_filter: str, seconds_per_model: int = 0
+) -> tuple[list[dict], int]:
     all_model_dirs = [model_dir for model_dir in iter_model_dirs(root)]
     models = []
 
@@ -111,15 +116,30 @@ def collect_model_directories(root: Path, model_filter: str) -> tuple[list[dict]
                 "name": model_dir.name,
                 "relative_path": model_dir.relative_to(root).as_posix(),
                 "size_bytes": size_bytes,
-                "estimated_seconds": estimate_seconds(size_bytes),
+                # Size is a good cost proxy for whole-model IR dumps, but not for
+                # single-op modules: those are ~1KB each while their cost is
+                # dominated by compile+execute. `seconds_per_model` lets the
+                # unique-ops flow plan by op count instead.
+                "estimated_seconds": (
+                    seconds_per_model
+                    if seconds_per_model > 0
+                    else estimate_seconds(size_bytes)
+                ),
             }
         )
 
     return models, len(all_model_dirs)
 
 
-def build_assignment(root: Path, model_filter: str, target_job_seconds: int) -> dict:
-    models, total_models = collect_model_directories(root, model_filter)
+def build_assignment(
+    root: Path,
+    model_filter: str,
+    target_job_seconds: int,
+    seconds_per_model: int = 0,
+) -> dict:
+    models, total_models = collect_model_directories(
+        root, model_filter, seconds_per_model
+    )
 
     if not models:
         return {
@@ -186,7 +206,13 @@ def format_summary(assignment: dict, model_filter: str) -> str:
             f"Planned {assignment['job_count']} processing jobs for {assignment['total_estimated_seconds']}s estimated total runtime"
         )
         for job in assignment["jobs"]:
-            model_names = ", ".join(model["name"] for model in job["models"])
+            names = [model["name"] for model in job["models"]]
+            # The unique-ops flow puts hundreds of single-op dirs in one job, so
+            # cap the inline list to keep CI logs readable.
+            shown = names[:SUMMARY_MODEL_LIMIT]
+            model_names = ", ".join(shown)
+            if len(names) > len(shown):
+                model_names += f", ... (+{len(names) - len(shown)} more)"
             lines.append(
                 f"Job {job['job_index']}: {len(job['models'])} model(s), {job['estimated_seconds']}s estimated, models: {model_names}"
             )
@@ -268,7 +294,12 @@ def materialize_job(
 
 
 def command_plan(args: argparse.Namespace) -> int:
-    assignment = build_assignment(args.root, args.model_filter, args.target_job_seconds)
+    assignment = build_assignment(
+        args.root,
+        args.model_filter,
+        args.target_job_seconds,
+        args.seconds_per_model,
+    )
     write_assignment(assignment, args.output)
 
     if args.print_summary:
@@ -338,6 +369,7 @@ def extract_unique_ops(
     output_root: Path,
     whitelist: list[str] | None,
     blacklist: list[str] | None,
+    model_filter: str = "",
 ) -> dict:
     """
     Extract ops from every matched IR under ``root``, deduplicate globally by
@@ -362,6 +394,11 @@ def extract_unique_ops(
         for f in all_mlir_files
         if (model_name := match_and_extract_model_name(f, ir_file_prefix)) is not None
     ]
+
+    # Applied here rather than in `plan`: after extraction the planner sees op
+    # dirs, not model dirs, so a model filter would no longer match anything.
+    if model_filter:
+        matched = [(f, name) for f, name in matched if model_filter in name]
 
     total_ops = 0
     extraction_failures: list[dict] = []
@@ -463,7 +500,9 @@ def extract_unique_ops(
     return {
         "root": str(root),
         "output_root": str(output_root),
+        "model_filter": model_filter,
         "matched_files": len(matched),
+        "matched_models": len({name for _, name in matched}),
         "total_ops_after_filter": total_ops,
         "unique_ops": len(unique_records),
         "duplicate_ops_eliminated": total_ops - len(unique_records),
@@ -479,6 +518,7 @@ def command_extract_unique_ops(args: argparse.Namespace) -> int:
         args.output_root,
         args.whitelist.split(",") if args.whitelist else None,
         args.blacklist.split(",") if args.blacklist else None,
+        args.model_filter,
     )
 
     if args.manifest is not None:
@@ -488,7 +528,8 @@ def command_extract_unique_ops(args: argparse.Namespace) -> int:
     unique = stats["unique_ops"]
     reduction = (1 - unique / total) * 100 if total else 0.0
     print(
-        f"Matched IR files: {stats['matched_files']}\n"
+        f"Matched IR files: {stats['matched_files']} "
+        f"across {stats['matched_models']} model(s)\n"
         f"Total ops (after filter): {total}\n"
         f"Unique ops: {unique}\n"
         f"Duplicate ops eliminated: {stats['duplicate_ops_eliminated']} "
@@ -518,6 +559,14 @@ def build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--root", type=Path, required=True)
     plan_parser.add_argument("--model-filter", default="")
     plan_parser.add_argument("--target-job-seconds", type=int, required=True)
+    plan_parser.add_argument(
+        "--seconds-per-model",
+        type=int,
+        default=0,
+        help="Flat per-model-dir runtime estimate in seconds. Use for the "
+        "unique-ops flow, where each dir holds one tiny single-op module and "
+        "size is not a usable cost proxy. 0 (default) keeps size-based estimates.",
+    )
     plan_parser.add_argument("--output", type=Path)
     plan_parser.add_argument("--github-output", type=Path)
     plan_parser.add_argument("--print-summary", action="store_true")
@@ -558,6 +607,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory to write unique-op modules into (consumable by "
         "`plan` and op_by_op_test via --folder).",
     )
+    extract_parser.add_argument("--model-filter", default="")
     extract_parser.add_argument("--whitelist", default="")
     extract_parser.add_argument("--blacklist", default="")
     extract_parser.add_argument(

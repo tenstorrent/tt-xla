@@ -415,8 +415,10 @@ def chunked_topk_candidates(
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
 
-    # Pad W so that Wt = W/32 is a power of 2 AND Wt >= 2 to avoid the
-    # tt::sampling kernel hang (#4560). -inf values can't win the topk /
+    # ttnn.sampling requires Wt = W/32 to be a power of 2 and asserts on it
+    # (tenstorrent/tt-metal#44558) — an op precondition, not a workaround.
+    # The max(64, ...) covers Wt = 1 (vocab <= 32768), which passes that assert
+    # but hangs the device silently. -inf values can't win the topk /
     # multinomial draw, so output is unchanged.
     cur_w = all_values.shape[-1]
     target_w = max(64, _next_power_of_2(cur_w))
