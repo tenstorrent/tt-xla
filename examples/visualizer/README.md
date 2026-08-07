@@ -216,6 +216,75 @@ Measured on TinyLlama-1.1B-Chat-v1.0 with `FIRST=40 REPORTS=1` and a 64-token co
 program is a slice of a decode step rather than the whole model, so raise `REPORTS` to follow
 consecutive programs — each lands as its own numbered file.
 
+## SDXL-Lightning — `examples/pytorch/sdxl_lightning.py`
+
+A four-component diffusion model is where a report stops being cheap. Capture one program, and
+pick which one deliberately. Everything below was measured on an n300 (wh-17).
+
+`REPORTS=8` from the start of the run does not survive. The eight reports come to 12 GB on disk
+and the process is OOM-killed at 2152 s, because a report's graph data is held in memory until
+the report is written. The container's `memory.max` is 62.95 GiB and the kill recorded 64.4 GB
+of anonymous RSS, while the same run with capture off peaks at 31.98 GB — so a capture has
+about 33 GiB of headroom to fit into, and eight windows do not.
+
+Those eight, in execution order: 45.8 MB for text encoder 1, 252 MB for text encoder 2, 435 KB
+and 27.6 KB for two small programs, 6.09 GB for the first UNet step, 337 KB, 6.33 GB for the
+second UNet step, 337 KB. Pick from the small end:
+
+```bash
+export TT_RUNTIME_GRAPH_CAPTURE_DIR=$PWD/reports_sdxl
+export TT_RUNTIME_GRAPH_CAPTURE_FIRST=0
+export TT_RUNTIME_GRAPH_CAPTURE_REPORTS=1
+mkdir -p "$TT_RUNTIME_GRAPH_CAPTURE_DIR"
+python examples/pytorch/sdxl_lightning.py
+```
+
+`FIRST=0` records text encoder 1 at 45.8 MB and `FIRST=2` a 435 KB program. `FIRST=4` is the
+first UNet step, and it is the one to avoid: 6.09 GB of pretty-printed JSON over 252110474
+lines, of which the graph is 1.0%. `per_operation_buffers` accounts for 62.6% — 22565156 buffer
+records across 11977 snapshots, averaging 1884 live buffers each — and `buffer_pages_by_address`
+for another 36.3%, 8328320 page records across 64 addresses. The graph itself is 142359 nodes,
+and the 7.8 MB sidecar holds 14311 operations over 24 distinct names: 7781 `DeallocateOp`, then
+1315 `ReshapeOp`, 901 `EltwiseBinaryOp`, 636 `PermuteOp`, 425 `MatmulOp` and 307 `LinearOp`.
+
+The UNet runs on one of the two chips. Both appear in `devices` with 64 compute cores each, and
+all 22.5 M of those buffer records are on `device_id` 2 with none on `device_id` 0.
+
+**Warm the kernel cache before capturing.** On a fresh machine the first run spends minutes
+between reports with nothing on the terminal — tt-metal is JIT-compiling device kernels, 2314
+ELFs into `~/.cache/tt-metal-cache`, and only compiles that emit a warning reach the log. The
+cache is keyed by build key and compile hash and persists across runs, so a second run
+recompiled 8 objects out of 6030. One uncaptured run first keeps that cost out of the window.
+
+## Reading the time a capture covers
+
+A captured UNet step reports `total_duration_ns` of 466 s, which is compilation rather than
+compute. `time_sdxl_stages.py` shows the split: the demo marks its stages and denoising steps
+with `[STAGE]` and `[STEP]` lines that the plugin's log level hides, and the script runs it with
+a stand-in logger that prints them with elapsed and per-stage times.
+
+```bash
+python examples/visualizer/time_sdxl_stages.py
+```
+
+| segment | duration |
+| --- | --- |
+| startup and model load | 20.0 s |
+| text encoder 1 | 10.9 s |
+| text encoder 2 | 34.9 s |
+| UNet step 1, compile and run | 245.1 s |
+| UNet step 2 | 2.3 s |
+| UNet step 3 | 2.3 s |
+| UNet step 4, then evict to host | 9.6 s |
+| VAE decode, compile and run | 122.1 s |
+| save PNG | 0.5 s |
+
+462 s end to end, and four denoising steps are about 9 s of it. A warm step costs 2.3 s and
+repeats to the hundredth, so a captured window measures the one-time compile: 245 s for the
+UNet graph, 122 s for the VAE. Read those numbers against how the demo is built — one component
+resident on the device at a time, and a host round-trip per step because the scheduler runs on
+CPU — rather than as a throughput figure.
+
 ## Checking the hook without picking a sample
 
 `capture_graph_report.py` drives a small ConvNet of its own and sets the variables from its
