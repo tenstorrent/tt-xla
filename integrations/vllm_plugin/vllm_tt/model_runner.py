@@ -1609,7 +1609,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for _lr, _rid in enumerate(_ids):
                 _entries.append(
                     "%s:row=%d:dev=%d:tok=%d"
-                    % (_rid, _lr, _lr // _rows_per_dev, _sched[_lr] if _lr < len(_sched) else -1)
+                    % (
+                        _rid,
+                        _lr,
+                        _lr // _rows_per_dev,
+                        _sched[_lr] if _lr < len(_sched) else -1,
+                    )
                 )
             logger.warning(
                 "SLOTTRACE phase=%s start_index=%d actual=%d target=%d dp=%d "
@@ -4608,20 +4613,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
-            # each device writes its own K/V slice via paged_update_cache. The
-            # TP-only spec puts block_size on the DP axis and fails
-            # ttir.paged_update_cache. Tracked in #5796.
+        if self.enable_tensor_parallel:
+            # Shard KV heads on the "model" axis, for TP-only and DP+TP alike:
+            # each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size]. Making this explicit under DP+TP replaces an implicit
+            # arrangement where the cache parameter stayed full width and Shardy
+            # inserted a mesh_partition to slice it per use, so every chip paid
+            # DRAM for all heads while using only its own.
             #
-            # kv_cache_shard_factor() mirrors this branch by returning 1 for
-            # DP+TP; when this is changed to really shard, update it too or
-            # each chip will be budgeted tp_size times too little.
-            pass
-        elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
-            # buffer can appear under multiple layers (cross-layer sharing), so
-            # dedup by tensor identity to mark each buffer's sharding exactly once.
+            # Blocks stay replicated on "batch": sharding those needs
+            # replica-aware block allocation, and the slot->replica affinity
+            # invariant has to hold first (see the condense guard above).
+            #
+            # kv_cache_shard_factor() must stay in sync — it feeds the KV budget
+            # in worker.determine_available_memory().
+            #
+            # Each entry is [k_cache, v_cache]. The same physical buffer can
+            # appear under multiple layers (cross-layer sharing), so dedup by
+            # tensor identity to mark each buffer's sharding exactly once.
             _sharded_ids: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
@@ -4682,9 +4691,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Same flat-index gather hazard as above (spec-decode: several
             # positions per row). Gather along the seq dim per (row, position).
             _H = hidden_states.shape[-1]
-            _idx = indices_do_sample.to(torch.int64).unsqueeze(-1).expand(
-                -1, -1, _H
-            )
+            _idx = indices_do_sample.to(torch.int64).unsqueeze(-1).expand(-1, -1, _H)
             result = torch.gather(hidden_states, 1, _idx)
             result = result.reshape(-1, result.shape[-1])
         if self.enable_tensor_parallel and self.use_2d_mesh:

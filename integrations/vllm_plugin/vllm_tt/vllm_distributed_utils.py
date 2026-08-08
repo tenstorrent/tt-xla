@@ -111,15 +111,20 @@ def kv_cache_shard_factor(runner) -> int:
     un-sharded num_kv_heads) with what each chip really holds.
 
     Must stay in sync with the mark_sharding call in
-    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
-    because that path deliberately leaves the cache un-annotated.
+    ``TTModelRunner.initialize_kv_cache``: KV heads shard on "model" for
+    TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
+    blocks as well would make this ``tp_size * dp_size``.
+
+    MLA is the exception — its single latent cache is replicated, not
+    head-sharded, so it stays at 1 regardless of mesh.
     """
     if not runner.enable_tensor_parallel:
         return 1
-    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-        # DP+TP leaves the cache replicated, so per-chip usage already equals
-        # the full budget — no reconciliation to do. Sharding it properly
-        # (heads on "model", blocks on "batch") is tracked in #5796.
+    # MLA stores one latent cache per layer and initialize_kv_cache replicates
+    # it (mark_sharding with an all-None spec). Claiming tp_size here would
+    # over-report the budget by that factor and risk OOM.
+    model_config = getattr(runner, "model_config", None)
+    if model_config is not None and getattr(model_config, "use_mla", False):
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):
@@ -376,11 +381,11 @@ def partition_parallel_lm_head(
     safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
-    #batch_axis = "batch" if shard_weights_on_batch_axis else None
-    #safe_mark_sharding(layer.weight, mesh, (None, "batch"))
-    #logger.debug("Applied parallel sharding to %s", layer)
-    #xs.mark_sharding(layer.weight, mesh, ("model", None))
-    #return layer
+    # batch_axis = "batch" if shard_weights_on_batch_axis else None
+    # safe_mark_sharding(layer.weight, mesh, (None, "batch"))
+    # logger.debug("Applied parallel sharding to %s", layer)
+    # xs.mark_sharding(layer.weight, mesh, ("model", None))
+    # return layer
 
 
 def partition_vocab_parallel_embedding(
