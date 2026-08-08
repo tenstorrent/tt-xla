@@ -3,6 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# Parse flags (script is sourced, so positional args come from `source venv/activate ...`)
+TTXLA_INSTALL_LATEST_NIGHTLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --latest) TTXLA_INSTALL_LATEST_NIGHTLY=1 ;;
+  esac
+done
+
 if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
   echo "WARNING: TTMLIR_TOOLCHAIN_DIR not set. Using default value /opt/ttmlir-toolchain"
   export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
@@ -46,6 +54,17 @@ else
 fi
 
 export VLLM_TARGET_DEVICE="empty"
+
+if [ "$TTXLA_INSTALL_LATEST_NIGHTLY" = "1" ]; then
+  [ -z "$PIP" ] && { command -v uv &> /dev/null && PIP="uv pip" || PIP="pip"; }
+  echo "Installing latest pjrt-plugin-tt nightly from https://pypi.eng.aws.tenstorrent.com/"
+  # python_package/requirements.txt is passed as a constraint so uv accepts the
+  # URL-pinned torch/torch-xla deps that pjrt-plugin-tt's metadata references.
+  $PIP install --pre --upgrade pjrt-plugin-tt \
+    --extra-index-url https://pypi.eng.aws.tenstorrent.com/ \
+    --constraint python_package/requirements.txt
+fi
+unset TTXLA_INSTALL_LATEST_NIGHTLY
 
 export TTXLA_ENV_ACTIVATED=1
 export TTMLIR_ENV_ACTIVATED=1
