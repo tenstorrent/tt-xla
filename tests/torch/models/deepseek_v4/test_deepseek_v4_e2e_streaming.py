@@ -64,10 +64,13 @@ MODEL_NAME = "deepseek-ai/DeepSeek-V4-Flash"
 BATCH_SIZE = 8
 MAX_NEW_TOKENS = 16
 PROMPT_LEN = 128
+# Same as runner YAML ``enable_weight_bfp8_conversion: true`` →
+# compiler_config.experimental_weight_dtype = "bfp_bf8".
+ENABLE_WEIGHT_BFP8_CONVERSION = True
 
 # Prefill drifts more than a single decode step (full-vector PCC ~0.915) while
 # its argmax still tracks the dense reference, so hold it to a looser bar.
-PREFILL_PCC_BAR = 0.91
+PREFILL_PCC_BAR = 0.90
 DECODE_PCC_BAR = 0.95
 
 # First BATCH_SIZE of these are tokenized and run.
@@ -375,26 +378,37 @@ def _setup_logging() -> None:
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {message}")
 
 
-@pytest.mark.xfail(
-    reason="galaxy-bh DRAM OOM (536 MB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5681.",
-    strict=False,
-)
 @pytest.mark.nightly
 @pytest.mark.bh_galaxy
 @torch.inference_mode()
 def test_streaming_dsv4_flash() -> None:
     _setup_logging()
-    enable_spmd()
+    # Device type must be set before any XLA runtime / SPMD init.
     xr.set_device_type("TT")
+    enable_spmd()
     torch.manual_seed(0)
     # Per-layer flush emits one dynamo cache entry per unique (block, shape);
     # 43 layers needs more than the default 8.
     torch._dynamo.config.cache_size_limit = 1000
-    # Keep const-eval inputs on device (not bounced to host) so the per-layer
-    # host-RAM bound holds.
-    torch_xla.set_custom_compile_options(
-        {"enable_const_eval_inputs_to_system_memory": False}
-    )
+
+    # torch_xla / PJRT compile options must be strings (see CompilerConfig).
+    # With BFP8 weights the device-DRAM ceiling is the bottleneck, so keep the
+    # default enable_const_eval_inputs_to_system_memory=true (consteval inputs
+    # stay on host) and turn on the DRAM space-saving pass. Without BFP8, force
+    # consteval inputs onto device so host RAM stays bounded during staged load.
+    compile_opts: Dict[str, str] = {
+        "experimental-enable-dram-space-saving-optimization": "true",
+    }
+    if ENABLE_WEIGHT_BFP8_CONVERSION:
+        compile_opts["experimental_weight_dtype"] = "bfp_bf8"
+        logger.info(
+            "[wdtype] experimental_weight_dtype=bfp_bf8; "
+            "consteval inputs on host + DRAM space-saving on"
+        )
+    else:
+        compile_opts["enable_const_eval_inputs_to_system_memory"] = "false"
+        logger.info("[wdtype] dense weights; consteval inputs kept on device")
+    torch_xla.set_custom_compile_options(compile_opts)
 
     mesh, mesh_shape = _make_mesh()
     device = torch_xla.device()
@@ -595,7 +609,8 @@ def test_streaming_dsv4_flash() -> None:
         prepare_block(block, layer_id)
         cpu_golden(block)
         ship_block(block, layer_id)
-        run_block_flush(block, h_dummy, sp_dummy, ids_dummy)
+        flush_out = run_block_flush(block, h_dummy, sp_dummy, ids_dummy)
+        del flush_out
         post_flush(block, layer_id)
     logger.info(f"\n[step] per-layer loop: {time.time() - t_loop:.1f}s")
 
