@@ -8,7 +8,11 @@ from typing import Any, Dict
 from ruamel.yaml import YAML
 
 from tests.infra.utilities.types import Framework
-from tests.runner.test_config.constants import ALLOWED_FIELDS, PLACEHOLDERS_FILENAME
+from tests.runner.test_config.constants import (
+    ALLOWED_FIELDS,
+    EMITPY_OVERRIDE_FIELDS,
+    PLACEHOLDERS_FILENAME,
+)
 from tests.runner.test_utils import ModelTestStatus
 from tests.utils import BringupStatus
 
@@ -70,6 +74,11 @@ def _normalize_enums_in_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(arch_cfg, dict):
                 overrides[arch] = _normalize_enums_in_cfg(arch_cfg)
 
+    # Normalize emitpy_overrides, if present
+    emitpy_overrides = cfg.get("emitpy_overrides")
+    if isinstance(emitpy_overrides, dict):
+        cfg["emitpy_overrides"] = _normalize_enums_in_cfg(emitpy_overrides)
+
     return cfg
 
 
@@ -89,6 +98,16 @@ def _validate_allowed_keys(cfg: Dict[str, Any], *, ctx: str) -> None:
         for arch, arch_cfg in overrides.items():
             if isinstance(arch_cfg, dict):
                 validate_mapping(arch_cfg, where=f"arch_overrides['{arch}']")
+
+    # emitpy_overrides is restricted to status-related fields only.
+    emitpy_overrides = cfg.get("emitpy_overrides")
+    if isinstance(emitpy_overrides, dict):
+        for k in emitpy_overrides.keys():
+            if k not in EMITPY_OVERRIDE_FIELDS:
+                raise ValueError(
+                    f"Unknown field '{k}' in emitpy_overrides of {ctx}. "
+                    f"Allowed: {sorted(EMITPY_OVERRIDE_FIELDS)}"
+                )
 
 
 # Validate that filecheck pattern files referenced in config exist in tests/filecheck/

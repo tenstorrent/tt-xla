@@ -34,6 +34,8 @@ ALLOWED_FIELDS = {
     "batch_size",
     # Nested arch overrides
     "arch_overrides",
+    # Nested emitpy overrides (applied only under --emitpy, e.g. status: xfail)
+    "emitpy_overrides",
     # Needed for training tests
     "execution_pass",
     # FileCheck patterns list
@@ -45,6 +47,14 @@ ALLOWED_FIELDS = {
     "inject_custom_moe",
     # EmitPy verification: assert exact match between emitpy and flatbuffer results
     "emitpy_assert_exact",
+}
+
+# Fields allowed inside an emitpy_overrides block. Intentionally restricted to the
+# bring-up status (and its reason): emitpy_overrides only exists to flip a model's
+# pass/xfail/skip status under --emitpy, not to override comparator/compiler config.
+EMITPY_OVERRIDE_FIELDS = {
+    "status",
+    "reason",
 }
 
 # Single source of truth for the placeholders YAML filename
