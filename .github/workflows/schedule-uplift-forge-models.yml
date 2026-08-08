@@ -57,6 +57,20 @@ jobs:
           cd ${{ runner.temp }}
           cat commit_list.txt
 
+      - name: Generate changed-models test matrix
+        run: |
+          # Emits the per-arch preset consumed (via forge-models-uplift-qualification.json)
+          # to run the models changed between the previous and new tt-forge-models SHA,
+          # in addition to the existing extended suite. Emits [] for shared-file/no-op diffs.
+          python3 -m pip install --quiet pyyaml
+          python3 .github/scripts/uplift/gen_changed_models_matrix.py \
+            --old "${{ steps.set-env-variables.outputs.CURRENT_COMMIT_SHA }}" \
+            --new "${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }}" \
+            --repo "${{ runner.temp }}/tt-forge-models" \
+            --config-dir tests/runner/test_config \
+            --out .github/workflows/test-matrix-presets/latest-forge-models-changed.json
+          git add .github/workflows/test-matrix-presets/latest-forge-models-changed.json
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         id: create-pr
