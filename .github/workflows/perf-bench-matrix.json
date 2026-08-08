@@ -937,6 +937,34 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "google_gemma4_12b_text",
+        "pytest": "tests/benchmark/test_multimodal.py::test_gemma4_12b_text",
+        "runs-on": [
+          "n300-llmbox"
+        ]
+      },
+      {
+        "name": "google_gemma4_12b_image",
+        "pytest": "tests/benchmark/test_multimodal.py::test_gemma4_12b_image",
+        "runs-on": [
+          "n300-llmbox"
+        ]
+      },
+      {
+        "name": "google_gemma4_12b_audio",
+        "pytest": "tests/benchmark/test_multimodal.py::test_gemma4_12b_audio",
+        "runs-on": [
+          "n300-llmbox"
+        ]
+      },
+      {
+        "name": "google_gemma4_12b_video",
+        "pytest": "tests/benchmark/test_multimodal.py::test_gemma4_12b_video",
+        "runs-on": [
+          "n300-llmbox"
+        ]
       }
     ]
   }
