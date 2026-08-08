@@ -46,6 +46,23 @@ class TTRotaryEmbedding(nn.Module):
             return x_rot.reshape(orig_shape)
         return torch.cat((x_rot, x[..., self.rotary_dim :]), dim=-1).reshape(orig_shape)
 
+    def get_cos_sin(self, seqlen: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute cos/sin for positions up to seqlen (for Qwen2VL vision encoder).
+
+        Args:
+            seqlen: Maximum position index (typically grid size for vision).
+
+        Returns:
+            Tuple of (cos, sin) tensors with shape [seqlen, rotary_dim].
+        """
+        positions = torch.arange(
+            seqlen, dtype=torch.float32, device=self.inv_freq.device
+        )
+        freqs = torch.outer(positions, self.inv_freq)
+        cos = freqs.cos()
+        sin = freqs.sin()
+        return cos, sin
+
     def forward(
         self,
         positions: torch.Tensor,
