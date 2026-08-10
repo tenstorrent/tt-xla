@@ -333,7 +333,7 @@ class TTWorker:
         # available budget here instead of touching the cache tensor's shape
         # or sharding. Returns 1 where the cache is not actually sharded,
         # leaving the budget untouched.
-        kv_shard_factor = kv_budget_scale_factor(self.model_runner)
+        kv_shard_factor = kv_budget_scale_factor(self.model_runner, kv_cache_spec)
         usable_memory_size *= kv_shard_factor
         kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()

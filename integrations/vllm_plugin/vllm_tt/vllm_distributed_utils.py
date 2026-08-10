@@ -23,6 +23,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
 
 from .logger import tt_init_logger
 
@@ -80,7 +81,15 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
-def kv_cache_shard_factor(runner) -> int:
+def _spec_is_mla(kv_cache_spec) -> bool:
+    """True when the layer specs describe an MLA (replicated latent) cache."""
+    return bool(kv_cache_spec) and any(
+        isinstance(s, (MLAAttentionSpec, SlidingWindowMLASpec))
+        for s in kv_cache_spec.values()
+    )
+
+
+def kv_cache_shard_factor(runner, kv_cache_spec=None) -> int:
     """How many ways the KV cache is actually sharded across the mesh.
 
     Only the "model" axis shards KV heads, so this is that axis' size — 1 when
@@ -91,8 +100,13 @@ def kv_cache_shard_factor(runner) -> int:
     Must stay in sync with the mark_sharding call in
     ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
     because that path deliberately leaves the cache un-annotated.
+
+    ``kv_cache_spec`` (layer name -> spec) lets the caller account for MLA,
+    whose single latent cache is replicated rather than head-sharded.
     """
     if not runner.enable_tensor_parallel:
+        return 1
+    if _spec_is_mla(kv_cache_spec):
         return 1
     if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
         # DP+TP leaves the cache replicated, so per-chip usage already equals
@@ -105,17 +119,24 @@ def kv_cache_shard_factor(runner) -> int:
     return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
 
 
-def kv_budget_scale_factor(runner) -> int:
+def kv_budget_scale_factor(runner, kv_cache_spec=None) -> int:
     """How much smaller each chip's KV cache is than the logical one.
 
     vLLM budgets blocks against the full, un-sharded cache, so the worker
     inflates its budget by this. Head sharding divides each chip's copy by
     tp_size; a per-replica block pool divides it again by dp_size.
+
+    MLA keeps a single replicated latent cache instead of head-sharded K/V, so
+    only the per-replica block split counts for it; pass ``kv_cache_spec``
+    (layer name -> spec) wherever the specs are known.
     """
     if not runner.enable_tensor_parallel:
         return 1
     if not getattr(runner, "shard_kv_blocks", False):
-        return kv_cache_shard_factor(runner)
+        return kv_cache_shard_factor(runner, kv_cache_spec)
+    if _spec_is_mla(kv_cache_spec):
+        # Latent cache replicated on "model"; only the block split counts.
+        return runner.dp_size
     mesh = runner.mesh
     axes = (
         mesh.shape()
