@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
+from vllm.utils.math_utils import cdiv
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ else:
 from torch_xla import runtime as xrt
 
 from .logger import tt_init_logger
+from .swa_cache_utils import sliding_ring_is_profitable, sliding_window_blocks
 
 logger = tt_init_logger(__name__)
 
@@ -236,6 +238,7 @@ class TTConfig:
             if self.enable_tensor_parallel:
                 name = f"{name}_g{xrt.global_ordinal()}"
             cfg["export_model_name"] = name
+        logger.info("PJRT compile config: %s", cfg)
         return cfg
 
 
@@ -359,6 +362,50 @@ class TTPlatform(Platform):
         # the base default False downgrades sliding-window layers to full
         # attention, making them pay the full max_model_len KV cost.
         return True
+
+    @classmethod
+    def _maybe_disable_unprofitable_hybrid_kv_cache(
+        cls, vllm_config: "VllmConfig"
+    ) -> None:
+        """Opt out of the sliding-window ring where it costs more than full
+        attention.
+
+        Each sliding layer gets its own per-user ring on TT (vLLM's cross-group
+        byte-overlay is impossible here), which only beats full attention once
+        the window actually clips the context. Below that the window never
+        slides yet the ring still pays its ``+1`` straddle block and stick
+        alignment, so let vLLM unify the specs into the shared pool instead.
+
+        Decided at config time from the HF config rather than the per-layer
+        specs, and model-wide because ``disable_hybrid_kv_cache_manager`` is a
+        single switch.
+        """
+        model_config = vllm_config.model_config
+        scheduler_config = vllm_config.scheduler_config
+        # Respect an explicit user choice (either direction).
+        if scheduler_config.disable_hybrid_kv_cache_manager is not None:
+            return
+        sliding_window = model_config.get_sliding_window()
+        # max_model_len == -1 means vLLM auto-fits it later from the KV budget,
+        # so the value here is a placeholder -- leave the ring enabled.
+        if not sliding_window or model_config.original_max_model_len == -1:
+            return
+
+        max_model_len = model_config.max_model_len
+        block_size = vllm_config.cache_config.block_size
+        if sliding_ring_is_profitable(sliding_window, block_size, max_model_len):
+            return
+
+        scheduler_config.disable_hybrid_kv_cache_manager = True
+        logger.info(
+            "[TT] Disabling the hybrid KV cache manager: at max_model_len=%d a "
+            "sliding-window ring costs %d blocks per user per layer against %d "
+            "for full attention. Sliding layers will share the full-attention "
+            "pool.",
+            max_model_len,
+            sliding_window_blocks(sliding_window, block_size, max_model_len),
+            cdiv(max_model_len, block_size),
+        )
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -543,6 +590,21 @@ class TTPlatform(Platform):
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
+
+        # The block pool is global but each replica holds its own KV cache, so
+        # block id N is different memory per device and a cross-replica hit
+        # reads zeros. Chunked-prefill continuation is unaffected (same request,
+        # same replica).
+        if (
+            tt_config.enable_data_parallel
+            and cache_config
+            and cache_config.enable_prefix_caching
+        ):
+            logger.warning(
+                "[TT] Disabling prefix caching: it is not safe under data "
+                "parallelism (per-replica KV cache vs global block pool)."
+            )
+            cache_config.enable_prefix_caching = False
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_TRACE_ONCE compilation level
@@ -585,6 +647,8 @@ class TTPlatform(Platform):
         cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config
         )  # type: ignore[assignment]
+
+        cls._maybe_disable_unprofitable_hybrid_kv_cache(vllm_config)
 
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
@@ -646,6 +710,12 @@ class TTPlatform(Platform):
                 scheduler_config.max_num_batched_tokens = budget
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
+
+        # Outside the branch chain on purpose: the MLA branch, a zero chunk_size
+        # and the pooling path all leave TT chunked prefill off, and the global
+        # has to be cleared for them too rather than keep a previous config's
+        # value in a shared process.
+        publish_tt_per_request_prefill_chunk(vllm_config)
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
@@ -720,6 +790,78 @@ class TTPlatform(Platform):
         worker after initializing the device.
         """
         return
+
+
+# Per-request prefill chunk for the sliding-window admission bound below.
+# Published from both TTPlatform.check_and_update_config (front-end process) and
+# TTWorker.__init__ (EngineCore, where the bound's consumers live).
+# 0 = TT chunked prefill is off, patch is a no-op.
+_TT_PER_REQUEST_PREFILL_CHUNK = 0
+
+
+def publish_tt_per_request_prefill_chunk(vllm_config) -> None:
+    """Record one request's in-flight token bound for the admission bound below.
+
+    vLLM's own bound is ``max_concurrent_batches * max_num_batched_tokens`` --
+    every concurrent batch may hold a full batch-wide budget -- so the
+    per-request analogue carries the same multiplier over the per-request chunk.
+    Reading it from the config rather than assuming 1 keeps this correct if TT
+    ever enables pipeline parallelism or async scheduling.
+
+    Always assigns, so a config without TT chunked prefill clears a value a
+    previous config published.
+    """
+    global _TT_PER_REQUEST_PREFILL_CHUNK
+    scheduler_config = vllm_config.scheduler_config
+    if not getattr(scheduler_config, "tt_chunked_prefill_enabled", False):
+        _TT_PER_REQUEST_PREFILL_CHUNK = 0
+        return
+    _TT_PER_REQUEST_PREFILL_CHUNK = (
+        getattr(scheduler_config, "tt_prefill_chunk_size", 0)
+        * vllm_config.max_concurrent_batches
+    )
+
+
+def install_tt_sliding_window_admission() -> None:
+    """Bound a sliding-window layer by one request's chunk, not the batch's.
+
+    ``SlidingWindowSpec.max_admission_blocks_per_request`` sizes a request's
+    in-flight KV from ``VllmConfig.max_in_flight_tokens``, which is built on
+    ``max_num_batched_tokens``. Under TT chunked prefill that is the batch-wide
+    budget (``tt_prefill_chunk_size * max_num_seqs``) while AscendScheduler caps
+    each request at ``tt_prefill_chunk_size``, so the bound is inflated by up to
+    ``max_num_seqs`` x. That over-charge feeds the startup admission check,
+    which then rejects long-context configurations over pool memory they would
+    never use.
+
+    Patch the spec method rather than either caller: vLLM treats it as the
+    single source of truth for both the startup pool sizer and the runtime
+    admission cap, and warns that drift between the two re-introduces a deadlock
+    (vllm#39734) or mid-prefill OOM.
+    """
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    original = SlidingWindowSpec.max_admission_blocks_per_request
+    if getattr(original, "_tt_patched", False):
+        return  # idempotent: never stack wrappers and clamp twice
+
+    def _tt_max_admission_blocks_per_request(
+        self, max_in_flight_tokens: int, max_model_len: int
+    ) -> int:
+        if _TT_PER_REQUEST_PREFILL_CHUNK:
+            max_in_flight_tokens = min(
+                max_in_flight_tokens, _TT_PER_REQUEST_PREFILL_CHUNK
+            )
+        return original(
+            self,
+            max_in_flight_tokens=max_in_flight_tokens,
+            max_model_len=max_model_len,
+        )
+
+    _tt_max_admission_blocks_per_request._tt_patched = True
+    SlidingWindowSpec.max_admission_blocks_per_request = (
+        _tt_max_admission_blocks_per_request
+    )
 
 
 def install_tt_accelerator_memory_info() -> None:

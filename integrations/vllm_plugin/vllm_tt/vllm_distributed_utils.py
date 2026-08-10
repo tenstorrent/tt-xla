@@ -30,6 +30,10 @@ from .logger import tt_init_logger
 logger = tt_init_logger(__name__)
 
 
+# Deduplicates the size-1-axis warning below; see the call site for why.
+_WARNED_SIZE1_AXIS: set = set()
+
+
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
     """xs.mark_sharding that replicates any dim whose size is not divisible
     by the mesh axis it would be sharded on. When ``strict`` is True, raise
@@ -59,6 +63,24 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
             safe_spec.append(None)
             continue
         mesh_axis_size = _axis_size(axis)
+        if mesh_axis_size == 1:
+            # No-op: the dim stays replicated while siblings shard on a real
+            # axis. This is how DP-only pinned the batch dim to size-1 "model"
+            # on a (dp, 1) mesh and corrupted rows silently.
+            msg = (
+                f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) asked to "
+                f"shard on mesh axis {axis!r}, which has size 1 -- this is a "
+                f"no-op and the dim stays replicated"
+            )
+            if strict:
+                raise ValueError(msg + "; strict=True")
+            # Deduped: pure-TP legitimately marks a size-1 "batch" axis from
+            # _dummy_run on every step.
+            if msg not in _WARNED_SIZE1_AXIS:
+                _WARNED_SIZE1_AXIS.add(msg)
+                logger.warning("%s", msg)
+            safe_spec.append(None)
+            continue
         if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "

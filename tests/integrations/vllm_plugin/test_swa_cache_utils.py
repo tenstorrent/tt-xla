@@ -16,6 +16,7 @@ from vllm_tt.swa_cache_utils import (
     assign_ring_slots,
     build_sliding_ring_page_table,
     sliding_page_table_width,
+    sliding_ring_is_profitable,
     sliding_ring_phys_blocks,
     sliding_ring_reserve_bytes,
     sliding_window_blocks,
@@ -142,3 +143,25 @@ def test_page_table_wraps_once_past_the_window():
         np.array([3], dtype=np.int64), np.array([0], dtype=np.int64), wb, width
     )
     assert pt[0].tolist() == [1 + ((3 + i) % wb) for i in range(width)]
+
+
+@pytest.mark.parametrize(
+    "max_model_len,profitable",
+    # gemma-4-31B geometry (window 1024, block 32). Below the window the ring
+    # pays its +1 straddle block and the stick round-up for nothing.
+    [(128, False), (512, False), (1024, False), (2048, True), (131072, True)],
+)
+def test_ring_is_profitable_only_past_the_window(max_model_len, profitable):
+    assert sliding_ring_is_profitable(1024, 32, max_model_len) is profitable
+
+
+def test_ring_profitability_agrees_with_the_block_counts():
+    """The predicate must not drift from the two block counts it compares."""
+    for max_model_len in (32, 128, 1024, 2048, 8192, 65536):
+        for window in (256, 1024, 4096):
+            expected = sliding_window_blocks(window, 32, max_model_len) < cdiv(
+                max_model_len, 32
+            )
+            assert (
+                sliding_ring_is_profitable(window, 32, max_model_len) is expected
+            ), f"window={window} max_model_len={max_model_len}"

@@ -41,6 +41,21 @@ def sliding_window_blocks(
     return ((n + align - 1) // align) * align
 
 
+def sliding_ring_is_profitable(
+    sliding_window: int, block_size: int, max_model_len: int
+) -> bool:
+    """Whether a sliding ring is cheaper than leaving the layer in the pool.
+
+    A ring costs ``sliding_window_blocks()`` blocks per user per layer; plain
+    full attention costs ``cdiv(max_model_len, block_size)``. The ring only wins
+    once the window actually clips the context -- below that the window never
+    slides, yet the ring still pays its ``+1`` straddle block and the stick
+    alignment round-up, making it strictly more expensive.
+    """
+    ring_blocks = sliding_window_blocks(sliding_window, block_size, max_model_len)
+    return ring_blocks < cdiv(max_model_len, block_size)
+
+
 def sliding_ring_phys_blocks(window_blocks: int, max_num_reqs: int) -> int:
     """Physical blocks for one sliding layer: one sub-ring per batch slot, plus
     a leading null block (index 0) that padded / inactive rows write to."""
