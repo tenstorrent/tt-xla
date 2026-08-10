@@ -398,6 +398,12 @@ jobs:
           ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
         fi
 
+        # galaxy-bh jobs often exceed duration-based estimates (e.g. large e2e models).
+        if [[ "${{ matrix.build.runs-on }}" == "galaxy-bh" && "$ESTIMATED_DURATION" -lt 300 ]]; then
+          echo "Raising timeout for galaxy-bh from $ESTIMATED_DURATION to 300 minutes"
+          ESTIMATED_DURATION=300
+        fi
+
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
