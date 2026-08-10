@@ -1014,6 +1014,20 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
+
+  // Let the optimizer reuse the device we already have open rather than opening
+  // a mock one. Constructing the mock device re-applies TT_VISIBLE_DEVICES to a
+  // descriptor whose chips discovery already renumbered, which aborts any
+  // per-chip pinning other than device 0 (#5521). Reusing the live device also
+  // makes op-model queries reflect real hardware instead of a mock.
+  if (client_instance != nullptr && client_instance->parentMesh().has_value()) {
+    options.devicePtr =
+        client_instance->parentMesh()
+            ->asSharedPtr<::tt::tt_metal::distributed::MeshDevice>(
+                tt::runtime::getCurrentDeviceRuntime());
+  } else {
+    LOG_F(INFO, "No open mesh device; OpModel falls back to a mock device");
+  }
   // Map user-facing dtype names to BFPDtype enum values.
   if (compile_options.experimental_weight_dtype == "bfp_bf8") {
     options.experimentalWeightDtype = mlir::tt::ttnn::BFPDtype::BFP_BFloat8;
