@@ -74,6 +74,7 @@
 #include "api/executable_image.h"
 #include "api/memory_instance.h"
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
+#include "api/module_builder/frontend_passes/shlo_flatten_return_tuple.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
 #include "utils/assert.h"
@@ -337,6 +338,14 @@ ModuleBuilder::buildModule(
 
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
                                  compile_options.export_model_name);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  // XLA computations use a tuple root, so the framework hands us an entry
+  // function returning a single tuple. Flatten it into one tensor result per
+  // output before any output-metadata collection or the compiler pipeline runs.
+  status = frontend_passes::flattenReturnTuple(mlir_module);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
