@@ -4580,13 +4580,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 spec = layer_to_spec[layer_name]
                 shape = _kv_shape(spec, phys_blocks)
                 if _is_mla(spec):
-
-                        # The latent KV cache is replicated, not head-sharded, so
-                        # num_kv_heads (1) need not divide tp_size.
-                      
+                    kv_caches[layer_name] = torch.zeros(shape, dtype=spec.dtype).to(
+                        self.device
+                    )
+                elif isinstance(spec, AttentionSpec):
+                    tp_size = kv_cache_shard_factor(self)
+                    if tp_size > 1:
                         # Fail loudly when KV heads are not TP-divisible instead
                         # of silently replicating (see safe_mark_sharding).
-
                         assert spec.num_kv_heads % tp_size == 0, (
                             f"num_kv_heads {spec.num_kv_heads} must be divisible "
                             f"by tp_size {tp_size} for correct KV-head sharding"
