@@ -210,6 +210,14 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # page-table stick). Any multi-token row over a cached prefix needs that
         # op, and a spec-decode row is exactly that.
         self._prefix_sdpa_usable = self.max_num_blocks_per_req % 8 == 0
+        # Under DP+TP each replica takes its own slice of the block pool instead of
+        # a full replicated copy. The worker reads this to scale the KV budget, so
+        # it must be decided here, before the pool is sized.
+        self.shard_kv_blocks = (
+            self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL
+            and self.dp_size > 1
+        )
+        self._replica_pool = None
 
         # Prefill request-count bucketing bounds (decode always uses max_num_reqs).
         self.min_num_reqs = getattr(tt, "min_num_seqs", None) or self.max_num_reqs
@@ -520,6 +528,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.req_states.remove_request(req_id)
         self.sampling_states.remove_request(slot)
         self.block_table.clear_row(slot)
+        pool = getattr(self, "_replica_pool", None)
+        if pool is not None:
+            pool.clear_row(slot)
         self.num_prompt_logprobs.pop(req_id, None)
         # Both logprob dicts are keyed by req_id: a stale in-progress buffer is
         # sized for the old prompt and would be reused on abort+resubmit.
@@ -571,7 +582,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 generator.manual_seed(sampling_params.seed)
             self.sampling_states.add_request(slot, sampling_params, generator)
 
-            self.block_table.add_row(new.block_ids, slot)
+            self.block_table.add_row(
+                self._to_physical(new.block_ids, slot, append=False), slot
+            )
 
             if new.lora_request is not None:
                 self.lora_requests_by_slot[slot] = new.lora_request
@@ -609,7 +622,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             new_block_ids = cached.new_block_ids[i]
             if new_block_ids is not None:
-                self.block_table.append_row(new_block_ids, slot)
+                self.block_table.append_row(
+                    self._to_physical(new_block_ids, slot, append=True), slot
+                )
 
     def _order_scheduled_reqs(
         self, scheduler_output: "SchedulerOutput"
@@ -2083,6 +2098,54 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return result
 
+    def _init_replica_pool(self, pool_num_blocks: int) -> int:
+        """Build the per-replica slot allocator; returns the per-replica block count.
+
+        vLLM sizes one global pool (the worker already inflated its budget by
+        dp_size), of which each replica physically holds a 1/dp_size slice.
+        Idempotent across layers, which all share the pool geometry.
+        """
+        from .replica_block_pool import ReplicaBlockPool
+
+        slots = pool_num_blocks // self.dp_size
+        if self._replica_pool is not None:
+            assert self._replica_pool.slots_per_replica == slots, (
+                "every layer must share the pool geometry, got "
+                f"{slots} vs {self._replica_pool.slots_per_replica}"
+            )
+            return slots
+
+        rows_per_replica = self.max_num_reqs // self.dp_size
+        self._replica_pool = ReplicaBlockPool(self.dp_size, slots, rows_per_replica)
+        # vLLM admits against the global pool, so it can fill one replica's rows
+        # past that replica's slice while the global count still looks fine. The
+        # allocator raises if it happens; warn up front because the fix is config.
+        worst_case = rows_per_replica * self.max_num_blocks_per_req + 1
+        if slots < worst_case:
+            logger.warning(
+                "KV blocks per DP replica (%d) below the worst case %d "
+                "(%d rows x %d blocks + null). A replica can run out of slots "
+                "before vLLM stops admitting requests.",
+                slots,
+                worst_case,
+                rows_per_replica,
+                self.max_num_blocks_per_req,
+            )
+        logger.info(
+            "Sharding the KV block pool %d ways: %d blocks per replica.",
+            self.dp_size,
+            slots,
+        )
+        return slots
+
+    def _to_physical(self, block_ids, slot: int, append: bool):
+        """Rebase vLLM's global block ids onto the row's replica-local slots."""
+        pool = getattr(self, "_replica_pool", None)
+        if pool is None:
+            return block_ids
+        assert len(block_ids) == 1, "block sharding assumes a single KV cache group"
+        return ((pool.append_row if append else pool.add_row)(slot, block_ids[0]),)
+
     def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
         """Allocate the per-layer KV cache tensors on the TT device.
 
@@ -2138,6 +2201,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % spec.page_size_bytes == 0
                 num_blocks = tensor_size // spec.page_size_bytes
+                if getattr(self, "shard_kv_blocks", False):
+                    num_blocks = self._init_replica_pool(num_blocks)
                 if isinstance(spec, MLAAttentionSpec):
                     # Single concatenated latent KV tensor (num_kv_heads == 1).
                     shape = TTMLAAttentionBackend.get_kv_cache_shape(
@@ -2275,17 +2340,20 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self._register_kv_caches_for_transfer(kv_caches)
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave replicated; each device writes its own slice via
-            # paged_update_cache. A TP-only spec puts block_size on the DP axis
-            # and fails ttir.paged_update_cache (follow-up).
-            return
         if self.enable_tensor_parallel:
             import torch_xla.distributed.spmd as xs
 
+            # Heads shard on "model" for TP-only and DP+TP alike. Blocks are never
+            # annotated: under DP+TP the dim0 slice is physical (each replica owns
+            # its own pool), so it stays replicated on "batch". Cross-layer sharing
+            # can hand the same buffer up twice, so mark each one once.
+            marked: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
                 for cache in entry if is_pair else [entry]:
+                    if id(cache) in marked:
+                        continue
+                    marked.add(id(cache))
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
                     if is_pair:
                         # Shard standard K/V on num_kv_heads over the "model" axis.
@@ -2309,6 +2377,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if not has_kv_transfer_group():
             return
+        if getattr(self, "_replica_pool", None) is not None:
+            # The connector addresses blocks by vLLM's global ids, which no longer
+            # index the cache once each replica holds its own slice.
+            raise NotImplementedError(
+                "KV transfer is not supported with a DP-sharded KV block pool."
+            )
         get_kv_transfer_group().register_kv_caches(kv_caches)
         get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
         logger.info(
