@@ -319,7 +319,7 @@ class TTWorker:
                 logger.warning_once("head size is padded to %d", padded_head_size)
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
-            tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+            tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size * 2
         logger.info(
             "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
             "KV cache budget = %.2f GiB",

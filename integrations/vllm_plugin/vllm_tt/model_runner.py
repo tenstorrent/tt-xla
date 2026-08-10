@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from datetime import datetime, timezone
 from itertools import product
@@ -1881,6 +1882,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "after execute_model() returns None."
             )
         torch._dynamo.config.dynamic_shapes = False
+        self._exec_step = getattr(self, "_exec_step", 0) + 1
+        if self._exec_step <= 3:
+            self._log_kv_cache_handles(f"execute-model step={self._exec_step}")
         # Update cached state
         self._update_states(scheduler_output)
         if not scheduler_output.total_num_scheduled_tokens:
@@ -3015,11 +3019,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         num_reqs,
                         label,
                     )
+                    self._log_kv_cache_handles(f"pre-dummy nt={num_tokens}")
                     self._dummy_run(
                         num_tokens, num_reqs, num_blocks_per_req, prefix_chunk=False
                     )
+                    # No handle probe here: between _dummy_run and the sync the
+                    # caches carry pending IR with no committed data, and
+                    # PjRtShardedData::GetHandle() segfaults on that.
                     # Sync per token count so prefill and decode graphs stay separate.
                     torch_xla.sync()
+                    self._log_kv_cache_handles(f"post-sync nt={num_tokens}")
                     # Precompile the cached-prefix graph for prompt chunks
                     # (num_tokens > 1) so it isn't compiled on the first continuation.
                     if chunked and num_tokens > 1:
@@ -3211,6 +3220,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Precompile all the subgraphs with possible input shapes.
         """
         torch._dynamo.config.dynamic_shapes = False
+        self._log_kv_cache_handles("capture-model-start")
+        # Debug switch for the KV-cache DRAM investigation. Skips warmup
+        # entirely, so nothing at all compiles or runs between KV cache
+        # creation and the first real forward. If the cache plateau survives to
+        # execute-model step=1, compiling an unrelated graph is the trigger; if
+        # it still vanishes, the compiles are innocent. Every graph then
+        # compiles inline on the first step -- expect several "Detected N new
+        # XLA graph compilation(s)" and a very slow first step.
+        if os.environ.get("TT_DEBUG_SKIP_ALL_WARMUP") == "1":
+            logger.warning(
+                "TT_DEBUG_SKIP_ALL_WARMUP=1: skipping capture_model entirely "
+                "(debug only, not a supported mode)"
+            )
+            self._log_kv_cache_handles("capture-model-end")
+            return
         with self.maybe_setup_dummy_loras(self.lora_config):
             if not self.tt_config.cpu_sampling:
                 logger.info("Warmup mode: fused runtime path")
@@ -3222,15 +3246,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     return
             else:
                 logger.info("Warmup mode: unfused runtime path (cpu_sampling=True)")
-                self._precompile_backbone()
+                # Debug switch for the KV-cache DRAM investigation. The backbone
+                # dummy runs are the only warmup graphs that consume the KV
+                # caches; skipping them leaves the first real forward as the
+                # first thing to touch them, which isolates whether the dummy
+                # runs are what drops the cache off DRAM. Graphs then compile
+                # lazily at serve time -- expect "Detected N new XLA graph
+                # compilation(s) during sample_tokens()" and a slow first step.
+                if os.environ.get("TT_DEBUG_SKIP_BACKBONE_WARMUP") == "1":
+                    logger.warning(
+                        "TT_DEBUG_SKIP_BACKBONE_WARMUP=1: skipping "
+                        "_precompile_backbone (debug only, not a supported mode)"
+                    )
+                else:
+                    self._precompile_backbone()
                 if self.tt_config.decode_only:
                     logger.info(
                         "decode_only=True: skipping remaining graphs compilation."
                     )
                     return
+                # Probe between each precompile. The handles are not expected
+                # to change here -- the point is the timestamps, which bracket
+                # each compile so the DRAM trace shows which one contains the
+                # free without needing a run per graph.
+                self._log_kv_cache_handles("after-backbone")
                 self._precompile_select_hidden_states()
+                self._log_kv_cache_handles("after-select-hidden-states")
                 self._precompile_compute_logits()
+                self._log_kv_cache_handles("after-compute-logits")
                 self._precompile_structured_decoding()
+                self._log_kv_cache_handles("after-postprocess-graphs")
 
             self._precompile_mm_encoder()
             # TODO(#4387): precompile fails trace-insertion at opt_level=1;
@@ -3239,6 +3284,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # TODO: Move it to the fused precompile path once the bug is fixed.
             if not self.tt_config.enable_trace:
                 self._precompile_gather_logprobs()
+
+        self._log_kv_cache_handles("capture-model-end")
 
     def profile_run(
         self,
@@ -3350,6 +3397,42 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
 
     
+    def _log_kv_cache_handles(self, tag: str) -> None:
+        """Probe: are the KV caches still the buffers initialize_kv_cache made?
+
+        Same handles across two calls means the original device allocation is
+        still live. Different handles means torch_xla rebound the tensors to
+        new buffers, so the original allocation was legitimately replaced. A
+        raised exception means the tensors lost their device data entirely.
+        `distinct` catches the aliasing case where two caches share a buffer.
+
+        Debug aid for the DRAM trace dropping to zero during warmup, before
+        attention ever runs.
+
+        ONLY call this where the caches have committed device data, i.e. after a
+        `torch_xla.sync()`. With pending IR and no data,
+        `PjRtShardedData::GetHandle()` indexes an empty shard vector and
+        segfaults -- which Python cannot catch, so the try/except below is no
+        protection against calling this at the wrong point.
+        """
+        if not self.kv_caches:
+            _log(f"kv handles [{tag}]: no kv_caches bound")
+            return
+        # Let queued device ops land so the handles read below are committed.
+        xm.wait_device_ops()
+        tensors = []
+        for entry in self.kv_caches:
+            tensors.extend(entry if isinstance(entry, (list, tuple)) else [entry])
+        try:
+            handles = torch_xla._XLAC._get_tensors_handle(tensors)
+        except Exception as exc:
+            _log(f"kv handles [{tag}]: FAILED {type(exc).__name__}: {exc}")
+            return
+        _log(
+            f"kv handles [{tag}]: first={handles[:2]} last={handles[-2:]} "
+            f"distinct={len(set(handles))}/{len(handles)}"
+        )
+
     @torch.compile(backend="tt")
     def make_kv_cache_buffers_compiled(
         self, mesh, shape, device
@@ -3467,15 +3550,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Allocate separate K and V cache tensors to avoid
                     # slice/concat copies in the compiled decode graph.
                     
-                    if self.enable_tensor_parallel and self.parallel_mode != ParallelismMode.DATA_TENSOR_PARALLEL:
-                        k_cache, v_cache = self.make_kv_cache_buffers_compiled(self.mesh, kv_cache_shape, self.device)
-                        torch_xla.sync(wait=True)
-                        xm.wait_device_ops()
-                        _log(f"k_cache: {k_cache.shape}, v_cache: {v_cache.shape} made by compiled function")
-                        time.sleep(0.2) # REMOVE THIS
-                    else: 
-                        k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
-                        v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    # if self.enable_tensor_parallel and self.parallel_mode != ParallelismMode.DATA_TENSOR_PARALLEL:
+                    #     k_cache, v_cache = self.make_kv_cache_buffers_compiled(self.mesh, kv_cache_shape, self.device)
+                    #     torch_xla.sync(wait=True)
+                    #     xm.wait_device_ops()
+                    #     _log(f"k_cache: {k_cache.shape}, v_cache: {v_cache.shape} made by compiled function")
+                    #     #time.sleep(0.2) # REMOVE THIS
+                    # else: 
+                    k_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
                     kv_caches[layer_name] = [k_cache, v_cache]
                 else:
@@ -3503,7 +3586,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 caches = entry if is_pair else [entry]
                 for cache in caches:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    if not is_pair:
+                    if is_pair:
+                        xs.mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                    else:
                         # Replicate the MLA latent KV cache tensor
                         xs.mark_sharding(cache, self.mesh, (None, None, None, None))
 
@@ -3511,7 +3598,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             get_kv_transfer_group().register_kv_caches(kv_caches)
             get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
 
-        exit(0)
+        self._log_kv_cache_handles("after-create")
+
+        #exit(0)
 
     def reset_dynamo_cache(self):
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`

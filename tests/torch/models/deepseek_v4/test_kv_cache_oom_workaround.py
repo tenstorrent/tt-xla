@@ -64,7 +64,7 @@ def _log(msg: str) -> None:
     print(f"{_ts()}: {msg}", flush=True)
 
 
-MESH_SHAPE = (2, 4)  # DP x TP: the cache shards on TP and replicates on DP
+MESH_SHAPE = (1, 8)  # DP x TP: the cache shards on TP and replicates on DP
 MESH_AXIS_NAMES = ("_axis_0", "_axis_1")
 HEAD_AXIS = "_axis_1"  # the TP axis the head dim is split on
 TP_SIZE = MESH_SHAPE[1]
@@ -131,10 +131,10 @@ def _setup(mesh_shape_override=None):
     # The plugin only honors this when the graph defines no device-sharded
     # inputs of its own -- true for the constrained-fill graph, which takes no
     # tensor inputs -- and rejects it otherwise, so it stays opt-in per test.
-    if mesh_shape_override is not None:
-        # compile_options = {"mesh_shape": ",".join(str(d) for d in mesh_shape_override)}
-        compile_options["mesh_shape"] = ",".join(str(d) for d in mesh_shape_override)
-        torch_xla.set_custom_compile_options(compile_options)
+    # if mesh_shape_override is not None:
+    #     # compile_options = {"mesh_shape": ",".join(str(d) for d in mesh_shape_override)}
+    #     compile_options["mesh_shape"] = ",".join(str(d) for d in mesh_shape_override)
+    #     torch_xla.set_custom_compile_options(compile_options)
     n = xr.global_runtime_device_count()
     if n != MESH_DEVICES:
         pytest.skip(
@@ -400,10 +400,15 @@ def _make_kv_cache(mesh, shape, device):
         sharding_constraint_tensor(v, mesh, (None, HEAD_AXIS, None, None)),
     )
 
+def _random_other_compiled_thing(input_tensor):
+    second_tensor = input_tensor * 4
+    return second_tensor.sum(dtype=torch.float32).reshape(1)
+
+
 
 @torch.inference_mode()
 def test_mock_vllm_kv_cache_initialization():
-    mesh, device = _setup(mesh_shape_override=MESH_SHAPE)
+    mesh, device = _setup(mesh_shape_override=None)
 
     # vLLM iterates over kv_cache_groups and generates multiple kv_cache pairs.
     # Groups 1 and 2 share a shape deliberately: that pair is the re-invocation
@@ -461,9 +466,23 @@ def test_mock_vllm_kv_cache_initialization():
     # assert len(set(handles)) == len(handles), f"aliased cache buffers: {handles}"
     time.sleep(0.5)
 
-    # _run_mock_kv(
-    #     kv_cache_groups[0]["k_cache"], kv_cache_groups[0]["v_cache"], mesh, device
-    # )
+
+    _log("compiling random other thing")
+    compiled_random_other_thing = torch.compile(_random_other_compiled_thing, backend="tt")
+    input_tensor = torch.randn(32, 32, 32, 32, dtype=torch.float32)
+    input_tensor = input_tensor.to(device)
+    xs.mark_sharding(input_tensor, mesh, (None, MESH_AXIS_NAMES[0], None, None))
+    _log("marking sharding")
+    compiled_random_other_thing(input_tensor)
+    _log("syncing")
+    torch_xla.sync(wait=True)
+    xm.wait_device_ops()
+    time.sleep(0.5)
+
+    _log("running mock kv")
+    out = _run_mock_kv(
+        kv_cache_groups[0]["k_cache"], kv_cache_groups[0]["v_cache"], mesh, device
+    )
 
 
 """
