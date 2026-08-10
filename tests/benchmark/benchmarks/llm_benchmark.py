@@ -848,57 +848,12 @@ def benchmark_llm_torch_xla(
     ]
 
     if accuracy_testing:
-        # Compute per-user token accuracy across the batch
-        all_top1 = []
-        all_top5 = []
-        for user_idx, user_tokens in enumerate(per_user_predictions):
-            user_top1, user_top5 = token_accuracy.compute_accuracy(user_tokens)
-            all_top1.append(user_top1)
-            all_top5.append(user_top5)
+        from llm_utils.token_accuracy import score_token_accuracy
 
-        all_top1 = np.array(all_top1)
-        all_top5 = np.array(all_top5)
-
-        # Use 5th-percentile (p5) as primary metric: "95% of users are at or above this"
-        # This catches broken users that averaging would hide.
-        top1_p5 = float(np.percentile(all_top1, 5))
-        top5_p5 = float(np.percentile(all_top5, 5))
-
-        num_users = len(all_top1)
-        print(
-            f"Token accuracy over {num_users} users:\n"
-            f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
-            f"median={np.median(all_top1)*100:.2f}%  mean={all_top1.mean()*100:.2f}%  "
-            f"max={all_top1.max()*100:.2f}%\n"
-            f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
-            f"median={np.median(all_top5)*100:.2f}%  mean={all_top5.mean()*100:.2f}%  "
-            f"max={all_top5.max()*100:.2f}%"
+        evaluation_score, accuracy_measurements = score_token_accuracy(
+            token_accuracy, per_user_predictions
         )
-
-        # Store p5 and mean accuracy scores for regression tracking
-        evaluation_score = top1_p5  # Use TOP1 p5 as primary score
-        top1_mean = float(all_top1.mean())
-        top5_mean = float(all_top5.mean())
-        custom_measurements.extend(
-            [
-                {
-                    "measurement_name": "top1_accuracy_p5",
-                    "value": top1_p5 * 100,
-                },
-                {
-                    "measurement_name": "top5_accuracy_p5",
-                    "value": top5_p5 * 100,
-                },
-                {
-                    "measurement_name": "top1_accuracy_mean",
-                    "value": top1_mean * 100,
-                },
-                {
-                    "measurement_name": "top5_accuracy_mean",
-                    "value": top5_mean * 100,
-                },
-            ]
-        )
+        custom_measurements.extend(accuracy_measurements)
     elif decode_only:
         decode_pcc_value = _report_pcc(
             "First decode", output_logits[0][0], cpu_output_logits[1][0], required_pcc

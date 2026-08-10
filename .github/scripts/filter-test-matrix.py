@@ -116,7 +116,7 @@ def filter_matrix_adv(matrix, adv_filter):
 
 def update_runners(matrix, sh_runner):
     """Resolve each test's final ``runs-on`` label and shared-runner flag."""
-    no_shared_runner = ("galaxy-wh-6u", "qb2-blackhole")
+    no_shared_runner = ("galaxy-wh-6u", "galaxy-bh", "qb2-blackhole")
     civ2_name_map = {"n150-perf": "n150", "p150-perf": "p150b"}
 
     for item in matrix:

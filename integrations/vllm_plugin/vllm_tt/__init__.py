@@ -50,3 +50,9 @@ def register_oot_layers():
     from .platform import install_tt_accelerator_memory_info
 
     install_tt_accelerator_memory_info()
+
+    # Bound a sliding-window layer's per-request KV by the per-request prefill
+    # chunk instead of the batch-wide token budget.
+    from .platform import install_tt_sliding_window_admission
+
+    install_tt_sliding_window_admission()

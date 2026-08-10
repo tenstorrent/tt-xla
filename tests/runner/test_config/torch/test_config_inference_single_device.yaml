@@ -2763,3 +2763,22 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+
+  xtts_v2/pytorch-speaker_encoder-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-conditioning-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_prefill-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_latents-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-hifigan_decoder-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
