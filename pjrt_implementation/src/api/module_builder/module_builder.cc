@@ -77,6 +77,7 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
+#include "api/module_builder/frontend_passes/shlo_strip_zeros_buffer_anchor.h"
 #include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
@@ -572,6 +573,14 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
 
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
+
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
+
+  // Must happen here, ahead of the StableHLO pipeline: Shardy's sharding rule
+  // for @tt.zeros_buffer is written against the operand-free form.
+  status = frontend_passes::stripZerosBufferAnchorOperands(mlir_module);
 
   printModule(mlir_module, export_path, "shlo_frontend", model_name);
 

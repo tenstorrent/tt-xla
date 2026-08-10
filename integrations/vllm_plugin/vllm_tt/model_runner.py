@@ -4426,6 +4426,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         gc.collect()
         logger.info(f"Profiling run with num_tokens={num_tokens} finished.")
 
+    @torch.compile(backend="tt")
+    def compiled_make_kv_cache_buffers(
+        self, mesh, shape, device
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compiled wrapper for hidden-state selection warmup and reuse."""
+        return self.make_kv_cache_buffers(mesh, shape, device)
+
+    def make_kv_cache_buffers(self, mesh, shape, device):
+        k = torch.ops.tt.zeros_buffer(list(shape), self.kv_cache_dtype, device)
+        v = torch.ops.tt.zeros_buffer(list(shape), self.kv_cache_dtype, device)
+
+        k = sharding_constraint_tensor(k, mesh, (None, mesh.axis_names[1] , None, None))
+        v = sharding_constraint_tensor(v, mesh, (None, mesh.axis_names[1] , None, None))
+        return (k, v)
+
     def maybe_setup_cross_layer_kv_sharing(
         self,
         kv_caches: dict[str, torch.Tensor],
@@ -4595,12 +4610,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # spec.dtype may be a 1-byte accounting dtype; the staged
                     # buffer uses the real transfer dtype (converted on device).
                     # Separate K and V avoid slice/concat copies in the decode graph.
-                    k_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
-                        self.device
-                    )
-                    v_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
-                        self.device
-                    )
+                    if self.enable_tensor_parallel and self.parallel_mode != ParallelismMode.DATA_TENSOR_PARALLEL:
+                        k_cache, v_cache = self.compiled_make_kv_cache_buffers(self.mesh, shape, self.device)
+                        torch_xla.sync(wait=True)
+                    else: 
+                        k_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
+                            self.device
+                        )
+                        v_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(
+                            self.device
+                        )
                     kv_caches[layer_name] = [k_cache, v_cache]
                 else:
                     raise NotImplementedError
@@ -4647,11 +4666,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         continue
                     _sharded_ids.add(id(cache))
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    if is_pair:
-                        safe_mark_sharding(
-                            cache, self.mesh, (None, "model", None, None)
-                        )
-                    else:
+                    # Pairs are already marked sharding by make_kv_cache_buffers()
+                    if not is_pair:
                         # Replicate the MLA latent KV cache tensor
                         xs.mark_sharding(cache, self.mesh, (None, None, None, None))
 

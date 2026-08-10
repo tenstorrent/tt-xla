@@ -31,6 +31,7 @@ add_library(TTPJRTApi
     "module_builder/frontend_passes/shlo_clean_for_xla_ingestion.cc"
     "module_builder/frontend_passes/shlo_input_role_propagation.cc"
     "module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.cc"
+    "module_builder/frontend_passes/shlo_strip_zeros_buffer_anchor.cc"
     "module_builder/module_builder.cc"
     "plugin_attributes.cc"
     "serialized_executable_instance.cc"
