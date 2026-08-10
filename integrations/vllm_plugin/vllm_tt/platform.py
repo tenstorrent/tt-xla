@@ -238,6 +238,7 @@ class TTConfig:
             if self.enable_tensor_parallel:
                 name = f"{name}_g{xrt.global_ordinal()}"
             cfg["export_model_name"] = name
+        logger.info("PJRT compile config: %s", cfg)
         return cfg
 
 
