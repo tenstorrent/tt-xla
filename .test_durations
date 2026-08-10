@@ -3613,7 +3613,7 @@
     "tests/integrations/vllm_plugin/generative/test_max_prefill_num_seqs.py::test_max_prefill_num_seqs_uses_capped_prefill_shape": 87.23,
     "tests/integrations/vllm_plugin/generative/test_opt_generation.py::test_opt_generation_large_batch[batch16]": 70.26,
     "tests/integrations/vllm_plugin/generative/test_opt_generation.py::test_opt_generation_large_batch[batch32]": 64.13,
-    "tests/integrations/vllm_plugin/generative/test_opt_generation.py::test_opt_generation_large_batch[batch8]": 74.46,
+    "tests/integrations/vllm_plugin/generative/test_opt_generation.py::test_opt_generation_large_batch[batch8]": 149.47,
     "tests/integrations/vllm_plugin/generative/test_responses_api.py::test_responses_api_basic[message_input]": 1.0,
     "tests/integrations/vllm_plugin/generative/test_responses_api.py::test_responses_api_basic[string_input]": 1.08,
     "tests/integrations/vllm_plugin/generative/test_responses_api.py::test_responses_api_deterministic": 0.82,
