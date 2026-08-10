@@ -76,6 +76,10 @@ def make_runner(max_num_reqs=8, max_model_len=32, max_num_blocks_per_req=4):
     r.max_num_blocks_per_req = max_num_blocks_per_req
     r.block_size = 16
     r._prefix_sdpa_usable = max_num_blocks_per_req % 8 == 0
+    # Chunking off by default (budget == max_model_len); the chunked-prefill
+    # scenarios flip _chunked_sdpa_active themselves.
+    r.prefill_chunk_budget = max_model_len
+    r._chunked_sdpa_active = False
     # SMEM-cap scalars: generous so scenarios run in a single pass.
     r.num_reqs_max_model_len = max_num_reqs
     r.min_num_reqs = 1
@@ -164,9 +168,12 @@ def test_sample_tokens_composes_full_prefill_batch():
     slot_b = r.req_states.req_id_to_index["B"]
 
     # Fake the one hardware leaf: return a distinct token per active req.
-    r._run_model_pass = lambda idx, ns, tnr, pql, ii, pos, li, pt, fpt, cp, *a, **k: [
-        [1000 + int(idx[b])] for b in range(len(idx))
-    ]
+    # Returns (sampled, hidden_states, logprobs).
+    r._run_model_pass = lambda idx, ns, tnr, pql, ii, pos, li, pt, fpt, cp, *a, **k: (
+        [[1000 + int(idx[b])] for b in range(len(idx))],
+        None,
+        None,
+    )
 
     out = r.sample_tokens(None)
 
@@ -190,3 +197,82 @@ def test_sample_tokens_composes_full_prefill_batch():
 def test_sample_tokens_returns_none_without_stashed_step():
     r = make_runner()
     assert r.sample_tokens(None) is None
+
+
+def _lp(rows):
+    """LogprobsLists carrying one identifiable value per row."""
+    import numpy as np
+    from vllm.v1.outputs import LogprobsLists
+
+    return LogprobsLists(
+        logprob_token_ids=np.array([[v] for v in rows], dtype=np.int32),
+        logprobs=np.array([[float(v)] for v in rows], dtype=np.float32),
+        sampled_token_ranks=np.array(rows, dtype=np.int32),
+    )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sample_tokens_reports_logprobs_aligned_with_req_ids():
+    # ModelRunnerOutput.logprobs rows must line up 1:1 with req_ids, which are in
+    # decode-first order, not slot order.
+    r = make_runner()
+    so = make_sched(
+        new=[new_req("A", [1, 2, 3]), new_req("B", [4, 5])],
+        num_sched={"A": 3, "B": 2},
+    )
+    r.execute_model(so)
+    slot_a = r.req_states.req_id_to_index["A"]
+    slot_b = r.req_states.req_id_to_index["B"]
+
+    r._run_model_pass = lambda idx, ns, tnr, pql, ii, pos, li, pt, fpt, cp, *a, **k: (
+        [[1000 + int(idx[b])] for b in range(len(idx))],
+        None,
+        _lp([int(idx[b]) for b in range(len(idx))]),
+    )
+
+    out = r.sample_tokens(None)
+
+    assert out.req_ids == ["B", "A"]
+    assert out.logprobs is not None
+    assert out.logprobs.sampled_token_ranks.tolist() == [slot_b, slot_a]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sample_tokens_logprobs_drop_unscheduled_rows():
+    # A row scheduled 0 tokens (DP padding) is not reported, so its gathered
+    # logprob row must be dropped too or every later row is off by one.
+    r = make_runner()
+    so = make_sched(
+        new=[new_req("A", [1, 2, 3]), new_req("B", [4, 5])],
+        num_sched={"A": 3, "B": 0},
+        total=3,
+    )
+    r.execute_model(so)
+    slot_a = r.req_states.req_id_to_index["A"]
+
+    r._run_model_pass = lambda idx, ns, tnr, pql, ii, pos, li, pt, fpt, cp, *a, **k: (
+        [[1000 + int(idx[b])] for b in range(len(idx))],
+        None,
+        _lp([int(idx[b]) for b in range(len(idx))]),
+    )
+
+    out = r.sample_tokens(None)
+
+    assert out.req_ids == ["A"]
+    assert out.logprobs.sampled_token_ranks.tolist() == [slot_a]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sample_tokens_logprobs_none_when_not_requested():
+    r = make_runner()
+    so = make_sched(new=[new_req("A", [1, 2, 3])], num_sched={"A": 3})
+    r.execute_model(so)
+    r._run_model_pass = lambda idx, ns, tnr, pql, ii, pos, li, pt, fpt, cp, *a, **k: (
+        [[7] for _ in range(len(idx))],
+        None,
+        None,
+    )
+    assert r.sample_tokens(None).logprobs is None

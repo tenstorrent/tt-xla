@@ -338,6 +338,37 @@ def test_chunk_start_idx_is_the_row_block_boundary():
 
 @pytest.mark.push
 @pytest.mark.cpu
+def test_chunk_start_idx_set_for_plain_chunked_prefill():
+    # No spec decode, but chunking is live: a prefill continuation still reads the
+    # prefix chunk 1 wrote, so it needs the offset or attention ignores the cache.
+    r = make_runner(max_model_len=128, max_num_blocks_per_req=8)
+    r._chunked_sdpa_active = True
+    slot, _ = seed_at(r, computed=32, n_sched=32)
+
+    start = r._chunk_start_idx_for(
+        np.array([slot], dtype=np.int32), np.array([32], dtype=np.int32), 32
+    )
+    # Chunk boundaries are block-aligned, so no row_lead is subtracted.
+    assert start is not None and start.tolist() == [32]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_chunk_start_idx_none_when_neither_path_is_live():
+    # Chunking off and spec off: first-chunk prefill keeps standard attention.
+    r = make_runner(max_model_len=128, max_num_blocks_per_req=8)
+    assert (
+        r._chunk_start_idx_for(
+            np.array([seed_at(r, computed=32, n_sched=32)[0]], dtype=np.int32),
+            np.array([32], dtype=np.int32),
+            32,
+        )
+        is None
+    )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
 def test_chunk_start_idx_none_for_plain_decode():
     r = aligned_spec_runner()
     slot, _ = seed_at(r, computed=20, n_sched=1)

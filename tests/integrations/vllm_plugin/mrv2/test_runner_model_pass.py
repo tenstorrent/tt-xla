@@ -106,7 +106,12 @@ def test_run_model_pass_builds_metadata_and_returns_tokens():
         captured["all_greedy"] = sampling_metadata.all_greedy
         captured["input_ids_device"] = input_ids.device.type
         n = input_ids.shape[0]
-        return torch.tensor([[100 + i] for i in range(n)], dtype=torch.int64)
+        # (out, hidden_states, logprobs)
+        return (
+            torch.tensor([[100 + i] for i in range(n)], dtype=torch.int64),
+            None,
+            None,
+        )
 
     r._forward_and_sample = fake_forward
 
@@ -138,7 +143,7 @@ def test_run_model_pass_builds_metadata_and_returns_tokens():
     assert captured["all_greedy"] is True
     assert captured["input_ids_device"] == "cpu"
     # Two active requests -> two token rows, padding dropped.
-    assert out == [[100], [101]]
+    assert out[0] == [[100], [101]]
 
 
 @pytest.mark.push
@@ -152,9 +157,11 @@ def test_run_model_pass_drops_padding_rows():
     r.sampling_states.add_request(slot, SamplingParams(temperature=0.0))
 
     # target_num_reqs (4) padded beyond the single active request.
-    r._forward_and_sample = lambda ii, pos, li, am, sm, *a, **k: torch.arange(
-        4, dtype=torch.int64
-    ).reshape(4, 1)
+    r._forward_and_sample = lambda ii, pos, li, am, sm, *a, **k: (
+        torch.arange(4, dtype=torch.int64).reshape(4, 1),
+        None,
+        None,
+    )
 
     idx = np.array([slot], dtype=np.int32)
     nst = np.array([1], dtype=np.int32)
@@ -173,7 +180,7 @@ def test_run_model_pass_drops_padding_rows():
         fill_page_table,
         cache_position,
     )
-    assert out == [[0]]  # only the one active request's row
+    assert out[0] == [[0]]  # only the one active request's row
 
 
 @pytest.mark.push
@@ -196,3 +203,65 @@ def test_sample_from_logits_greedy_is_argmax():
     )()
     out = r._sample_from_logits(logits, md)
     assert out.tolist() == [[1], [0]]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_run_model_pass_refuses_spec_decode_with_logprobs():
+    # The gather reads one logits row per request; a drafting pass packs several
+    # rows per request, so the two cannot be combined yet (matches the v1 runner).
+    r = make_runner()
+    r.req_states.add_request(
+        "A", prompt_len=1, all_token_ids=[5], num_computed_tokens=0
+    )
+    slot = r.req_states.req_id_to_index["A"]
+    r.sampling_states.add_request(slot, SamplingParams(temperature=0.0, logprobs=3))
+
+    idx = np.array([slot], dtype=np.int32)
+    nst = np.array([1], dtype=np.int32)
+    page_table, fill_page_table, cache_position = r._prepare_attn_tensors(
+        idx, nst, np.array([1], dtype=np.int32), target_num_reqs=1, num_blocks_per_req=4
+    )
+    with pytest.raises(NotImplementedError, match="logprobs"):
+        r._run_model_pass(
+            idx,
+            nst,
+            1,
+            1,
+            np.zeros((1, 1), dtype=np.int32),
+            np.zeros((1, 1), dtype=np.int32),
+            np.zeros(1, dtype=np.int32),
+            page_table,
+            fill_page_table,
+            cache_position,
+            False,
+            None,
+            object(),  # any non-None spec_decode_metadata
+        )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_concat_logprob_rows_preserves_pass_order():
+    from vllm.v1.outputs import LogprobsLists
+    from vllm_tt.model_runner_v2 import _concat_logprob_rows, _select_logprob_rows
+
+    def lp(rows):
+        return LogprobsLists(
+            logprob_token_ids=np.array([[v] for v in rows], dtype=np.int32),
+            logprobs=np.array([[float(v)] for v in rows], dtype=np.float32),
+            sampled_token_ranks=np.array(rows, dtype=np.int32),
+        )
+
+    assert _concat_logprob_rows([]) is None
+    # Single pass is returned as-is, multiple are stacked in order.
+    one = lp([1, 2])
+    assert _concat_logprob_rows([one]) is one
+    both = _concat_logprob_rows([lp([1, 2]), lp([3])])
+    assert both.sampled_token_ranks.tolist() == [1, 2, 3]
+    assert both.logprob_token_ids.tolist() == [[1], [2], [3]]
+    # Row selection keeps the requested rows in the requested order.
+    assert _select_logprob_rows(lp([9, 8, 7]), [2, 0]).sampled_token_ranks.tolist() == [
+        7,
+        9,
+    ]

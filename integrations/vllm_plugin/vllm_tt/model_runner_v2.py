@@ -80,6 +80,33 @@ def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
     return paddings
 
 
+def _select_logprob_rows(logprobs, rows: list[int]):
+    """Row-subset of a LogprobsLists, preserving field order."""
+    from vllm.v1.outputs import LogprobsLists
+
+    idx = np.asarray(rows, dtype=np.int64)
+    return LogprobsLists(
+        logprob_token_ids=logprobs.logprob_token_ids[idx],
+        logprobs=logprobs.logprobs[idx],
+        sampled_token_ranks=logprobs.sampled_token_ranks[idx],
+    )
+
+
+def _concat_logprob_rows(per_pass: list):
+    """Stack per-pass LogprobsLists in pass order, or None if there are none."""
+    from vllm.v1.outputs import LogprobsLists
+
+    if not per_pass:
+        return None
+    if len(per_pass) == 1:
+        return per_pass[0]
+    return LogprobsLists(
+        logprob_token_ids=np.concatenate([p.logprob_token_ids for p in per_pass]),
+        logprobs=np.concatenate([p.logprobs for p in per_pass]),
+        sampled_token_ranks=np.concatenate([p.sampled_token_ranks for p in per_pass]),
+    )
+
+
 def replace_set_lora(model):
     """Wrap each LoRA layer's set_lora/reset_lora with a torch_xla.sync.
 
@@ -186,6 +213,13 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._build_device_mesh()
 
         self.dtype = self.model_config.dtype
+        # Model compute dtype, resolved. Logits carry this, not kv_cache_dtype,
+        # which can be narrowed independently by cache_dtype.
+        self._logits_dtype = (
+            TPU_STR_DTYPE_TO_TORCH_DTYPE[self.dtype]
+            if isinstance(self.dtype, str)
+            else self.dtype
+        )
         if self.cache_config.cache_dtype == "auto":
             self.kv_cache_dtype = (
                 TPU_STR_DTYPE_TO_TORCH_DTYPE[self.dtype]
@@ -227,6 +261,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             or max_num_batched_tokens,
             self.max_model_len,
+        )
+        # Chunking can actually occur, so an ordinary prefill continuation reads a
+        # cached prefix and needs the chunked SDPA offset -- not just spec rows.
+        self._chunked_sdpa_active = (
+            self.prefill_chunk_budget < self.max_model_len and self._prefix_sdpa_usable
         )
         self.num_tokens_paddings = _get_token_paddings(
             min_context_len, self.prefill_chunk_budget
@@ -1144,16 +1183,20 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_scheduled_tokens: np.ndarray,
         padded_query_len: int,
     ) -> np.ndarray | None:
-        """Shared prefix read offset for a speculative multi-token pass.
+        """Shared prefix read offset for a multi-token pass over a cached prefix.
 
-        None off the spec path, so every other path keeps the standard attention
-        branch. The offset must equal the block boundary the row was extended to,
-        otherwise the read disagrees with where paged_fill_cache wrote.
+        Both an ordinary prefill continuation and a speculative row read a prefix
+        the previous step wrote, so both need the offset; decode (query_len 1) and
+        first-chunk prefill keep the standard attention branch. The offset must
+        equal the block boundary the row was extended to, otherwise the read
+        disagrees with where paged_fill_cache wrote.
 
         The attention op takes shape [1] -- one offset shared by all users -- so
         the pass must have been trimmed to a single block boundary first.
         """
-        if not self._spec_prefix_rows() or padded_query_len <= 1:
+        if padded_query_len <= 1:
+            return None
+        if not (self._chunked_sdpa_active or self._spec_prefix_rows()):
             return None
         if len(num_scheduled_tokens) == 0 or int(np.max(num_scheduled_tokens)) <= 1:
             return None
@@ -1163,18 +1206,26 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         if not np.any(computed > 0):
             return None
-        starts = (computed - _row_lead(computed, self.block_size)).astype(np.int32)
+        # Prefill chunks are block-aligned by construction, so only a spec row is
+        # extended left to its boundary.
+        lead = (
+            _row_lead(computed, self.block_size)
+            if self._spec_prefix_rows()
+            else np.zeros(len(computed), dtype=np.int32)
+        )
+        starts = (computed - lead).astype(np.int32)
 
-        # Under DP a row cannot be trimmed away (its batch position selects its
-        # replica), so a multi-boundary DP batch cannot be expressed with one
-        # shared offset and asserts below. Fixing that needs a per-user offset in
-        # the attention op; see the note in _spec_prefix_rows' callers.
-        # Rows scheduled 0 tokens (DP padding) are never read.
-        active = np.asarray(num_scheduled_tokens) > 0
-        uniq = np.unique(starts[active])
-        assert (
-            len(uniq) <= 1
-        ), f"spec pass spans multiple block boundaries: {uniq.tolist()}"
+        if self._spec_prefix_rows():
+            # Under DP a row cannot be trimmed away (its batch position selects its
+            # replica), so a multi-boundary DP batch cannot be expressed with one
+            # shared offset and asserts here. Fixing that needs a per-user offset in
+            # the attention op; see the note in _spec_prefix_rows' callers.
+            # Rows scheduled 0 tokens (DP padding) are never read.
+            active = np.asarray(num_scheduled_tokens) > 0
+            uniq = np.unique(starts[active])
+            assert (
+                len(uniq) <= 1
+            ), f"spec pass spans multiple block boundaries: {uniq.tolist()}"
         return starts[:1]
 
     def execute_model(
@@ -1232,6 +1283,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         out_req_ids: list[str] = []
         out_sampled: list[list[int]] = []
+        # One LogprobsLists per pass, rows already trimmed to the reported reqs.
+        out_logprobs: list = []
         # Capture per-request prompt hidden states (keyed by slot) when any
         # scheduled request wants prompt logprobs.
         want_prompt_hs = bool(self.num_prompt_logprobs)
@@ -1258,6 +1311,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 out_req_ids,
                 out_sampled,
                 prompt_lp_hs,
+                out_logprobs,
             )
 
         self.propose_draft_token_ids(out_req_ids, out_sampled)
@@ -1272,6 +1326,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             req_ids=out_req_ids,
             req_id_to_index={rid: i for i, rid in enumerate(out_req_ids)},
             sampled_token_ids=out_sampled,
+            logprobs=_concat_logprob_rows(out_logprobs),
             prompt_logprobs_dict=prompt_logprobs_dict,
             kv_connector_output=kv_connector_output,
         )
@@ -1340,6 +1395,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         out_req_ids: list,
         out_sampled: list,
         prompt_lp_hs: dict,
+        out_logprobs: list | None = None,
     ) -> None:
         """Decode-first multi-pass loop; appends into the caller's output lists."""
         start_index = 0
@@ -1386,8 +1442,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 grammar_output,
                 spec_md,
             )
+            sampled, hidden_states, pass_logprobs = pass_result
             if want_prompt_hs:
-                sampled, hidden_states = pass_result
                 # Copy only the rows for requests that need prompt logprobs
                 # (keyed by stable slot), so the big hidden tensor never fully
                 # leaves the device.
@@ -1396,10 +1452,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     req_id = self.req_states.index_to_req_id.get(slot)
                     if req_id in self.num_prompt_logprobs:
                         prompt_lp_hs[slot] = hidden_states[b].cpu()
-            else:
-                sampled = pass_result
 
             valid = self.postprocess(idx_mapping, num_scheduled, sampled)
+            reported_rows = []
             for b in range(len(idx_mapping)):
                 if int(num_scheduled[b]) == 0:
                     # DP padding row: not scheduled this step, don't report it.
@@ -1407,6 +1462,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 slot = int(idx_mapping[b])
                 out_req_ids.append(self.req_states.index_to_req_id[slot])
                 out_sampled.append(valid[b])
+                reported_rows.append(b)
+
+            if out_logprobs is not None and pass_logprobs is not None:
+                # Keep logprob rows aligned 1:1 with the reported req_ids: the
+                # gather covers every padded row, only some of which are reported.
+                out_logprobs.append(_select_logprob_rows(pass_logprobs, reported_rows))
 
             start_index = end_index
 
@@ -1542,7 +1603,14 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             )
 
-        result = self._forward_and_sample(
+        want_logprobs = bool(sampling_metadata.logprobs)
+        if want_logprobs and spec_active:
+            raise NotImplementedError(
+                "Speculative decoding with logprobs is not supported in the TT "
+                "model runner yet."
+            )
+
+        forward_out, hidden_states, logprobs = self._forward_and_sample(
             model_input_ids,
             positions_dev,
             logits_indices_dev,
@@ -1555,11 +1623,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             grammar_bitmask,
             bitmasks,
             logits_only=spec_active,
+            want_logprobs=want_logprobs,
         )
-        if want_prompt_hs:
-            forward_out, hidden_states = result
-        else:
-            forward_out, hidden_states = result, None
         if spec_active:
             # Rejection sampling runs outside torch.compile: variable draft
             # lengths and early exit on rejection are request-wise dynamic
@@ -1572,9 +1637,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ).sampled_token_ids
             sampled, _ = RejectionSampler.parse_output(selected, self.vocab_size)
             sampled = sampled[: len(idx_mapping_np)]
-            if want_prompt_hs:
-                return sampled, hidden_states
-            return sampled
+            return sampled, hidden_states, None
         if self.cpu_sampling:
             # forward_out is logits [target_num_reqs, vocab]; mask (grammar) and
             # sample on host. Device sampling masks inside _sample_compiled.
@@ -1586,15 +1649,17 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 grammar_bitmask,
                 bitmasks,
             )
+            if want_logprobs:
+                # Host sampling consumed the logits after masking; gather off the
+                # same unmodified forward_out the device path uses.
+                logprobs = self._gather_sample_logprobs(forward_out, selected)
         else:
             selected = forward_out
         # [target_num_reqs, 1] -> per active-req list; drop padding rows.
         # Transfer first, then slice on host: a device-side slice of the ROW_MAJOR
         # sampled-id tensor forces a to_layout typecast tt-mlir can't lower.
         sampled = selected.cpu()[: len(idx_mapping_np)].tolist()
-        if want_prompt_hs:
-            return sampled, hidden_states
-        return sampled
+        return sampled, hidden_states, logprobs
 
     def _forward_and_sample(
         self,
@@ -1610,6 +1675,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         grammar_bitmask=None,
         bitmasks=None,
         logits_only=False,
+        want_logprobs=False,
     ):
         """Run the forward->logits graph, then (device path) the sampling graph.
 
@@ -1619,6 +1685,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         while ``_sample_compiled`` keys on ``apply_grammar`` and the sampling mode.
         Under cpu_sampling the sampling graph is skipped -- the caller masks and
         samples on the host (see ``sample_from_logits_cpu``).
+
+        Returns ``(out, hidden_states, logprobs)``; the last two are None unless
+        ``want_prompt_hs`` / ``want_logprobs`` asked for them. Sample logprobs are
+        gathered here only on the device path, where the sampled ids exist next to
+        the pre-penalty logits; the host paths gather in the caller.
         """
         from vllm.forward_context import set_forward_context
 
@@ -1634,6 +1705,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         logits, hidden_states = fwd if want_prompt_hs else (fwd, None)
 
+        logprobs = None
         if self.cpu_sampling or logits_only:
             # Stop at logits; grammar + sampling run on the host (spec decode
             # rejection-samples them outside the compiled region).
@@ -1647,9 +1719,28 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 grammar_bitmask,
                 bitmasks,
             )
-        if want_prompt_hs:
-            return out, hidden_states
-        return out
+            if want_logprobs:
+                logprobs = self._gather_sample_logprobs(logits, out)
+        return out, hidden_states, logprobs
+
+    def _gather_sample_logprobs(self, logits, sampled_token_ids):
+        """Per-row top-k plus sampled-token logprobs for one pass, as host lists.
+
+        Reads the pre-penalty, pre-temperature logits, so callers must not sample
+        in place. Mirrors the v1 runner, including its trace fallback.
+        """
+        if self.tt_config.enable_trace:
+            # tt-xla#4387: the on-device gather graph fails trace insertion at
+            # opt_level=1, so post-process on host -- only the logits and the
+            # sampled ids move, which is cheap.
+            tensors = self.sampler.gather_logprobs(
+                self.sampler.compute_logprobs(logits.cpu()),
+                self.model_config.max_logprobs,
+                token_ids=sampled_token_ids.cpu().squeeze(-1),
+            )
+        else:
+            tensors = self.gather_logprobs(logits, sampled_token_ids)
+        return tensors.tolists()
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def _forward_to_logits_compiled(
@@ -2056,7 +2147,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 batch_hs_buf[:batch_size] = hs_cpu[batch_start:batch_end]
                 batch_hs_dev = batch_hs_buf.to(self.device)
 
-                logits = self.compute_logits(batch_hs_dev)
+                # Compiled, not eager: under TP the lm_head operand carries a mesh
+                # sharding, and an eager graph never declares that mesh
+                # ("unknown mesh: @mesh" when the result is read back).
+                logits = self.compute_logits_compiled(batch_hs_dev)
 
                 batch_tgt_buf.zero_()
                 batch_tgt_buf[:batch_size, 0] = torch.tensor(
@@ -2064,7 +2158,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 batch_tgt_dev = batch_tgt_buf.to(self.device)
 
-                lp_tensors = self.gather_logprobs(logits, batch_tgt_dev)
+                lp_tensors = self.gather_logprobs_compiled(logits, batch_tgt_dev)
 
                 ids_cpu = lp_tensors.logprob_token_ids.cpu()
                 lps_cpu = lp_tensors.logprobs.cpu()
@@ -2112,17 +2206,25 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         groups = kv_cache_config.kv_cache_groups
         if len(groups) > 1:
+            # The allocation below is already per-group, but the runtime is not:
+            # _prepare_attn_tensors reads block_table[0] for every layer, so a
+            # second group's rows would attend through the first group's block
+            # ids. get_kv_cache_spec collapses sliding-window layers into the
+            # full-attention group to avoid this; anything else still needs the
+            # per-group page tables the v1 runner has.
             raise NotImplementedError(
-                "Hybrid models with more than one KV cache type are not supported yet."
+                "The v2 runner supports a single KV cache group; this model needs "
+                f"{len(groups)} (per-group page tables are not implemented)."
             )
         if len(groups) == 0:
             # Valid when only a subset of layers is compiled (layer override).
             return {}
 
-        assert groups[0].kv_cache_spec.block_size == self.block_size, (
-            f"KV cache block_size {groups[0].kv_cache_spec.block_size} must match "
-            f"the runner block_size {self.block_size}"
-        )
+        for group in groups:
+            assert group.kv_cache_spec.block_size == self.block_size, (
+                f"KV cache block_size {group.kv_cache_spec.block_size} must match "
+                f"the runner block_size {self.block_size}"
+            )
 
         kv_cache_sizes: dict[str, int] = {}
         for tensor in kv_cache_config.kv_cache_tensors:
@@ -2422,29 +2524,38 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if has_kv_transfer_group():
             ensure_kv_transfer_shutdown()
 
-    def _warmup_buckets(self) -> list[tuple[int, int, bool]]:
-        """(target_num_reqs, padded_query_len, spec) triples to precompile.
+    def _warmup_buckets(self) -> list[tuple[int, int, bool, bool]]:
+        """(num_reqs, padded_query_len, spec, prefix_chunk) quads to precompile.
 
-        Decode always runs at max_num_reqs; prefill runs at the min / max prefill
-        buckets. Each request-count bucket is compiled at every token-length
-        padding, matching the shapes _select_batch can produce at runtime.
+        Decode (query_len 1) only ever runs at max_num_reqs and prefill never
+        exceeds max_prefill_num_reqs, so the request-count / token-length product
+        is filtered down to the shapes _select_batch can actually produce (#5416).
+        Largest-first, to avoid fragmentation (#5522).
 
-        A drafting pass is a distinct graph -- packed [reqs, spec_width]
-        logits_indices and a shared prefix offset on the attention -- so with spec
-        decode on, every multi-token bucket is compiled both ways. A spec run
-        still takes the flat shape whenever no request carries drafts.
+        A cached-prefix pass is a distinct graph -- the chunked SDPA op takes a
+        shared prefix offset -- so when chunking is live every multi-token bucket
+        is compiled both ways. A drafting pass additionally packs logits_indices
+        to [reqs, spec_width] and stops at logits; a spec run still takes the flat
+        shape whenever no request carries drafts.
         """
         targets = sorted(
-            {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs}
+            {self.max_num_reqs, self.min_num_reqs, self.max_prefill_num_reqs},
+            reverse=True,
         )
-        buckets = [(t, q, False) for t in targets for q in self.num_tokens_paddings]
-        if self.num_spec_tokens:
-            buckets += [
-                (t, q, True)
-                for t in targets
-                for q in self.num_tokens_paddings
-                if q > 1  # _chunk_start_idx_for returns None at query_len 1
-            ]
+        buckets: list[tuple[int, int, bool, bool]] = []
+        for q in reversed(self.num_tokens_paddings):
+            for t in targets:
+                if q == 1:
+                    if t != self.max_num_reqs:
+                        continue
+                elif t > self.max_prefill_num_reqs:
+                    continue
+                buckets.append((t, q, False, False))
+                # _chunk_start_idx_for returns None at query_len 1.
+                if q > 1 and self._chunked_sdpa_active:
+                    buckets.append((t, q, False, True))
+                if q > 1 and self.num_spec_tokens:
+                    buckets.append((t, q, True, False))
         return buckets
 
     def capture_model(self) -> None:
@@ -2469,26 +2580,71 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Activate dummy LoRAs for the warmup so the compiled graphs match the
         # LoRA runtime shapes (no-op context when lora_config is None).
         with self.maybe_setup_dummy_loras(self.lora_config):
-            for target_num_reqs, padded_query_len, spec in buckets:
+            for target_num_reqs, padded_query_len, spec, prefix_chunk in buckets:
+                # Same key order as the v1 runner's line: the compiled-shape
+                # contract is asserted against this text.
                 logger.info(
-                    "MRv2 warmup: num_reqs=%d, query_len=%d, spec=%s",
-                    target_num_reqs,
+                    "Compiling graph for config="
+                    "{'num_tokens': %d, 'num_reqs': %d, "
+                    "'prefix_chunk': %s, 'spec_decode': %s}",
                     padded_query_len,
+                    target_num_reqs,
+                    prefix_chunk,
                     spec,
                 )
-                if self.lora_config is not None:
-                    self.maybe_select_dummy_loras(
-                        self.lora_config,
-                        np.array([target_num_reqs], dtype=np.int32),
+                # maybe_select_dummy_loras is a context manager and must stay open
+                # while the bucket traces and executes; calling it bare only builds
+                # the generator, so the dummy mapping never takes effect. It no-ops
+                # when lora_config is None. One row per request with
+                # padded_query_len tokens each describes this bucket's shape.
+                with self.maybe_select_dummy_loras(
+                    self.lora_config,
+                    np.full(target_num_reqs, padded_query_len, dtype=np.int32),
+                ):
+                    self._precompile_bucket(
+                        target_num_reqs, padded_query_len, spec, prefix_chunk
                     )
-                self._precompile_bucket(target_num_reqs, padded_query_len, spec)
-                # Sync per bucket so prefill and decode graphs stay separate.
-                torch_xla.sync()
+                    # Sync per bucket so prefill and decode graphs stay separate.
+                    torch_xla.sync()
         torch_xla.sync()
+        self._precompile_gather_logprobs()
         logger.info("MRv2 warmup finished in %.2f [secs].", time.perf_counter() - start)
 
+    def _precompile_gather_logprobs(self) -> None:
+        """Warm the sample-logprobs gather so the first logprobs request is free.
+
+        One shape only ([max_num_reqs, vocab]), as on the v1 runner: a smaller
+        prefill bucket recompiles it, which is cheap next to the forward. Skipped
+        under enable_trace, where the gather runs on host (tt-xla#4387).
+        """
+        import torch_xla
+
+        if self.tt_config.enable_trace:
+            return
+        logger.info(
+            "MRv2 warmup: gather_logprobs num_reqs=%d, vocab_size=%d",
+            self.max_num_reqs,
+            self.vocab_size,
+        )
+        dummy_logits = torch.zeros(
+            (self.max_num_reqs, self.vocab_size), dtype=self._logits_dtype
+        ).to(self.device)
+        dummy_tokens = torch.zeros((self.max_num_reqs, 1), dtype=torch.int64).to(
+            self.device
+        )
+        # One sampled token per request, matching the [max_num_reqs, vocab] gather.
+        with self.maybe_select_dummy_loras(
+            self.lora_config, np.ones(self.max_num_reqs, dtype=np.int32)
+        ):
+            self.gather_logprobs_compiled(dummy_logits, dummy_tokens)
+        torch_xla.sync()
+
     def _precompile_bucket(
-        self, target_num_reqs: int, padded_query_len: int, spec: bool = False
+        self,
+        target_num_reqs: int,
+        padded_query_len: int,
+        spec: bool = False,
+        prefix_chunk: bool = False,
     ) -> None:
         """Trace the fused forward+sample graph for one bucket with valid dummies.
 
@@ -2496,9 +2652,10 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         graph matches inference exactly (input shardings pinned eagerly; page /
         cache / batch_idx sharded on the DP batch axis).
 
-        ``spec`` traces the drafting variant instead: packed logits_indices, a
-        shared prefix offset, and no sampling graph (spec rejection-samples the
-        logits on the host).
+        ``prefix_chunk`` traces the cached-prefix variant (chunked SDPA reads at a
+        shared prefix offset). ``spec`` traces the drafting variant: that same
+        offset plus packed logits_indices and no sampling graph (spec
+        rejection-samples the logits on the host).
         """
         from .metadata import XLASupportedSamplingMetadata
 
@@ -2538,7 +2695,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(fill_page_table, self.mesh, ("batch", None))
 
         # Offset 0 is a block boundary, matching the all-zero dummy page table.
-        chunk_start_idx = torch.zeros(1, dtype=torch.int32).to(dev) if spec else None
+        chunk_start_idx = (
+            torch.zeros(1, dtype=torch.int32).to(dev)
+            if (spec or prefix_chunk)
+            else None
+        )
 
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
