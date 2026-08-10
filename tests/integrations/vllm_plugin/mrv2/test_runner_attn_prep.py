@@ -47,6 +47,10 @@ def make_runner(block_size=2, max_num_reqs=4, max_model_len=32):
     )
     r.block_table = FakeBlockTable(torch.tensor(BLOCK_MAP, dtype=torch.int32))
     r.block_size = block_size
+    r._num_kv_cache_groups = 1
+    r._group_block_sizes = [block_size]
+    r._group_is_sliding = [False]
+    r._group_window_blocks = [0]
     return r
 
 
@@ -111,3 +115,119 @@ def test_attn_tensors_zero_scheduled_row_redirects_fill():
     assert page_table[0].tolist() == [10, 11, 12, 13]
     assert fill_page_table[0].tolist() == [0, 0, 0, 0]
     assert fill_page_table[1].tolist() == [20, 21, 22, 23]
+
+
+def sliding_runner(block_size=2, window_blocks=4, max_num_reqs=4, max_model_len=32):
+    """Runner with group 0 full-attention and group 1 a sliding ring."""
+    r = make_runner(
+        block_size=block_size, max_num_reqs=max_num_reqs, max_model_len=max_model_len
+    )
+    r.max_num_reqs = max_num_reqs
+    r._num_kv_cache_groups = 2
+    r._group_block_sizes = [block_size, block_size]
+    r._group_is_sliding = [False, True]
+    r._group_window_blocks = [0, window_blocks]
+    r._req_ring_slot = {}
+    r._free_ring_slots = list(range(max_num_reqs))
+    return r
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sliding_ring_points_each_row_at_its_own_sub_ring():
+    # Row i owns physical blocks [1 + slot_i*wb, 1 + (slot_i+1)*wb); block 0 is
+    # the shared null sink. Two concurrent requests must not overlap.
+    r = sliding_runner(block_size=2, window_blocks=4)
+    r.req_states.add_request(
+        "A", prompt_len=2, all_token_ids=[1, 2], num_computed_tokens=0
+    )
+    r.req_states.add_request(
+        "B", prompt_len=2, all_token_ids=[3, 4], num_computed_tokens=0
+    )
+    sa = r.req_states.req_id_to_index["A"]
+    sb = r.req_states.req_id_to_index["B"]
+
+    pt, fill_pt, cache_pos = r._prepare_sliding_attn_tensors(
+        np.array([sa, sb], dtype=np.int32),
+        np.array([1, 1], dtype=np.int32),  # decode rows
+        np.array([2, 2], dtype=np.int32),
+        2,
+        16,
+        1,
+    )
+
+    assert pt.shape == (2, 4)  # width capped by window_blocks
+    # Disjoint sub-rings, and never the null block for an active row.
+    assert set(pt[0]).isdisjoint(set(pt[1]))
+    assert 0 not in pt[:2]
+    # Context (2) <= window (8 tokens): identity rotation, absolute position.
+    assert cache_pos.tolist() == [1, 1]
+    assert fill_pt is pt  # no inactive rows, so fill == read
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sliding_ring_slot_is_stable_across_steps():
+    # The slot must survive re-batching: a later step for the same req_id has to
+    # read the same sub-ring it wrote.
+    r = sliding_runner()
+    r.req_states.add_request(
+        "A", prompt_len=2, all_token_ids=[1, 2], num_computed_tokens=0
+    )
+    slot = r.req_states.req_id_to_index["A"]
+    args = (
+        np.array([slot], dtype=np.int32),
+        np.array([1], dtype=np.int32),
+        np.array([2], dtype=np.int32),
+        1,
+        16,
+        1,
+    )
+    first, _, _ = r._prepare_sliding_attn_tensors(*args)
+    second, _, _ = r._prepare_sliding_attn_tensors(*args)
+    assert first.tolist() == second.tolist()
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_sliding_ring_refuses_unsupported_prefill():
+    # paged_fill_cache matches fill block k to page_table[k] positionally, so a
+    # multi-token row continuing a cached prefix would corrupt KV. Same
+    # restriction as the v1 runner.
+    r = sliding_runner()
+    r.req_states.add_request(
+        "A", prompt_len=4, all_token_ids=[1, 2, 3, 4], num_computed_tokens=2
+    )
+    slot = r.req_states.req_id_to_index["A"]
+    with pytest.raises(NotImplementedError, match="sliding-window prefill"):
+        r._prepare_sliding_attn_tensors(
+            np.array([slot], dtype=np.int32),
+            np.array([2], dtype=np.int32),  # filling (>1 token)
+            np.array([4], dtype=np.int32),
+            1,
+            16,
+            1,
+        )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_per_group_builder_uses_the_right_builder_per_group():
+    # window_blocks (2) < the pool width (4), so the two groups are told apart by
+    # their page-table widths.
+    r = sliding_runner(window_blocks=2)
+    r.req_states.add_request(
+        "A", prompt_len=2, all_token_ids=[1, 2], num_computed_tokens=0
+    )
+    slot = r.req_states.req_id_to_index["A"]
+    per_group = r._prepare_attn_tensors_per_group(
+        np.array([slot], dtype=np.int32),
+        np.array([1], dtype=np.int32),
+        np.array([2], dtype=np.int32),
+        1,
+        4,
+    )
+    assert len(per_group) == 2
+    # Full group keeps the pool width; the ring is window-width.
+    assert per_group[0][0].shape[1] == 4
+    assert per_group[1][0].shape[1] == 2

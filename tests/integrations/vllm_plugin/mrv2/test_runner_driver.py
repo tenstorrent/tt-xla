@@ -80,6 +80,12 @@ def make_runner(max_num_reqs=8, max_model_len=32, max_num_blocks_per_req=4):
     # scenarios flip _chunked_sdpa_active themselves.
     r.prefill_chunk_budget = max_model_len
     r._chunked_sdpa_active = False
+    # Single full-attention KV group, as initialize_kv_cache would leave it.
+    r._num_kv_cache_groups = 1
+    r._group_block_sizes = [r.block_size]
+    r._group_is_sliding = [False]
+    r._group_window_blocks = [0]
+    r._layer_to_group = {}
     # SMEM-cap scalars: generous so scenarios run in a single pass.
     r.num_reqs_max_model_len = max_num_reqs
     r.min_num_reqs = 1

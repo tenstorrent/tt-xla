@@ -47,6 +47,12 @@ def make_runner(device="cpu", kv_cache_dtype=torch.bfloat16, block_size=BLOCK_SI
     r.kv_cache_dtype = kv_cache_dtype
     r.enable_tensor_parallel = False
     r.block_size = block_size
+    # Single full-attention group, as initialize_kv_cache would leave it.
+    r._num_kv_cache_groups = 1
+    r._group_block_sizes = [block_size]
+    r._group_is_sliding = [False]
+    r._group_window_blocks = [0]
+    r.max_num_reqs = 4
     return r
 
 
@@ -164,22 +170,50 @@ def test_allocate_uniform_type_heterogeneous_head_sizes():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_hybrid_config_rejected():
-    r = make_runner()
-    spec = FullAttentionSpec(
+def test_hybrid_allocates_a_ring_for_the_sliding_group():
+    # A sliding group is a per-user ring (window_blocks per slot + a null block),
+    # not a slice of the shared pool, so its cache must be sized from the ring
+    # geometry and not from the pool tensor size.
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    full = FullAttentionSpec(
         block_size=BLOCK_SIZE,
         num_kv_heads=NUM_KV_HEADS,
         head_size=HEAD_SIZE,
         dtype=torch.bfloat16,
     )
-    group = make_group(["l0"], spec)
-    cfg = KVCacheConfig(
-        num_blocks=1,
-        kv_cache_tensors=[KVCacheTensor(size=spec.page_size_bytes, shared_by=["l0"])],
-        kv_cache_groups=[group, group],
+    sliding = SlidingWindowSpec(
+        block_size=BLOCK_SIZE,
+        num_kv_heads=NUM_KV_HEADS,
+        head_size=HEAD_SIZE,
+        dtype=torch.bfloat16,
+        sliding_window=BLOCK_SIZE * 2,
     )
-    with pytest.raises(NotImplementedError):
-        r._allocate_kv_caches(cfg)
+    r = make_runner()
+    window_blocks = 8  # stick-aligned round-up of cdiv(64, 32) + 1
+    r._num_kv_cache_groups = 2
+    r._group_block_sizes = [BLOCK_SIZE, BLOCK_SIZE]
+    r._group_is_sliding = [False, True]
+    r._group_window_blocks = [0, window_blocks]
+
+    cfg = KVCacheConfig(
+        num_blocks=4,
+        kv_cache_tensors=[
+            KVCacheTensor(size=full.page_size_bytes * 4, shared_by=["full0"]),
+            KVCacheTensor(size=sliding.page_size_bytes * 4, shared_by=["swa0"]),
+        ],
+        kv_cache_groups=[
+            make_group(["full0"], full),
+            make_group(["swa0"], sliding),
+        ],
+    )
+    caches = r._allocate_kv_caches(cfg)
+
+    assert set(caches) == {"full0", "swa0"}
+    # Full group: blocks come from its pool tensor size.
+    assert caches["full0"][0].shape[0] == 4
+    # Sliding group: one sub-ring per request slot, plus the shared null block.
+    assert caches["swa0"][0].shape[0] == window_blocks * r.max_num_reqs + 1
 
 
 @pytest.mark.push

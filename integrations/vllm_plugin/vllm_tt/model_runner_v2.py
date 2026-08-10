@@ -326,6 +326,18 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             max_num_blocks=[cdiv(self.max_model_len, self.block_size)],
         )
 
+        # Hybrid (multi-group) KV state. Defaults describe a single full-attention
+        # group; initialize_kv_cache rewrites them once the real groups are known.
+        self._num_kv_cache_groups = 1
+        self._layer_to_group: dict[str, int] = {}
+        self._group_block_sizes: list[int] = [self.block_size]
+        self._group_is_sliding: list[bool] = [False]
+        self._group_window_blocks: list[int] = [0]
+        # A sliding request must keep the same physical sub-ring for its lifetime,
+        # so slots are keyed by req_id and reclaimed when the request departs.
+        self._req_ring_slot: dict[str, int] = {}
+        self._free_ring_slots: list[int] = []
+
         self.encoder_cache: dict = {}
         self.num_prompt_logprobs: dict = {}
         # Partial prompt-logprobs results for chunked prefills, keyed by req_id.
@@ -1127,16 +1139,24 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         seq_lens: np.ndarray,
         target_num_reqs: int,
         num_blocks_per_req: int,
+        group: int = 0,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Build the paged-attention tensors for this pass.
+        """Build one full-attention group's paged tensors for this pass.
 
         Builds the paged-attention tensors TTModelState.prepare_attn packages into
         a TTMetadata: read-path page_table (gathered in batch order via the slot
         mapping), write-path fill_page_table (prefix rolled), and cache_position
         (seq_lens - 1). Padding rows are null (page_table 0, cache_position -1).
+        ``group`` selects the KV cache group's block table; sliding groups use
+        _prepare_sliding_attn_tensors instead.
         """
         num_reqs = len(idx_mapping_np)
-        block_table_cpu = self.block_table[0].get_cpu_tensor()
+        block_size = (
+            self._group_block_sizes[group]
+            if group < len(self._group_block_sizes)
+            else self.block_size
+        )
+        block_table_cpu = self.block_table[group].get_cpu_tensor()
         if hasattr(block_table_cpu, "numpy"):
             block_table_cpu = block_table_cpu.numpy()
 
@@ -1155,9 +1175,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         offsets = np.zeros(num_reqs, dtype=np.int64)
         for b in range(num_reqs):
             slot = int(idx_mapping_np[b])
-            offsets[b] = (
-                int(self.req_states.num_computed_tokens[slot]) // self.block_size
-            )
+            offsets[b] = int(self.req_states.num_computed_tokens[slot]) // block_size
         if np.any(offsets > 0):
             fill_page_table = page_table.copy()
             for b in range(num_reqs):
@@ -1176,6 +1194,122 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table[zero_rows, :] = 0
 
         return page_table, fill_page_table, cache_position
+
+    def _prepare_sliding_attn_tensors(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        seq_lens: np.ndarray,
+        target_num_reqs: int,
+        num_blocks_per_req: int,
+        group: int,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Build a sliding group's per-user ring page table and window-relative
+        cache_position.
+
+        Each request owns a stable sub-ring, so the window is rotated into logical
+        order: the fill lands on the correct ring position and the read's causal +
+        sliding_window mask stays correct. Block 0 is a shared null sink for
+        padded / inactive rows. At context <= window this degenerates to an
+        identity page table with absolute cache_position.
+        """
+        from .swa_cache_utils import (
+            assign_ring_slots,
+            build_sliding_ring_page_table,
+            sliding_page_table_width,
+        )
+
+        num_reqs = len(idx_mapping_np)
+        block_size = self._group_block_sizes[group]
+        window_blocks = self._group_window_blocks[group]
+        width = sliding_page_table_width(window_blocks, num_blocks_per_req)
+
+        cur_pos = np.full(target_num_reqs, -1, dtype=np.int64)
+        cur_pos[:num_reqs] = seq_lens[:num_reqs] - 1
+        cur_block = cur_pos[:num_reqs] // block_size
+        num_win = np.minimum(cur_block + 1, window_blocks)
+        start_block = cur_block - num_win + 1
+
+        # paged_fill_cache matches fill block k positionally to page_table[k], so a
+        # multi-token row would corrupt KV once the fill runs past the window
+        # (start_block > 0) or continues a cached prefix. Decode rows are fine at
+        # any context. Same restriction as the v1 runner.
+        if num_reqs:
+            computed = np.array(
+                [
+                    int(self.req_states.num_computed_tokens[int(s)])
+                    for s in idx_mapping_np
+                ],
+                dtype=np.int64,
+            )
+            filling = np.asarray(num_scheduled_tokens[:num_reqs]) > 1
+            if np.any(filling & ((start_block > 0) | (computed > 0))):
+                raise NotImplementedError(
+                    "sliding-window prefill for context > window or with prefix "
+                    "caching / chunked prefill (num_computed > 0) is not yet "
+                    "supported on TT"
+                )
+
+        page_table = np.zeros((target_num_reqs, width), dtype=np.int32)
+        if num_reqs:
+            row_req_ids = [
+                self.req_states.index_to_req_id[int(s)] for s in idx_mapping_np
+            ]
+            slots = assign_ring_slots(
+                row_req_ids,
+                list(self.req_states.req_id_to_index.keys()),
+                self._req_ring_slot,
+                self._free_ring_slots,
+            )
+            page_table[:num_reqs] = build_sliding_ring_page_table(
+                start_block, slots, window_blocks, width
+            ).astype(np.int32)
+
+        # fill == read, except an inactive (0-token) row redirects to the null
+        # block so a re-batched request's write cannot clobber its own ring.
+        fill_page_table = page_table
+        zero_rows = np.nonzero(np.asarray(num_scheduled_tokens[:num_reqs]) == 0)[0]
+        if len(zero_rows) > 0:
+            fill_page_table = page_table.copy()
+            fill_page_table[zero_rows, :] = 0
+
+        # Window-relative write position: absolute position minus the window start.
+        cache_position = np.full(target_num_reqs, -1, dtype=np.int32)
+        cache_position[:num_reqs] = (
+            cur_pos[:num_reqs] - start_block * block_size
+        ).astype(np.int32)
+        return page_table, fill_page_table, cache_position
+
+    def _prepare_attn_tensors_per_group(
+        self,
+        idx_mapping_np: np.ndarray,
+        num_scheduled_tokens: np.ndarray,
+        seq_lens: np.ndarray,
+        target_num_reqs: int,
+        num_blocks_per_req: int,
+    ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+        """One (page_table, fill_page_table, cache_position) triple per KV group.
+
+        Single group => a one-element list, i.e. pre-hybrid behaviour.
+        """
+        out = []
+        for g in range(self._num_kv_cache_groups):
+            builder = (
+                self._prepare_sliding_attn_tensors
+                if self._group_is_sliding[g]
+                else self._prepare_attn_tensors
+            )
+            out.append(
+                builder(
+                    idx_mapping_np,
+                    num_scheduled_tokens,
+                    seq_lens,
+                    target_num_reqs,
+                    num_blocks_per_req,
+                    g,
+                )
+            )
+        return out
 
     def _chunk_start_idx_for(
         self,
@@ -1419,7 +1553,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     spec_md,
                 )
             )
-            page_table, fill_page_table, cache_position = self._prepare_attn_tensors(
+            attn_per_group = self._prepare_attn_tensors_per_group(
                 idx_mapping,
                 num_scheduled,
                 seq_lens,
@@ -1435,12 +1569,11 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 input_ids,
                 positions,
                 logits_indices,
-                page_table,
-                fill_page_table,
-                cache_position,
+                *attn_per_group[0],
                 want_prompt_hs,
                 grammar_output,
                 spec_md,
+                attn_per_group=attn_per_group,
             )
             sampled, hidden_states, pass_logprobs = pass_result
             if want_prompt_hs:
@@ -1486,6 +1619,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         want_prompt_hs: bool = False,
         grammar_output=None,
         spec_decode_metadata=None,
+        attn_per_group=None,
     ):
         """Run one compiled forward+sample pass for the selected sub-batch.
 
@@ -1540,6 +1674,28 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
+        # Hybrid: every group gets its own device page tables so a sliding layer
+        # never reads a full-attention layer's block ids. Group 0's tensors are
+        # already on device above; only the extra groups are copied here.
+        per_group_dev = None
+        if attn_per_group is not None and len(attn_per_group) > 1:
+            per_group_dev = [(page_table_dev, fill_page_table_dev, cache_position_dev)]
+            for pt, fill_pt, cache_pos in attn_per_group[1:]:
+                pt_dev = torch.from_numpy(pt).to(dev)
+                fill_dev = (
+                    pt_dev if fill_pt is pt else torch.from_numpy(fill_pt).to(dev)
+                )
+                cache_pos_dev = torch.from_numpy(cache_pos).to(dev)
+                if self.parallel_mode in (
+                    ParallelismMode.DATA_PARALLEL_ONLY,
+                    ParallelismMode.DATA_TENSOR_PARALLEL,
+                ):
+                    safe_mark_sharding(pt_dev, self.mesh, ("batch", None))
+                    safe_mark_sharding(cache_pos_dev, self.mesh, ("batch",))
+                    if fill_dev is not pt_dev:
+                        safe_mark_sharding(fill_dev, self.mesh, ("batch", None))
+                per_group_dev.append((pt_dev, fill_dev, cache_pos_dev))
+
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
             page_table_dev,
@@ -1549,6 +1705,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_users=target_num_reqs,
             dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx_dev,
+            per_group=per_group_dev,
+            layer_to_group=self._layer_to_group if per_group_dev else None,
         )
         # from_v2_states only reads num_reqs + idx_mapping_np off the view.
         batch_view = SimpleNamespace(
@@ -2177,6 +2335,81 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return result
 
+    def _setup_kv_cache_groups(self, kv_cache_config: "KVCacheConfig") -> None:
+        """Classify the KV cache groups and give each one its own block table.
+
+        A hybrid model (sliding-window + full-attention layers) yields more than
+        one group, and vLLM may pick a different block_size per group. Each group
+        needs its own block table, and each sliding group gets a window-width
+        per-user ring instead of a slice of the shared pool.
+        """
+        from vllm.v1.kv_cache_interface import SlidingWindowSpec
+        from vllm.v1.worker.block_table import MultiGroupBlockTable
+
+        from .swa_cache_utils import sliding_window_blocks
+
+        groups = kv_cache_config.kv_cache_groups
+        if not groups:
+            return
+
+        self._group_block_sizes = [g.kv_cache_spec.block_size for g in groups]
+        self._group_is_sliding = [
+            isinstance(g.kv_cache_spec, SlidingWindowSpec) for g in groups
+        ]
+        self._group_window_blocks = [
+            (
+                sliding_window_blocks(
+                    g.kv_cache_spec.sliding_window,
+                    g.kv_cache_spec.block_size,
+                    self.max_model_len,
+                )
+                if isinstance(g.kv_cache_spec, SlidingWindowSpec)
+                else 0
+            )
+            for g in groups
+        ]
+        # One relative-cache_position buffer serves every sliding group, so they
+        # must share window geometry.
+        geom = {
+            (g.kv_cache_spec.block_size, self._group_window_blocks[i])
+            for i, g in enumerate(groups)
+            if self._group_is_sliding[i]
+        }
+        assert len(geom) <= 1, f"non-uniform sliding groups not supported yet: {geom}"
+
+        self._layer_to_group = {
+            layer_name: g
+            for g, group in enumerate(groups)
+            for layer_name in group.layer_names
+        }
+
+        if len(groups) != self._num_kv_cache_groups:
+            # Same argument set as the __init__ construction: the installed vLLM
+            # signature is the one that matters, and it differs across versions.
+            self.block_table = MultiGroupBlockTable(
+                max_num_reqs=self.max_num_reqs,
+                max_num_batched_tokens=self.max_num_tokens,
+                pin_memory=False,
+                device=torch.device("cpu"),
+                block_sizes=self._group_block_sizes,
+                kernel_block_sizes=self._group_block_sizes,
+                max_num_blocks=[
+                    cdiv(self.max_model_len, bs) for bs in self._group_block_sizes
+                ],
+            )
+        self._num_kv_cache_groups = len(groups)
+        # Rings are handed out per request; one sub-ring per batch slot.
+        self._req_ring_slot = {}
+        self._free_ring_slots = list(range(self.max_num_reqs))
+
+        for g in range(self._num_kv_cache_groups):
+            width = self.block_table[g].get_cpu_tensor().shape[1]
+            assert width <= self.max_num_blocks_per_req, (
+                f"group {g} block-table width {width} exceeds the page-table "
+                f"buffer width {self.max_num_blocks_per_req} "
+                f"(block_sizes={self._group_block_sizes})"
+            )
+
     def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
         """Allocate the per-layer KV cache tensors on the TT device.
 
@@ -2204,18 +2437,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         from .attention_impls.attention import TTAttentionBackend
         from .attention_impls.attention_mla import TTMLAAttentionBackend
 
+        from .swa_cache_utils import sliding_ring_phys_blocks
+
         groups = kv_cache_config.kv_cache_groups
-        if len(groups) > 1:
-            # The allocation below is already per-group, but the runtime is not:
-            # _prepare_attn_tensors reads block_table[0] for every layer, so a
-            # second group's rows would attend through the first group's block
-            # ids. get_kv_cache_spec collapses sliding-window layers into the
-            # full-attention group to avoid this; anything else still needs the
-            # per-group page tables the v1 runner has.
-            raise NotImplementedError(
-                "The v2 runner supports a single KV cache group; this model needs "
-                f"{len(groups)} (per-group page tables are not implemented)."
-            )
         if len(groups) == 0:
             # Valid when only a subset of layers is compiled (layer override).
             return {}
@@ -2234,12 +2458,27 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_sizes[tensor.shared_by[0]] = tensor.size
 
         kv_caches: dict = {}
-        for group in groups:
+        for g, group in enumerate(groups):
+            # A sliding group is a small per-user ring, not a slice of the shared
+            # pool: max_num_reqs sub-rings of window_blocks, plus a leading null
+            # block that padded / inactive rows write to. _prepare_attn_tensors
+            # feeds it a positional ring page table, so it never indexes the pool.
+            # The worker reserves these bytes before vLLM sizes the pool.
+            ring_blocks = (
+                sliding_ring_phys_blocks(
+                    self._group_window_blocks[g], self.max_num_reqs
+                )
+                if g < len(self._group_is_sliding) and self._group_is_sliding[g]
+                else None
+            )
             for layer_name in group.layer_names:
                 spec = _layer_spec(group.kv_cache_spec, layer_name)
-                tensor_size = kv_cache_sizes[layer_name]
-                assert tensor_size % spec.page_size_bytes == 0
-                num_blocks = tensor_size // spec.page_size_bytes
+                if ring_blocks is not None:
+                    num_blocks = ring_blocks
+                else:
+                    tensor_size = kv_cache_sizes[layer_name]
+                    assert tensor_size % spec.page_size_bytes == 0
+                    num_blocks = tensor_size // spec.page_size_bytes
                 if isinstance(spec, MLAAttentionSpec):
                     # Single concatenated latent KV tensor (num_kv_heads == 1).
                     shape = TTMLAAttentionBackend.get_kv_cache_shape(
@@ -2364,6 +2603,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         from vllm.v1.worker.utils import bind_kv_cache
 
+        self._setup_kv_cache_groups(kv_cache_config)
         kv_caches = self._allocate_kv_caches(kv_cache_config)
         if not kv_caches:
             return
@@ -2701,6 +2941,31 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
+        # Hybrid: warm the same per-group shapes the runtime feeds, or the first
+        # real step recompiles (a sliding group's ring page table is narrower).
+        per_group = None
+        if self._num_kv_cache_groups > 1:
+            from .swa_cache_utils import sliding_page_table_width
+
+            per_group = [(page_table, fill_page_table, cache_position)]
+            for g in range(1, self._num_kv_cache_groups):
+                width = (
+                    sliding_page_table_width(
+                        self._group_window_blocks[g], self.max_num_blocks_per_req
+                    )
+                    if self._group_is_sliding[g]
+                    else self.max_num_blocks_per_req
+                )
+                pt_g = torch.zeros((target_num_reqs, width), dtype=torch.int32).to(dev)
+                cp_g = torch.ones(target_num_reqs, dtype=torch.int32).to(dev)
+                if self.parallel_mode in (
+                    ParallelismMode.DATA_PARALLEL_ONLY,
+                    ParallelismMode.DATA_TENSOR_PARALLEL,
+                ):
+                    safe_mark_sharding(pt_g, self.mesh, ("batch", None))
+                    safe_mark_sharding(cp_g, self.mesh, ("batch",))
+                per_group.append((pt_g, pt_g, cp_g))
+
         attn_metadata = self.model_state.prepare_attn(
             self.attention_layer_names,
             page_table,
@@ -2710,6 +2975,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_users=target_num_reqs,
             dp_size=self.dp_size,
             chunk_start_idx=chunk_start_idx,
+            per_group=per_group,
+            layer_to_group=self._layer_to_group if per_group else None,
         )
         # Defaults are all-greedy -> warms the argmax fast-path.
         sampling_metadata = XLASupportedSamplingMetadata(all_greedy=True)

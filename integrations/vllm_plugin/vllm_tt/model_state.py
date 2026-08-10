@@ -151,23 +151,39 @@ class TTModelState(ModelState):
         chunk_start_idx: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
         is_causal: bool = True,
+        per_group: "list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] | None" = None,
+        layer_to_group: "dict[str, int] | None" = None,
     ) -> dict[str, Any]:
-        """Fan one TTMetadata out to every attention layer.
+        """Fan TTMetadata out to every attention layer.
 
         The runner computes the paged tensors host-side. fill_page_table defaults
         to page_table (no prefix roll).
+
+        ``per_group`` gives one (page_table, fill_page_table, cache_position) per
+        KV cache group and ``layer_to_group`` says which group owns each layer, so
+        a sliding-window layer never receives a full-attention layer's block ids.
+        Without them a single metadata is shared by every layer, as before.
         """
         from .attention_impls.attention import TTMetadata
 
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=is_causal,
-            attn_mask=attn_mask,
-            fill_page_table=fill_page_table,
-            dp_size=dp_size,
-            chunk_start_idx=chunk_start_idx,
-            batch_idx=batch_idx,
-            num_users=num_users,
-        )
-        return dict.fromkeys(attention_layer_names, attn_metadata)
+        def _md(pt, fill_pt, cache_pos):
+            return TTMetadata(
+                page_table=pt,
+                cache_position=cache_pos,
+                is_causal=is_causal,
+                attn_mask=attn_mask,
+                fill_page_table=fill_pt,
+                dp_size=dp_size,
+                chunk_start_idx=chunk_start_idx,
+                batch_idx=batch_idx,
+                num_users=num_users,
+            )
+
+        if per_group is None:
+            return dict.fromkeys(
+                attention_layer_names, _md(page_table, fill_page_table, cache_position)
+            )
+
+        md_per_group = [_md(pt, fill_pt, cp) for pt, fill_pt, cp in per_group]
+        groups = layer_to_group or {}
+        return {ln: md_per_group[groups.get(ln, 0)] for ln in attention_layer_names}

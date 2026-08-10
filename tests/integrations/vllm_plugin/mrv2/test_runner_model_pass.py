@@ -55,6 +55,11 @@ def make_runner(max_num_reqs=4, max_model_len=32):
     r.block_size = 16
     r.max_num_blocks_per_req = 4
     r._prefix_sdpa_usable = r.max_num_blocks_per_req % 8 == 0
+    r._num_kv_cache_groups = 1
+    r._group_block_sizes = [r.block_size]
+    r._group_is_sliding = [False]
+    r._group_window_blocks = [0]
+    r._layer_to_group = {}
     r.num_spec_tokens = 0
     r.attention_layer_names = ("layer.0", "layer.1")
     r.req_states = TTRequestState(
