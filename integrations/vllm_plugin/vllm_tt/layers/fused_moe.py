@@ -66,6 +66,18 @@ class TTFusedMoE(FusedMoE):
     """OOT FusedMoE specialised for the TT compile pipeline (see module docstring)."""
 
     def __init__(self, *args, **kwargs):
+        # Captured BEFORE super().__init__(): FusedMoE.__init__ zeroes
+        # self.routed_scaling_factor to 1.0 whenever the caller passes
+        # apply_routed_scale_to_output=True (DeepSeek's own model code always
+        # does -- deepseek_v2.py sets it to `not is_rocm_aiter_moe_enabled`,
+        # i.e. True for TT), on the assumption that vLLM's own MoERunner will
+        # apply the real scale to the combined output afterward
+        # (MoERunner._maybe_apply_routed_scale_to_output). That call only
+        # exists on MoERunner.forward()'s code path; the path TT's monolithic
+        # override actually uses (_forward_impl -> _apply_quant_method ->
+        # apply_monolithic) never reaches it. So for TT the real factor has
+        # to be applied here instead, inside forward_native -- see there.
+        self._tt_routed_scaling_factor = float(kwargs.get("routed_scaling_factor", 1.0))
         super().__init__(*args, **kwargs)
 
         # Use a TT-scoped quant method override rather than monkey-patching
@@ -164,6 +176,80 @@ class TTFusedMoE(FusedMoE):
             topk_weights, topk_ids = self.custom_routing_function(
                 h_flat, logits_flat, self.top_k, self.renormalize
             )
+        elif self.use_grouped_topk:
+            # DeepSeek-V2/V3-style routing: sigmoid (not softmax) scores,
+            # expert-group-limited top-k, and (for topk_method="noaux_tc")
+            # a learned bias added for expert SELECTION only -- routing
+            # WEIGHTS still come from the unbiased scores. Mirrors
+            # vllm.model_executor.layers.fused_moe.router.grouped_topk_router
+            # .grouped_topk exactly. Not called directly: that function
+            # carries its own @torch.compile targeting
+            # current_platform.simple_compile_backend (not the TT backend),
+            # and self.router (vLLM's own correct implementation of this
+            # same math) is never invoked for the monolithic path TT always
+            # takes -- forward_native has to do it itself.
+            #
+            # Before this branch existed, forward_native always fell through
+            # to the plain-softmax-top-k `else` below regardless of
+            # use_grouped_topk, since DeepSeek never sets
+            # custom_routing_function (grouped-topk is wired through
+            # use_grouped_topk/self.router instead, a separate vLLM
+            # mechanism forward_native didn't participate in). That silently
+            # selected experts by an entirely different, untrained-for
+            # scoring rule at every MoE layer -- not a precision difference.
+            if self.scoring_func == "sigmoid":
+                scores = logits_flat.float().sigmoid()
+            elif self.scoring_func == "softmax":
+                scores = F.softmax(logits_flat.float(), dim=-1)
+            else:
+                raise NotImplementedError(
+                    f"TTFusedMoE: scoring_func {self.scoring_func!r} not supported"
+                )
+
+            num_tokens = scores.shape[0]
+            bias = self.e_score_correction_bias
+            if bias is not None:
+                # Selection uses biased scores; routing weights use the
+                # original (unbiased) ones.
+                original_scores = scores
+                scores = scores + bias.unsqueeze(0)
+                group_scores = (
+                    scores.view(num_tokens, self.num_expert_group, -1)
+                    .topk(2, dim=-1)[0]
+                    .sum(dim=-1)
+                )
+            else:
+                group_scores = (
+                    scores.view(num_tokens, self.num_expert_group, -1)
+                    .max(dim=-1)
+                    .values
+                )
+
+            group_idx = torch.topk(group_scores, k=self.topk_group, dim=-1)[1]
+            group_mask = torch.zeros_like(group_scores).scatter_(1, group_idx, 1)
+            score_mask = (
+                group_mask.unsqueeze(-1)
+                .expand(
+                    num_tokens,
+                    self.num_expert_group,
+                    scores.shape[-1] // self.num_expert_group,
+                )
+                .reshape(num_tokens, -1)
+            )
+            tmp_scores = scores.masked_fill(~score_mask.bool(), float("-inf"))
+
+            if bias is not None:
+                topk_ids = torch.topk(tmp_scores, k=self.top_k, dim=-1)[1]
+                topk_weights = original_scores.gather(1, topk_ids)
+            else:
+                topk_weights, topk_ids = torch.topk(tmp_scores, k=self.top_k, dim=-1)
+
+            if self.renormalize:
+                topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
+            # self.routed_scaling_factor is neutered to 1.0 here (see
+            # __init__) -- use the real value captured before that happened.
+            if self._tt_routed_scaling_factor != 1.0:
+                topk_weights = topk_weights * self._tt_routed_scaling_factor
         else:
             scores = F.softmax(logits_flat.float(), dim=-1)
             topk_weights, topk_ids = torch.topk(scores, self.top_k, dim=-1)

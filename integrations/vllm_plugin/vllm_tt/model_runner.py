@@ -2613,7 +2613,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         else True
                     )
                     # Apply sharding constraints to the model weights.
+                    shard_start = time.perf_counter()
                     shard_model(model, self.mesh, shard_on_batch_axis)
+                    logger.info(
+                        "Sharding finished in %.2f [secs].",
+                        time.perf_counter() - shard_start,
+                    )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -2651,14 +2656,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.tt_config.weight_dtype_overrides is not None:
             from tt_torch.weight_dtype import apply_weight_dtype_overrides
 
+            quant_start = time.perf_counter()
             applied = apply_weight_dtype_overrides(
                 self.model, self.tt_config.weight_dtype_overrides
             )
-            logger.info("Applied %d per-tensor weight dtype override(s)", len(applied))
+            logger.info(
+                "Applied %d per-tensor weight dtype override(s) in %.2f [secs].",
+                len(applied),
+                time.perf_counter() - quant_start,
+            )
 
+        compile_wrap_start = time.perf_counter()
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         self.rejection_sampler = RejectionSampler(self.sampler)
+        logger.info(
+            "torch.compile wrapping finished in %.2f [secs].",
+            time.perf_counter() - compile_wrap_start,
+        )
         logger.info(f"Compiled model: \n{self.model}")
 
         # Cache attention layer names so we don't rebuild the per-layer
@@ -3069,6 +3084,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
 
             logger.info(f"Compiling graph for config={config}")
+            graph_start = time.perf_counter()
             (
                 dummy_inputs,
                 dummy_positions,
@@ -3118,6 +3134,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     if config.get("spec_decode")
                     else "_model_prefill"
                 )
+            logger.info(
+                "Compiled graph for config=%s in %.2f [secs].",
+                config,
+                time.perf_counter() - graph_start,
+            )
 
         xm.wait_device_ops()
         end = time.perf_counter()

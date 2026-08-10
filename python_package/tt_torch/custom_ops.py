@@ -691,6 +691,7 @@ def indexer_score_dsa(
     weights: torch.Tensor,
     chunk_start_idx: int = 0,
     cluster_axis: Optional[int] = None,
+    num_devices: int = 1,
 ) -> torch.Tensor:
     """
     DeepSeek Sparse Attention (DSA) "lightning indexer" scorer, mirroring
@@ -718,6 +719,16 @@ def indexer_score_dsa(
             the rank derivation exact and leaves the other axes free.
         chunk_start_idx: absolute position of the first query token, i.e. the
                          number of already-cached tokens. Compile-time constant.
+        num_devices: number of devices along ``cluster_axis`` -- i.e. how many
+            equal chunks the (already locally-sized) ``query`` sequence dim was
+            split into. Only meaningful when ``cluster_axis`` is set; mirrors
+            ``all_to_all_dispatch``'s ``num_devices`` argument. Needed because
+            when the promoted TTNN kernel isn't available, tt-mlir's fallback
+            decomposition runs on already-per-device-local shapes and has no
+            other way to recover how many shards the global sequence was split
+            into, which it needs to reconstruct each device's true causal
+            window (``local_row + chunk_start_idx + rank*local_seq_len``)
+            instead of every device's window collapsing to rank 0's.
     Returns:
         Scores of shape [b, 1, sq, t] with the same dtype as ``query``.
     """
@@ -757,6 +768,9 @@ def indexer_score_dsa(
     assert cluster_axis is None or (
         isinstance(cluster_axis, int) and cluster_axis >= 0
     ), f"cluster_axis must be None or a non-negative int, got {cluster_axis}."
+    assert (
+        isinstance(num_devices, int) and num_devices >= 1
+    ), f"num_devices must be a positive int, got {num_devices}."
 
     if batch != 1:
         _warn_no_kernel("indexer_score_dsa", f"batch size is {batch}, must be 1")
@@ -776,6 +790,7 @@ def indexer_score_dsa(
                 else {
                     "chunk_start_idx": str(chunk_start_idx),
                     "cluster_axis": str(cluster_axis),
+                    "num_devices": str(num_devices),
                 }
             ),
         )
@@ -812,6 +827,7 @@ def indexer_score_dsa_fake(
     weights: torch.Tensor,
     chunk_start_idx: int = 0,
     cluster_axis: Optional[int] = None,
+    num_devices: int = 1,
 ) -> torch.Tensor:
     return torch.zeros(
         (query.shape[0], 1, query.shape[2], key.shape[2]),

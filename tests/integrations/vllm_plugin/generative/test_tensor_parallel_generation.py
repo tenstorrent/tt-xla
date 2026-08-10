@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import time
+
 import pytest
 import vllm
 from chunked_prefill_data import CHUNKED_PREFILL_PROMPT
@@ -757,10 +759,20 @@ def test_tensor_parallel_generation_deepseek_v32_full():
     stays on the dense MLA path -- it is a full-model smoke test, not a DSA
     correctness gate (that lives in the 3-layer tests above).
 
-    ``optimization_level=0``: DeepSeek-V2-Lite (also MoE) needed this in
-    ``test_tensor_parallel_generation_llmbox_large`` because opt_level=1's MoE
-    all_to_all_dispatch requires row-major layout (tt-mlir#8920); the 58 MoE
-    layers here (``first_k_dense_replace=3``) hit the same op.
+    ``optimization_level=1``: opt_level=0 was used originally because
+    DeepSeek-V2-Lite (also MoE) needed it in
+    ``test_tensor_parallel_generation_llmbox_large`` -- opt_level=1's MoE
+    all_to_all_dispatch reportedly requires row-major layout (tt-mlir#8920).
+    But opt_level=0 never actually fixed this test's incoherent output (even
+    after scoping quantization to just the MoE experts below), and opt_level=0
+    is itself an unvalidated fallback -- it was chosen to dodge a *compile-time*
+    error, never confirmed numerically correct for this model/mesh. A 4-layer
+    diagnostic (test_dsa_v32_4layer_optlevel1_diagnostic, 3 dense + 1 real MoE
+    layer) compiled and ran cleanly at opt_level=1 with no row-major-layout
+    error and no silent fallback, so this test now tries opt_level=1 -- both to
+    see if it resolves coherence and because it's the more-optimized, better
+    validated path when it works. tt-mlir#8920 may still resurface at the full
+    58-MoE-layer scale; if it does, revert to opt_level=0.
 
     ``weight_dtype_overrides``: the 256 routed experts (58 MoE layers) are
     ~654B params, and ``partition_fused_moe`` (vllm_distributed_utils.py)
@@ -797,6 +809,8 @@ def test_tensor_parallel_generation_deepseek_v32_full():
     sampling_params = vllm.SamplingParams(
         temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
     )
+    print("[STAGE] engine_startup: begin")
+    startup_start = time.perf_counter()
     llm = vllm.LLM(
         model=model_dir,
         max_num_batched_tokens=model_len,
@@ -807,7 +821,7 @@ def test_tensor_parallel_generation_deepseek_v32_full():
             "min_context_len": model_len,
             "enable_tensor_parallel": True,
             "mesh_shape": [8, 4],
-            "optimization_level": 0,
+            "optimization_level": 1,
             "flat_model_io": True,
             "weight_dtype_overrides": {
                 "*.mlp.experts.w13_weight": "bfp_bf8",
@@ -815,8 +829,12 @@ def test_tensor_parallel_generation_deepseek_v32_full():
             },
         },
     )
+    print(f"[STAGE] engine_startup: {time.perf_counter() - startup_start:.2f} [secs]")
 
+    print("[STAGE] generation: begin")
+    generate_start = time.perf_counter()
     output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"[STAGE] generation: {time.perf_counter() - generate_start:.2f} [secs]")
     print(f"token_ids: {output.token_ids}, text: {output.text!r}")
 
     assert (
@@ -956,3 +974,196 @@ def test_dsa_v32_4layer_scoped_moe_bfp8_ir_diagnostic():
 
     output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
     print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_4layer_stage_timing_diagnostic():
+    """DIAGNOSTIC, not a correctness gate -- validates the stage-timing
+    logging facility added to model_runner.py before using it on the
+    expensive full 61-layer run.
+
+    Same scoped-quantization 4-layer setup as
+    test_dsa_v32_4layer_scoped_moe_bfp8_ir_diagnostic. Exercises every
+    instrumented stage: weight loading (vLLM's own "Loading weights took ...
+    seconds"), "Sharding finished in ... [secs].", "Applied N per-tensor
+    weight dtype override(s) in ... [secs].", "torch.compile wrapping
+    finished in ... [secs].", per-graph "Compiled graph for config=... in
+    ... [secs].", "Compilation finished in ... [secs]." (sum of the
+    per-graph times), plus this test's own [STAGE] engine_startup/generation
+    wall-clock prints. Run the parser script in the scratchpad against this
+    test's captured log to see the full stage breakdown.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    print("[STAGE] engine_startup: begin")
+    startup_start = time.perf_counter()
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 4,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 0,
+            "flat_model_io": True,
+            "weight_dtype_overrides": {
+                "*.mlp.experts.w13_weight": "bfp_bf8",
+                "*.mlp.experts.w2_weight": "bfp_bf8",
+            },
+        },
+    )
+    print(f"[STAGE] engine_startup: {time.perf_counter() - startup_start:.2f} [secs]")
+
+    print("[STAGE] generation: begin")
+    generate_start = time.perf_counter()
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"[STAGE] generation: {time.perf_counter() - generate_start:.2f} [secs]")
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_4layer_optlevel1_diagnostic():
+    """DIAGNOSTIC, not a correctness gate -- checks whether optimization_level=1
+    actually runs E2E on a small MoE-containing layer subset before ever trying
+    it on the full 61-layer model.
+
+    test_tensor_parallel_generation_deepseek_v32_full uses optimization_level=0
+    because opt_level=1's MoE all_to_all_dispatch reportedly requires row-major
+    layout (tt-mlir#8920), which the DeepSeek-V2-Lite param in
+    test_tensor_parallel_generation_llmbox_large hit. That workaround has never
+    been confirmed to also be numerically CORRECT (as opposed to merely
+    avoiding a compile-time error) at this model/mesh/quantization
+    combination -- it's a live suspect for the still-incoherent full-model
+    output now that scoped MoE-only quantization didn't fix it either.
+
+    4 layers (3 dense + 1 real MoE layer, first_k_dense_replace=3) is enough
+    to exercise the all_to_all_dispatch op this bug is about, while staying
+    fast. If this hits the row-major-layout compile error, opt_level=1 is not
+    viable here without further tt-mlir work. If it compiles and runs, it's
+    safe to consider for a full-scale run -- but do NOT run this at full
+    layer count without explicit confirmation; this test is deliberately
+    capped at 4 layers to check E2E viability first.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    print("[STAGE] engine_startup: begin")
+    startup_start = time.perf_counter()
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 4,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 1,
+            "flat_model_io": True,
+            "weight_dtype_overrides": {
+                "*.mlp.experts.w13_weight": "bfp_bf8",
+                "*.mlp.experts.w2_weight": "bfp_bf8",
+            },
+        },
+    )
+    print(f"[STAGE] engine_startup: {time.perf_counter() - startup_start:.2f} [secs]")
+
+    print("[STAGE] generation: begin")
+    generate_start = time.perf_counter()
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"[STAGE] generation: {time.perf_counter() - generate_start:.2f} [secs]")
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+
+@pytest.mark.bh_galaxy
+def test_dsa_v32_4layer_ccl_ir_diagnostic(tmp_path):
+    """DIAGNOSTIC, not a correctness gate -- exports the compiled IR for a
+    4-layer (3 dense + 1 real MoE) slice at the FULL test's exact mesh/opt/
+    quantization config, so CCL counts and const-eval cache structure can be
+    inspected without paying the ~9 h full-model compile.
+
+    Motivation: test_tensor_parallel_generation_deepseek_v32_full started
+    OOMing in _initialize_kv_caches (a 16 MiB DRAM buffer, with only a
+    1.23 MiB largest-free-block -- i.e. fragmentation at ~99.9% DRAM
+    occupancy) on runs after a tt-mlir rebuild, and the OOM reproduced with
+    two unrelated Python-side changes, which points at the compiler build
+    rather than either change. This test makes the two things that would
+    explain such a regression directly observable:
+
+      * CCL ops (all_gather / all_reduce / reduce_scatter / mesh_partition /
+        collective_permute) -- an unneeded resharding collective added per
+        layer is both a memory and a latency cost, and multiplies by 58 MoE
+        layers at full scale.
+      * const-eval structure (`ttcore.load_cached` + the const_eval funcs) --
+        each hoisted subgraph's output is a PERSISTENT device tensor, so
+        where the const-eval boundary falls directly sets steady-state DRAM.
+        In particular, a boundary that lands BEFORE a size-reducing
+        `mesh_partition` caches the pre-slice (num_devices x larger) tensor.
+
+    4 layers is the smallest slice that still contains a real MoE layer
+    (first_k_dense_replace=3), so the per-MoE-layer CCL/caching pattern this
+    is looking for is present and can be extrapolated.
+    """
+    model_dir = _dsa_full_model_dir()
+    model_len = 128
+    export_dir = str(tmp_path / "ir")
+
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=10, ignore_eos=True
+    )
+    llm = vllm.LLM(
+        model=model_dir,
+        max_num_batched_tokens=model_len,
+        max_num_seqs=1,
+        max_model_len=model_len,
+        gpu_memory_utilization=0.02,
+        additional_config={
+            "min_context_len": model_len,
+            "num_hidden_layers": 4,
+            "enable_tensor_parallel": True,
+            "mesh_shape": [8, 4],
+            "optimization_level": 1,
+            "flat_model_io": True,
+            "weight_dtype_overrides": {
+                "*.mlp.experts.w13_weight": "bfp_bf8",
+                "*.mlp.experts.w2_weight": "bfp_bf8",
+            },
+            "export_path": export_dir,
+            "export_model_name": "dsa_4l_ccl",
+        },
+    )
+    output = llm.generate([DSA_SHORT_PROMPT], sampling_params)[0].outputs[0]
+    print(f"token_ids: {output.token_ids}, text: {output.text!r}")
+
+    ttnn_ir = _exported_ir(export_dir, "ttnn")
+    for op in (
+        "ttnn.all_gather",
+        "ttnn.all_reduce",
+        "ttnn.reduce_scatter",
+        "ttnn.mesh_partition",
+        "ttnn.collective_permute",
+        "ttnn.all_to_all_dispatch",
+        "ttnn.all_to_all_combine",
+        "ttcore.load_cached",
+    ):
+        print(f"[CCL-COUNT] {op}: {ttnn_ir.count(op)}")
+    # Keep the IR after the tmp_path teardown so it can be diffed across builds.
+    import shutil
+
+    keep = "/tmp/dsa_4l_ccl_ir"
+    shutil.rmtree(keep, ignore_errors=True)
+    shutil.copytree(export_dir, keep)
+    print(f"[CCL-COUNT] IR copied to {keep}")

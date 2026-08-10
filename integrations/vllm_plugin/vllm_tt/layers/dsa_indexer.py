@@ -569,6 +569,17 @@ class TTIndexer(nn.Module):
                 visible_count, self._mesh, seq_spec
             )
 
+        # Number of devices q's sequence dim was actually split into. Needed by
+        # tt-mlir's decomposition fallback (used whenever the promoted TTNN
+        # kernel isn't available): that fallback runs on already-per-device-
+        # local shapes and has no other way to recover how many shards the
+        # global sequence was split into, which it needs to reconstruct each
+        # device's true causal window instead of every device silently
+        # collapsing to rank 0's.
+        num_devices = (
+            self._mesh.mesh_shape[cluster_axis] if cluster_axis is not None else 1
+        )
+
         # Both DSA ops require batch == 1, so score/select one user at a time.
         per_user = []
         for u in range(users):
@@ -578,6 +589,7 @@ class TTIndexer(nn.Module):
                 weights=w_op[u : u + 1],
                 chunk_start_idx=0,
                 cluster_axis=cluster_axis,
+                num_devices=num_devices,
             )  # [1, 1, padded_len/model_size, padded_len]
             per_user.append(self._select(score, visible_count))
         indices = torch.cat(per_user, dim=0)  # [users, 1, padded_len, topk]
