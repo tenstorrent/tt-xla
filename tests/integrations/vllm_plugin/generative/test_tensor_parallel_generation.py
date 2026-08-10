@@ -259,7 +259,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     [
         # [8, 4] exceed the SDPA decode tree-reduction limit at opt_level=1 (tt-mlir#9007).
         pytest.param([1, 4], 1, marks=pytest.mark.bhqb),
-        pytest.param([8, 4], 0, marks=pytest.mark.bh_galaxy),
+        pytest.param([8, 4], 0, marks=pytest.mark.galaxy_bh),
     ],
 )
 def test_tensor_parallel_generation_gemma4_31b(

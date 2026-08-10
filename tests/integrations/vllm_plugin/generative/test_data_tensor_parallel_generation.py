@@ -144,11 +144,11 @@ def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.data_parallel
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 @pytest.mark.parametrize(
     "mesh_shape",
     [
-        pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+        pytest.param([8, 4], marks=pytest.mark.galaxy_bh),
     ],
 )
 def test_data_tensor_parallel_generation_gemma4_31b(mesh_shape: list[int]):
