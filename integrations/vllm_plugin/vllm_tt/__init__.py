@@ -24,6 +24,35 @@ def register():
 
 
 def register_oot_layers():
+    # Patch vLLM Attention symbol from the general-plugins path.
+    import vllm.model_executor.layers.attention as _attn_pkg
+    import vllm.model_executor.layers.attention.attention as _attn_mod
+    import vllm.model_executor.layers.attention.encoder_only_attention as _enc_attn_mod
+    from vllm_tt.attention_impls.attention import TTAttention, TTEncoderOnlyAttention
+
+    _attn_mod.Attention = TTAttention
+    _attn_pkg.Attention = TTAttention
+    _enc_attn_mod.Attention = TTAttention
+
+    _enc_attn_mod.EncoderOnlyAttention = TTEncoderOnlyAttention
+    _attn_pkg.EncoderOnlyAttention = TTEncoderOnlyAttention
+
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
-    from .layers.fused_moe import TTFusedMoE, TTSharedFusedMoE  # noqa: F401
+
+    # Patch the FusedMoE factory for TT MoE.
+    from .layers.fused_moe import install_tt_fused_moe
+
+    install_tt_fused_moe()
+
+    # Gemma4's multimodal encoder queries torch.accelerator.get_memory_info(),
+    # which asserts on the TT device; route it to a host-memory estimate.
+    from .platform import install_tt_accelerator_memory_info
+
+    install_tt_accelerator_memory_info()
+
+    # Bound a sliding-window layer's per-request KV by the per-request prefill
+    # chunk instead of the batch-wide token budget.
+    from .platform import install_tt_sliding_window_admission
+
+    install_tt_sliding_window_admission()

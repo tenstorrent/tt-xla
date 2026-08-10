@@ -47,6 +47,7 @@ ARCH_TOKENS = sorted(
         "p150-perf",
         "n300-llmbox",
         "galaxy-wh-6u",
+        "galaxy-bh",
         "qb2-blackhole",
         "n300-perf",
         "llmbox",

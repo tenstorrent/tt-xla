@@ -15,6 +15,7 @@ from vllm.v1.outputs import LogprobsTensors
 from vllm.v1.pool.metadata import PoolingMetadata, PoolingStates
 from vllm.v1.sample.logits_processor import LogitsProcessors
 from vllm.v1.sample.metadata import SamplingMetadata
+from vllm.v1.utils import copy_slice
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
 
@@ -32,6 +33,7 @@ class InputBatch:
         vocab_size: int,
         block_sizes: list[int],  # The block_size of each kv cache group
         kernel_block_sizes: list[int],
+        max_num_blocks_per_req: Optional[list[int]] = None,
         logitsprocs: Optional[LogitsProcessors] = None,
         logitsprocs_need_output_token_ids: bool = False,
         is_pooling_model: bool = True,
@@ -80,14 +82,19 @@ class InputBatch:
         self.num_computed_tokens_cpu = self.num_computed_tokens_cpu_tensor.numpy()
 
         # Block table.
+        if max_num_blocks_per_req is None:
+            max_num_blocks_per_req = [
+                (max_model_len + block_size - 1) // block_size
+                for block_size in block_sizes
+            ]
         self.block_table = MultiGroupBlockTable(
             max_num_reqs=max_num_reqs,
-            max_model_len=max_model_len,
             max_num_batched_tokens=max_num_batched_tokens,
             pin_memory=pin_memory,
             device=device,
             block_sizes=block_sizes,
             kernel_block_sizes=kernel_block_sizes,
+            max_num_blocks=max_num_blocks_per_req,
             cp_kv_cache_interleave_size=cp_kv_cache_interleave_size,
         )
 
@@ -228,9 +235,11 @@ class InputBatch:
         if req_index == len(self._req_ids):
             self._req_ids.append(req_id)
             self.req_output_token_ids.append(request.output_token_ids)
+            self.spec_token_ids.append([])
         else:
             self._req_ids[req_index] = req_id
             self.req_output_token_ids[req_index] = request.output_token_ids
+            self.spec_token_ids[req_index].clear()
 
         self.req_id_to_index[req_id] = req_index
 
@@ -345,6 +354,9 @@ class InputBatch:
         else:
             raise NotImplementedError(request)
 
+        # Speculative decoding: by default 1 token is generated per step.
+        self.num_accepted_tokens_cpu[req_index] = 1
+
         # Add request lora ID
         if request.lora_request:
             lora_id = request.lora_request.lora_int_id
@@ -373,6 +385,7 @@ class InputBatch:
             return None
         self._req_ids[req_index] = None
         self.req_output_token_ids[req_index] = None
+        self.spec_token_ids[req_index].clear()
 
         # LoRA
         lora_id = self.request_lora_mapping[req_index]
@@ -484,6 +497,10 @@ class InputBatch:
             self.repetition_penalties_cpu[i1],
         )
         self.min_p_cpu[i1], self.min_p_cpu[i2] = self.min_p_cpu[i2], self.min_p_cpu[i1]
+        self.num_accepted_tokens_cpu[i1], self.num_accepted_tokens_cpu[i2] = (
+            self.num_accepted_tokens_cpu[i2],
+            self.num_accepted_tokens_cpu[i1],
+        )
 
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.min_tokens, i1, i2)
@@ -543,6 +560,11 @@ class InputBatch:
             self.token_ids_cpu[empty_index, :num_tokens] = self.token_ids_cpu[
                 last_req_index, :num_tokens
             ]
+            (self.spec_token_ids[last_req_index], self.spec_token_ids[empty_index]) = (
+                self.spec_token_ids[empty_index],
+                self.spec_token_ids[last_req_index],
+            )
+            self.spec_token_ids[last_req_index].clear()
             self.num_tokens[empty_index] = num_tokens
             self.num_tokens_no_spec[empty_index] = self.num_tokens_no_spec[
                 last_req_index
@@ -572,6 +594,9 @@ class InputBatch:
                 last_req_index
             ]
             self.min_p_cpu[empty_index] = self.min_p_cpu[last_req_index]
+            self.num_accepted_tokens_cpu[empty_index] = self.num_accepted_tokens_cpu[
+                last_req_index
+            ]
             generator = self.generators.pop(last_req_index, None)
             if generator is not None:
                 self.generators[empty_index] = generator
@@ -596,6 +621,29 @@ class InputBatch:
         # Trim lists to the batch size.
         del self._req_ids[num_reqs:]
         del self.req_output_token_ids[num_reqs:]
+        del self.spec_token_ids[num_reqs:]
+
+    def update_req_spec_token_ids(
+        self, request: "CachedRequestState", scheduled_spec_tokens: dict[str, list[int]]
+    ) -> None:
+        """Write scheduled speculative token IDs into the input batch token buffer.
+
+        Called once per step (after _update_states) for each request that has
+        spec tokens scheduled.
+        """
+        req_id = request.req_id
+        req_index = self.req_id_to_index[req_id]
+        cur_spec_token_ids = self.spec_token_ids[req_index]
+        cur_spec_token_ids.clear()
+        spec_token_ids = scheduled_spec_tokens.get(req_id, ())
+        num_spec_tokens = len(spec_token_ids)
+        if not spec_token_ids:
+            return
+
+        start_index = self.num_tokens_no_spec[req_index]
+        end_token_index = start_index + num_spec_tokens
+        self.token_ids_cpu[req_index, start_index:end_token_index] = spec_token_ids
+        cur_spec_token_ids.extend(spec_token_ids)
 
     def _make_sampling_metadata(self) -> SamplingMetadata:
         num_reqs = self.num_reqs

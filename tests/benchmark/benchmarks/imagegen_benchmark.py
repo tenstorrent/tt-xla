@@ -202,6 +202,7 @@ def benchmark_imagegen_torch_xla(
         device_name=socket.gethostname(),
         arch=get_xla_device_arch(),
         device_count=xr.global_runtime_device_count(),
+        mesh_shape=getattr(pipeline, "mesh_shape", None),
         input_is_image=True,
     )
 

@@ -169,7 +169,14 @@ class Sampler(nn.Module):
     ) -> torch.Tensor:
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
-            logits = logits + sampling_metadata.allowed_token_ids_mask
+            allowed_token_ids_mask = sampling_metadata.allowed_token_ids_additive_mask
+            if allowed_token_ids_mask is None:
+                allowed_token_ids_mask = sampling_metadata.allowed_token_ids_mask
+            assert allowed_token_ids_mask is not None
+            if allowed_token_ids_mask.dtype == torch.bool:
+                logits.masked_fill_(allowed_token_ids_mask, -float("inf"))
+            else:
+                logits = logits + allowed_token_ids_mask
 
         # Apply min_tokens mask (suppresses stop tokens until minimum is reached).
         if not sampling_metadata.no_min_tokens:
@@ -183,8 +190,6 @@ class Sampler(nn.Module):
         if not sampling_metadata.no_logit_bias:
             logits = self.apply_logit_bias(logits, sampling_metadata.logit_bias_tensor)
 
-        assert sampling_metadata.temperature is not None
-
         # Apply penalties before temperature so both greedy and random paths
         # see penalized logits.
         if not sampling_metadata.no_penalties:
@@ -196,6 +201,11 @@ class Sampler(nn.Module):
                 sampling_metadata.frequency_penalties,
                 sampling_metadata.repetition_penalties,
             )
+
+        if sampling_metadata.all_greedy:
+            return self.greedy_sample(logits)
+
+        assert sampling_metadata.temperature is not None
 
         # Skip greedy_sample when every row is sampling (all_random=True);
         # the torch.where below would discard greedy_sampled anyway. ArgMax
@@ -405,8 +415,10 @@ def chunked_topk_candidates(
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
 
-    # Pad W so that Wt = W/32 is a power of 2 AND Wt >= 2 to avoid the
-    # tt::sampling kernel hang (#4560). -inf values can't win the topk /
+    # ttnn.sampling requires Wt = W/32 to be a power of 2 and asserts on it
+    # (tenstorrent/tt-metal#44558) — an op precondition, not a workaround.
+    # The max(64, ...) covers Wt = 1 (vocab <= 32768), which passes that assert
+    # but hangs the device silently. -inf values can't win the topk /
     # multinomial draw, so output is unchanged.
     cur_w = all_values.shape[-1]
     target_w = max(64, _next_power_of_2(cur_w))

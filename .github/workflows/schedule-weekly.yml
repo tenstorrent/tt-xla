@@ -26,7 +26,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release,manylinux
+      build_types: release,manylinux,explorer
 
   # This is a single test job that runs all passing tt-forge-models tests.
   test_forge_models_passing:
@@ -52,6 +52,16 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
       dump_irs: true
+
+  process_ir:
+    if: always() && !cancelled()
+    uses: ./.github/workflows/call-process-dumped-irs.yml
+    needs: [ build-image, build-ttxla, test_forge_models_passing, test_forge_models_xfail ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      dumped_irs_run_id: ${{ github.run_id }}
+      target_time_min: 180
 
   fail-notify:
     if: always()

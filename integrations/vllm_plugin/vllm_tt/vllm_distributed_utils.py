@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
 from collections import OrderedDict
+from enum import Enum
 from typing import List, Optional
 
 import torch
@@ -26,6 +27,10 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
+
+
+# Deduplicates the size-1-axis warning below; see the call site for why.
+_WARNED_SIZE1_AXIS: set = set()
 
 
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
@@ -57,6 +62,24 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
             safe_spec.append(None)
             continue
         mesh_axis_size = _axis_size(axis)
+        if mesh_axis_size == 1:
+            # No-op: the dim stays replicated while siblings shard on a real
+            # axis. This is how DP-only pinned the batch dim to size-1 "model"
+            # on a (dp, 1) mesh and corrupted rows silently.
+            msg = (
+                f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) asked to "
+                f"shard on mesh axis {axis!r}, which has size 1 -- this is a "
+                f"no-op and the dim stays replicated"
+            )
+            if strict:
+                raise ValueError(msg + "; strict=True")
+            # Deduped: pure-TP legitimately marks a size-1 "batch" axis from
+            # _dummy_run on every step.
+            if msg not in _WARNED_SIZE1_AXIS:
+                _WARNED_SIZE1_AXIS.add(msg)
+                logger.warning("%s", msg)
+            safe_spec.append(None)
+            continue
         if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "
@@ -71,9 +94,47 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
     xs.mark_sharding(tensor, mesh, tuple(safe_spec))
 
 
+class ParallelismMode(Enum):
+    DISABLED = "disabled"
+    DATA_PARALLEL_ONLY = "data_parallel_only"
+    TENSOR_PARALLEL_ONLY_1D = "tensor_parallel_only_1D"
+    TENSOR_PARALLEL_ONLY_2D = "tensor_parallel_only_2d"
+    DATA_TENSOR_PARALLEL = "data_tensor_parallel"
+
+
+def kv_cache_shard_factor(runner) -> int:
+    """How many ways the KV cache is actually sharded across the mesh.
+
+    Only the "model" axis shards KV heads, so this is that axis' size — 1 when
+    the cache ends up replicated on every chip instead. Callers use it to
+    reconcile vLLM's TP-unaware block budget (which always assumes the full,
+    un-sharded num_kv_heads) with what each chip really holds.
+
+    Must stay in sync with the mark_sharding call in
+    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
+    because that path deliberately leaves the cache un-annotated.
+    """
+    if not runner.enable_tensor_parallel:
+        return 1
+    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
+        # DP+TP leaves the cache replicated, so per-chip usage already equals
+        # the full budget — no reconciliation to do. Sharding it properly
+        # (heads on "model", blocks on "batch") is tracked in #5796.
+        return 1
+    mesh = runner.mesh
+    if hasattr(mesh, "shape"):
+        return mesh.shape()["model"]
+    return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
+
+
 class XlaMergedColumnParallelLinear(nn.Module):
 
-    def __init__(self, merged_column_parallel_linear: nn.Module, mesh: "xs.Mesh"):
+    def __init__(
+        self,
+        merged_column_parallel_linear: nn.Module,
+        mesh: "xs.Mesh",
+        shard_weights_on_batch_axis: bool = True,
+    ):
         super().__init__()
         assert isinstance(merged_column_parallel_linear, MergedColumnParallelLinear)
         self.skip_bias_add = merged_column_parallel_linear.skip_bias_add
@@ -88,12 +149,13 @@ class XlaMergedColumnParallelLinear(nn.Module):
             merged_column_parallel_linear
         )
         if mesh is not None:
-            self._shard_weight(mesh)
+            self._shard_weight(mesh, shard_weights_on_batch_axis)
 
-    def _shard_weight(self, mesh: "xs.Mesh"):
+    def _shard_weight(self, mesh: "xs.Mesh", shard_weights_on_batch_axis: bool):
+        batch_axis = "batch" if shard_weights_on_batch_axis else None
         for i in range(self.num_outputs):
             self.weights[i] = Parameter(self.weights[i].to("xla"), requires_grad=False)
-            safe_mark_sharding(self.weights[i], mesh, ("model", "batch"))
+            safe_mark_sharding(self.weights[i], mesh, ("model", batch_axis))
 
             if self.biases[i] is not None:
                 self.biases[i] = Parameter(
@@ -158,7 +220,12 @@ class XlaMergedColumnParallelLinear(nn.Module):
 
 class XlaQKVParallelLinear(nn.Module):
 
-    def __init__(self, qkv_linear: nn.Module, mesh: "xs.Mesh"):
+    def __init__(
+        self,
+        qkv_linear: nn.Module,
+        mesh: "xs.Mesh",
+        shard_weights_on_batch_axis: bool = True,
+    ):
         super().__init__()
         assert isinstance(qkv_linear, QKVParallelLinear)
         self.skip_bias_add = qkv_linear.skip_bias_add
@@ -172,15 +239,16 @@ class XlaQKVParallelLinear(nn.Module):
         self.k_bias: Optional[Parameter]
         self.v_bias: Optional[Parameter]
         self._load_weights_from_qkv_linear(qkv_linear)
-        self._shard_weight(mesh)
+        self._shard_weight(mesh, shard_weights_on_batch_axis)
 
-    def _shard_weight(self, mesh: "xs.Mesh"):
+    def _shard_weight(self, mesh: "xs.Mesh", shard_weights_on_batch_axis: bool):
+        batch_axis = "batch" if shard_weights_on_batch_axis else None
         self.q_weight = Parameter(self.q_weight.to("xla"), requires_grad=False)
         self.k_weight = Parameter(self.k_weight.to("xla"), requires_grad=False)
         self.v_weight = Parameter(self.v_weight.to("xla"), requires_grad=False)
-        safe_mark_sharding(self.q_weight, mesh, ("model", "batch"))
-        safe_mark_sharding(self.k_weight, mesh, ("model", "batch"))
-        safe_mark_sharding(self.v_weight, mesh, ("model", "batch"))
+        safe_mark_sharding(self.q_weight, mesh, ("model", batch_axis))
+        safe_mark_sharding(self.k_weight, mesh, ("model", batch_axis))
+        safe_mark_sharding(self.v_weight, mesh, ("model", batch_axis))
         if self.q_bias is not None:
             assert (
                 self.k_bias is not None and self.v_bias is not None
@@ -251,42 +319,48 @@ class XlaQKVParallelLinear(nn.Module):
 
 
 def partition_merged_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, MergedColumnParallelLinear)
-    xla_layer = XlaMergedColumnParallelLinear(layer, mesh)
+    xla_layer = XlaMergedColumnParallelLinear(layer, mesh, shard_weights_on_batch_axis)
     logger.debug("Applied parallel sharding to %s", layer)
     return xla_layer
 
 
 def partition_qkv_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, QKVParallelLinear)
-    xla_layer = XlaQKVParallelLinear(layer, mesh)
+    xla_layer = XlaQKVParallelLinear(layer, mesh, shard_weights_on_batch_axis)
     logger.debug("Applied parallel sharding to %s", layer)
     return xla_layer
 
 
 def partition_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
 
 def partition_row_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("batch", "model"))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
 
-def partition_linear(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+def partition_linear(
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
+) -> torch.nn.Module:
+    # shard_weights_on_batch_axis is unused: nn.Linear weights are sharded on
+    # the "model" (TP) axis only, with no "batch" (DP) axis in the spec.
     assert isinstance(layer, nn.Linear)
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     if layer.bias is not None:
@@ -296,46 +370,45 @@ def partition_linear(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
 
 
 def partition_parallel_lm_head(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
+    safe_mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, ("model", None))
     return layer
 
 
 def partition_vocab_parallel_embedding(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
+    # weight is [vocab, hidden]. Shard only the hidden dim on "model"; keep vocab
+    # un-sharded — sharding vocab makes the embedding gather need a
+    # CollectivePermute that tt-mlir can't lower yet (tt-mlir #3370).
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
-    # Apply sharding constraint to the output. The output rank matches input
-    # rank + 1: 2D input_ids (batch, seq) → 3D output; 1D input_ids (seq,) →
-    # 2D output (e.g., during mm-encoder precompilation). Pre-compute both
-    # sharding strings to avoid per-call overhead and dispatch dynamically.
-    sdy_sharding_3d = _partition_spec_to_sdy_sharding(mesh, (None, None, None))
-    sdy_sharding_2d = _partition_spec_to_sdy_sharding(mesh, (None, None))
-
-    def rank_aware_hook(mod, input, output):
-        sdy = sdy_sharding_3d if output.dim() == 3 else sdy_sharding_2d
-        return torch.ops.tt.sharding_constraint(output, sdy)
-
-    layer.register_forward_hook(rank_aware_hook)
+    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
+    layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
 
-def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+def partition_fused_moe(
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
+) -> torch.nn.Module:
     """Fully shard FusedMoE expert weights along the expert dimension (dim 0).
 
+    ``shard_weights_on_batch_axis`` is accepted for a uniform partition-fn
+    signature but unused: experts are distributed over *all* mesh axes on a 2D
+    mesh (see below), independent of the DP/TP weight-sharding flag.
+
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
-    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
-    path on a genuine 2D mesh (both axes > 1), where experts are distributed
-    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
-    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
-    the dense bmm path, which needs the full expert set on every device, so
-    leave the expert weights replicated (mirrors the is_2d guard in
-    layers/fused_moe.py)."""
+    [E, H, I] on the RoutedExperts submodule. The TT MoE path only takes the
+    expert-parallel (tt_experts_forward) path on a genuine 2D mesh (both axes >
+    1), where experts are distributed across *all* devices via a compound
+    sharding over both axes (e.g. (2,2) -> 4-way split of E). On a 1D /
+    degenerate / single-chip mesh it uses the dense bmm path, which needs the
+    full expert set on every device, so leave the expert weights replicated
+    (mirrors the is_2d guard in TTRoutedExperts.forward_native)."""
     mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
     if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
         logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
@@ -361,8 +434,12 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
-        ("TTFusedMoE", partition_fused_moe),
-        ("TTSharedFusedMoE", partition_fused_moe),
+        # vLLM 0.25.1 moved the stacked expert weights (w13_weight/w2_weight)
+        # from the old monolithic TTFusedMoE module onto the RoutedExperts
+        # submodule; TT injects TTRoutedExperts there (see layers/fused_moe.py).
+        # partition_fused_moe reads w13_weight/w2_weight, so it must match that
+        # class. Only fires on MoE + genuine 2D mesh (expert parallelism).
+        ("TTRoutedExperts", partition_fused_moe),
     ]
 )
 
@@ -372,7 +449,11 @@ def get_fqn(module):
     return module.__class__.__qualname__
 
 
-def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
+def shard_model(
+    model: torch.nn.Module,
+    mesh: "xs.Mesh",
+    shard_weights_on_batch_axis: bool = True,
+) -> None:
     """
     Recursively check a PyTorch model and apply appropriate sharding based on
     the MODULE_TYPE_TO_WRAPPING_FUNC mapping.
@@ -380,13 +461,18 @@ def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
     Args:
         model: torch.nn.Module to process
         mesh: An XLA SPMD mesh object used for sharding
+        shard_weights_on_batch_axis: When True, weight partition specs include
+            the "batch" (DP) axis (FSDP-style). When False, weights are only
+            sharded on "model" (TP) axis and replicated across DP replicas.
     """
     logger.info("Applying parallel sharding to the model...")
 
     def _process_module(module, name=None, parent=None):
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
-                wrapped_module = wrapping_func(module, mesh)
+                wrapped_module = wrapping_func(
+                    module, mesh, shard_weights_on_batch_axis
+                )
 
                 assert (
                     parent is not None and name is not None

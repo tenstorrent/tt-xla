@@ -32,6 +32,7 @@ def test_vision(
     input_size=DEFAULT_INPUT_SIZE,
     data_format=DEFAULT_DATA_FORMAT,
     required_pcc=DEFAULT_REQUIRED_PCC,
+    use_aot_autograd=None,
 ):
     """Test vision model with the given configuration.
 
@@ -83,6 +84,7 @@ def test_vision(
         load_inputs_fn=load_inputs_fn,
         extract_output_tensor_fn=extract_output_tensor_fn,
         required_pcc=required_pcc,
+        use_aot_autograd=use_aot_autograd,
     )
 
     if output_file:
@@ -274,6 +276,9 @@ def test_segformer(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
+        # AOTAutograd (default in the "tt" backend since #3795 / 39ab41b7a)
+        # regresses segformer PCC.
+        use_aot_autograd=False,
     )
 
 
