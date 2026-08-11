@@ -2,7 +2,6 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
-import gc
 from collections import OrderedDict
 from enum import Enum
 from typing import List, Optional
@@ -324,7 +323,7 @@ def partition_merged_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, MergedColumnParallelLinear)
     xla_layer = XlaMergedColumnParallelLinear(layer, mesh, shard_weights_on_batch_axis)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to MergedColumnParallelLinear")
     return xla_layer
 
 
@@ -333,7 +332,7 @@ def partition_qkv_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, QKVParallelLinear)
     xla_layer = XlaQKVParallelLinear(layer, mesh, shard_weights_on_batch_axis)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to QKVParallelLinear")
     return xla_layer
 
 
@@ -343,7 +342,7 @@ def partition_column_parallel_linear(
     assert isinstance(layer, ColumnParallelLinear)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to ColumnParallelLinear")
     return layer
 
 
@@ -353,7 +352,7 @@ def partition_row_parallel_linear(
     assert isinstance(layer, RowParallelLinear)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to RowParallelLinear")
     return layer
 
 
@@ -366,7 +365,7 @@ def partition_linear(
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     if layer.bias is not None:
         safe_mark_sharding(layer.bias, mesh, (None,))
-    logger.debug("Applied row-parallel sharding to nn.Linear %s", layer)
+    logger.debug("Applied row-parallel sharding to nn.Linear")
     return layer
 
 
@@ -375,7 +374,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     safe_mark_sharding(layer.weight, mesh, ("model", None))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to ParallelLMHead")
     return layer
 
 
@@ -389,7 +388,7 @@ def partition_vocab_parallel_embedding(
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to VocabParallelEmbedding")
     return layer
 
 
@@ -419,7 +418,7 @@ def partition_fused_moe(
         w = getattr(layer, name, None)
         if w is not None:
             safe_mark_sharding(w, mesh, (expert_axis, None, None))
-    logger.debug("Applied compound expert-dim sharding to %s", layer)
+    logger.debug("Applied compound expert-dim sharding to TTRoutedExperts")
     return layer
 
 
@@ -468,25 +467,12 @@ def shard_model(
     """
     logger.info("Applying parallel sharding to the model...")
 
-    # Wrapping drops the unsharded weights, but on the v2 runner some of that
-    # garbage sits in reference cycles, so refcounting alone never reclaims it and
-    # a whole model's worth accumulates across the walk (17 GiB on a 14.5 GiB
-    # checkpoint). Collect as we go; collecting after the walk is too late because
-    # the peak is mid-walk.
-    # TODO: find and break the cycle instead of collecting blindly.
-    _wrapped = 0
-    _COLLECT_EVERY = 8
-
     def _process_module(module, name=None, parent=None):
-        nonlocal _wrapped
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
                 wrapped_module = wrapping_func(
                     module, mesh, shard_weights_on_batch_axis
                 )
-                _wrapped += 1
-                if _wrapped % _COLLECT_EVERY == 0:
-                    gc.collect()
 
                 assert (
                     parent is not None and name is not None
@@ -495,7 +481,7 @@ def shard_model(
                     # Wrapped module and module are different py object.
                     # The original module should be replaced by the
                     # wrapped_module.
-                    logger.debug("replace %s with %s", module, wrapped_module)
+                    logger.debug("replace %s with %s", name, get_fqn(wrapped_module))
                     setattr(parent, name, wrapped_module)
 
                 module = wrapped_module
