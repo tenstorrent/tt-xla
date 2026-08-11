@@ -210,7 +210,7 @@ def test_hybrid_allocates_a_ring_for_the_sliding_group():
     caches = r._allocate_kv_caches(cfg)
 
     assert set(caches) == {"full0", "swa0"}
-    # Full group: blocks come from its pool tensor size.
+    # Full group: blocks come from the shared pool's block count.
     assert caches["full0"][0].shape[0] == 4
     # Sliding group: one sub-ring per request slot, plus the shared null block.
     assert caches["swa0"][0].shape[0] == window_blocks * r.max_num_reqs + 1
@@ -252,3 +252,48 @@ def test_cross_layer_kv_sharing_noop_without_shared_layers():
     r._maybe_setup_cross_layer_kv_sharing(kv, cfg)
     assert set(kv) == {"l0"}
     assert cfg.kv_cache_groups[0].layer_names == ["l0"]
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_hybrid_sizes_full_groups_from_the_pool_not_the_tensor_list():
+    # For a hybrid model vLLM overlays several layers onto one buffer, so a
+    # KVCacheTensor is shared_by more than one layer. TT cannot alias, so the
+    # allocation must ignore that list and size full groups from the pool's block
+    # count -- reading it would trip the single-owner assert (caught on device).
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    full = FullAttentionSpec(
+        block_size=BLOCK_SIZE,
+        num_kv_heads=NUM_KV_HEADS,
+        head_size=HEAD_SIZE,
+        dtype=torch.bfloat16,
+    )
+    sliding = SlidingWindowSpec(
+        block_size=BLOCK_SIZE,
+        num_kv_heads=NUM_KV_HEADS,
+        head_size=HEAD_SIZE,
+        dtype=torch.bfloat16,
+        sliding_window=BLOCK_SIZE * 2,
+    )
+    r = make_runner()
+    r._num_kv_cache_groups = 2
+    r._group_block_sizes = [BLOCK_SIZE, BLOCK_SIZE]
+    r._group_is_sliding = [False, True]
+    r._group_window_blocks = [0, 8]
+
+    pool_blocks = 7
+    cfg = KVCacheConfig(
+        num_blocks=pool_blocks,
+        # One buffer owned by both layers, as the hybrid manager emits.
+        kv_cache_tensors=[
+            KVCacheTensor(
+                size=full.page_size_bytes * pool_blocks, shared_by=["full0", "swa0"]
+            )
+        ],
+        kv_cache_groups=[make_group(["full0"], full), make_group(["swa0"], sliding)],
+    )
+    caches = r._allocate_kv_caches(cfg)
+
+    assert caches["full0"][0].shape[0] == pool_blocks
+    assert caches["swa0"][0].shape[0] == 8 * r.max_num_reqs + 1

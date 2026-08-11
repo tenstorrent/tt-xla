@@ -2450,12 +2450,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"the runner block_size {self.block_size}"
             )
 
+        # For a hybrid model vLLM overlays several layers onto one buffer as
+        # per-layer reshaped views. TT cannot alias (TILE layout), so every layer
+        # gets its own tensor and full groups are sized from the shared pool's
+        # block count instead of the per-layer tensor list -- which under hybrid
+        # would also trip the single-owner assert below.
+        hybrid = len(groups) > 1
         kv_cache_sizes: dict[str, int] = {}
-        for tensor in kv_cache_config.kv_cache_tensors:
-            assert (
-                len(tensor.shared_by) == 1
-            ), "A KV cache tensor shared by multiple layers is not supported on TT."
-            kv_cache_sizes[tensor.shared_by[0]] = tensor.size
+        if not hybrid:
+            for tensor in kv_cache_config.kv_cache_tensors:
+                assert (
+                    len(tensor.shared_by) == 1
+                ), "A KV cache tensor shared by multiple layers is not supported on TT."
+                kv_cache_sizes[tensor.shared_by[0]] = tensor.size
 
         kv_caches: dict = {}
         for g, group in enumerate(groups):
@@ -2475,6 +2482,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 spec = _layer_spec(group.kv_cache_spec, layer_name)
                 if ring_blocks is not None:
                     num_blocks = ring_blocks
+                elif hybrid:
+                    num_blocks = kv_cache_config.num_blocks
                 else:
                     tensor_size = kv_cache_sizes[layer_name]
                     assert tensor_size % spec.page_size_bytes == 0
