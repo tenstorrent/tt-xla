@@ -2737,6 +2737,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            self.mark_sampling_metadata_sharding(sampling_metadata, target_num_reqs)
             apply_grammar = grammar_output is not None
             # Applying grammar to speculative decoding is not supported yet.
             # [TODO] https://github.com/tenstorrent/tt-xla/issues/5701
@@ -3197,7 +3198,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.info("Applied %d per-tensor weight dtype override(s)", len(applied))
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = Sampler()
+        self.sampler = Sampler(dp_size=self.dp_size)
         self.rejection_sampler = RejectionSampler(self.sampler)
         logger.info(f"Compiled model: \n{self.model}")
 
@@ -3821,6 +3822,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         dummy_sampling_metadata.all_greedy = all_greedy
         dummy_sampling_metadata.logprobs = logprobs
+        self.mark_sampling_metadata_sharding(dummy_sampling_metadata, num_reqs)
 
         dummy_require_struct_decoding = None
         dummy_grammar_bitmask = None
@@ -4230,7 +4232,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         dummy_hidden = dummy_hidden.to(self.device)
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
+            safe_mark_sharding(
+                dummy_hidden,
+                self.mesh,
+                ("batch" if self.dp_size > 1 else None, "model"),
+            )
 
         self.compute_logits_compiled(dummy_hidden)
 
@@ -4295,7 +4301,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
             if self.is_sharded_compute_logits:
-                safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
+                safe_mark_sharding(
+                    dummy_logits,
+                    self.mesh,
+                    ("batch" if self.dp_size > 1 else None, "model"),
+                )
+            elif self.dp_size > 1:
+                # DP without a vocab-sharded LM head: batch only.
+                safe_mark_sharding(dummy_logits, self.mesh, ("batch", None))
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -4305,6 +4318,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 vocab_size=self.vocab_size,
             )
             sampling_metadata.all_greedy = all_greedy
+            self.mark_sampling_metadata_sharding(sampling_metadata, self.max_num_reqs)
             with (
                 self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
@@ -4749,6 +4763,53 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Compiled wrapper for vocab-logit computation warmup and reuse."""
         return self.compute_logits(sample_hidden_states)
 
+    def mark_sampling_metadata_sharding(
+        self, sampling_metadata: XLASupportedSamplingMetadata, num_reqs: int
+    ) -> None:
+        """Annotate the sampling metadata to match the logits sharding.
+
+        The [batch] params shard on the batch axis under data parallelism, and
+        the [batch, vocab] masks shard on the model axis when the LM head is
+        vocab parallel.
+        """
+        if self.tt_config.cpu_sampling:
+            return
+        batch_axis = "batch" if self.dp_size > 1 else None
+        vocab_axis = "model" if self.is_sharded_compute_logits else None
+        if batch_axis is None and vocab_axis is None:
+            return
+
+        def mark(name, spec, ndim):
+            tensor = getattr(sampling_metadata, name, None)
+            if not isinstance(tensor, torch.Tensor) or tensor.ndim != ndim:
+                return
+            if tensor.shape[0] != num_reqs:
+                return
+            safe_mark_sharding(tensor, self.mesh, spec)
+
+        if batch_axis is not None:
+            for name in (
+                "temperature",
+                "min_p",
+                "top_k",
+                "top_p",
+                "presence_penalties",
+                "frequency_penalties",
+                "repetition_penalties",
+            ):
+                mark(name, (batch_axis,), 1)
+
+        if vocab_axis is not None:
+            for name in (
+                "output_token_counts",
+                "prompt_token_mask",
+                "logit_bias_tensor",
+                "bad_words_mask",
+                "allowed_token_ids_mask",
+                "min_tokens_mask",
+            ):
+                mark(name, (None, vocab_axis), 2)
+
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
         # Logits leave this graph vocab-sharded (ParallelLMHead output). The
@@ -4770,47 +4831,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # graph: sharding does not carry across the compiled-graph boundary
         # from compute_logits.
         if self.is_sharded_compute_logits:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
-            # On 1D mesh, Shardy has a single axis and may assign it to batch
-            # dims of metadata tensors (since batch is typically divisible by
-            # mesh size). This axis-swap with the vocab-sharded logits triggers
-            # unimplemented collective_permute (tt-mlir#3370). Explicitly anchor
-            # [batch, vocab] metadata to (None, "model") so Shardy propagates
-            # only vocab-sharding, and the replicated→sharded transition uses
-            # the implemented all_slice path.
-            if not sampling_metadata.no_penalties:
-                sampling_metadata.output_token_counts = sharding_constraint_tensor(
-                    sampling_metadata.output_token_counts,
-                    self.mesh,
-                    (None, "model"),
-                )
-                sampling_metadata.prompt_token_mask = sharding_constraint_tensor(
-                    sampling_metadata.prompt_token_mask,
-                    self.mesh,
-                    (None, "model"),
-                )
-            if not sampling_metadata.no_logit_bias:
-                sampling_metadata.logit_bias_tensor = sharding_constraint_tensor(
-                    sampling_metadata.logit_bias_tensor,
-                    self.mesh,
-                    (None, "model"),
-                )
-            if not sampling_metadata.no_bad_words:
-                sampling_metadata.bad_words_mask = sharding_constraint_tensor(
-                    sampling_metadata.bad_words_mask, self.mesh, (None, "model")
-                )
-            if not sampling_metadata.no_allowed_token_ids:
-                sampling_metadata.allowed_token_ids_mask = sharding_constraint_tensor(
-                    sampling_metadata.allowed_token_ids_mask,
-                    self.mesh,
-                    (None, "model"),
-                )
-            if not sampling_metadata.no_min_tokens:
-                sampling_metadata.min_tokens_mask = sharding_constraint_tensor(
-                    sampling_metadata.min_tokens_mask,
-                    self.mesh,
-                    (None, "model"),
-                )
+            logits = sharding_constraint_tensor(
+                logits, self.mesh, ("batch" if self.dp_size > 1 else None, "model")
+            )
         if (
             sampling_metadata.all_greedy
             and sampling_metadata.no_penalties

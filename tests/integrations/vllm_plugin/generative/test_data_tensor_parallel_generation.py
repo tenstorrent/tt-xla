@@ -67,8 +67,7 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
     """Wider batch: per-replica batch == 2 (per-device first-dim > 1).
 
     Greedy + grounded so per-slot prefill corruption is caught deterministically
-    (the stopword-ratio heuristic masked it). cpu_sampling=True isolates the
-    prefill path from the #4440 device sampler.
+    (the stopword-ratio heuristic masked it).
     """
     checks = GROUNDED_BATCH_CHECKS
     prompts = [p for p, _ in checks]
@@ -83,7 +82,7 @@ def test_data_tensor_parallel_generation_wider_batch(model_name: str):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "enable_data_parallel": True,
-            "cpu_sampling": True,
+            "cpu_sampling": False,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -251,8 +250,7 @@ def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
     """Larger model (8B) via DP+TP on llmbox.
 
     An 8B model OOMs per DP replica on a single n300 (~16GB > 12.85GB DRAM), so
-    weights are sharded across the TP axis. cpu_sampling=True for the 2D-mesh
-    sampler issue (#4440).
+    weights are sharded across the TP axis.
     """
     prompts = [
         "Continue in English: I like taking walks in the",
@@ -275,7 +273,7 @@ def test_data_tensor_parallel_generation_llmbox_large(model_name: str):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "enable_data_parallel": True,
-            "cpu_sampling": True,
+            "cpu_sampling": False,
         },
     }
     llm = vllm.LLM(**llm_args)

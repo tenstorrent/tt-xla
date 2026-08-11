@@ -31,7 +31,20 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
 
 
 _SAMPLING_EPS = 1e-5
-_TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
+# Max rows per ttnn.sampling invocation, and the width multi-core ttnn.topk
+# prefers.
+_TTNN_SAMPLING_BATCH_SIZE = 32
+
+
+def sampling_pad_rows(batch: int, dp_size: int) -> int:
+    """Rows to append to a global batch so the ttnn kernels accept it.
+
+    Under data parallelism the kernel sees batch / dp_size rows, so pad only up
+    to the next multiple of dp_size. Otherwise pad up to the kernel width.
+    """
+    if dp_size > 1:
+        return -batch % dp_size
+    return max(0, _TTNN_SAMPLING_BATCH_SIZE - batch)
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -57,13 +70,15 @@ def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Te
 
 
 class Sampler(nn.Module):
-    def __init__(self):
+    def __init__(self, dp_size: int = 1):
         # TODO(houseroad): Add support for logprobs_mode.
         # Note: basic logprob support is already working — when logprobs are
         # requested, model_runner.py calls gather_logprobs() after forward()
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
+        # Shapes here are SPMD global; the kernel sees global / dp_size rows.
+        self.dp_size = dp_size
 
     def forward(
         self,
@@ -257,7 +272,7 @@ class Sampler(nn.Module):
         # tt::sampling kernel applies user top-k, top-p, softmax, and
         # multinomial downstream — no need to filter twice here.
         filtered_logits, candidate_indices = chunked_topk_candidates(
-            logits, vocab_sharded=vocab_sharded
+            logits, self.dp_size, vocab_sharded=vocab_sharded
         )
         random_sampled = self._ttnn_sampling_padded(
             filtered_logits, candidate_indices, sampling_metadata
@@ -435,28 +450,26 @@ class Sampler(nn.Module):
             is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp
         ).to(torch.bfloat16)
 
-        # The tt::sampling kernel requires exactly batch=32, so process the
-        # batch in tiles of 32 rows (padding only the final partial tile up to
-        # 32) and concatenate. A single pad-to-32 truncates when batch > 32.
-        outputs = []
-        for tile_start in range(0, batch, _TTNN_SAMPLING_BATCH_SIZE):
-            tile_end = min(tile_start + _TTNN_SAMPLING_BATCH_SIZE, batch)
-            n = tile_end - tile_start
-            v = values[tile_start:tile_end]
-            idx = indices[tile_start:tile_end]
-            k = k_tensor[tile_start:tile_end]
-            p = p_tensor[tile_start:tile_end]
-            t = temp_tensor[tile_start:tile_end]
-            if n < _TTNN_SAMPLING_BATCH_SIZE:
-                pad_size = _TTNN_SAMPLING_BATCH_SIZE - n
-                v = torch.nn.functional.pad(v, (0, 0, 0, pad_size), value=float("-inf"))
-                idx = torch.nn.functional.pad(idx, (0, 0, 0, pad_size))
-                k = torch.nn.functional.pad(k, (0, pad_size), value=1)
-                p = torch.nn.functional.pad(p, (0, pad_size), value=1.0)
-                t = torch.nn.functional.pad(t, (0, pad_size), value=1.0)
-            res = torch.ops.tt.sampling(v, idx, k, p, t)
-            outputs.append(res[:n])
-        return torch.cat(outputs, dim=0).to(torch.int64)
+        pad_size = sampling_pad_rows(batch, self.dp_size)
+        local_batch = (batch + pad_size) // self.dp_size
+        if local_batch > _TTNN_SAMPLING_BATCH_SIZE:
+            raise ValueError(
+                f"on-device sampling got {local_batch} rows per device, over the "
+                f"{_TTNN_SAMPLING_BATCH_SIZE} limit (global batch {batch}, dp_size "
+                f"{self.dp_size}). Lower max_num_seqs or set cpu_sampling=True."
+            )
+
+        if pad_size:
+            values = torch.nn.functional.pad(
+                values, (0, 0, 0, pad_size), value=float("-inf")
+            )
+            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
+            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
+            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
+            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
+
+        result = torch.ops.tt.sampling(values, indices, k_tensor, p_tensor, temp_tensor)
+        return result[:batch].to(torch.int64)
 
 
 _SHARDED_TOPK_CANDIDATES = 128  # matches typical num_chunks * k_per_chunk
@@ -464,6 +477,7 @@ _SHARDED_TOPK_CANDIDATES = 128  # matches typical num_chunks * k_per_chunk
 
 def chunked_topk_candidates(
     logits: torch.Tensor,
+    dp_size: int = 1,
     *,
     vocab_sharded: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -485,20 +499,14 @@ def chunked_topk_candidates(
     """
     batch = logits.shape[0]
 
-    # Multi-core topk is 14x faster at batch=32 vs small batches — pad up to
-    # the next multiple of 32 with -inf rows so dummy entries can't win the
-    # topk. Pad UP (never a fixed 32 target): 32 - batch is negative when
-    # batch > 32, which makes F.pad TRUNCATE the batch to 32 instead of padding.
-    padded_batch = max(
-        _TTNN_SAMPLING_BATCH_SIZE,
-        ((batch + _TTNN_SAMPLING_BATCH_SIZE - 1) // _TTNN_SAMPLING_BATCH_SIZE)
-        * _TTNN_SAMPLING_BATCH_SIZE,
-    )
-    logits = torch.nn.functional.pad(
-        logits,
-        (0, 0, 0, padded_batch - batch),
-        value=float("-inf"),
-    )
+    # Pad with -inf rows so dummy entries can't win the topk.
+    pad_rows = sampling_pad_rows(batch, dp_size)
+    if pad_rows:
+        logits = torch.nn.functional.pad(
+            logits,
+            (0, 0, 0, pad_rows),
+            value=float("-inf"),
+        )
 
     if vocab_sharded:
         from tt_torch.composite_ops import composite_topk

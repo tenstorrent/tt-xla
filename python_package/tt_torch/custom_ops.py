@@ -2246,7 +2246,11 @@ def sampling(
         )
     logits = input_values.float()
     temperature = temp.float().unsqueeze(-1).clamp(min=1e-6)
-    probs = torch.softmax(logits / temperature, dim=-1)
+    scaled = logits / temperature
+    # Padding rows are all -inf; softmax gives NaN, which multinomial rejects.
+    all_masked = ~torch.isfinite(scaled).any(dim=-1, keepdim=True)
+    scaled = torch.where(all_masked, torch.zeros_like(scaled), scaled)
+    probs = torch.softmax(scaled, dim=-1)
     sampled_local = torch.multinomial(probs, num_samples=1)
     return input_indices.gather(1, sampled_local).squeeze(-1).to(torch.int32)
 
