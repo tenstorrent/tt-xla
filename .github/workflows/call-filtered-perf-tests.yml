@@ -93,7 +93,7 @@ jobs:
 
   run-perf-benchmarks:
     needs: filter-tests
-    if: ${{ !cancelled() && fromJson(needs.filter-tests.outputs.matrix.matrix_skip) != 'true' && needs.filter-tests.result == 'success' }}
+    if: ${{ !cancelled() && fromJson(needs.filter-tests.outputs.matrix).matrix_skip != 'true' && needs.filter-tests.result == 'success' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:
