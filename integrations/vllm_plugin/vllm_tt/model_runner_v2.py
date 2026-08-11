@@ -2432,7 +2432,6 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         from .attention_impls.attention import TTAttentionBackend
         from .attention_impls.attention_mla import TTMLAAttentionBackend
-
         from .swa_cache_utils import sliding_ring_phys_blocks
 
         groups = kv_cache_config.kv_cache_groups
