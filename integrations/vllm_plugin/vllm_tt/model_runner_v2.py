@@ -1161,9 +1161,12 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             block_table_cpu = block_table_cpu.numpy()
 
         page_table = np.zeros((target_num_reqs, num_blocks_per_req), dtype=np.int32)
+        # A larger block_size needs fewer blocks/req, so this group's table may be
+        # narrower than the page table (rest stays null); vLLM may also pad wider.
+        copy_width = min(block_table_cpu.shape[1], num_blocks_per_req)
         for b in range(num_reqs):
             slot = int(idx_mapping_np[b])
-            page_table[b, :] = block_table_cpu[slot, :num_blocks_per_req]
+            page_table[b, :copy_width] = block_table_cpu[slot, :copy_width]
 
         # Decode/write position per user; -1 for padding rows.
         cache_position = np.full(target_num_reqs, -1, dtype=np.int32)
@@ -1230,10 +1233,9 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_win = np.minimum(cur_block + 1, window_blocks)
         start_block = cur_block - num_win + 1
 
-        # paged_fill_cache matches fill block k positionally to page_table[k], so a
-        # multi-token row would corrupt KV once the fill runs past the window
-        # (start_block > 0) or continues a cached prefix. Decode rows are fine at
-        # any context. Same restriction as the v1 runner.
+        # paged_fill_cache matches fill block k to page_table[k] positionally, so a
+        # multi-token row past the window or over a cached prefix corrupts KV.
+        # Decode rows are fine at any context. Same restriction as v1.
         if num_reqs:
             computed = np.array(
                 [
@@ -2402,13 +2404,7 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._req_ring_slot = {}
         self._free_ring_slots = list(range(self.max_num_reqs))
 
-        for g in range(self._num_kv_cache_groups):
-            width = self.block_table[g].get_cpu_tensor().shape[1]
-            assert width <= self.max_num_blocks_per_req, (
-                f"group {g} block-table width {width} exceeds the page-table "
-                f"buffer width {self.max_num_blocks_per_req} "
-                f"(block_sizes={self._group_block_sizes})"
-            )
+        # No width assert: _prepare_attn_tensors copies min(both widths).
 
     def _allocate_kv_caches(self, kv_cache_config: "KVCacheConfig") -> dict:
         """Allocate the per-layer KV cache tensors on the TT device.
@@ -2450,11 +2446,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 f"the runner block_size {self.block_size}"
             )
 
-        # For a hybrid model vLLM overlays several layers onto one buffer as
-        # per-layer reshaped views. TT cannot alias (TILE layout), so every layer
-        # gets its own tensor and full groups are sized from the shared pool's
-        # block count instead of the per-layer tensor list -- which under hybrid
-        # would also trip the single-owner assert below.
+        # Hybrid: vLLM overlays layers onto one buffer, which TT can't alias, so
+        # full groups size from the pool's block count, not the tensor list.
         hybrid = len(groups) > 1
         kv_cache_sizes: dict[str, int] = {}
         if not hybrid:
@@ -2466,11 +2459,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_caches: dict = {}
         for g, group in enumerate(groups):
-            # A sliding group is a small per-user ring, not a slice of the shared
-            # pool: max_num_reqs sub-rings of window_blocks, plus a leading null
-            # block that padded / inactive rows write to. _prepare_attn_tensors
-            # feeds it a positional ring page table, so it never indexes the pool.
-            # The worker reserves these bytes before vLLM sizes the pool.
+            # Sliding groups are per-user rings (one sub-ring per slot + a null
+            # block), not a slice of the pool. The worker reserves these bytes.
             ring_blocks = (
                 sliding_ring_phys_blocks(
                     self._group_window_blocks[g], self.max_num_reqs
@@ -2841,11 +2831,8 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     prefix_chunk,
                     spec,
                 )
-                # maybe_select_dummy_loras is a context manager and must stay open
-                # while the bucket traces and executes; calling it bare only builds
-                # the generator, so the dummy mapping never takes effect. It no-ops
-                # when lora_config is None. One row per request with
-                # padded_query_len tokens each describes this bucket's shape.
+                # A contextmanager: called bare it never applies. Array shape is
+                # this bucket's rows x tokens. No-ops when lora_config is None.
                 with self.maybe_select_dummy_loras(
                     self.lora_config,
                     np.full(target_num_reqs, padded_query_len, dtype=np.int32),
