@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
+import gc
 from collections import OrderedDict
 from enum import Enum
 from typing import List, Optional
@@ -467,12 +468,25 @@ def shard_model(
     """
     logger.info("Applying parallel sharding to the model...")
 
+    # Wrapping drops the unsharded weights, but on the v2 runner some of that
+    # garbage sits in reference cycles, so refcounting alone never reclaims it and
+    # a whole model's worth accumulates across the walk (17 GiB on a 14.5 GiB
+    # checkpoint). Collect as we go; collecting after the walk is too late because
+    # the peak is mid-walk.
+    # TODO: find and break the cycle instead of collecting blindly.
+    _wrapped = 0
+    _COLLECT_EVERY = 8
+
     def _process_module(module, name=None, parent=None):
+        nonlocal _wrapped
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
                 wrapped_module = wrapping_func(
                     module, mesh, shard_weights_on_batch_axis
                 )
+                _wrapped += 1
+                if _wrapped % _COLLECT_EVERY == 0:
+                    gc.collect()
 
                 assert (
                     parent is not None and name is not None
