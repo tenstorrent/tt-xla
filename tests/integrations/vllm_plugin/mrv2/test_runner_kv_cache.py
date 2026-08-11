@@ -257,10 +257,8 @@ def test_cross_layer_kv_sharing_noop_without_shared_layers():
 @pytest.mark.push
 @pytest.mark.cpu
 def test_hybrid_sizes_full_groups_from_the_pool_not_the_tensor_list():
-    # For a hybrid model vLLM overlays several layers onto one buffer, so a
-    # KVCacheTensor is shared_by more than one layer. TT cannot alias, so the
-    # allocation must ignore that list and size full groups from the pool's block
-    # count -- reading it would trip the single-owner assert (caught on device).
+    # Hybrid overlays layers onto one buffer, so a tensor is shared_by several.
+    # Full groups must size from the pool, not that list (caught on device).
     from vllm.v1.kv_cache_interface import SlidingWindowSpec
 
     full = FullAttentionSpec(
