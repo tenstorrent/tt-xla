@@ -4584,13 +4584,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         self.device
                     )
                 elif isinstance(spec, AttentionSpec):
-                    tp_size = kv_cache_shard_factor(self)
+                    # None, not layer_to_spec: MLA is handled by the branch
+                    # above, so this spec is head-sharded and an MLA layer
+                    # elsewhere in the model must not zero the factor here.
+                    tp_size = kv_cache_shard_factor(self, None)
                     if tp_size > 1:
                         # Fail loudly when KV heads are not TP-divisible instead
                         # of silently replicating (see safe_mark_sharding).
                         assert spec.num_kv_heads % tp_size == 0, (
                             f"num_kv_heads {spec.num_kv_heads} must be divisible "
-                            f"by tp_size {tp_size} for correct KV-head sharding"
+                            f"by tp_size {tp_size} for correct KV-head sharding "
+                            "(DP+TP head-shards too since #5796, so this now "
+                            "trips on meshes that used to replicate)"
                         )
                     # spec.dtype may be a 1-byte accounting dtype; the staged
                     # buffer uses the real transfer dtype (converted on device).

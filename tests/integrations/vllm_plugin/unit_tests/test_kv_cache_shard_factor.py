@@ -9,6 +9,7 @@ shards the cache. Under-reporting starves the block pool (the #5796 bug: DP+TP
 returned 1 while heads were replicated on all 32 chips); over-reporting hands
 out blocks the chip cannot hold and OOMs at runtime.
 """
+
 import types
 
 import pytest
@@ -63,7 +64,7 @@ def _runner(mode, shape, mesh_style="shape"):
     ],
 )
 def test_shard_factor(mode, shape, expected, mesh_style):
-    assert kv_cache_shard_factor(_runner(mode, shape, mesh_style)) == expected
+    assert kv_cache_shard_factor(_runner(mode, shape, mesh_style), None) == expected
 
 
 @pytest.mark.push
@@ -78,8 +79,9 @@ def test_mla_is_replicated_not_head_sharded(mla_spec_cls):
     runner = _runner(ParallelismMode.DATA_TENSOR_PARALLEL, (2, 4))
     spec = object.__new__(mla_spec_cls)
     assert kv_cache_shard_factor(runner, {"layer.0": spec}) == 1
-    # Without the specs the function cannot know, and still reports the axis.
-    assert kv_cache_shard_factor(runner) == 4
+    # Passing None asserts "these specs are not MLA"; the caller owes the
+    # function the specs whenever it cannot promise that.
+    assert kv_cache_shard_factor(runner, None) == 4
 
 
 @pytest.mark.push
@@ -95,7 +97,9 @@ def test_non_mla_spec_still_shards():
 def test_dp_tp_matches_tp_only_for_same_model_axis():
     """Adding DP replicas must not change the per-chip head sharding."""
     tp_only = kv_cache_shard_factor(
-        _runner(ParallelismMode.TENSOR_PARALLEL_ONLY_1D, (1, 4))
+        _runner(ParallelismMode.TENSOR_PARALLEL_ONLY_1D, (1, 4)), None
     )
-    dp_tp = kv_cache_shard_factor(_runner(ParallelismMode.DATA_TENSOR_PARALLEL, (2, 4)))
+    dp_tp = kv_cache_shard_factor(
+        _runner(ParallelismMode.DATA_TENSOR_PARALLEL, (2, 4)), None
+    )
     assert dp_tp == tp_only == 4

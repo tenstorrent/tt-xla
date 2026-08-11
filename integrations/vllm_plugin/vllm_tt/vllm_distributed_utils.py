@@ -103,7 +103,7 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
-def kv_cache_shard_factor(runner, kv_cache_spec=None) -> int:
+def kv_cache_shard_factor(runner, kv_cache_spec) -> int:
     """How many ways the KV cache is actually sharded across the mesh.
 
     Only the "model" axis shards KV heads, so this is that axis' size — 1 when
@@ -116,9 +116,10 @@ def kv_cache_shard_factor(runner, kv_cache_spec=None) -> int:
     TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
     blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
 
-    ``kv_cache_spec`` (layer name -> spec) lets the caller account for MLA,
-    whose single latent cache is replicated rather than head-sharded; pass it
-    wherever the specs are known.
+    ``kv_cache_spec`` (layer name -> spec) is required, not optional: MLA keeps
+    one replicated latent cache instead of head-sharding, and reporting
+    tp_size there hands out tp_size times more blocks than a chip holds. Pass
+    ``None`` only where the specs are known to be non-MLA.
     """
     if not runner.enable_tensor_parallel:
         return 1

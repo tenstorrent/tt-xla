@@ -3608,6 +3608,7 @@
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_single_device_gemma4_e4b": 207.56,
     "tests/integrations/vllm_plugin/generative/test_gemma4_generation.py::test_generation_single_device_gemma4_e4b_image": 260.53,
     "tests/integrations/vllm_plugin/generative/test_kv_cache_bleed.py::test_kv_cache_no_cross_user_bleed": 188.92,
+    "tests/integrations/vllm_plugin/generative/test_kv_cache_sharding.py::test_kv_cache_head_sharded_under_dp_tp": 117.04,
     "tests/integrations/vllm_plugin/generative/test_llama3_3b_generation.py::test_llama3_3b_generation_trace": 170.46,
     "tests/integrations/vllm_plugin/generative/test_llama3_3b_generation.py::test_llama3_3b_generation_trace_opt0": 191.61,
     "tests/integrations/vllm_plugin/generative/test_max_prefill_num_seqs.py::test_max_prefill_num_seqs_uses_capped_prefill_shape": 87.23,
