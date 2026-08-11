@@ -31,6 +31,7 @@ ARRIVAL_TIMEOUT_S = 900
 
 WAVE_A = GROUNDED_BATCH_CHECKS[:2]
 WAVE_B = GROUNDED_BATCH_CHECKS[2:]
+assert len(WAVE_A) + len(WAVE_B) <= MAX_NUM_SEQS, "waves must fit in one batch"
 
 
 def _make_engine(additional_config: dict) -> AsyncLLMEngine:
@@ -117,6 +118,8 @@ async def _staggered(engine):
     )
     if not gate_task.done():
         gate_task.cancel()
+        for task in a_tasks:
+            task.cancel()
         for task in done:  # report a wave-A failure instead of the timeout
             task.result()
         raise AssertionError(
@@ -188,12 +191,40 @@ def _assert_matches_reference(refs, results):
     assert not failures, "continuous batching corrupted output:\n" + "\n".join(failures)
 
 
+def _assert_grounded(results):
+    """Batched output must contain expected answers (tolerant of #5520 near-tie drift).
+
+    Cross-chip reductions in TP are not bit-reproducible, so exact token matching
+    is not guaranteed. This checks that outputs are at least grounded in their
+    expected answers, catching corruption (garbage, repeat-loops, wrong slot) while
+    tolerating benign fp drift from non-deterministic reductions."""
+    checks = WAVE_A + WAVE_B
+    failures = []
+    for i, ((prompt, expected), (ids, text)) in enumerate(zip(checks, results)):
+        label = "A" if i < len(WAVE_A) else "B"
+        print(f"  wave {label} req {i}: {prompt!r} -> {text!r}")
+        if expected.lower() not in text.lower():
+            failures.append(
+                f"req {i} ({prompt!r}): expected {expected!r}, got {text!r}"
+            )
+    assert not failures, "continuous batching corrupted output:\n" + "\n".join(failures)
+
+
 def _run(additional_config: dict):
     refs, results, decoded_at_arrival, _ = asyncio.run(_collect(additional_config))
     print(f"\n===== continuous batching ({additional_config}) =====")
     print(f"  wave A tokens decoded when wave B arrived: {decoded_at_arrival}")
     _assert_overlapped(decoded_at_arrival, results)
-    _assert_matches_reference(refs, results)
+    # Single device: exact tokens (no cross-chip reductions). TP/DP+TP: grounded
+    # answers only, since cross-chip lm_head reductions are not bit-reproducible
+    # (#5520) and near-tie argmax can flip between runs.
+    is_single_device = not additional_config.get(
+        "enable_tensor_parallel"
+    ) and not additional_config.get("enable_data_parallel")
+    if is_single_device:
+        _assert_matches_reference(refs, results)
+    else:
+        _assert_grounded(results)
 
 
 @pytest.mark.nightly
