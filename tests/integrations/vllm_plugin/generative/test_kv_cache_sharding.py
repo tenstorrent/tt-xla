@@ -28,7 +28,9 @@ from pathlib import Path
 import pytest
 
 MODEL = "Qwen/Qwen3-0.6B"
-WORKER_TIMEOUT = 1800
+# Under the conftest alarm (300s floor) so a hang trips here first and the
+# child's captured output still gets printed. Measured runtime is ~117s.
+WORKER_TIMEOUT = 240
 
 
 @pytest.mark.push
