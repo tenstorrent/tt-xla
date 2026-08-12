@@ -2381,6 +2381,61 @@ def tt_lang_op_dispatch(
     )
 
 
+# ---------------------------------------------------------------------------
+# tt::zeros_buffer -- allocate a zero-filled buffer directly on device
+# ---------------------------------------------------------------------------
+
+# Emits `stablehlo.custom_call @tt.zeros_buffer`, which tt-mlir turns into a
+# device-side fill. The buffer never exists on the host, so a large KV cache
+# costs no host memory and no H2D transfer, unlike `torch.zeros(...).to(device)`.
+#
+# Two torch-xla quirks shape the call:
+#   * `_xla_custom_call` refuses an empty operand list -- it reads the result
+#     tensors' device off `inputs.front()` and takes no device parameter -- and
+#     its lazy-tensor node hash covers only the call target and the operands,
+#     never the declared result type. A creation-style op therefore needs an
+#     operand, and that operand's shape has to encode the request, or two calls
+#     for differently-shaped buffers hit the same computation-cache entry and
+#     the second silently returns the first one's shape. The anchor
+#     `torch.zeros((*shape, 0))` is injective in `shape` and allocates nothing,
+#     since the trailing zero dimension makes it empty.
+#   * `has_side_effect=True` stops XLA from CSE-ing calls that differ in
+#     nothing it can see -- the K and V buffers of a layer -- into one shared
+#     buffer.
+#
+# The plugin's `stripZerosBufferAnchorOperands` pass drops the anchor before
+# the module reaches tt-mlir, which wants the operand-free form.
+
+
+@torch.library.custom_op("tt::zeros_buffer", mutates_args=())
+def zeros_buffer(
+    shape: List[int], dtype: torch.dtype, device: torch.device
+) -> torch.Tensor:
+    """``torch.ops.tt.zeros_buffer`` implementation.
+
+    Registered without `device_types` so it lands on CompositeExplicitAutograd:
+    the op takes no tensor argument, so there is nothing for the dispatcher to
+    derive a backend key from, and a backend-specific registration would not be
+    reachable.
+    """
+    if device.type != "xla":
+        return torch.zeros(shape, dtype=dtype, device=device)
+
+    anchor = torch.zeros((*shape, 0), dtype=dtype, device=device)
+    return stablehlo_custom_call.stablehlo_custom_call(
+        [anchor],
+        "tt.zeros_buffer",
+        [shape],
+        [dtype],
+        has_side_effect=True,
+    )
+
+
+@zeros_buffer.register_fake
+def _(shape: List[int], dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+    return torch.zeros(shape, dtype=dtype, device=device)
+
+
 # Allow the torch dynamo to trace our custom operation(s). This will allow
 # the tt custom operation(s) to be represented in a torch.fx.GraphModule.
 for attr in dir(torch.ops.tt):
