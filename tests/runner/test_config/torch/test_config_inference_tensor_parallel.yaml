@@ -497,3 +497,14 @@ test_config:
   phi4/causal_lm/pytorch-Phi_4_Reasoning_Plus-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+
+  # Ideogram 4 (9.3B single-stream DiT). Single-p150a run HANGS in tt-metal's
+  # mesh command queue (enqueue_write_shards) at 34-layer scale; sharded across
+  # the 4-chip (1x4) mesh to cut per-chip weight writes. Attention (fused qkv +
+  # num_heads=18) can't be head-parallel, so only the SwiGLU MLP shards 4-way
+  # (53.3% weight/chip, 34 all-reduces). llm_cond_proj stays replicated: row-
+  # sharding it overflows Blackhole L1 in llm_cond_norm. See sharding_analysis.md.
+  ideogram_4/pytorch-Transformer_FP8_512-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole, lb-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
