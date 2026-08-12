@@ -9,6 +9,7 @@ the per-position top-k logprobs into ``LogprobsTensors``. These tests pin the
 host bookkeeping (position math, chunked continuation, completion / cleanup)
 with the two device leaves (compute_logits, gather_logprobs) faked.
 """
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -44,23 +45,30 @@ def make_runner(req_states, num_plp):
     r.num_prompt_logprobs = {"r0": num_plp}
     r.in_progress_prompt_logprobs = {}
 
-    # compute_logits: hidden [B, HID] -> deterministic logits [B, VOCAB].
-    r.compute_logits = lambda hs: torch.arange(VOCAB, dtype=torch.float32).repeat(
-        hs.shape[0], 1
-    )
+    # compute_logits: hidden [B, HID] -> deterministic logits [B, VOCAB]. Stub
+    # the compiled wrapper too: the class-level torch.compile(backend="tt")
+    # version would init the device on a CPU runner.
+    def fake_compute_logits(hs, replicate=True):
+        return torch.arange(VOCAB, dtype=torch.float32).repeat(hs.shape[0], 1)
 
-    # gather_logprobs: return a marker per row so placement is checkable. The
-    # token id column 0 encodes the batch row (so dest-slice writes are visible).
-    def fake_gather(logits, token_ids):
-        b = logits.shape[0]
+    r.compute_logits = fake_compute_logits
+    r.compute_logits_compiled = fake_compute_logits
+
+    # sampler.gather_logprobs: return a marker per row so placement is checkable.
+    # The token id column 0 encodes the batch row (so dest-slice writes show up).
+    def fake_gather(logprobs, num_logprobs, token_ids):
+        b = logprobs.shape[0]
         ids = (
-            torch.arange(b, dtype=torch.int32).unsqueeze(1).repeat(1, MAX_LOGPROBS + 1)
+            torch.arange(b, dtype=torch.int32).unsqueeze(1).repeat(1, num_logprobs + 1)
         )
-        lps = torch.full((b, MAX_LOGPROBS + 1), -0.5, dtype=torch.float32)
+        lps = torch.full((b, num_logprobs + 1), -0.5, dtype=torch.float32)
         ranks = torch.ones(b, dtype=torch.int32)
         return LogprobsTensors(ids, lps, ranks)
 
-    r.gather_logprobs = fake_gather
+    r.sampler = SimpleNamespace(
+        compute_logprobs=lambda logits: logits,
+        gather_logprobs=fake_gather,
+    )
     return r
 
 

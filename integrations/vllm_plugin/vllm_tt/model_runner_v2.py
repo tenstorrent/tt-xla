@@ -1911,7 +1911,13 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 token_ids=sampled_token_ids.cpu().squeeze(-1),
             )
         else:
-            tensors = self.gather_logprobs(logits, sampled_token_ids)
+            # The sampled ids land here as an int64 device buffer (argmax /
+            # sampler output of a separately compiled graph), and the gather
+            # wants int32: converting in place would be a device-to-device
+            # typecast, which the runtime aborts on for a ROW_MAJOR tensor.
+            # Round-trip through host instead -- it is one row per request.
+            tokens = sampled_token_ids.cpu().to(torch.int32).to(self.device)
+            tensors = self.gather_logprobs(logits, tokens)
         return tensors.tolists()
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -2210,13 +2216,19 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         random = torch.argmax(logits + gumbel, dim=-1)
         return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
-    def compute_logits(self, sample_hidden_states):
-        """Vocab logits for the given hidden states."""
+    def compute_logits(self, sample_hidden_states, replicate: bool = True):
+        """Vocab logits for the given hidden states.
+
+        ``replicate=False`` leaves them vocab-sharded for a caller that applies
+        its own constraint: a standalone graph holding nothing but the lm_head
+        matmul has no mesh-carrying operand, so the constraint's @mesh reference
+        would be undeclared and the module fails to parse.
+        """
         logits = self.model.compute_logits(sample_hidden_states)
         # Replicate sharded logits for SPMD: hooks can't reach ParallelLMHead
         # (quant_method.apply bypasses __call__) and all_gather is a no-op at
         # world_size 1, so the constraint must sit inside the compiled graph.
-        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
+        if replicate and self.enable_tensor_parallel and self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
@@ -2319,22 +2331,27 @@ class TTModelRunnerV2(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 batch_hs_buf[:batch_size] = hs_cpu[batch_start:batch_end]
                 batch_hs_dev = batch_hs_buf.to(self.device)
 
-                # Compiled, not eager: under TP the lm_head operand carries a mesh
-                # sharding, and an eager graph never declares that mesh
-                # ("unknown mesh: @mesh" when the result is read back).
-                logits = self.compute_logits_compiled(batch_hs_dev)
+                # Unreplicated: a graph holding only the lm_head matmul has no
+                # operand that declares the mesh, so a replication constraint
+                # here would reference an undeclared @mesh and fail to parse.
+                # .cpu() gathers the vocab shards instead, and the gather then
+                # runs on host -- prompt logprobs are rare and off the hot path.
+                logits_cpu = self.compute_logits(batch_hs_dev, replicate=False).cpu()
 
                 batch_tgt_buf.zero_()
                 batch_tgt_buf[:batch_size, 0] = torch.tensor(
                     all_tgt_ids[batch_start:batch_end], dtype=torch.int64
                 )
-                batch_tgt_dev = batch_tgt_buf.to(self.device)
 
-                lp_tensors = self.gather_logprobs_compiled(logits, batch_tgt_dev)
+                lp_tensors = self.sampler.gather_logprobs(
+                    self.sampler.compute_logprobs(logits_cpu),
+                    self.model_config.max_logprobs,
+                    token_ids=batch_tgt_buf.squeeze(-1),
+                )
 
-                ids_cpu = lp_tensors.logprob_token_ids.cpu()
-                lps_cpu = lp_tensors.logprobs.cpu()
-                ranks_cpu = lp_tensors.selected_token_ranks.cpu()
+                ids_cpu = lp_tensors.logprob_token_ids
+                lps_cpu = lp_tensors.logprobs
+                ranks_cpu = lp_tensors.selected_token_ranks
 
                 dest = slice(start_idx + batch_start, start_idx + batch_end)
                 logprobs_tensors.logprob_token_ids[dest] = ids_cpu[
