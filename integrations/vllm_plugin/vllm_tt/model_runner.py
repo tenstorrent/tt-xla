@@ -4584,13 +4584,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         self.device
                     )
                 elif isinstance(spec, AttentionSpec):
-                    tp_size = kv_cache_shard_factor(self)
+                    # None, not layer_to_spec: MLA is handled by the branch
+                    # above, so this spec is head-sharded and an MLA layer
+                    # elsewhere in the model must not zero the factor here.
+                    tp_size = kv_cache_shard_factor(self, None)
                     if tp_size > 1:
                         # Fail loudly when KV heads are not TP-divisible instead
                         # of silently replicating (see safe_mark_sharding).
                         assert spec.num_kv_heads % tp_size == 0, (
                             f"num_kv_heads {spec.num_kv_heads} must be divisible "
-                            f"by tp_size {tp_size} for correct KV-head sharding"
+                            f"by tp_size {tp_size} for correct KV-head sharding "
+                            "(DP+TP head-shards too since #5796, so this now "
+                            "trips on meshes that used to replicate)"
                         )
                     # spec.dtype may be a 1-byte accounting dtype; the staged
                     # buffer uses the real transfer dtype (converted on device).
@@ -4624,20 +4629,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
-            # each device writes its own K/V slice via paged_update_cache. The
-            # TP-only spec puts block_size on the DP axis and fails
-            # ttir.paged_update_cache. Tracked in #5796.
-            #
-            # kv_cache_shard_factor() mirrors this branch by returning 1 for
-            # DP+TP; when this is changed to really shard, update it too or
-            # each chip will be budgeted tp_size times too little.
-            pass
-        elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
-            # buffer can appear under multiple layers (cross-layer sharing), so
-            # dedup by tensor identity to mark each buffer's sharding exactly once.
+        if self.enable_tensor_parallel:
+            # Shard KV heads on the "model" axis, for TP-only and DP+TP alike:
+            # each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size]. Under DP+TP blocks stay replicated on "batch" — that
+            # would need replica-aware block allocation (#5796 follow-up).
+            # kv_cache_shard_factor() mirrors this; keep the two in sync.
+            # The same physical buffer can appear under multiple layers
+            # (cross-layer sharing), so dedup by tensor identity to mark each
+            # buffer's sharding exactly once.
             _sharded_ids: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))

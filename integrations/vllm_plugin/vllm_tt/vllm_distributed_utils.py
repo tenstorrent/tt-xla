@@ -23,6 +23,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
 
 from .logger import tt_init_logger
 
@@ -102,7 +103,7 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
-def kv_cache_shard_factor(runner) -> int:
+def kv_cache_shard_factor(runner, kv_cache_spec) -> int:
     """How many ways the KV cache is actually sharded across the mesh.
 
     Only the "model" axis shards KV heads, so this is that axis' size — 1 when
@@ -111,15 +112,21 @@ def kv_cache_shard_factor(runner) -> int:
     un-sharded num_kv_heads) with what each chip really holds.
 
     Must stay in sync with the mark_sharding call in
-    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
-    because that path deliberately leaves the cache un-annotated.
+    ``TTModelRunner.initialize_kv_cache``; KV heads shard on "model" for
+    TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
+    blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
+
+    ``kv_cache_spec`` (layer name -> spec) is required, not optional: MLA keeps
+    one replicated latent cache instead of head-sharding, and reporting
+    tp_size there hands out tp_size times more blocks than a chip holds. Pass
+    ``None`` only where the specs are known to be non-MLA.
     """
     if not runner.enable_tensor_parallel:
         return 1
-    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-        # DP+TP leaves the cache replicated, so per-chip usage already equals
-        # the full budget — no reconciliation to do. Sharding it properly
-        # (heads on "model", blocks on "batch") is tracked in #5796.
+    if kv_cache_spec and any(
+        isinstance(s, (MLAAttentionSpec, SlidingWindowMLASpec))
+        for s in kv_cache_spec.values()
+    ):
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):
