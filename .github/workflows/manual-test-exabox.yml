@@ -3,14 +3,6 @@ name: Run Test Exabox
 on:
   workflow_dispatch:
     inputs:
-      runs_on:
-        description: >-
-          Exabox hardware config (sc1 = 1 Galaxy)
-        required: true
-        type: choice
-        default: 'sc1'
-        options:
-          - 'sc1'
       dir:
         description: 'Path passed to pytest'
         required: true
@@ -19,6 +11,14 @@ on:
         description: 'Mark passed to pytest (-m)'
         required: false
         type: string
+      runs_on:
+        description: >-
+          Exabox hardware config (sc1 = 1 Galaxy)
+        required: true
+        type: choice
+        default: 'sc1'
+        options:
+          - 'sc1'
 
 permissions:
   actions: write
