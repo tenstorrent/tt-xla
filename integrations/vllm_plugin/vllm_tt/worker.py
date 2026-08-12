@@ -121,6 +121,19 @@ class TTWorker:
         is_driver_worker: bool = False,
     ):
         self.is_driver_worker = is_driver_worker
+
+        # Set the tt-metal per-operation watchdog timeout in the worker process
+        # itself, so it is guaranteed to be present where tt-metal reads it
+        # regardless of how the process was launched (standalone `vllm serve` /
+        # pytest, or via tt-inference-server's tt-media-server, which crosses an
+        # extra multiprocessing.Process + vLLM spawn boundary before this point).
+        # setdefault so a shell/yaml-provided value still wins.
+        os.environ.setdefault("TT_METAL_OPERATION_TIMEOUT_SECONDS", "120")
+        # tt-mlir runtime logger verbosity. Set here (earliest point in the
+        # worker process) so it lands before the runtime initializes its logger
+        # on device bring-up. setdefault so a shell/yaml value still wins.
+        os.environ.setdefault("TTMLIR_RUNTIME_LOGGER_LEVEL", "DEBUG")
+
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
         self.cache_config = vllm_config.cache_config
@@ -375,14 +388,17 @@ class TTWorker:
         )
         # vLLM's KV-cache budget math (max_memory_usage_bytes) uses the full,
         # un-sharded num_kv_heads with no TP awareness, even though the cache
-        # tensor is already correctly sharded tp_size-ways via mark_sharding
-        # (confirmed in the compiled IR). Counterbalance by inflating the
-        # available budget here instead of touching the cache tensor's shape
-        # or sharding. Returns 1 where the cache is not actually sharded
-        # (no TP, or DP+TP), leaving the budget untouched.
+        # tensor is already correctly sharded tp_size-ways via mark_sharding.
+        # Counterbalance by inflating the available budget here instead of
+        # touching the cache tensor's shape or sharding. Returns 1 only where
+        # the cache really is replicated (no TP, or MLA).
+        #
+        # Subtract `profiled` BEFORE scaling: it is real per-chip usage
+        # (weights + activations) and must be charged once per chip. Scaling
+        # first would reserve only profiled/tp_size of it, over-allocating the
+        # pool by profiled*(tp_size-1)/tp_size on every chip.
         kv_shard_factor = kv_cache_shard_factor(self.model_runner)
-        usable_memory_size *= kv_shard_factor
-        kv_cache_bytes = max(usable_memory_size - profiled, 0)
+        kv_cache_bytes = max(usable_memory_size - profiled, 0) * kv_shard_factor
         head_size = self.model_config.get_head_size()
         if head_size > 0:
             padded_head_size = (

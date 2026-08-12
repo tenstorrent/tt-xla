@@ -5,6 +5,7 @@
 import bisect
 import contextlib
 import gc
+import os
 import time
 from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Union, cast
@@ -1597,6 +1598,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             actual_num_reqs,
         )
 
+        # TTXLA_SLOT_TRACE=1 dumps the row -> DP-device assignment for every
+        # pass. Structural only (depends on dp_size / bucket / row index), so it
+        # is valid at any layer count even when the text is garbage.
+        if os.environ.get("TTXLA_SLOT_TRACE"):
+            _dp = max(int(getattr(self, "dp_size", 1) or 1), 1)
+            _rows_per_dev = max(target_num_reqs // _dp, 1)
+            _ids = list(self.input_batch.req_ids[start_index : start_index + num_reqs])
+            _sched = list(num_scheduled_tokens_per_req)
+            _entries = []
+            for _lr, _rid in enumerate(_ids):
+                _entries.append(
+                    "%s:row=%d:dev=%d:tok=%d"
+                    % (
+                        _rid,
+                        _lr,
+                        _lr // _rows_per_dev,
+                        _sched[_lr] if _lr < len(_sched) else -1,
+                    )
+                )
+            logger.warning(
+                "SLOTTRACE phase=%s start_index=%d actual=%d target=%d dp=%d "
+                "rows_per_dev=%d | %s",
+                "decode" if is_decode_step else "prefill",
+                start_index,
+                actual_num_reqs,
+                target_num_reqs,
+                _dp,
+                _rows_per_dev,
+                " ".join(_entries),
+            )
+
         # Block-align a multi-token row that sits on a cached prefix.
         #
         # paged_fill_cache takes no write position: it starts at the first block of
@@ -3059,6 +3091,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def load_model(self) -> None:
         logger.info("CALLING LOAD MODEL")
+        # Install the fp8 -> bf16 dequant hook in THIS (worker) process before
+        # the model is constructed. With spawn workers the monkeypatch from the
+        # main process's check_and_update_config does not carry over, so the
+        # fp8 Fp8Config.get_quant_method must be (re)patched here. Safe at this
+        # point: the platform is already resolved (no early-import break).
+        from .fp8_dequant import install_fp8_dequant_hook
+
+        install_fp8_dequant_hook()
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
@@ -4624,20 +4664,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-            # DP+TP: leave the KV cache un-annotated (replicated under SPMD);
-            # each device writes its own K/V slice via paged_update_cache. The
-            # TP-only spec puts block_size on the DP axis and fails
-            # ttir.paged_update_cache. Tracked in #5796.
+        if self.enable_tensor_parallel:
+            # Shard KV heads on the "model" axis, for TP-only and DP+TP alike:
+            # each device holds [num_blocks, num_kv_heads/tp_size, block_size,
+            # head_size]. Making this explicit under DP+TP replaces an implicit
+            # arrangement where the cache parameter stayed full width and Shardy
+            # inserted a mesh_partition to slice it per use, so every chip paid
+            # DRAM for all heads while using only its own.
             #
-            # kv_cache_shard_factor() mirrors this branch by returning 1 for
-            # DP+TP; when this is changed to really shard, update it too or
-            # each chip will be budgeted tp_size times too little.
-            pass
-        elif self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]. The same physical
-            # buffer can appear under multiple layers (cross-layer sharing), so
-            # dedup by tensor identity to mark each buffer's sharding exactly once.
+            # Blocks stay replicated on "batch": sharding those needs
+            # replica-aware block allocation, and the slot->replica affinity
+            # invariant has to hold first (see the condense guard above).
+            #
+            # kv_cache_shard_factor() must stay in sync — it feeds the KV budget
+            # in worker.determine_available_memory().
+            #
+            # Each entry is [k_cache, v_cache]. The same physical buffer can
+            # appear under multiple layers (cross-layer sharing), so dedup by
+            # tensor identity to mark each buffer's sharding exactly once.
             _sharded_ids: set[int] = set()
             for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))

@@ -9,7 +9,6 @@ import torch_xla
 import tt_torch  # registers "tt" backend for torch.compile
 from pjrt_plugin_tt import (
     get_library_path,
-    normalize_tt_visible_devices,
     register_shutdown_hook,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
@@ -31,8 +30,6 @@ class TTPlugin(DevicePlugin):
         super().__init__()
         setup_tt_pjrt_plugin_dir()
         setup_tt_metal_home()
-        # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
-        normalize_tt_visible_devices()
         register_shutdown_hook()
 
         # For using the PJRT plugin with `torch_xla` we need to set

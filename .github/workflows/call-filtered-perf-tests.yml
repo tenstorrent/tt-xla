@@ -63,7 +63,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-perf-benchmarks.outputs.matrix }}
-      matrix_skip: ${{ steps.set-perf-benchmarks.outputs.matrix_skip }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
@@ -91,12 +90,10 @@ jobs:
         echo $result
         matrix=$(echo $result | jq -r -c '.matrix')
         echo "matrix=$matrix" >> $GITHUB_OUTPUT
-        matrix_skip=$(echo $result | jq -r -c '.matrix_skip')
-        echo "matrix_skip=$matrix_skip" >> $GITHUB_OUTPUT
 
   run-perf-benchmarks:
     needs: filter-tests
-    if: ${{ !cancelled() && needs.filter-tests.result == 'success' && needs.filter-tests.outputs.matrix_skip != 'true' }}
+    if: ${{ !cancelled() && fromJson(needs.filter-tests.outputs.matrix.matrix_skip) != 'true' && needs.filter-tests.result == 'success' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:

@@ -21,13 +21,10 @@ def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
 
-    # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
-    # Needed here as well: TT_VISIBLE_DEVICES is vLLM's device_control_env_var,
-    # and this is the earliest hook that runs in every spawned worker.
-    from pjrt_plugin_tt import normalize_tt_visible_devices
-
-    normalize_tt_visible_devices()
-
+    # NOTE: the fp8->bf16 dequant hook is installed worker-side (in
+    # TTModelRunner.load_model() and TTPlatform.check_and_update_config()),
+    # NOT here — importing vllm's fp8 module during early platform discovery
+    # breaks platform resolution (empty device_type).
     return "vllm_tt.platform.TTPlatform"
 
 

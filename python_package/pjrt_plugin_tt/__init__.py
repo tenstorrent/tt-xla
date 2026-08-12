@@ -21,67 +21,6 @@ TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
 _shutdown_hook_registered = False
 
 
-def _device_bdfs_in_umd_order():
-    """
-    PCI BDFs of all Tenstorrent devices, sorted by BDF.
-
-    This is the order UMD's `PCIDevice::enumerate_devices()` indexes with an
-    integer token -- not `/dev/tenstorrent/<n>` node numbers. Empty when no
-    devices are visible in sysfs.
-    """
-    dev_dir = Path("/dev/tenstorrent")
-    if not dev_dir.exists():
-        return []
-
-    bdfs = []
-    for node in dev_dir.iterdir():
-        try:
-            bdf = Path(
-                f"/sys/class/tenstorrent/tenstorrent!{node.name}/device"
-            ).resolve()
-        except OSError:
-            continue  # UMD skips devices it cannot read; do the same.
-        if bdf.name:
-            bdfs.append(bdf.name)
-
-    return sorted(bdfs)
-
-
-def normalize_tt_visible_devices():
-    """
-    WORKAROUND (tt-xla#5521) -- NOT a fix. Delete once tt-metal is fixed.
-
-    Rewrites an integer `TT_VISIBLE_DEVICES` to the equivalent PCI BDFs, which
-    are immune to the double-application that rejects every integer except 0.
-    The fix is two lines in tt-metal's `Cluster::open_driver()` (pass the mock
-    descriptor's own chips as `target_devices`); when that lands, delete this
-    and its three call sites.
-
-    Inert unless translation is both needed and safe: no-op when the variable is
-    unset or empty, when any token is not a plain integer (so BDFs pass through
-    and this is idempotent), when no devices are visible in sysfs, and when an
-    index is out of range -- leaving UMD to report that itself.
-    """
-    value = os.getenv("TT_VISIBLE_DEVICES")
-    if not value or not value.strip():
-        return
-
-    tokens = [token.strip() for token in value.split(",") if token.strip()]
-    if not tokens or not all(token.isdigit() for token in tokens):
-        return
-
-    bdfs = _device_bdfs_in_umd_order()
-    if any(int(token) >= len(bdfs) for token in tokens):
-        return
-
-    normalized = ",".join(bdfs[int(token)] for token in tokens)
-    os.environ["TT_VISIBLE_DEVICES"] = normalized
-    logger.info(
-        f"Normalized TT_VISIBLE_DEVICES from '{value}' to '{normalized}' so device "
-        f"selection survives UMD chip-id renumbering (tt-xla#5521)."
-    )
-
-
 def setup_tt_pjrt_plugin_dir():
     """
     Setup the `TT_PJRT_PLUGIN_DIR` environment variable by looking for the `pjrt_plugin_tt.so` file.
