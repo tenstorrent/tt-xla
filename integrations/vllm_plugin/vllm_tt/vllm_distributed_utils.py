@@ -323,7 +323,7 @@ def partition_merged_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, MergedColumnParallelLinear)
     xla_layer = XlaMergedColumnParallelLinear(layer, mesh, shard_weights_on_batch_axis)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to MergedColumnParallelLinear")
     return xla_layer
 
 
@@ -332,7 +332,7 @@ def partition_qkv_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, QKVParallelLinear)
     xla_layer = XlaQKVParallelLinear(layer, mesh, shard_weights_on_batch_axis)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to QKVParallelLinear")
     return xla_layer
 
 
@@ -342,7 +342,7 @@ def partition_column_parallel_linear(
     assert isinstance(layer, ColumnParallelLinear)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to ColumnParallelLinear")
     return layer
 
 
@@ -352,7 +352,7 @@ def partition_row_parallel_linear(
     assert isinstance(layer, RowParallelLinear)
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to RowParallelLinear")
     return layer
 
 
@@ -365,7 +365,7 @@ def partition_linear(
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     if layer.bias is not None:
         safe_mark_sharding(layer.bias, mesh, (None,))
-    logger.debug("Applied row-parallel sharding to nn.Linear %s", layer)
+    logger.debug("Applied row-parallel sharding to nn.Linear")
     return layer
 
 
@@ -374,7 +374,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     safe_mark_sharding(layer.weight, mesh, ("model", None))
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to ParallelLMHead")
     return layer
 
 
@@ -388,7 +388,7 @@ def partition_vocab_parallel_embedding(
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
-    logger.debug("Applied parallel sharding to %s", layer)
+    logger.debug("Applied parallel sharding to VocabParallelEmbedding")
     return layer
 
 
@@ -418,7 +418,7 @@ def partition_fused_moe(
         w = getattr(layer, name, None)
         if w is not None:
             safe_mark_sharding(w, mesh, (expert_axis, None, None))
-    logger.debug("Applied compound expert-dim sharding to %s", layer)
+    logger.debug("Applied compound expert-dim sharding to TTRoutedExperts")
     return layer
 
 
@@ -481,7 +481,7 @@ def shard_model(
                     # Wrapped module and module are different py object.
                     # The original module should be replaced by the
                     # wrapped_module.
-                    logger.debug("replace %s with %s", module, wrapped_module)
+                    logger.debug("replace %s with %s", name, get_fqn(wrapped_module))
                     setattr(parent, name, wrapped_module)
 
                 module = wrapped_module

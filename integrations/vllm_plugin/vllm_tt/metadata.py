@@ -490,3 +490,26 @@ class XLASupportedSamplingMetadata:
             no_generators=not has_generators,
             q_samples=q_samples,
         )
+
+    @classmethod
+    def from_v2_states(
+        cls,
+        request_state,
+        sampling_states,
+        input_batch,
+        padded_num_reqs: int,
+        xla_device: torch.device,
+        generate_params_if_all_greedy: bool = False,
+        vocab_size: int | None = None,
+    ) -> "XLASupportedSamplingMetadata":
+        """Build sampling metadata from the split v2 state."""
+        view = sampling_states.make_batch_view(
+            request_state, input_batch, padded_num_reqs
+        )
+        return cls.from_input_batch(
+            view,
+            padded_num_reqs,
+            xla_device,
+            generate_params_if_all_greedy=generate_params_if_all_greedy,
+            vocab_size=vocab_size,
+        )
