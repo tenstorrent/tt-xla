@@ -1,17 +1,5 @@
 name: Test Exabox (call)
 
-# Runs tt-xla tests on the exabox Galaxy cluster.
-#
-# The `exabox-multihost-ci-*` runners own the ttop lifecycle: an initContainer
-# allocates the hosts and dumps /etc/ttop before the runner registers, the
-# prepare_job hook brings up the SSH worker environment from `container.image`,
-# and the job-completed hook deletes both. This workflow only stages the
-# workspace and dispatches every command into the worker pods with
-# `mpirun --pernode`.
-#
-# Scoped to sc1 (one Galaxy). tt-xla's distributed runtime is not configured here,
-# so a multi-host runner would run the whole suite once per host independently.
-
 permissions:
   actions: read
   contents: read
@@ -46,7 +34,7 @@ on:
         default: ''
 
 env:
-  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  GH_TOKEN: ${{ github.token }}
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
 
 jobs:
@@ -66,7 +54,8 @@ jobs:
 
     runs-on: ${{ matrix.build.runs-on }}
 
-    # the worker pods are provisioned with this image. Steps still run on the CPU runner.
+    # The worker pods are provisioned with this image
+    # This job is getting executed on the cpu runner
     container:
       image: ${{ inputs.docker_image }}
 
