@@ -4,7 +4,11 @@ jaxlib==0.11.0
 requests
 torch@https://download.pytorch.org/whl/cpu/torch-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru
-torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgitb230007-cp312-cp312-linux_x86_64.whl
+# TODO(jax-0.11): the published torch-xla wheel below still pins jax==0.7.1, which
+# conflicts with jax==0.11.0 above. Temporarily evicted for CI: tests inject the
+# jax-0.11 torch-xla wheel via the torchxla_build_run_id override. Restore this
+# line pointing at the jax-0.11 wheel once it is published from master.
+# torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgitb230007-cp312-cp312-linux_x86_64.whl
 
 # Pin nanobind to match tt-metal's version (v2.10.2) for ABI compatibility.
 # A mismatch causes segfaults in nb_type_c2p when PythonModelRunner converts
