@@ -1,22 +1,14 @@
 name: Test Exabox (call)
 
-# Runs tt-xla tests on the exabox Galaxy cluster via ttop: allocate hosts, bring up
-# an SSH worker environment from the tt-xla base image, dispatch every command into
-# the worker pods with `mpirun --pernode`, then always tear the allocation down.
-#
-# Scoped to sc1 (one Galaxy). tt-xla's distributed runtime is not configured here,
-# so a multi-host allocation would run the whole suite once per host independently.
-
 permissions:
   actions: read
   contents: read
-  id-token: write # ttop actions mint an OIDC token for kubectl
 
 on:
   workflow_call:
     inputs:
       docker_image:
-        description: 'Docker image used as the ttop worker image (tt-xla base image)'
+        description: 'Docker image the runner provisions as the ttop worker image'
         required: true
         type: string
       artifact_release_run_id:
@@ -42,10 +34,8 @@ on:
         default: ''
 
 env:
-  GH_TOKEN: ${{ github.token }} # for gh cli tool
+  GH_TOKEN: ${{ github.token }}
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
-  # Keep in sync with the pinned SHA on the ttop-* `uses:` lines below.
-  TT_METAL_TTOP_REF: 0b0d71bbee030c636a7fff7054de29f3a68e093e
 
 jobs:
   generate-matrix-test:
@@ -62,18 +52,19 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on:
-      - exabox-multihost-with-nfs
+    runs-on: ${{ matrix.build.runs-on }}
+
+    # The worker pods are provisioned with this image
+    # This job is getting executed on the cpu runner
+    container:
+      image: ${{ inputs.docker_image }}
 
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     env:
-      ALLOCATION_NAME: ci-xla-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      # /ci is a NFS volume shared between orchestrator and every worker pod
+      # /ci dir's lifetime is the same as the github job's
       STAGE_DIR: /ci/tt-xla
       RUN_SCRIPT: /ci/run_tests.sh
-      TTOP_DIR: /etc/ttop
-      # Identical on every host: the tt-xla venv bakes in its absolute path.
       WORKER_SRC: /home/user/tt-xla
 
     steps:
@@ -108,106 +99,6 @@ jobs:
         git fetch --depth=1 origin $RESOLVED
         git checkout FETCH_HEAD
         echo "tt_forge_models checked out at $(git rev-parse HEAD)"
-
-    - name: Resolve allocation spec for ${{ matrix.build.runs-on }}
-      id: sku
-      shell: bash
-      env:
-        HARDWARE: ${{ matrix.build.runs-on }}
-      run: |
-        set -euo pipefail
-
-        case "$HARDWARE" in
-          sc1)
-            COUNT=1; TOPOLOGY_KEY="" ;;
-          sc4)
-            COUNT=4; TOPOLOGY_KEY="exabox.tenstorrent.com/quad" ;;
-          sc16)
-            COUNT=16; TOPOLOGY_KEY="exabox.tenstorrent.com/SC16" ;;
-          *)
-            echo "::error::Unknown hardware '$HARDWARE' (expected sc1, sc4 or sc16)"
-            exit 1 ;;
-        esac
-
-        if [[ "$COUNT" -gt 1 ]]; then
-          echo "::warning::$HARDWARE allocates $COUNT Galaxies; the suite will run once per host independently, not once across the cluster. Use sc1."
-        fi
-
-        {
-          echo "allocationType: Count"
-          echo "count: ${COUNT}"
-          if [[ -n "$TOPOLOGY_KEY" ]]; then
-            echo "topologyKeys:"
-            echo "  - ${TOPOLOGY_KEY}"
-          fi
-        } > /tmp/allocation_spec.yaml
-
-        echo "Resolved allocation spec for $HARDWARE:"
-        cat /tmp/allocation_spec.yaml
-        {
-          echo "allocation_spec<<SPEC_EOF"
-          cat /tmp/allocation_spec.yaml
-          echo "SPEC_EOF"
-        } >> "$GITHUB_OUTPUT"
-
-    - name: Parse worker image
-      id: worker-image
-      shell: bash
-      run: |
-        IMAGE="${{ inputs.docker_image }}"
-        echo "repository=${IMAGE%:*}" >> "$GITHUB_OUTPUT"
-        echo "tag=${IMAGE##*:}" >> "$GITHUB_OUTPUT"
-
-    - name: Fetch ttop helpers from tt-metal
-      uses: actions/checkout@v6
-      with:
-        repository: tenstorrent/tt-metal
-        ref: ${{ env.TT_METAL_TTOP_REF }}
-        sparse-checkout: |
-          .github/scripts/environment-ssh-setup.sh
-          .github/actions/ttop-await-resource
-        sparse-checkout-cone-mode: false
-        path: _tt-metal
-        persist-credentials: false
-
-    - name: Install ttop helpers from tt-metal
-      shell: bash
-      run: |
-        set -euo pipefail
-        mkdir -p .github/scripts .github/actions
-        cp _tt-metal/.github/scripts/environment-ssh-setup.sh .github/scripts/
-        chmod +x .github/scripts/environment-ssh-setup.sh
-        cp -R _tt-metal/.github/actions/ttop-await-resource .github/actions/
-        rm -rf _tt-metal
-
-    - name: Create allocation
-      uses: tenstorrent/tt-metal/.github/actions/ttop-create-allocation@0b0d71bbee030c636a7fff7054de29f3a68e093e
-      timeout-minutes: 120
-      with:
-        allocationName: ${{ env.ALLOCATION_NAME }}
-        namespace: ttop-ci
-        spec: ${{ steps.sku.outputs.allocation_spec }}
-
-    - name: Get allocation configs
-      uses: tenstorrent/tt-metal/.github/actions/ttop-get-allocation-data@0b0d71bbee030c636a7fff7054de29f3a68e093e
-      with:
-        allocationName: ${{ env.ALLOCATION_NAME }}
-        allocationNamespace: ttop-ci
-        path: /etc/ttop
-
-    - name: Create test environment
-      uses: tenstorrent/tt-metal/.github/actions/ttop-create-environment@0b0d71bbee030c636a7fff7054de29f3a68e093e
-      timeout-minutes: 30
-      with:
-        environmentName: ${{ env.ALLOCATION_NAME }}
-        allocationName: ${{ env.ALLOCATION_NAME }}
-        allocationNamespace: ttop-ci
-        workerRepository: ${{ steps.worker-image.outputs.repository }}
-        workerTag: ${{ steps.worker-image.outputs.tag }}
-        useDevHostMount: "true"
-        sharedVolumeEnabled: "true"
-        path: /etc/ttop
-        timeoutSeconds: "1800"
 
     - name: Download tt-xla wheel
       uses: actions/download-artifact@v8
@@ -383,17 +274,3 @@ jobs:
         cat "$RUN_SCRIPT"
         echo "===================="
         mpirun -x HF_TOKEN --pernode --tag-output bash "$RUN_SCRIPT"
-
-    - name: Delete test environment
-      if: always()
-      uses: tenstorrent/tt-metal/.github/actions/ttop-delete-environment@0b0d71bbee030c636a7fff7054de29f3a68e093e
-      with:
-        environmentName: ${{ env.ALLOCATION_NAME }}
-        namespace: ttop-ci
-
-    - name: Delete allocation
-      if: always()
-      uses: tenstorrent/tt-metal/.github/actions/ttop-delete-allocation@0b0d71bbee030c636a7fff7054de29f3a68e093e
-      with:
-        allocationName: ${{ env.ALLOCATION_NAME }}
-        namespace: ttop-ci
