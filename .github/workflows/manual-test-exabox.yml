@@ -30,19 +30,19 @@ permissions:
 run-name: 'Test exabox ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
 
 jobs:
-  # build-image:
-  #   uses: ./.github/workflows/call-build-docker.yml
-  #   secrets: inherit
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
 
-  # build-ttxla:
-  #   needs: build-image
-  #   uses: ./.github/workflows/call-build.yml
-  #   secrets: inherit
-  #   with:
-  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
 
   generate-test-config:
-    # needs: build-ttxla
+    needs: build-ttxla
     runs-on: ubuntu-latest
     outputs:
       test-config: ${{ steps.generate.outputs.test-config }}
@@ -61,15 +61,11 @@ jobs:
 
   test:
     uses: ./.github/workflows/call-test-exabox.yml
-    # needs: [ build-image, build-ttxla, generate-test-config ]
-    needs: [ generate-test-config ]
+    needs: [ build-image, build-ttxla, generate-test-config ]
     secrets: inherit
     with:
       test_suite: 'Custom'
       test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
-      # docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      docker_image: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-24-04:dt-6ef0b4e7497830f0c96927777dbf4afb28d34bd6c6c6248d7fe6297571aa1e32'
-      # artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_release_run_id: '31583374407'
-      # artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      artifact_suffix: '-2ff16cf'
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
