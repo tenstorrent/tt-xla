@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import os
 import subprocess
 import sys
@@ -11,8 +12,21 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "examples"
+from tests.runner.requirements import RequirementsManager
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+EXAMPLES_DIR = REPO_ROOT / "examples"
 PATTERN = "**/*.py"
+
+# Examples whose imports need per-model requirements that the base test
+# environment does not carry. Mapped to the tt_forge_models requirements.txt
+# that provides them; installed for the duration of the example and rolled back
+# afterwards, the same way tests/runner/test_models.py handles component tests.
+EXAMPLE_REQUIREMENTS: dict[str, str] = {
+    "pytorch/xtts_v2_pipeline.py": (
+        "third_party/tt_forge_models/xtts_v2/pytorch/requirements.txt"
+    ),
+}
 
 # Directories with known issues - tests will be marked as xfail with the given reason
 XFAIL_DIRS: dict[str, str] = {
@@ -158,6 +172,21 @@ def test_pytest_examples(script: Path):
         )
 
 
+def _requirements_for(script: Path):
+    """Context manager installing ``script``'s per-model requirements, if any.
+
+    Returns a no-op context for the common case where the example runs against
+    the base environment.
+    """
+    rel = str(script.relative_to(EXAMPLES_DIR))
+    req = EXAMPLE_REQUIREMENTS.get(rel)
+    if not req:
+        return contextlib.nullcontext()
+
+    RequirementsManager.capture_golden_state()
+    return RequirementsManager(str(REPO_ROOT / req), framework="torch")
+
+
 def _script_example_params() -> list:
     """Parametrize script examples, tagging hardware-specific ones
     (HARDWARE_MARKS) with markers so CI routes them to the matching runner."""
@@ -180,12 +209,13 @@ def test_script_examples(script: Path):
     cmd = [sys.executable, str(script)]
     env = os.environ.copy()
 
-    proc = subprocess.run(
-        cmd,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    with _requirements_for(script):
+        proc = subprocess.run(
+            cmd,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
 
     if proc.returncode != 0:
         out_tail = "\n".join(proc.stdout.splitlines()[-100:])

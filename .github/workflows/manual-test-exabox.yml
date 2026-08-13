@@ -1,0 +1,71 @@
+name: Run Test Exabox
+
+on:
+  workflow_dispatch:
+    inputs:
+      dir:
+        description: 'Path passed to pytest'
+        required: true
+        type: string
+      mark:
+        description: 'Mark passed to pytest (-m)'
+        required: false
+        type: string
+      runs_on:
+        description: >-
+          Exabox hardware config (sc1 = 1 Galaxy)
+        required: true
+        type: choice
+        default: 'sc1'
+        options:
+          - 'sc1'
+
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+  id-token: write
+
+run-name: 'Test exabox ( Dir: ${{ inputs.dir }} - Mark: ${{ inputs.mark }} - Run-on: ${{ inputs.runs_on }} )'
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+
+  generate-test-config:
+    needs: build-ttxla
+    runs-on: ubuntu-latest
+    outputs:
+      test-config: ${{ steps.generate.outputs.test-config }}
+    steps:
+      - id: generate
+        run: |
+          TEST_CONFIG=$(jq -n \
+            --arg runs_on 'exabox-multihost-ci-${{ inputs.runs_on }}' \
+            --arg dir '${{ inputs.dir }}' \
+            --arg mark '${{ inputs.mark }}' \
+            '[{"runs-on": $runs_on,"name": "Exabox test","dir": $dir,"test-mark": $mark}]')
+
+          echo $TEST_CONFIG
+
+          echo "test-config=$(echo "$TEST_CONFIG" | jq -c)" >> $GITHUB_OUTPUT
+
+  test:
+    uses: ./.github/workflows/call-test-exabox.yml
+    needs: [ build-image, build-ttxla, generate-test-config ]
+    secrets: inherit
+    with:
+      test_suite: 'Custom'
+      test_suite_custom: ${{ needs.generate-test-config.outputs.test-config }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}

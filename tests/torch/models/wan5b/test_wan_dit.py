@@ -52,7 +52,7 @@ COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
@@ -61,7 +61,7 @@ def test_wan_dit_720p_sharded():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 

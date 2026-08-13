@@ -12,6 +12,11 @@ import psutil
 import pytest
 
 TEST_TIMEOUT_FALLBACK_SECONDS = 60 * 60
+# The alarm is armed in an autouse fixture, so it also covers the setup of every
+# fixture ordered after it -- the shared server one costs ~120s. Recorded
+# durations only measure the call, so a sub-second entry would otherwise arm a
+# 2s alarm on a test that cannot start in under two minutes.
+TEST_TIMEOUT_FLOOR_SECONDS = 300
 
 
 def _load_test_durations() -> dict[str, float]:
@@ -39,7 +44,7 @@ def _get_timeout_seconds(nodeid: str) -> int:
     recorded_seconds = _TEST_DURATIONS.get(nodeid)
     if recorded_seconds is None:
         return TEST_TIMEOUT_FALLBACK_SECONDS
-    return max(1, int(math.ceil(recorded_seconds * 2)))
+    return max(TEST_TIMEOUT_FLOOR_SECONDS, int(math.ceil(recorded_seconds * 2)))
 
 
 # Common English function words used by `assert_output_coherent` to detect
@@ -57,19 +62,75 @@ _STOPWORDS = frozenset(
 _WORD_RE = re.compile(r"[A-Za-z']+")
 _MIN_STOPWORD_RATIO = 0.10
 _MIN_WORDS = 5
+# Longest plausible English word in generated text. Degenerate repetition with
+# no separators ("BlockBlockBlock...") lands in a single _WORD_RE match, which
+# the stopword check cannot see because it is one word.
+_MAX_WORD_LEN = 30
+# Distinct words required once there are enough words to judge. Catches
+# low-diversity loops like 'and "r" and "r" and "r"', whose stopword ratio is
+# high precisely *because* the repeated token is a stopword.
+_MIN_UNIQUE_WORDS = 3
+# Non-Latin script characters (Hebrew/CJK/Cyrillic ...) as a fraction of the
+# output. Restored after #4563 removed the original check: that one tested
+# `ord(c) > 127`, i.e. non-ASCII, so it failed on ordinary smart quotes. This
+# allows Latin-1/Latin-Extended plus General Punctuation (smart quotes, dashes,
+# ellipsis) and only counts genuinely non-Latin scripts.
+_MAX_NON_LATIN_RATIO = 0.03
+# Fraction of the output made of word characters. Catches a lone real word
+# adrift in punctuation ('celona. ( ( ( ( (' -- observed on main under DP),
+# which every other check either passes or skips as "too short to judge".
+_MIN_WORD_CHAR_RATIO = 0.35
+
+
+def _non_latin_ratio(s: str) -> float:
+    def is_latin_ish(c: str) -> bool:
+        o = ord(c)
+        # Latin blocks through Latin Extended-B, General Punctuation, whitespace.
+        return o < 0x250 or 0x2000 <= o <= 0x206F or c.isspace()
+
+    return sum(1 for c in s if not is_latin_ish(c)) / len(s)
 
 
 def assert_output_coherent(text: str) -> None:
     """Heuristic assertion: text is natural-language, not token soup.
 
-    Uses English stopword ratio as the token-soup detector — coherent
-    continuations contain several stopwords per ~30-token output, while
-    token-soup garbage contains ~zero.
+    Stopword ratio is the primary token-soup detector (#4440), but it cannot see
+    every degeneration we have actually shipped: a single repeated token is one
+    "word", and a loop over a stopword scores a *high* ratio. So also reject
+    over-long single words, low word diversity, and non-Latin script runs. These
+    checks run before the short-output early return, since garbage is frequently
+    short by this measure.
     """
     s = text.strip()
     assert s, f"empty output: {text!r}"
     words = [w.lower() for w in _WORD_RE.findall(s)]
     assert words, f"output has no word characters: {text!r}"
+
+    nlr = _non_latin_ratio(s)
+    assert nlr <= _MAX_NON_LATIN_RATIO, (
+        f"non-Latin script ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
+        f"{text!r}"
+    )
+
+    wcr = sum(len(w) for w in words) / len(s)
+    assert wcr >= _MIN_WORD_CHAR_RATIO, (
+        f"too little of the output is words ({wcr:.3f} < "
+        f"{_MIN_WORD_CHAR_RATIO}): {text!r}"
+    )
+
+    longest = max(words, key=len)
+    assert len(longest) <= _MAX_WORD_LEN, (
+        f"degenerate repeated token ({len(longest)} chars > {_MAX_WORD_LEN}): "
+        f"{longest[:40]!r} in {text!r}"
+    )
+
+    if len(words) >= _MIN_UNIQUE_WORDS + 1:
+        unique = len(set(words))
+        assert unique >= _MIN_UNIQUE_WORDS, (
+            f"too few distinct words ({unique} < {_MIN_UNIQUE_WORDS}) in "
+            f"{len(words)} words: {text!r}"
+        )
+
     if len(words) < _MIN_WORDS:
         return
     sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
