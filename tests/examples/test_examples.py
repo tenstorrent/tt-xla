@@ -43,8 +43,8 @@ HARDWARE_MARKS: dict[str, list[str]] = {
     ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/diffusiongemma.py": [
         "nightly",
-        "bhqb",
-    ],  # 4-chip Blackhole (qb2-blackhole)
+        "llmbox",
+    ],  # 8-chip Wormhole (n300-llmbox)
 }
 
 # Specific files with known issues - tests will be marked as xfail with the given reason

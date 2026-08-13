@@ -155,6 +155,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "diffusiongemma_26b_a4b_it",
+        "pytest": "tests/benchmark/test_diffusiongemma.py::test_diffusiongemma_26b",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64",
         "runs-on": "galaxy-wh-6u"

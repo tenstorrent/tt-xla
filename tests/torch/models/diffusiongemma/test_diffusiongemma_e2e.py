@@ -233,7 +233,10 @@ def test_diffusiongemma_e2e():
             **extra_kwargs,
         )
 
-        worst = min((p for *_, p in pcc_records), default=1.0)
+        # Guard against a vacuous pass: with no records `worst` would fall back to its
+        # default and the assert below would succeed without a single check having run.
+        assert pcc_records, "no PCC checks ran: encoder/decoder forwards never fired"
+        worst = min(p for *_, p in pcc_records)
         logger.info(
             "per-iteration PCC: {} checks, worst={:.6f}", len(pcc_records), worst
         )
