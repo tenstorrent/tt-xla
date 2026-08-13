@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from contextlib import contextmanager
@@ -634,10 +635,27 @@ class _StreamTee:
         self._read_pos = 0
         self._final_size = None
 
+    def _create_backing_fd(self):
+        """Create an anonymous file to back the tee buffer.
+
+        Prefers ``os.memfd_create``. Some CPython builds (e.g. certain
+        manylinux/uv-provided interpreters) omit ``memfd_create``; fall back to
+        an immediately-unlinked tempfile, which behaves identically for our use
+        (a scratch buffer read via an independent fd). Without this fallback,
+        ``start()`` raises ``AttributeError`` at setup for any collected test
+        whenever ``-s`` is used and the interpreter lacks ``memfd_create``.
+        """
+        if hasattr(os, "memfd_create"):
+            return os.memfd_create(f"tee_capture_{self._original_fd}")
+        fd, path = tempfile.mkstemp(prefix=f"tee_capture_{self._original_fd}_")
+        # Keep the fd, drop the name: the file stays alive until the fd closes.
+        os.unlink(path)
+        return fd
+
     def start(self):
         """Redirect stream to memfd and start reader thread."""
         self._saved_fd = os.dup(self._original_fd)
-        self._memfd = os.memfd_create(f"tee_capture_{self._original_fd}")
+        self._memfd = self._create_backing_fd()
         self._read_fd = os.open(f"/proc/self/fd/{self._memfd}", os.O_RDONLY)
         self._thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._thread.start()
