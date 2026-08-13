@@ -101,19 +101,21 @@ PJRT_Error *onDeviceGetAttributes(PJRT_Device_GetAttributes_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetAttributes");
 
-  // TT devices expose no additional key-value attributes, so we report an empty
-  // set. This must return success (nullptr): jaxlib's PjRtCApiDevice attribute
-  // initialization treats any error here as fatal, so returning an unimplemented
-  // status aborts client creation.
-  args->attributes = nullptr;
-  args->num_attributes = 0;
+  // Expose the device-description attributes (e.g. "device_arch") at the device
+  // level as well. Frameworks read per-device metadata through this device-level
+  // call -- torch_xla's global_runtime_device_attributes and jaxlib's
+  // PjRtCApiDevice both populate from PJRT_Device_GetAttributes, not from the
+  // device description -- so reporting an empty set here hides "device_arch".
+  const std::vector<PJRT_NamedValue> &attributes =
+      DeviceInstance::unwrap(args->device)->getDeviceDescription().getAttributes();
+  args->attributes = attributes.data();
+  args->num_attributes = attributes.size();
 
-  // Since minor 114 the caller also expects `device_attributes` (the opaque
-  // backing storage for `attributes`) together with a non-null
-  // `attributes_deleter` that it invokes to free that storage. We own no
-  // backing storage for an empty attribute set, so we hand back a null backing
-  // pointer and a deleter that has nothing to free. The deleter must still be
-  // non-null: jaxlib CHECK-fails otherwise.
+  // `attributes` points at storage owned by the DeviceDescription, which
+  // outlives this call, so there is no backing buffer to free: hand back a null
+  // `device_attributes` and a no-op deleter. The deleter must be non-null
+  // (jaxlib CHECK-fails otherwise) and the caller invokes it after copying the
+  // values.
   args->device_attributes = nullptr;
   args->attributes_deleter = +[](PJRT_Device_Attributes *) {};
 
