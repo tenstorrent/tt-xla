@@ -671,9 +671,10 @@ def clamp_neg_getitem_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
 
 
 # Decompositions of the fused add+matmul ops route every operand through float32
-# irrespective of the model dtype. A rank-2 activation makes nn.Linear lower to
-# addmm instead of mm, so with flattened model IO this hits every linear in the
-# graph and drags whole encoders into f32. Refs: tt-xla #5756.
+# irrespective of the model dtype. A biased nn.Linear reaches addmm only at rank 2
+# on XLA -- aten::linear skips its flatten-to-addmm shortcut for XLA tensors, so
+# rank 3 stays on mm + add -- which is why flattened model IO drags whole encoders
+# into f32 while batched IO does not. Refs: tt-xla #5756.
 _FLOAT32_PROMOTING_MATMULS = (
     "aten::addmm",
     "aten::addmv",
