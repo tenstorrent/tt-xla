@@ -46,12 +46,15 @@ def test_embedding_flat_model_io(model_name: str, baseline_path, max_model_len: 
 
     Flattening hands the model rank-2 activations, which lower through a
     different set of aten ops than rank-3 does. Refs: tt-xla #5756.
+
+    Runs multi-request so the flatten/restore actually spans rows; batch 2 is
+    skipped for this model in `test_batched_inference` (segfaults, issue #3094).
     """
     run_pooling_test(
         model_name,
         baseline_path,
         max_model_len,
-        max_num_reqs=1,
+        max_num_reqs=4,
         min_context_len=32,
         flat_model_io=True,
     )
