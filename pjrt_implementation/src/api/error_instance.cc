@@ -126,15 +126,15 @@ PJRT_Error *onErrorGetCode(PJRT_Error_GetCode_Args *args) {
 PJRT_Error *onErrorForEachPayload(PJRT_Error_ForEachPayload_Args *args) {
   DLOG_F(LOG_DEBUG, "ErrorInstance::PJRT_Error_ForEachPayload");
 
-  // absl::Status can carry payloads, a K-V pair to explain the error in more detail.
-  // PJRT_Error, being a 'projection' of absl::Status, may also want to carry payloads.
-  // We do not propagate error reasons anywhere, and do not models payloads/
-  // Therefore there is nothing to do here.
+  // absl::Status can carry payloads, a K-V pair to explain the error in more
+  // detail. PJRT_Error, being a 'projection' of absl::Status, may also want to
+  // carry payloads. We do not propagate error reasons anywhere, and do not
+  // models payloads/ Therefore there is nothing to do here.
   //
   // Returning nullptr (success) is required here: the framework's error->status
   // conversion path (PjrtErrorToStatus) treats a non-null return as a failure
-  // and re-enters the same conversion on it, so returning an error would recurse
-  // until the stack overflows.
+  // and re-enters the same conversion on it, so returning an error would
+  // recurse until the stack overflows.
   return nullptr;
 }
 

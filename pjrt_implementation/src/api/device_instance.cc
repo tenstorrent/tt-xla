@@ -102,12 +102,15 @@ PJRT_Error *onDeviceGetAttributes(PJRT_Device_GetAttributes_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetAttributes");
 
   // Expose the device-description attributes (e.g. "device_arch") at the device
-  // level as well. Frameworks read per-device metadata through this device-level
-  // call -- torch_xla's global_runtime_device_attributes and jaxlib's
-  // PjRtCApiDevice both populate from PJRT_Device_GetAttributes, not from the
-  // device description -- so reporting an empty set here hides "device_arch".
+  // level as well. Frameworks read per-device metadata through this
+  // device-level call -- torch_xla's global_runtime_device_attributes and
+  // jaxlib's PjRtCApiDevice both populate from PJRT_Device_GetAttributes, not
+  // from the device description -- so reporting an empty set here hides
+  // "device_arch".
   const std::vector<PJRT_NamedValue> &attributes =
-      DeviceInstance::unwrap(args->device)->getDeviceDescription().getAttributes();
+      DeviceInstance::unwrap(args->device)
+          ->getDeviceDescription()
+          .getAttributes();
   args->attributes = attributes.data();
   args->num_attributes = attributes.size();
 

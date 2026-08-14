@@ -54,8 +54,8 @@ public:
   // PJRT_Memory vtable `get_user_data` slot.
   void *getUserData(const void *key);
 
-  // Attaches `data` (owned via `dtor`) under `key`, replacing and destroying any
-  // previous value stored under the same key. Backs the PJRT_Memory vtable
+  // Attaches `data` (owned via `dtor`) under `key`, replacing and destroying
+  // any previous value stored under the same key. Backs the PJRT_Memory vtable
   // `set_user_data` slot.
   void setUserData(const void *key, void *data, void (*dtor)(void *));
 
@@ -111,8 +111,8 @@ private:
   // Debug string of the memory.
   std::string m_debug_string;
 
-  // User data attached by the framework through the PJRT_Memory vtable, keyed by
-  // an opaque pointer. Each entry owns its value via the stored destructor.
+  // User data attached by the framework through the PJRT_Memory vtable, keyed
+  // by an opaque pointer. Each entry owns its value via the stored destructor.
   std::unordered_map<const void *, std::pair<void *, void (*)(void *)>>
       m_user_data;
 

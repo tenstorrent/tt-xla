@@ -28,7 +28,8 @@ namespace tt::pjrt::module_builder::frontend_passes {
 namespace internal {
 
 // Recursively expands a possibly-tuple value into its leaf (non-tuple) values,
-// inserting stablehlo.get_tuple_element ops via `builder` for every tuple level.
+// inserting stablehlo.get_tuple_element ops via `builder` for every tuple
+// level.
 static void expandTupleValue(mlir::OpBuilder &builder, mlir::Location loc,
                              mlir::Value value,
                              llvm::SmallVectorImpl<mlir::Value> &leaves) {
@@ -72,8 +73,9 @@ flattenReturnTuple(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
     auto return_op =
         mlir::dyn_cast<mlir::func::ReturnOp>(func_op.front().getTerminator());
     if (!return_op) {
-      DLOG_F(ERROR, "Public function %s terminator is not func.return; cannot "
-                    "flatten tuple result",
+      DLOG_F(ERROR,
+             "Public function %s terminator is not func.return; cannot "
+             "flatten tuple result",
              func_op.getName().str().c_str());
       return tt_pjrt_status::kInternal;
     }
@@ -87,8 +89,8 @@ flattenReturnTuple(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 
     return_op->setOperands(flat_operands);
 
-    llvm::SmallVector<mlir::Type> flat_result_types(
-        llvm::map_range(flat_operands, [](mlir::Value v) { return v.getType(); }));
+    llvm::SmallVector<mlir::Type> flat_result_types(llvm::map_range(
+        flat_operands, [](mlir::Value v) { return v.getType(); }));
     func_op.setType(builder.getFunctionType(
         func_op.getFunctionType().getInputs(), flat_result_types));
   }
