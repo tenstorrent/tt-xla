@@ -21,7 +21,6 @@ on:
           - p150-perf
           - galaxy-wh-6u
           - qb2-blackhole
-          - galaxy-bh
         default: n150-perf
       skip-device-perf:
         description: "Skip device performance measurement"
