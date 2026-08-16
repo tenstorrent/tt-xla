@@ -518,7 +518,7 @@ test_config:
     enable_weight_bfp8_conversion: true
 
   qwen_3_5/causal_lm/pytorch-27B-tensor_parallel-inference:
-    supported_archs: [n300-llmbox]
+    supported_archs: [n300-llmbox, \"p300\"]
     status: EXPECTED_PASSING
 
   internlm2/pytorch-internlm2-chat-20b-tensor_parallel-inference:
