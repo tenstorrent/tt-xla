@@ -96,6 +96,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "ideogram_4",
+        "pytest": "tests/benchmark/test_imagegen.py::test_ideogram_4",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro"
       },

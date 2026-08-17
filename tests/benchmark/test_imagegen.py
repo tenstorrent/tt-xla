@@ -602,3 +602,68 @@ def test_hunyuan_image_2_1(output_file, request):
         optimization_level=0,
         output_image_path="test_hunyuan_image_2_1_output.png",
     )
+
+
+def test_ideogram_4(output_file, request):
+    """Ideogram 4 diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    Ideogram 4 is a 9.3B single-stream conditional DiT. Unlike the other image-gen
+    entries it runs **two** heavy transformer branches — conditional and
+    unconditional — and both are sharded Megatron-1D across the mesh, while the
+    Qwen3-VL text encoder, scheduler and VAE stay on CPU. Drives the shared
+    Ideogram4Pipeline from tt_forge_models (companion pipeline PR
+    tenstorrent/tt-forge-models#872). 512x512, 28 steps, guidance 7.0 — the shape
+    the tensor-parallel component test validates. Multichip — the matrix pins this
+    entry to the 4-chip blackhole (qb2-blackhole); a single chip hangs in
+    tt-metal's mesh command queue at 34-layer scale.
+
+    Note that classifier-free guidance means two transformer forwards per denoising
+    step, so the pipeline reports 2x num_inference_steps step samples under the
+    ``transformer_forward`` metric name.
+    """
+    from third_party.tt_forge_models.ideogram_4.pytorch.pipeline import (
+        GUIDANCE_SCALE,
+        HEIGHT,
+        WIDTH,
+        Ideogram4Config,
+        Ideogram4Pipeline,
+    )
+
+    prompt = (
+        "A ginger cat wearing a tiny wizard hat reading a spellbook, cozy library, "
+        "warm light, digital illustration"
+    )
+    num_inference_steps = 28
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # Both DiT branches on TT (tensor-parallel sharded across the mesh); text
+        # encoder, scheduler and VAE on CPU. compile_options are already applied
+        # globally by the harness.
+        pipeline = Ideogram4Pipeline(
+            config=Ideogram4Config(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+                guidance_scale=GUIDANCE_SCALE,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="ideogram-4",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_ideogram_4_output.png",
+    )
