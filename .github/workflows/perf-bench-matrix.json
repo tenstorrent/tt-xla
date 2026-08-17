@@ -944,6 +944,13 @@
         "runs-on": [
           "qb2-blackhole"
         ]
+      },
+      {
+        "name": "hunyuan_video_1_5",
+        "pytest": "tests/benchmark/test_video_gen.py::test_hunyuan_video_1_5",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
       }
     ]
   }
