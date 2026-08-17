@@ -39,6 +39,7 @@ from third_party.tt_forge_models.qwen_image.pytorch.src.model_utils import (
     PROMPT,
     REPO_ID,
     SEED,
+    TOKENIZER_MAX_LENGTH,
     TRUE_CFG_SCALE,
     WIDTH,
     load_text_encoder,
@@ -48,7 +49,6 @@ from third_party.tt_forge_models.qwen_image.pytorch.src.model_utils import (
     shard_transformer_specs,
 )
 
-MAX_SEQUENCE_LENGTH = 1024
 PCC_THRESHOLD = 0.99
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
@@ -143,7 +143,7 @@ class _DeviceDenoiser:
 class _DeviceVAEDecoder:
     """QwenImagePipeline vae.decode() on TT (replicated); one-shot PCC check."""
 
-    def __init__(self, vae, mesh):
+    def __init__(self, vae):
         self._dev = torch_xla.device()
         self.config = vae.config
         self.dtype = next(vae.parameters()).dtype
@@ -192,13 +192,13 @@ class QwenImageTTPipeline:
             prompt=prompt + POSITIVE_MAGIC,
             device=cpu,
             num_images_per_prompt=1,
-            max_sequence_length=MAX_SEQUENCE_LENGTH,
+            max_sequence_length=TOKENIZER_MAX_LENGTH,
         )
         negative_prompt_embeds, negative_prompt_embeds_mask = self.pipe.encode_prompt(
             prompt=NEGATIVE_PROMPT,
             device=cpu,
             num_images_per_prompt=1,
-            max_sequence_length=MAX_SEQUENCE_LENGTH,
+            max_sequence_length=TOKENIZER_MAX_LENGTH,
         )
         # Evict the text encoder before placing the transformer (flux2 pattern).
         self.pipe.text_encoder = text_encoder.to("cpu")
@@ -210,7 +210,7 @@ class QwenImageTTPipeline:
         # Stage 2: transformer (sharded) + VAE (replicated) → image.
         logger.info("[STAGE] Transformer + VAE: start")
         self.pipe.transformer = _DeviceDenoiser(self.pipe.transformer, self.mesh)
-        self.pipe.vae = _DeviceVAEDecoder(self.pipe.vae, self.mesh)
+        self.pipe.vae = _DeviceVAEDecoder(self.pipe.vae)
 
         generator = torch.Generator().manual_seed(seed) if seed is not None else None
         result = self.pipe(
