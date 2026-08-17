@@ -22,15 +22,10 @@ from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.fibo.pytorch import ModelLoader, ModelVariant
-
-# The FIBO e2e pipeline lives in tt-forge-models; skip cleanly until the
-# submodule uplift brings in fibo/pytorch/pipeline.py (this PR carries no bump).
-_pipeline = pytest.importorskip(
-    "third_party.tt_forge_models.fibo.pytorch.pipeline",
-    reason="requires tt-forge-models fibo/pytorch/pipeline.py (submodule uplift)",
+from third_party.tt_forge_models.fibo.pytorch.pipeline import (
+    FiboConfig,
+    FiboPipeline,
 )
-FiboConfig = _pipeline.FiboConfig
-FiboPipeline = _pipeline.FiboPipeline
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
