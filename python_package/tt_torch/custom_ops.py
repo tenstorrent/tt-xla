@@ -2327,8 +2327,13 @@ def tt_lang_op(
     if shard_spec:
         frontend_attributes["shard_spec"] = shard_spec
 
+    # Functional at the SHLO boundary: inputs only. tt-mlir synthesizes the DPS
+    # destination per result when lowering to TTIR (tt-mlir #9078).
+    _out_set = set(out_indices)
+    operands = [t for i, t in enumerate(tensors) if i not in _out_set]
+
     result = stablehlo_custom_call.stablehlo_custom_call(
-        list(tensors),
+        operands,
         "tt.tt_lang_op",
         output_shapes,
         output_dtypes,

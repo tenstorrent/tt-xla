@@ -10,6 +10,7 @@ import json
 import math
 import numbers
 import os
+import re
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -106,6 +107,37 @@ class ShardingConfigs:
     MEGATRON_DP = ShardingConfig(
         ShardingStrategy.MEGATRON, True, Parallelism.TENSOR_PARALLEL
     )
+
+
+def sanitize_ir_dump_dir_name(model_name: str) -> str:
+    """
+    Make a model name safe to use as the IR-dump directory name.
+
+    Model names come from ``model_info.name`` and are derived from HuggingFace
+    ids, so some contain spaces (e.g. ``pytorch_Qwen 2.5 Coder_32B_...``). That
+    name becomes a directory under ``collected_irs/``, and op-by-op recovers the
+    model name *from that directory name*
+    (``op_by_op_test.match_and_extract_model_name``), so the spaces end up in the
+    ops-status database and break exact-match joins and filters against configs
+    that use the underscored form.
+
+    Collapses each run of whitespace to a single underscore, and replaces path
+    separators and other characters that are hostile in a path. Everything else
+    -- including the ``.`` and ``-`` that appear in legitimate names such as
+    ``Swin-B`` and ``2.5`` -- is preserved, so names that are already clean are
+    returned unchanged.
+
+    Args:
+        model_name: The model name, e.g. ``model_info.name``.
+
+    Returns:
+        The name with whitespace and path-hostile characters replaced by ``_``.
+    """
+    sanitized = re.sub(r"\s+", "_", model_name.strip())
+    # None of these appear in current model names; replaced defensively because a
+    # separator would silently create a nested directory and break the model-name
+    # recovery described above.
+    return re.sub(r'[/\\:*?"<>|]', "_", sanitized)
 
 
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:

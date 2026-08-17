@@ -70,6 +70,12 @@ jobs:
         with:
           python-version: '3.12'
 
+
+      - name: Docker prune
+        shell: bash
+        run: |
+          docker system prune -fa
+
       - name: Build ttxla  Wheel (manylinux)
         uses: pypa/cibuildwheel@v3.3
         env:

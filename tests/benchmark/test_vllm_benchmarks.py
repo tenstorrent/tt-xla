@@ -20,7 +20,7 @@ from utils import resolve_display_name, sanitize_model_name
 #   TT_BENCHMARK_TEMPERATURE=<float>      default 0.0 (greedy)
 #   TT_BENCHMARK_CPU_SAMPLING=1           default 0 (device sampling)
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
-#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     default "" (e.g. bfp_bf8, bfp_bf4)
+#   TT_BENCHMARK_KV_CACHE_DTYPE=<str>     e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test kv cache dtype)
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
 #   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
 #   TT_BENCHMARK_WEIGHT_OVERRIDES=<path>  JSON file of {glob: dtype} per-tensor mixed-precision overrides
@@ -30,7 +30,7 @@ from utils import resolve_display_name, sanitize_model_name
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
-_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE", "")
+_BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE")
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
@@ -50,6 +50,7 @@ def _config(
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 2,
     experimental_weight_dtype: str = "bfp_bf8",
+    experimental_kv_cache_dtype: str = "bfp_bf8",
     # None => leave the compute-kernel-config knob unset so compiler
     # can set the default value or leave it up to ttnn.
     # Only set this deliberately, never as a frontend default.
@@ -65,17 +66,19 @@ def _config(
     additional = {"enable_trace": True}
     if experimental_weight_dtype:
         additional["experimental_weight_dtype"] = experimental_weight_dtype
+    if experimental_kv_cache_dtype:
+        additional["experimental_kv_cache_dtype"] = experimental_kv_cache_dtype
     if fp32_dest_acc_en is not None:
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level:
         additional["optimization_level"] = optimization_level
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
-    if _BENCH_KV_CACHE_DTYPE:
-        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     additional.update(additional_config_extra)
     if _BENCH_WEIGHT_DTYPE is not None:
         additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
+    if _BENCH_KV_CACHE_DTYPE is not None:
+        additional["experimental_kv_cache_dtype"] = _BENCH_KV_CACHE_DTYPE
     if _BENCH_WEIGHT_OVERRIDES is not None:
         # Path to a JSON {glob: dtype} file; loaded plugin-side by
         # apply_weight_dtype_overrides. Takes precedence over the uniform dtype.
@@ -111,9 +114,10 @@ def _tp_config(
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
-    # Allow callers to override weight dtype without passing the same keyword
-    # twice to _config (once explicitly and once via **tp_defaults).
+    # Allow callers to override weight/kv-cache dtype without passing the same
+    # keyword twice to _config (once explicitly and once via **tp_defaults).
     experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "")
+    experimental_kv_cache_dtype = tp_defaults.pop("experimental_kv_cache_dtype", "")
     fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", None)
     return _config(
         model,
@@ -123,9 +127,32 @@ def _tp_config(
         # Keep TP configs as-is: the single-device alignment default
         # (bfp_bf8 weight dtype) does not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
     )
+
+
+def _sharded_sampling_tp_config(
+    model: str, batch_size: int, *, mesh_shape, temperature: float = 0.8
+):
+    # Non-greedy device sampling on a 2D mesh: temperature>0 + cpu_sampling=False
+    # hits the vocab-sharded composite_topk path (#4494). Runs on-device at
+    # opt>=1; the workaround forcing cpu_sampling=True at opt>0 was removed in
+    # #5671, so device sampling no longer bypasses the composite under trace.
+    cfg = _tp_config(
+        model,
+        batch_size,
+        gpu_memory_utilization=0.15,
+        optimization_level=1,
+        use_2d_mesh=True,
+        mesh_shape=mesh_shape,
+        enable_const_eval=True,
+        experimental_weight_dtype="bfp_bf8",
+        cpu_sampling=False,
+    )
+    cfg.temperature = temperature
+    return cfg
 
 
 def _gemma4_tp_config(model: str, batch_size: int):
@@ -150,6 +177,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",
+        experimental_kv_cache_dtype="",
         cpu_sampling=False,
         flat_model_io=True,
     )
@@ -166,12 +194,12 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     # text-only (limit_mm_per_prompt zeroed so the vision tower never compiles),
     # mirroring _gemma4_tp_config. Runs on galaxy-wh-6u in a 8x4 mesh.
     #
-    # Validated max_model_len of 8192 at GMU of 0.65, but the current default
+    # Validated max_model_len of 8192 at GMU of 0.16, but the current default
     # of max_model_len is 128, so it needs to be overriden through the env. var.
     cfg = _config(
         model,
         batch_size,
-        gpu_memory_utilization=0.65,
+        gpu_memory_utilization=0.16,
         optimization_level=1,
         experimental_weight_dtype="bfp_bf8",
         experimental_kv_cache_dtype="bfp_bf8",
@@ -192,12 +220,138 @@ def _mistral_small_31_tp_config(model: str, batch_size: int):
     return cfg
 
 
+def _qwen3_4b_production_config():
+    cfg = _config(
+        "Qwen/Qwen3-4B",
+        32,
+        gpu_memory_utilization=0.5,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
+    )
+    cfg.max_model_len = 40960
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _qwen3_8b_production_config():
+    cfg = _config(
+        "Qwen/Qwen3-8B",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
+    )
+    cfg.max_model_len = 40960
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _llama3_2_3b_instruct_production_config():
+    cfg = _config(
+        "meta-llama/Llama-3.2-3B-Instruct",
+        32,
+        gpu_memory_utilization=0.5,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
+    )
+    cfg.max_model_len = 65536
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _llama3_1_8b_instruct_production_config():
+    cfg = _config(
+        "meta-llama/Llama-3.1-8B-Instruct",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        max_prefill_num_seqs=16,
+    )
+    cfg.max_model_len = 65536
+    cfg.use_chat_template = True
+    return cfg
+
+
+def _falcon3_7b_instruct_production_config():
+    # Mirrors the real single-chip (p150) production launch config from
+    # ~/scripts/model_servers/launch_falcon3_7b_instruct_uvicorn.sh (which
+    # mirrors workflows/model_specs/dev/cnn.yaml), not the minimal smoke-test
+    # defaults. Kept as the single test we maintain at production settings.
+    cfg = _config(
+        "tiiuae/Falcon3-7B-Instruct",
+        32,
+        gpu_memory_utilization=0.35,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf8",
+        enable_const_eval=True,
+        min_context_len=128,
+        prefill_chunk_size=1024,
+        # b1-prefill: serve prefills serially (small graph) when <=16 are
+        # pending instead of paying for a wasted-row b32 batch. Needs
+        # min_num_seqs < max_num_seqs (batch_size=32).
+        min_num_seqs=1,
+        prefill_batch_threshold=16,
+        # Cap prefill graphs at b16 instead of b32 (#5541): cuts prefill-trace
+        # DRAM residency and ~22% off compile time, with no throughput/TTFT
+        # regression measured.
+        max_prefill_num_seqs=16,
+    )
+    # max_num_batched_tokens and enable_chunked_prefill aren't set here: the
+    # plugin derives/overrides both from prefill_chunk_size (platform.py).
+    cfg.max_model_len = 32768
+    # Instruct-tuned: drive via the chat template, matching production evals
+    # (--apply_chat_template).
+    cfg.use_chat_template = True
+    return cfg
+
+
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
-    pytest.param(_config("meta-llama/Llama-3.2-3B-Instruct"), id="llama-3.2-3b"),
+    # BFP8 KV cache breaks n150 compile (L1-spill layout mismatch); see tt-mlir#9094.
+    pytest.param(
+        _config("meta-llama/Llama-3.2-3B-Instruct", experimental_kv_cache_dtype=""),
+        id="llama-3.2-3b",
+    ),
+    pytest.param(
+        _llama3_2_3b_instruct_production_config(),
+        id="llama-3.2-3b-instruct-production",
+    ),
     # opt-level 2 (the default since #5410) OOMs DRAM on n150. See https://github.com/tenstorrent/tt-xla/issues/5494.
     pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
+    pytest.param(
+        _llama3_1_8b_instruct_production_config(),
+        id="llama-3.1-8b-instruct-production",
+    ),
     # Qwen 2.5
     pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
@@ -207,7 +361,9 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("Qwen/Qwen3-0.6B"), id="qwen3-0.6b"),
     pytest.param(_config("Qwen/Qwen3-1.7B"), id="qwen3-1.7b"),
     pytest.param(_config("Qwen/Qwen3-4B"), id="qwen3-4b"),
+    pytest.param(_qwen3_4b_production_config(), id="qwen3-4b-production"),
     pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
+    pytest.param(_qwen3_8b_production_config(), id="qwen3-8b-production"),
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
     # Phi
@@ -218,13 +374,30 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("microsoft/phi-2", gpu_memory_utilization=0.30), id="phi-2"),
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
-    pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
-    pytest.param(_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-base"),
+    # BFP8 KV cache breaks n150 compile (L1-spill layout mismatch); see tt-mlir#9094.
+    pytest.param(
+        _config("tiiuae/Falcon3-3B-Base", experimental_kv_cache_dtype=""),
+        id="falcon3-3b-base",
+    ),
+    pytest.param(
+        _config("tiiuae/Falcon3-7B-Base", experimental_kv_cache_dtype=""),
+        id="falcon3-7b-base",
+    ),
+    pytest.param(
+        _falcon3_7b_instruct_production_config(),
+        id="falcon3-7b-instruct-production",
+    ),
     # Mistral
     pytest.param(
         _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
     ),
-    pytest.param(_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b"),
+    pytest.param(
+        _config(
+            "mistralai/Ministral-8B-Instruct-2410",
+            gpu_memory_utilization=0.12,
+        ),
+        id="ministral-8b",
+    ),
     # OPT (vLLM-only fast canary; not part of the torch-xla matrix)
     pytest.param(_config("facebook/opt-125m"), id="opt-125m"),
 ]
@@ -265,6 +438,13 @@ TP_CONFIGS = [
         id="llama-3.1-70b-qb2-tp",
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
+    # Non-greedy sampling on a 2D mesh (#4494); mesh [4, 8] = 16032-wide shards.
+    pytest.param(
+        _sharded_sampling_tp_config(
+            "meta-llama/Llama-3.1-8B-Instruct", 32, mesh_shape=[4, 8]
+        ),
+        id="llama-3.1-8b-sharded-sampling-galaxy-tp",
+    ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
@@ -273,7 +453,7 @@ TP_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, accuracy_testing=False):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
         resolved_display_name
@@ -291,7 +471,7 @@ def _run_vllm_benchmark(config, output_file, request):
         "export_model_name", sanitize_model_name(display_name)
     )
 
-    results = benchmark_vllm(config, display_name)
+    results = benchmark_vllm(config, display_name, accuracy_testing=accuracy_testing)
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -405,13 +585,13 @@ def _run_vllm_embedding_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", TP_CONFIGS)
-def test_vllm_tp_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_tp_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", EMBEDDING_CONFIGS)

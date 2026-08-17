@@ -557,6 +557,53 @@ def test_glm_image(output_file, request):
     )
 
 
+def test_hunyuan_image_2_1(output_file, request):
+    from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.pipeline import (
+        HunyuanImage21Config,
+        HunyuanImage21Pipeline,
+    )
+
+    # HunyuanImage-2.1 (Distilled): 2048x2048, 8 steps, distilled guidance 3.5.
+    # Only the ~17.45B MMDiT transformer runs on TT (tensor-parallel sharded across
+    # the mesh's model axis); the Qwen2.5-VL + ByT5 text encoders, scheduler and
+    # VAE run on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    prompt = (
+        "A cute, cartoon-style anthropomorphic penguin plush toy with fluffy fur, "
+        "standing in a painting studio, wearing a red knitted scarf and a red beret "
+        "with the word 'Tencent' on it, holding a paintbrush with a focused "
+        "expression as it paints an oil painting of the Mona Lisa, rendered in a "
+        "photorealistic photographic style."
+    )
+    num_inference_steps = 8
+    height = width = 2048
+
+    def build_pipeline_fn(compile_options):
+        pipeline = HunyuanImage21Pipeline(config=HunyuanImage21Config())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="hunyuan-image-2.1",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_hunyuan_image_2_1_output.png",
+    )
+
+
 def test_fibo(output_file, request):
     """FIBO (briaai/FIBO) diffusion text-to-image benchmark (DiT tensor-parallel).
 

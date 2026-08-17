@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vLLM TT serving telemetry</title>
+<style>
+  :root{
+    --plane:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e;
+    --muted:#898781; --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,0.10);
+    --prefill:#eb6834;   /* orange  (slot 2) */
+    --decode:#2a78d6;    /* blue    (slot 1) */
+    --kv:#2a78d6;        /* blue    */
+    --batch:#1baf7a;     /* aqua    (slot 3) */
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --g1:#2a78d6; --g2:#eb6834; --g3:#1baf7a; --g4:#eda100;
+    --g5:#e87ba4; --g6:#008300; --g7:#4a3aa7; --g8:#e34948;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:where(:not([data-theme="light"])){
+      --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7;
+      --muted:#898781; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,0.10);
+      --prefill:#d95926; --decode:#3987e5; --kv:#3987e5; --batch:#199e70;
+      --g1:#3987e5; --g2:#d95926; --g3:#199e70; --g4:#c98500;
+      --g5:#d55181; --g6:#008300; --g7:#9085e9; --g8:#e66767;
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7;
+    --muted:#898781; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,0.10);
+    --prefill:#d95926; --decode:#3987e5; --kv:#3987e5; --batch:#199e70;
+    --g1:#3987e5; --g2:#d95926; --g3:#199e70; --g4:#c98500;
+    --g5:#d55181; --g6:#008300; --g7:#9085e9; --g8:#e66767;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--plane);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 64px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{color:var(--ink2);font-size:13px}
+  .controls{display:flex;gap:8px;align-items:center}
+  button{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--ring);
+    border-radius:8px;padding:6px 12px;cursor:pointer}
+  button:hover{border-color:var(--axis)}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .live-on{color:var(--good)} .live-off{color:var(--muted)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+  .tile{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:14px 16px}
+  .tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .tile .v{font-size:26px;margin-top:4px}
+  .tile .u{color:var(--ink2);font-size:13px;margin-left:4px}
+  figure{margin:22px 0 0;background:var(--surface);border:1px solid var(--ring);
+    border-radius:12px;padding:16px 16px 8px}
+  figcaption{font-size:14px;font-weight:600;margin-bottom:2px}
+  .capsub{color:var(--ink2);font-size:12px;margin-bottom:8px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:2px 0 8px;font-size:12px;color:var(--ink2)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .chart{width:100%}
+  svg{display:block;width:100%;height:auto}
+  .grid line{stroke:var(--grid);stroke-width:1}
+  .axis line{stroke:var(--axis);stroke-width:1}
+  .tick{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+  .alab{fill:var(--ink2);font-size:11px}
+  .crosshair{stroke:var(--axis);stroke-width:1;stroke-dasharray:3 3;visibility:hidden}
+  .events .ev{cursor:pointer}
+  .glabel{fill:var(--ink);font-size:11px;font-variant-numeric:tabular-nums}
+  .tooltip{position:fixed;pointer-events:none;z-index:20;background:var(--surface);
+    color:var(--ink);border:1px solid var(--ring);border-radius:8px;padding:8px 10px;
+    font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.18);visibility:hidden;max-width:280px}
+  .tooltip b{font-weight:600}
+  .tooltip .row{display:flex;justify-content:space-between;gap:14px}
+  .tooltip .k{color:var(--ink2)}
+  .tblwrap{overflow-x:auto;margin-top:10px;display:none}
+  table{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;width:100%}
+  th,td{text-align:right;padding:4px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--surface)}
+  .empty{color:var(--muted);padding:28px 0;text-align:center}
+  .statuschips{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+  .chip{display:inline-flex;align-items:center;gap:7px;font-size:13px}
+  .chip .n{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>vLLM TT serving telemetry</h1>
+      <div class="sub" id="sub">&nbsp;</div>
+    </div>
+    <div class="controls">
+      <span class="badge" id="livebadge"></span>
+      <button id="tableToggle" type="button">Show data tables</button>
+      <button id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <figure>
+    <figcaption>Slot occupancy over steps</figcaption>
+    <div class="capsub">Per step: how many of the runner's slots are prefilling vs decoding. Dashed line = total slots (batch capacity).</div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--decode)"></i>decoding</span>
+      <span><i class="swatch" style="background:var(--prefill)"></i>prefilling</span>
+      <span><i class="swatch" style="background:var(--axis)"></i>total slots</span>
+    </div>
+    <div class="chart" id="c_occ"></div>
+    <div class="tblwrap" id="t_occ"></div>
+  </figure>
+
+  <figure>
+    <figcaption>Decode rate over steps</figcaption>
+    <div class="capsub">Accepted tokens emitted per second (runner). Ticks below mark steps where a prefill stalled in-flight decode.</div>
+    <div class="chart" id="c_rate"></div>
+    <div class="tblwrap" id="t_rate"></div>
+  </figure>
+
+  <figure>
+    <figcaption>KV-cache &amp; batch utilization over steps</figcaption>
+    <div class="capsub">Scheduler view. KV = used blocks / total; batch = running requests / max. Both are fractions on one 0–100% axis.</div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--kv)"></i>KV utilization</span>
+      <span><i class="swatch" style="background:var(--batch)"></i>batch utilization</span>
+    </div>
+    <div class="chart" id="c_util"></div>
+    <div class="tblwrap" id="t_util"></div>
+  </figure>
+
+  <figure>
+    <figcaption>Per-request lifecycle</figcaption>
+    <div class="capsub">Each row is a request, from admission to completion (x = step). Label shows request id and output length.</div>
+    <div class="chart" id="c_gantt"></div>
+    <div class="tblwrap" id="t_gantt"></div>
+  </figure>
+
+  <figure id="fig_snap">
+    <figcaption>Current slot table</figcaption>
+    <div class="capsub" id="snapsub">Latest per-slot state from runner_snapshot.json.</div>
+    <div id="c_snap"></div>
+  </figure>
+
+  <figure>
+    <figcaption>Scheduler events (run totals)</figcaption>
+    <div class="capsub">TT-specific decisions accumulated over the run.</div>
+    <div class="statuschips" id="chips"></div>
+  </figure>
+</div>
+
+<div class="tooltip" id="tip"></div>
+
+<script>
+const LIVE = /*__LIVE__*/;
+const INTERVAL = /*__INTERVAL__*/;
+let DATA = /*__DATA__*/;
+
+const tip = document.getElementById('tip');
+const css = (n)=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (x,d=0)=> x==null||Number.isNaN(x) ? '—' : Number(x).toLocaleString(undefined,{maximumFractionDigits:d,minimumFractionDigits:d>0?0:0});
+const pct = (x)=> x==null ? '—' : (100*x).toFixed(1)+'%';
+
+function showTip(html, ev){
+  tip.innerHTML = html;
+  tip.style.visibility='visible';
+  const pad=14, w=tip.offsetWidth, h=tip.offsetHeight;
+  let x=ev.clientX+pad, y=ev.clientY+pad;
+  if(x+w>window.innerWidth) x=ev.clientX-w-pad;
+  if(y+h>window.innerHeight) y=ev.clientY-h-pad;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+const hideTip = ()=>{ tip.style.visibility='hidden'; };
+
+// ---- tiny SVG helpers -----------------------------------------------------
+const SVGNS='http://www.w3.org/2000/svg';
+function el(tag, attrs){ const e=document.createElementNS(SVGNS,tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function scale(d0,d1,r0,r1){ const m=(r1-r0)/((d1-d0)||1); return v=>r0+(v-d0)*m; }
+function niceTicks(max,n=5){ if(max<=0) return [0]; const step=Math.max(1,Math.ceil(max/n));
+  const out=[]; for(let v=0; v<=max+1e-9; v+=step) out.push(v); return out; }
+
+// mount: measure width, (re)draw responsively
+const _mounts=[];
+function mount(id, height, draw){
+  const host=document.getElementById(id);
+  const render=()=>{ const w=host.clientWidth||720; host.innerHTML='';
+    const svg=el('svg',{viewBox:`0 0 ${w} ${height}`,width:w,height:height});
+    host.appendChild(svg); draw(svg,w,height); };
+  _mounts.push(render); render();
+  if(!mount._ro){ mount._ro=new ResizeObserver(()=>{ for(const r of _mounts) r(); });
+    mount._ro.observe(document.body); }
+}
+function remount(){ for(const r of _mounts) r(); }
+
+const PAD={l:44,r:14,t:12,b:26};
+function axes(svg,w,h,xmax,ymax,yfmt,xlabel,yticks){
+  const ix=scale(0,xmax,PAD.l,w-PAD.r), iy=scale(0,ymax,h-PAD.b,PAD.t);
+  const g=el('g',{}); svg.appendChild(g);
+  const grid=el('g',{class:'grid'}); g.appendChild(grid);
+  for(const yt of (yticks||niceTicks(ymax))){ const y=iy(yt);
+    grid.appendChild(el('line',{x1:PAD.l,y1:y,x2:w-PAD.r,y2:y}));
+    const t=el('text',{class:'tick',x:PAD.l-6,y:y+3,'text-anchor':'end'}); t.textContent=yfmt(yt); g.appendChild(t);
+  }
+  const xt=niceTicks(xmax, Math.min(8,xmax));
+  for(const xv of xt){ const x=ix(xv);
+    const t=el('text',{class:'tick',x:x,y:h-PAD.b+16,'text-anchor':'middle'}); t.textContent=xv; g.appendChild(t);
+  }
+  const ax=el('g',{class:'axis'}); g.appendChild(ax);
+  ax.appendChild(el('line',{x1:PAD.l,y1:h-PAD.b,x2:w-PAD.r,y2:h-PAD.b}));
+  if(xlabel){ const t=el('text',{class:'alab',x:(w-PAD.r+PAD.l)/2,y:h-2,'text-anchor':'middle'}); t.textContent=xlabel; g.appendChild(t); }
+  return {ix,iy};
+}
+// crosshair + hover overlay shared by the step timeline charts
+function hoverLayer(svg,w,h,xmax,rows,onIdx){
+  const ix=scale(0,xmax,PAD.l,w-PAD.r);
+  const ch=el('line',{class:'crosshair',y1:PAD.t,y2:h-PAD.b}); svg.appendChild(ch);
+  const rect=el('rect',{x:PAD.l,y:PAD.t,width:Math.max(1,w-PAD.r-PAD.l),height:Math.max(1,h-PAD.b-PAD.t),fill:'transparent'});
+  svg.appendChild(rect);
+  const steps=rows.map(r=>r.step);
+  rect.addEventListener('pointermove',(ev)=>{
+    const pt=svg.getBoundingClientRect(); const sx=(ev.clientX-pt.left)*(w/pt.width);
+    let best=0,bd=1e9; for(let i=0;i<steps.length;i++){const d=Math.abs(ix(steps[i])-sx); if(d<bd){bd=d;best=i;}}
+    const row=rows[best]; if(!row) return; ch.setAttribute('x1',ix(row.step)); ch.setAttribute('x2',ix(row.step));
+    ch.style.visibility='visible'; onIdx(best,row,ev);
+  });
+  rect.addEventListener('pointerleave',()=>{ ch.style.visibility='hidden'; hideTip(); });
+}
+const trow=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+
+// ---- charts ---------------------------------------------------------------
+function chartOccupancy(){
+  const rows=DATA.runner_steps; const host='c_occ';
+  if(!rows.length){ document.getElementById(host).innerHTML='<div class="empty">no runner step records</div>'; return; }
+  const xmax=Math.max(...rows.map(r=>r.step),1);
+  const cap=Math.max(...rows.map(r=>r.slots_total||0),1);
+  const ymax=Math.max(cap, ...rows.map(r=>(r.num_prefilling||0)+(r.num_decoding||0)),1);
+  mount(host,210,(svg,w,h)=>{
+    const {ix,iy}=axes(svg,w,h,xmax,ymax,v=>v,'step');
+    const base=h-PAD.b;
+    // stacked area: decode (bottom) + prefill (top), 2px surface gap between
+    const dPts=[], pTopPts=[], pBotPts=[];
+    for(const r of rows){ const d=r.num_decoding||0, p=r.num_prefilling||0;
+      dPts.push([ix(r.step),iy(d)]); pBotPts.push([ix(r.step),iy(d)]); pTopPts.push([ix(r.step),iy(d+p)]); }
+    const areaPath=(top,botY)=>{ let s='M'+top[0][0]+','+botY; for(const q of top) s+=' L'+q[0]+','+q[1];
+      s+=' L'+top[top.length-1][0]+','+botY+' Z'; return s; };
+    svg.appendChild(el('path',{d:areaPath(dPts,base),fill:'var(--decode)','fill-opacity':.85}));
+    // prefill band sits above decode; draw as polygon between pBot and pTop
+    let pp='M'+pBotPts[0][0]+','+pBotPts[0][1];
+    for(const q of pTopPts) pp+=' L'+q[0]+','+q[1];
+    for(let i=pBotPts.length-1;i>=0;i--) pp+=' L'+pBotPts[i][0]+','+pBotPts[i][1];
+    pp+=' Z';
+    svg.appendChild(el('path',{d:pp,fill:'var(--prefill)','fill-opacity':.9,stroke:'var(--surface)','stroke-width':1}));
+    // capacity reference line
+    svg.appendChild(el('line',{x1:PAD.l,y1:iy(cap),x2:w-PAD.r,y2:iy(cap),
+      stroke:'var(--axis)','stroke-width':1.5,'stroke-dasharray':'5 4'}));
+    hoverLayer(svg,w,h,xmax,rows,(i,row,ev)=>{
+      showTip(`<b>step ${row.step}</b>`+trow('decoding',row.num_decoding||0)
+        +trow('prefilling',row.num_prefilling||0)+trow('occupied',row.slots_occupied||0)
+        +trow('free',row.slots_free||0)+trow('capacity',cap),ev);
+    });
+  });
+  tableFor('t_occ',['step','slots_occupied','slots_free','num_prefilling','num_decoding','slot_util'],rows,
+    {slot_util:pct});
+}
+
+function chartRate(){
+  const rows=DATA.runner_steps.filter(r=>r.decode_rate_toks_per_s!=null); const host='c_rate';
+  const all=DATA.runner_steps;
+  if(!all.length){ document.getElementById(host).innerHTML='<div class="empty">no runner step records</div>'; return; }
+  const xmax=Math.max(...all.map(r=>r.step),1);
+  const ymax=Math.max(...rows.map(r=>r.decode_rate_toks_per_s),1);
+  const gated=new Set(DATA.scheduler.filter(s=>s.decode_gated).map(s=>s.step));
+  mount(host,200,(svg,w,h)=>{
+    const {ix,iy}=axes(svg,w,h,xmax,ymax,v=>v,'step');
+    if(rows.length){ let s='M'+ix(rows[0].step)+','+iy(rows[0].decode_rate_toks_per_s);
+      for(const r of rows) s+=' L'+ix(r.step)+','+iy(r.decode_rate_toks_per_s);
+      svg.appendChild(el('path',{d:s,fill:'none',stroke:'var(--decode)','stroke-width':2,
+        'stroke-linejoin':'round','stroke-linecap':'round'})); }
+    // event rug: prefill-stalled steps
+    const rug=el('g',{class:'events'}); svg.appendChild(rug);
+    for(const step of gated){ const x=ix(step);
+      const m=el('line',{class:'ev',x1:x,y1:h-PAD.b+2,x2:x,y2:h-PAD.b+9,stroke:'var(--warning)','stroke-width':2});
+      m.addEventListener('pointerenter',(ev)=>showTip(`<b>step ${step}</b>`+trow('event','prefill stalled decode'),ev));
+      m.addEventListener('pointerleave',hideTip); rug.appendChild(m); }
+    hoverLayer(svg,w,h,xmax,all,(i,row,ev)=>{
+      showTip(`<b>step ${row.step}</b>`+trow('decode rate',fmt(row.decode_rate_toks_per_s,1)+' tok/s')
+        +trow('emitted',row.emitted_tokens||0)+trow('step dt',row.step_dt_s==null?'—':fmt(row.step_dt_s*1000,0)+' ms')
+        +trow('prefill/decode passes',(row.prefill_passes||0)+' / '+(row.decode_passes||0))
+        +(gated.has(row.step)?trow('⚠','prefill stalled decode'):''),ev);
+    });
+  });
+  tableFor('t_rate',['step','decode_rate_toks_per_s','emitted_tokens','prefill_passes','decode_passes','step_dt_s'],all,
+    {decode_rate_toks_per_s:v=>fmt(v,1),step_dt_s:v=>v==null?'—':fmt(v*1000,0)});
+}
+
+function chartUtil(){
+  const rows=DATA.scheduler; const host='c_util';
+  if(!rows.length){ document.getElementById(host).innerHTML='<div class="empty">no scheduler records</div>'; return; }
+  const xmax=Math.max(...rows.map(r=>r.step),1);
+  mount(host,200,(svg,w,h)=>{
+    const {ix,iy}=axes(svg,w,h,xmax,1,v=>Math.round(v*100)+'%','step',[0,.25,.5,.75,1]);
+    const line=(key,color)=>{ const pts=rows.filter(r=>r[key]!=null);
+      if(!pts.length) return; let s='M'+ix(pts[0].step)+','+iy(pts[0][key]);
+      for(const r of pts) s+=' L'+ix(r.step)+','+iy(r[key]);
+      svg.appendChild(el('path',{d:s,fill:'none',stroke:color,'stroke-width':2,
+        'stroke-linejoin':'round','stroke-linecap':'round'})); };
+    line('kv_util','var(--kv)'); line('batch_util','var(--batch)');
+    hoverLayer(svg,w,h,xmax,rows,(i,row,ev)=>{
+      showTip(`<b>step ${row.step}</b>`+trow('KV util',pct(row.kv_util))+trow('batch util',pct(row.batch_util))
+        +trow('running',(row.num_running||0)+' / '+(row.max_running||0))
+        +trow('waiting',row.num_waiting||0)+trow('free blocks',(row.num_free_blocks||0)+' / '+(row.num_total_blocks||0)),ev);
+    });
+  });
+  tableFor('t_util',['step','kv_util','batch_util','num_running','num_waiting','preempted'],rows,
+    {kv_util:pct,batch_util:pct});
+}
+
+function chartGantt(){
+  const A=DATA.admits, C=DATA.completes; const host='c_gantt';
+  if(!A.length){ document.getElementById(host).innerHTML='<div class="empty">no request records</div>'; return; }
+  const cmap={}; for(const c of C) cmap[c.request_id]=c;
+  const reqs=A.map(a=>({id:a.request_id,slot:a.slot,start:a.step,prompt:a.prompt_len,prefill:a.prefill_len,
+    prefix_hit:a.prefix_cache_hit, end:(cmap[a.request_id]||{}).step, out:(cmap[a.request_id]||{}).output_len}))
+    .sort((x,y)=>x.start-y.start);
+  const stepMax=Math.max(1,...DATA.runner_steps.map(r=>r.step),...C.map(c=>c.step||0));
+  const rowH=26, h=PAD.t+reqs.length*rowH+PAD.b;
+  const GPAD={l:150,r:60};
+  mount(host,h,(svg,w,hh)=>{
+    const ix=scale(0,stepMax,GPAD.l,w-GPAD.r);
+    // x grid + ticks
+    const g=el('g',{class:'grid'}); svg.appendChild(g);
+    for(const xv of niceTicks(stepMax,Math.min(8,stepMax))){ const x=ix(xv);
+      g.appendChild(el('line',{x1:x,y1:PAD.t,x2:x,y2:hh-PAD.b}));
+      const t=el('text',{class:'tick',x:x,y:hh-PAD.b+16,'text-anchor':'middle'}); t.textContent=xv; svg.appendChild(t); }
+    const xl=el('text',{class:'alab',x:(GPAD.l+w-GPAD.r)/2,y:hh-2,'text-anchor':'middle'}); xl.textContent='step'; svg.appendChild(xl);
+    reqs.forEach((r,i)=>{
+      const y=PAD.t+i*rowH+3, bh=rowH-10;
+      const color=`var(--g${(i%8)+1})`;
+      const end=(r.end==null?stepMax:r.end);
+      const x0=ix(r.start), x1=Math.max(x0+2,ix(end));
+      const lab=el('text',{class:'glabel',x:GPAD.l-10,y:y+bh-2,'text-anchor':'end'});
+      lab.textContent=r.id.length>16?r.id.slice(0,16)+'…':r.id; svg.appendChild(lab);
+      const bar=el('rect',{x:x0,y:y,width:x1-x0,height:bh,rx:4,fill:color,'fill-opacity':.9,
+        stroke:'var(--surface)','stroke-width':1});
+      bar.addEventListener('pointermove',(ev)=>showTip(`<b>${r.id}</b>`
+        +trow('slot',r.slot)+trow('admitted step',r.start)+trow('completed step',r.end==null?'(running)':r.end)
+        +trow('prompt len',r.prompt)+trow('output len',r.out==null?'—':r.out)
+        +trow('prefix-cache hit',r.prefix_hit?'yes':'no'),ev));
+      bar.addEventListener('pointerleave',hideTip); svg.appendChild(bar);
+      const olab=el('text',{class:'glabel',x:x1+6,y:y+bh-2}); olab.setAttribute('fill','var(--ink2)');
+      olab.textContent=(r.out==null?'':('+'+r.out+' tok')); svg.appendChild(olab);
+    });
+  });
+  tableFor('t_gantt',['request_id','slot','prompt_len','prefill_len','prefix_cache_hit'],A,{});
+}
+
+function snapPanel(){
+  const s=DATA.snapshot; const host=document.getElementById('c_snap');
+  document.getElementById('snapsub').textContent = s
+    ? `As of step ${s.step} · ${s.slots_occupied}/${s.slots_total} slots occupied · ${fmt(s.decode_rate_toks_per_s,1)} tok/s`
+    : 'no snapshot yet';
+  if(!s || !s.slots || !s.slots.length){ host.innerHTML='<div class="empty">no active slots</div>'; return; }
+  const rows=[...s.slots].sort((a,b)=>a.slot-b.slot);
+  let html='<div class="tblwrap" style="display:block"><table><thead><tr>'
+    +'<th>slot</th><th>request</th><th>state</th><th>computed</th><th>prefill_len</th><th>total_len</th></tr></thead><tbody>';
+  for(const r of rows){ const c=r.state==='DECODE'?'var(--decode)':'var(--prefill)';
+    html+=`<tr><td>${r.slot}</td><td style="text-align:left">${r.request_id}</td>`
+      +`<td style="text-align:left"><span class="dot" style="background:${c}"></span> ${r.state}</td>`
+      +`<td>${r.num_computed_tokens}</td><td>${r.prefill_len}</td><td>${r.total_len}</td></tr>`; }
+  html+='</tbody></table></div>'; host.innerHTML=html;
+}
+
+function chips(){
+  const S=DATA.scheduler; const host=document.getElementById('chips');
+  const last=S[S.length-1]||{};
+  const items=[
+    ['prefill stalled decode', last.cum_decode_stalled_steps||0, 'var(--warning)', 'steps'],
+    ['preemptions', last.cum_preempted||0, 'var(--critical)', ''],
+    ['watermark rejects', last.cum_watermark_rejects||0, 'var(--serious)', ''],
+    ['b1-cap hits', last.cum_b1_cap_hits||0, 'var(--g7)', ''],
+  ];
+  host.innerHTML=items.map(([k,n,c,u])=>`<span class="chip"><span class="dot" style="background:${c}"></span>`
+    +`<span class="n">${n}</span> ${k}${u?(' '+u):''}</span>`).join('');
+}
+
+// Run clock. Duration is measured on the server (record ts, one clock), but in
+// live mode it keeps ticking between polls using CLIENT-side elapsed time added
+// to that server baseline — so it advances smoothly even while idle, and is
+// immune to client/server clock skew (only client-time deltas are added). The
+// anchor only resets when the server's latest ts advances; while stalled (poll
+// failing) the value freezes.
+let _run={start:null,lastTs:null,anchorMs:0};
+let _stalled=false, _frozenDur=0;
+function _allTs(d){
+  return [].concat(d.scheduler||[], d.runner_steps||[], d.admits||[], d.completes||[])
+    .map(r=>r.ts).filter(Boolean);
+}
+function updateRun(){
+  const ts=_allTs(DATA); if(!ts.length) return;
+  const start=Math.min(...ts), last=Math.max(...ts);
+  _run.start = _run.start==null ? start : Math.min(_run.start,start);
+  if(_run.lastTs==null || last>_run.lastTs){ _run.lastTs=last; _run.anchorMs=Date.now(); }
+}
+function liveDuration(){
+  if(_run.start==null) return 0;
+  if(_stalled) return _frozenDur;
+  let d=_run.lastTs-_run.start;
+  if(LIVE) d+=(Date.now()-_run.anchorMs)/1000;
+  return Math.max(0,d);
+}
+
+function tiles(){
+  const R=DATA.runner_steps, S=DATA.scheduler;
+  const rates=R.map(r=>r.decode_rate_toks_per_s).filter(v=>v!=null);
+  const meanRate=rates.length?rates.reduce((a,b)=>a+b,0)/rates.length:null;
+  const peakOcc=R.length?Math.max(...R.map(r=>r.slots_occupied||0)):0;
+  const cap=R.length?Math.max(...R.map(r=>r.slots_total||0)):0;
+  const last=S[S.length-1]||{};
+  const T=[
+    ['requests', `${DATA.completes.length}<span class="u">/ ${DATA.admits.length}</span>`],
+    ['mean decode rate', meanRate==null?'—':`${fmt(meanRate,1)}<span class="u">tok/s</span>`],
+    ['peak slots used', `${peakOcc}<span class="u">/ ${cap}</span>`],
+    ['scheduler steps', `${S.length}`],
+    ['stalled-by-prefill', `${last.cum_decode_stalled_steps||0}<span class="u">steps</span>`],
+    ['run duration', `<span id="run-dur">${fmt(liveDuration(),0)}</span><span class="u">s</span>`],
+  ];
+  document.getElementById('tiles').innerHTML=T.map(([k,v])=>
+    `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function tableFor(id, cols, rows, fmts){
+  const host=document.getElementById(id); if(!rows.length){ host.innerHTML=''; return; }
+  let html='<table><thead><tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr></thead><tbody>';
+  for(const r of rows){ html+='<tr>'+cols.map(c=>{ let v=r[c];
+    if(fmts&&fmts[c]) v=fmts[c](v); else if(typeof v==='boolean') v=v?'yes':'no'; else if(v==null) v='—';
+    return `<td>${v}</td>`; }).join('')+'</tr>'; }
+  html+='</tbody></table>'; host.innerHTML=html;
+}
+
+function renderAll(){
+  if(!DATA){ return; }
+  updateRun();
+  const S=DATA.scheduler||[], R=DATA.runner_steps||[];
+  document.getElementById('sub').textContent =
+    `${S.length} scheduler steps · ${R.length} runner steps · ${DATA.admits.length} requests`
+    + (LIVE?' · live':'');
+  _mounts.length=0;
+  tiles(); chartOccupancy(); chartRate(); chartUtil(); chartGantt(); snapPanel(); chips();
+}
+
+// ---- controls -------------------------------------------------------------
+document.getElementById('themeToggle').addEventListener('click',()=>{
+  const cur=document.documentElement.getAttribute('data-theme');
+  const next = cur==='dark' ? 'light' : (cur==='light' ? '' : 'dark');
+  if(next) document.documentElement.setAttribute('data-theme',next);
+  else document.documentElement.removeAttribute('data-theme');
+  remount();
+});
+let tablesOn=false;
+document.getElementById('tableToggle').addEventListener('click',(e)=>{
+  tablesOn=!tablesOn;
+  document.querySelectorAll('.tblwrap').forEach(t=>{ if(!t.closest('#c_snap')) t.style.display=tablesOn?'block':'none'; });
+  e.target.textContent=tablesOn?'Hide data tables':'Show data tables';
+});
+
+function setLiveBadge(on){
+  const b=document.getElementById('livebadge');
+  if(!LIVE){ b.innerHTML=''; return; }
+  b.innerHTML = on
+    ? '<span class="dot live-on" style="background:var(--good)"></span><span class="live-on">live</span>'
+    : '<span class="dot live-off" style="background:var(--muted)"></span><span class="live-off">stalled</span>';
+}
+
+function markStalled(){
+  if(!_stalled){ _frozenDur=liveDuration(); _stalled=true; }
+  setLiveBadge(false);
+}
+async function poll(){
+  try{ const r=await fetch('data.json?ts='+Date.now(),{cache:'no-store'});
+    if(r.ok){ DATA=await r.json(); _stalled=false; renderAll(); setLiveBadge(true); }
+    else markStalled(); }
+  catch(e){ markStalled(); }
+}
+
+function tickDuration(){
+  const el=document.getElementById('run-dur');
+  if(el) el.textContent=fmt(liveDuration(),0);
+}
+
+if(LIVE){
+  setLiveBadge(false); poll(); setInterval(poll, INTERVAL);
+  // Advance the run-duration readout every second, independent of the poll
+  // cadence, so it reads as a running clock rather than jumping on data changes.
+  setInterval(tickDuration, 1000);
+}
+else { renderAll(); }
+</script>
+</body>
+</html>
