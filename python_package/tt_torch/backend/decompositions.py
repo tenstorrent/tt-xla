@@ -78,6 +78,7 @@ def upsample_linear(
     align_corners: bool,
     scales: List[Optional[float]],
 ) -> torch.Tensor:
+    scales = list(scales)
     input_size = input.shape[-len(scales) :]
 
     for i in range(len(scales)):
@@ -219,8 +220,8 @@ def split_with_sizes(
     # NB: Perform the check_is_size tests first so that the
     # sum test does not try to do a replacement
     for i in range(len(split_sizes)):
-        torch._check_is_size(
-            split_sizes[i],
+        torch._check(
+            split_sizes[i] >= 0,
             lambda: "split_with_sizes expects split_sizes have only non-negative entries",
         )
     torch._check_with(
@@ -254,6 +255,19 @@ def squeeze(input, dims):
     shape = input.shape
     newshape = [s for i, s in enumerate(shape) if i not in dims]
     return input.reshape(newshape)
+
+
+# A no-op view (e.g. `tensor.squeeze(dim)` where `dim` is not of size 1, or an
+# explicit alias) lowers to `prims.view_of`, an identity alias-view. Because it
+# is a non-ATen op whose output carries an alias annotation, `run_decompositions`
+# cannot functionalize it and compilation fails with
+# "Found a custom (non-ATen) operator whose output has alias annotations:
+# prims::view_of". This decomposition rewrites it to an identity reshape, which
+# lowers to a functionalizable `aten.view`. It is a pure no-op (same shape, same
+# data) so it cannot change numerics, and it only ever triggers on graphs that
+# would otherwise fail to compile. Ref: tt-xla #5375.
+def view_of(input):
+    return input.reshape(input.shape)
 
 
 def matmul(
@@ -408,12 +422,97 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
+def nll_loss_backward_no_scatter(
+    grad_output: torch.Tensor,
+    self: torch.Tensor,
+    target: torch.Tensor,
+    weight: Optional[torch.Tensor],
+    reduction: int,
+    ignore_index: int,
+    total_weight: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Decompose nll_loss_backward without ``torch.scatter``.
+
+    The default PyTorch decomposition in
+    ``torch._decomp.decompositions._nll_loss_backward`` materialises the
+    gradient via ``torch.scatter(zeros_like(self), channel_dim, target, -1.0)``.
+    When that scatter is lowered through tt-mlir, the multi-dim form is
+    flattened to a 1D scatter on the ``<B*V>`` flat buffer followed by a
+    reshape back to ``<B, V>``.  The intermediate ``<B*V, 1>`` tile-layout
+    conversion pads the trailing 1 dim to a full 32-wide tile, inflating
+    the buffer by 32x (3 GB for GPT-OSS's V=201088) and exceeding per-chip
+    DRAM under AOTAutograd memory pressure.
+    An alternative approach would be to commute reshapes and other operations
+    around scatter to avoid the pathological shapes, however the simplest case
+    runs into metal L1 OOMs. More robust fix will take time to implement.
+
+    Rewriting the scatter as ``-1.0 * one_hot(target, V)`` keeps everything
+    in the natural ``<..., V>`` shape (both dims tile-aligned for typical
+    vocab sizes), so the IR no longer contains the pathological flat
+    scatter or the trailing ``<N, 1>`` tilize.
+
+    Mirrors the structure of ``_nll_loss_backward`` (Reduction enum from
+    ``torch._decomp.decompositions``: NONE=0, MEAN=1, SUM=2).
+    """
+    MEAN = 1
+    channel_dim = 0 if self.dim() < 2 else 1
+    if reduction == MEAN:
+        grad_output = grad_output / total_weight
+
+    V = self.shape[channel_dim]
+    target = target.unsqueeze(channel_dim)
+    safe_target = torch.where(target != ignore_index, target, 0)
+
+    arange_shape = [1] * self.dim()
+    arange_shape[channel_dim] = V
+    arange = torch.arange(V, device=self.device, dtype=torch.int64).view(arange_shape)
+    one_hot = (arange == safe_target.to(torch.int64)).to(self.dtype)
+    grad_input = -one_hot
+
+    if grad_input.dim() > grad_output.dim() > 0:
+        grad_output = grad_output.unsqueeze(channel_dim)
+
+    if weight is not None:
+        new_shape = [1 for _ in range(self.dim())]
+        new_shape[channel_dim] = weight.shape[0]
+        weight = weight.reshape(new_shape)
+        grad_output = grad_output * weight
+
+    grad_output = torch.where(
+        target != ignore_index, grad_output, torch.zeros_like(grad_output)
+    )
+
+    return grad_input * grad_output
+
+
+def histc(input, bins=100, min=0, max=0):
+    """Decomposition for aten.histc via one_hot + sum."""
+    # torch.histc: equal bounds (min == max, including the 0/0 default) mean "use the
+    # tensor's own range"; if that range is degenerate (constant input), widen by 1
+    # on each side -- matching aten's reference kernel:
+    # https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/SummaryOps.cu#L331
+    if min == max:
+        lo, hi = input.min(), input.max()
+        same = (lo == hi).to(input.dtype)
+        lo, hi = lo - same, hi + same
+    else:
+        lo, hi = min, max
+    x = input.flatten()
+    # bin index of each value; clamp pulls v == hi into the last bin.
+    idx = torch.floor((x - lo) / (hi - lo) * bins).to(torch.long).clamp(0, bins - 1)
+    # values outside [lo, hi] and NaN (compares False) are not counted.
+    valid = (x >= lo) & (x <= hi)
+    onehot = torch.nn.functional.one_hot(idx, bins).to(input.dtype)
+    return (onehot * valid.unsqueeze(-1).to(input.dtype)).sum(dim=0)
+
+
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
-        aten.dot.default: dot,
+        aten.nll_loss_backward.default: nll_loss_backward_no_scatter,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -441,10 +540,12 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.split_with_sizes.default: split_with_sizes,
         aten.masked_fill.Tensor: masked_fill_tensor,
         torch.ops.prims.squeeze.default: squeeze,
+        torch.ops.prims.view_of.default: view_of,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
         aten.sum.dim_IntList: sum_dim_IntList,
+        aten.histc.default: histc,
     }
 
 
@@ -456,10 +557,24 @@ def populate_decompositions() -> DecompositionTable:
     # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
 
-    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
-    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
-    # A custom decomposition dot->matmul is added later (ref dot fn).
+    # Torch decomposition for dot results in a multiply rather than a matmul
+    # https://github.com/tenstorrent/tt-xla/issues/2672
+    # TorchXLA handles dot correctly anyway, so we don't need to decompose it.
     decompositions.pop(torch.ops.aten.dot.default)
+
+    # Sum decompositions were causing a different shape to appear for final reduced loss in a backward test([18] vs [])
+    # And subsequently caused shape mismatch errors in the backward pass.
+    # Same story as above, TorchXLA handles sum correctly anyway, so we don't need to decompose it.
+    decompositions.pop(torch.ops.aten.sum.default)
+    decompositions.pop(torch.ops.aten.sum.out)
+
+    # The core decomposition for aten.detach rewrites it as aten.alias. AOTAutograd
+    # inserts detach() around saved-for-backward tensors as markers; rewriting them
+    # to alias() (a view) confuses the downstream FunctionalTensor / torch-xla
+    # extract_compiled_graph machinery under SPMD multichip and causes user outputs
+    # to be mapped to the wrong tensors (loss/logits resolve to attention
+    # intermediates). Keep detach as a no-op aten op instead.
+    decompositions.pop(torch.ops.aten.detach.default)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())

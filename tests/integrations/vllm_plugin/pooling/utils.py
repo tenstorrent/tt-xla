@@ -19,9 +19,11 @@ def run_pooling_test(
     enable_const_eval: bool = True,
     max_num_reqs: int = 2,
     max_num_batched_tokens: int = 128,
-    optimization_level: int = 0,
+    optimization_level: int = 1,
+    enable_trace: bool = False,
     use_2d_mesh: bool = False,
     mesh_shape: list[int] | None = None,
+    shard_weights_on_batch_axis: bool = True,
 ):
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
@@ -46,8 +48,10 @@ def run_pooling_test(
             "min_context_len": min_context_len,
             "enable_const_eval": enable_const_eval,
             "optimization_level": optimization_level,
+            "enable_trace": enable_trace,
             "use_2d_mesh": use_2d_mesh,
             "mesh_shape": mesh_shape,
+            "shard_weights_on_batch_axis": shard_weights_on_batch_axis,
         },
     }
     model = vllm.LLM(**llm_args)

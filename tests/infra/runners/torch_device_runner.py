@@ -7,7 +7,7 @@ import inspect
 
 import torch
 import torch_xla.distributed.spmd as xs
-from infra.connectors import DeviceConnector
+from infra.connectors import DeviceConnector, DeviceType
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
@@ -119,6 +119,34 @@ def to_device(x, device, depth=5, moved=None):
         return x
 
 
+def _register_activation_constraints(activation_specs, mesh) -> None:
+    """Register forward hooks that constrain each module's OUTPUT sharding.
+
+    ``activation_specs`` maps a module -> output partition spec (``None`` means
+    fully replicate). Hooks are idempotent and registered at most once per module
+    (this runs on every execution). The constraint only fires for XLA tensors, so
+    it is a no-op on the CPU golden path.
+    """
+    if not activation_specs:
+        return
+    from tt_torch.sharding import sharding_constraint_tensor
+
+    def _make_hook(spec):
+        def _hook(_module, _inputs, out):
+            if not torch.is_tensor(out) or out.device.type != "xla":
+                return out
+            resolved = spec if spec is not None else tuple([None] * out.dim())
+            return sharding_constraint_tensor(out, mesh, resolved)
+
+        return _hook
+
+    for module, spec in activation_specs.items():
+        if getattr(module, "_tt_activation_constraint_hooked", False):
+            continue
+        module.register_forward_hook(_make_hook(spec))
+        module._tt_activation_constraint_hooked = True
+
+
 class TorchDeviceRunner(DeviceRunner):
     """Device runner used with torch."""
 
@@ -134,6 +162,24 @@ class TorchDeviceRunner(DeviceRunner):
         # Provide a context manager to enable or disable gradient calculation.
         with torch.set_grad_enabled(self.training_mode):
             return workload.execute()
+
+    # @override
+    def serialize_on_device(
+        self,
+        workload: Workload,
+        output_prefix: str,
+        device_type: DeviceType = DeviceType.TT,
+        device_num: int = 0,
+        compiler_options=None,
+    ) -> None:
+        with torch.set_grad_enabled(self.training_mode):
+            super().serialize_on_device(
+                workload,
+                output_prefix,
+                device_type=device_type,
+                device_num=device_num,
+                compiler_options=compiler_options,
+            )
 
     # @override
     def _safely_put_workload_on_device(
@@ -203,6 +249,19 @@ class TorchDeviceRunner(DeviceRunner):
         if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
+
+        # Apply activation sharding constraints (on intermediate module OUTPUTS)
+        # as forward hooks. Complements the weight mark_sharding above. Registered
+        # once per module (this method runs on every execution, e.g. perf warmup).
+        if (
+            is_multichip
+            and device.type != "cpu"
+            and getattr(workload, "activation_shard_spec_fn", None)
+            and workload.model is not None
+        ):
+            _register_activation_constraints(
+                workload.activation_shard_spec_fn(workload.model), workload.mesh
+            )
 
         # In the future, we will deprecate `workload.model` and use only
         # `workload.compiled_executable` carrying the model.

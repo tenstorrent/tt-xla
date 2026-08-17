@@ -29,26 +29,36 @@ from .shared import (
     wan22_mesh,
 )
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
 )
 
 
+# strict=False: fails on galaxy-bh (Fabric Router Sync: Timeout after 10000 ms on Device 0,
+# fabric_firmware_initializer.cpp:263); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh Fabric Router Sync: Timeout after 10000 ms (fabric_firmware_initializer.cpp:263). Tracked by https://github.com/tenstorrent/tt-xla/issues/5679.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_vae_encoder_720p():
     _run("720p", sharded=False)
 
 
+@pytest.mark.xfail(
+    reason="galaxy-bh Fabric Router Sync: Timeout after 10000 ms (fabric_firmware_initializer.cpp:263). Tracked by https://github.com/tenstorrent/tt-xla/issues/5679.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_vae_encoder_480p():
     _run("480p", sharded=False)
 
@@ -76,7 +86,7 @@ def _run(resolution: str, sharded: bool) -> None:
         graph=model,
         inputs=[x],
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
+        compiler_config=COMPILER_CONFIG,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
     )

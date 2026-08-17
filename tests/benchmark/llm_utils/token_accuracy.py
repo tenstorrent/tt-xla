@@ -244,3 +244,56 @@ class TokenAccuracy:
             return True
 
         return False
+
+
+def score_token_accuracy(
+    token_accuracy: "TokenAccuracy", per_user_predictions: list[list[int]]
+) -> tuple[float, list[dict]]:
+    """Aggregate per-user TOP1/TOP5 accuracy into a score and measurements.
+
+    Shared by the custom torch-xla path (llm_benchmark.py) and the vLLM path
+    (vllm_benchmark.py) so both report identically-computed numbers under the
+    same measurement names.
+
+    Uses the 5th percentile as the primary score: "95% of users are at or above
+    this", which catches a single broken user that averaging would hide.
+
+    Returns:
+        Tuple of (evaluation_score, custom_measurements) where evaluation_score
+        is TOP1 p5 in range [0.0, 1.0] and custom_measurements is ready to
+        extend a benchmark result's measurement list.
+    """
+    import numpy as np
+
+    all_top1 = []
+    all_top5 = []
+    for user_tokens in per_user_predictions:
+        user_top1, user_top5 = token_accuracy.compute_accuracy(user_tokens)
+        all_top1.append(user_top1)
+        all_top5.append(user_top5)
+
+    all_top1 = np.array(all_top1)
+    all_top5 = np.array(all_top5)
+
+    top1_p5 = float(np.percentile(all_top1, 5))
+    top5_p5 = float(np.percentile(all_top5, 5))
+    top1_mean = float(all_top1.mean())
+    top5_mean = float(all_top5.mean())
+
+    print(
+        f"Token accuracy over {len(all_top1)} users:\n"
+        f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
+        f"median={np.median(all_top1)*100:.2f}%  mean={top1_mean*100:.2f}%  "
+        f"max={all_top1.max()*100:.2f}%\n"
+        f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
+        f"median={np.median(all_top5)*100:.2f}%  mean={top5_mean*100:.2f}%  "
+        f"max={all_top5.max()*100:.2f}%"
+    )
+
+    measurements = [
+        {"measurement_name": "top1_accuracy_p5", "value": top1_p5 * 100},
+        {"measurement_name": "top5_accuracy_p5", "value": top5_p5 * 100},
+        {"measurement_name": "top1_accuracy_mean", "value": top1_mean * 100},
+        {"measurement_name": "top5_accuracy_mean", "value": top5_mean * 100},
+    ]
+    return top1_p5, measurements

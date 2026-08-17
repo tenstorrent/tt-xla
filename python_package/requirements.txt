@@ -2,9 +2,9 @@
 jax==0.7.1
 jaxlib==0.7.1
 requests
-torch@https://download.pytorch.org/whl/cpu/torch-2.10.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
+torch@https://download.pytorch.org/whl/cpu/torch-2.11.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru
-torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit8d31cb3-cp312-cp312-linux_x86_64.whl
+torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgited8a445-cp312-cp312-linux_x86_64.whl
 
 # Pin nanobind to match tt-metal's version (v2.10.2) for ABI compatibility.
 # A mismatch causes segfaults in nb_type_c2p when PythonModelRunner converts
@@ -18,3 +18,15 @@ seaborn==0.13.2
 pyyaml==6.0.3
 click==8.3.1
 pandas==3.0.0
+# tracy's serve_wasm.py imports websockets
+websockets==16.0
+
+# tt-lang (light build, 07/04).
+# SYNC WITH tt-metal: tt-lang generates kernel code (TTNN/tt-metal C++) that
+# must match the tt-metal API/ABI it runs against. tt-mlir (pinned in
+# third_party) points to a specific tt-metal, and tt-xla executes the
+# tt-lang-generated kernels through that tt-metal. This pin is therefore the
+# tt-lang version whose generated code is compatible with the tt-metal that
+# our current tt-mlir points to. When tt-mlir (and thus its tt-metal) is
+# uplifted, this tt-lang pin must be uplifted in sync.
+tt_lang@https://pypi.eng.aws.tenstorrent.com/2026-07/tt-lang/tt_lang-1.1.5.dev20260704%2Blight-cp312-cp312-manylinux_2_34_x86_64.whl

@@ -121,10 +121,10 @@ def test_non_greedy(device, vocab_size):
     assert_valid_tokens(actual, vocab_size)
 
 
-# Vocabs whose chunk count under chunked_topk_candidates is unsupported by
-# the tt::sampling kernel: Wt=1 (single chunk) or Wt not a power of 2.
-# Covers the kernel-hang cases from #4560 that VOCAB_SIZES doesn't reach.
-UNSUPPORTED_WT_VOCAB_SIZES = [
+# Vocabs whose raw chunk count violates the tt::sampling Wt precondition and so
+# depend on the W-padding in chunked_topk_candidates: Wt=1 (single chunk) or Wt
+# not a power of 2. VOCAB_SIZES doesn't reach these.
+PADDED_WT_VOCAB_SIZES = [
     pytest.param(32000, id="wt1_1chunk"),
     pytest.param(65537, id="wt3_3chunks"),
     pytest.param(196608, id="wt6_6chunks"),
@@ -133,9 +133,15 @@ UNSUPPORTED_WT_VOCAB_SIZES = [
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.parametrize("vocab_size", UNSUPPORTED_WT_VOCAB_SIZES)
-def test_non_greedy_unsupported_wt(device, vocab_size):
-    """Regression: unsupported Wt (=1, or non-power-of-2) must not hang the kernel (#4560)."""
+@pytest.mark.parametrize("vocab_size", PADDED_WT_VOCAB_SIZES)
+def test_non_greedy_padded_wt(device, vocab_size):
+    """Vocabs that need the W-padding in chunked_topk_candidates to satisfy the
+    tt::sampling Wt = W/32 power-of-2 precondition (tenstorrent/tt-metal#44558).
+
+    If the padding regresses, wt3/wt6 hit a tt-metal assert reported only as
+    `RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13` (real message
+    is in the loguru `critical` line), and wt1 hangs.
+    """
     logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
 
     compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)

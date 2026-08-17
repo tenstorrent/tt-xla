@@ -41,7 +41,7 @@ from .shared import (
 MAX_BLOCKS = 0
 
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
     enable_trace=True,
@@ -52,8 +52,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
-@pytest.mark.xfail(reason="PCC comparison fails: ~0.35 on full model (required 0.99)")
+@pytest.mark.galaxy_bh
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
@@ -62,8 +61,7 @@ def test_wan_dit_720p_sharded():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
-@pytest.mark.xfail(reason="PCC comparison fails: ~0.32 on full model (required 0.99)")
+@pytest.mark.galaxy_bh
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 
@@ -95,7 +93,7 @@ def _run(resolution: str, sharded: bool) -> None:
             graph=model,
             inputs=[hidden_states, timestep, encoder_hidden_states],
             framework=Framework.TORCH,
-            compiler_config=_COMPILER_CONFIG,
+            compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
         )

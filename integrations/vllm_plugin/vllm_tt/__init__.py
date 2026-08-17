@@ -6,14 +6,61 @@ import os
 
 from vllm.v1.attention.backends.registry import AttentionBackendEnum, register_backend
 
-# Register TT attention backend at module import time
+# Register TT attention backends at module import time
 register_backend(
     backend=AttentionBackendEnum.CUSTOM,
-    class_path="vllm_tt.attention.TTAttentionBackend",
+    class_path="vllm_tt.attention_impls.attention.TTAttentionBackend",
+)
+register_backend(
+    backend=AttentionBackendEnum.FLASH_ATTN_MLA,
+    class_path="vllm_tt.attention_impls.attention_mla.TTMLAAttentionBackend",
 )
 
 
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+    # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
+    # Needed here as well: TT_VISIBLE_DEVICES is vLLM's device_control_env_var,
+    # and this is the earliest hook that runs in every spawned worker.
+    from pjrt_plugin_tt import normalize_tt_visible_devices
+
+    normalize_tt_visible_devices()
+
     return "vllm_tt.platform.TTPlatform"
+
+
+def register_oot_layers():
+    # Patch vLLM Attention symbol from the general-plugins path.
+    import vllm.model_executor.layers.attention as _attn_pkg
+    import vllm.model_executor.layers.attention.attention as _attn_mod
+    import vllm.model_executor.layers.attention.encoder_only_attention as _enc_attn_mod
+    from vllm_tt.attention_impls.attention import TTAttention, TTEncoderOnlyAttention
+
+    _attn_mod.Attention = TTAttention
+    _attn_pkg.Attention = TTAttention
+    _enc_attn_mod.Attention = TTAttention
+
+    _enc_attn_mod.EncoderOnlyAttention = TTEncoderOnlyAttention
+    _attn_pkg.EncoderOnlyAttention = TTEncoderOnlyAttention
+
+    # Registers all OOT backends
+    from .attention_impls import attention_mla  # noqa: F401
+
+    # Patch the FusedMoE factory for TT MoE.
+    from .layers.fused_moe import install_tt_fused_moe
+
+    install_tt_fused_moe()
+
+    # Gemma4's multimodal encoder queries torch.accelerator.get_memory_info(),
+    # which asserts on the TT device; route it to a host-memory estimate.
+    from .platform import install_tt_accelerator_memory_info
+
+    install_tt_accelerator_memory_info()
+
+    # Bound a sliding-window layer's per-request KV by the per-request prefill
+    # chunk instead of the batch-wide token budget.
+    from .platform import install_tt_sliding_window_admission
+
+    install_tt_sliding_window_admission()

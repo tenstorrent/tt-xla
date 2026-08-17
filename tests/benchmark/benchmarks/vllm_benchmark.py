@@ -9,10 +9,19 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import vllm
 from utils import (
+    align_arch,
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
 )
+
+# Accuracy testing: total reference length, split in half by
+# init_accuracy_testing() into prompt (prefill) and teacher-forced decode.
+# Must stay equal to test_llms.py's DEFAULT_INPUT_SEQUENCE_LENGTH: both paths
+# share the same reference_outputs/<model>.refpt files and needs_regeneration()
+# does not compare total_length, so divergence silently scores one path against
+# a mismatched context window.
+_ACCURACY_TOTAL_LENGTH = 128
 
 DEFAULT_PROMPT = (
     "Here is an exhaustive list of the best practices for writing clean code:"
@@ -65,6 +74,35 @@ class VLLMEmbeddingBenchmarkConfig:
     batch_size: int = 1
     warmup_iterations: int = 1
     loop_count: int = 32
+
+
+def _get_device_info_from_engine(
+    llm: vllm.LLM,
+) -> Tuple[str, int, Optional[Tuple[int, int]]]:
+    """
+    Read real TT device info from the live vLLM engine's worker(s).
+
+    Returns:
+        (arch, device_count, mesh_shape)
+    """
+    arch = ""
+    device_count = 1
+    mesh_shape = None
+    try:
+        results = llm.collective_rpc("get_device_info")
+        if results and results[0]:
+            info = results[0]
+            arch = align_arch(str(info.get("arch", "")).lower())
+            device_count = max(int(info.get("device_count", 1)), 1)
+            resolved_mesh = info.get("mesh_shape")
+            if isinstance(resolved_mesh, (list, tuple)) and len(resolved_mesh) == 2:
+                mesh_shape = (int(resolved_mesh[0]), int(resolved_mesh[1]))
+    except Exception as e:
+        print(
+            f"Warning: could not read TT device info from engine ({e}); using defaults."
+        )
+
+    return arch, max(int(device_count), 1), mesh_shape
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -162,23 +200,6 @@ def _extract_metrics(
     )
 
 
-def _get_device_info(
-    config: VLLMBenchmarkConfig,
-) -> Tuple[str, int, Optional[Tuple[int, int]]]:
-    """
-    Derive device info from config.
-
-    This is a workaround as these info are needed for the benchmark schema, but
-    vLLM abstracts the device layer. Mesh shape follows the plugin convention (num_devices, 1).
-
-    Returns:
-        (arch, device_count, mesh_shape)
-    """
-    if config.additional_config.get("enable_tensor_parallel", False):
-        return "wormhole_llmbox", 8, (8, 1)
-    return "wormhole", 1, None
-
-
 def _assert_token_counts(
     outputs: List[vllm.RequestOutput], max_tokens: int, max_model_len: int
 ):
@@ -212,11 +233,181 @@ def _assert_no_preemptions(llm: vllm.LLM):
     assert False, "vllm:num_preemptions metric not found in engine metrics."
 
 
-def benchmark_vllm(
+def _extract_decode_predictions(
+    output: vllm.RequestOutput, expected_count: int
+) -> List[int]:
+    """Per-step device argmax token ids from a teacher-forced accuracy run.
+
+    With teacher forcing, `output.outputs[0].token_ids` are the injected
+    ground-truth tokens, so the device's own predictions must be read from the
+    per-step sample logprobs (each step's highest-logprob token is the device
+    argmax). Asserts the full decode window is present so a backend that
+    silently drops logprobs fails loudly instead of reporting a false 0%
+    accuracy regression.
+    """
+    step_logprobs = output.outputs[0].logprobs
+    assert step_logprobs is not None, (
+        "No decode logprobs returned; the vLLM backend must honor "
+        "SamplingParams(logprobs=1) for accuracy testing."
+    )
+    assert len(step_logprobs) == expected_count, (
+        f"Expected {expected_count} decode-step logprobs, got "
+        f"{len(step_logprobs)}. Backend returned an incomplete decode window."
+    )
+    predicted_tokens = []
+    for pos_logprobs in step_logprobs:
+        top1_token = max(pos_logprobs, key=lambda k: pos_logprobs[k].logprob)
+        predicted_tokens.append(top1_token)
+    return predicted_tokens
+
+
+def _perf_measurements(avg_ttft_ms: float, avg_tokens_per_sec: float) -> List[dict]:
+    return [
+        {"measurement_name": "ttft", "value": avg_ttft_ms, "target": -1},
+        {
+            "measurement_name": "samples_per_sec",
+            "value": avg_tokens_per_sec,
+            "target": -1,
+        },
+    ]
+
+
+def _assert_no_speculative_decode(llm: vllm.LLM) -> None:
+    """Fail an accuracy run whose engine has speculative decode enabled.
+
+    Teacher forcing only holds on the one-token-per-step path: under speculative
+    decode the accepted draft tokens have already been through the verify pass,
+    so their KV entries are written and the scored numbers would be meaningless.
+    Read off the live engine so this catches speculative decode however it was
+    configured, and call it before any generate so nothing gets published.
+
+    TTModelRunner only warns in the equivalent spot, deliberately: a stray
+    extra_args must never crash a real inference run, whose output is usable
+    even when it is not token-identical.
+    """
+    spec_config = llm.llm_engine.vllm_config.speculative_config
+    assert spec_config is None, (
+        "vLLM accuracy testing is not supported with speculative decode "
+        f"(speculative_config={spec_config}). Teacher forcing cannot override "
+        "accepted draft tokens without desyncing the KV cache from the recorded "
+        "token ids. Run accuracy with speculative decode disabled."
+    )
+
+
+def _benchmark_vllm_accuracy(
     config: VLLMBenchmarkConfig,
     display_name: str,
 ) -> Dict[str, Any]:
+    """Teacher-forced decode accuracy run through vLLM.
+
+    Prompts with the prefill half of the reference sequence and generates the
+    decode half; the vllm_tt runner overrides each sampled token with the
+    ground-truth token (via extra_args), so every decode step sees the reference
+    context — exactly like llm_benchmark.py. The device's own argmax per step
+    survives in `logprobs` (gathered before the override), which is what gets
+    scored. Prediction 0 comes from the prefill forward; predictions 1..N-1 come
+    from the decode kernel.
+    """
+    # Imported here rather than at module scope: llm_utils.decode_utils and
+    # transformers pull in heavy deps (decode_utils imports tracy / infra /
+    # tt_torch, hence torch_xla). Perf runs use --confcutdir=tests/benchmark
+    # specifically so torch_xla never enters the vLLM engine process.
+    from llm_utils.decode_utils import init_accuracy_testing
+    from llm_utils.token_accuracy import score_token_accuracy
+    from transformers import AutoTokenizer
+
+    # Shares the .refpt on-demand regeneration + half/half prefill/decode split
+    # with the custom torch-xla path (tests/benchmark/test_llms.py), so both
+    # paths score against identically-built reference data.
+    tokenizer = AutoTokenizer.from_pretrained(config.model)
+    token_accuracy, _ = init_accuracy_testing(
+        model_name_for_accuracy=config.model.split("/")[-1],
+        max_cache_len=_ACCURACY_TOTAL_LENGTH,
+        tokenizer=tokenizer,
+        hf_model_name=config.model,
+    )
+
+    llm = _create_llm(config)
+    arch, device_count, mesh_shape = _get_device_info_from_engine(llm)
+
+    _assert_no_speculative_decode(llm)
+
+    input_prompt_tokens = token_accuracy.input_prompt.tolist()
+    ground_truth_tokens = token_accuracy.reference_tokens.tolist()
+    num_decode = len(ground_truth_tokens)
+
+    accuracy_params = vllm.SamplingParams(
+        max_tokens=num_decode,
+        ignore_eos=True,
+        temperature=0.0,
+        logprobs=1,
+        extra_args={"teacher_forcing_tokens": ground_truth_tokens},
+    )
+    print(
+        f"\nRunning accuracy test (prompt={len(input_prompt_tokens)} tokens, "
+        f"teacher-forced decode={num_decode} tokens, "
+        f"batch_size={config.batch_size})..."
+    )
+    accuracy_outputs = llm.generate(
+        [{"prompt_token_ids": input_prompt_tokens} for _ in range(config.batch_size)],
+        accuracy_params,
+    )
+
+    # A preempted request re-prefills and loses its teacher-forced context,
+    # which shows up as an accuracy drop that looks like a model regression.
+    _assert_no_preemptions(llm)
+
+    # The accuracy run is a real generate, so report perf alongside accuracy
+    # rather than leaving zeros in the record, matching llm_benchmark.py.
+    (
+        avg_ttft_ms,
+        tokens_per_user,
+        avg_decode_time_s,
+        avg_tokens_per_sec,
+    ) = _extract_metrics(accuracy_outputs)
+
+    per_user_predictions = [
+        _extract_decode_predictions(output, num_decode) for output in accuracy_outputs
+    ]
+
+    # Eyeball check on user 0: both streams are per-position teacher-forced
+    # argmax (not free-running text), so the fraction of matching tokens equals
+    # TOP1. Clamped to the window compute_accuracy() actually scores.
+    golden_ids = token_accuracy.top1_tokens.tolist()
+    scored = min(len(golden_ids), len(per_user_predictions[0]))
+    print(f"\n  [golden] {tokenizer.decode(golden_ids[:scored])!r}")
+    print(f"  [device] {tokenizer.decode(per_user_predictions[0][:scored])!r}")
+
+    evaluation_score, accuracy_measurements = score_token_accuracy(
+        token_accuracy, per_user_predictions
+    )
+
+    return _build_result(
+        config=config,
+        display_name=display_name,
+        arch=arch,
+        device_count=device_count,
+        mesh_shape=mesh_shape,
+        dataset_name="Tale of Two Cities (Reference Data)",
+        evaluation_score=evaluation_score,
+        avg_ttft_ms=avg_ttft_ms,
+        avg_decode_time_s=avg_decode_time_s,
+        avg_tokens_per_sec=avg_tokens_per_sec,
+        total_samples=sum(tokens_per_user),
+        custom_measurements=_perf_measurements(avg_ttft_ms, avg_tokens_per_sec)
+        + accuracy_measurements,
+    )
+
+
+def benchmark_vllm(
+    config: VLLMBenchmarkConfig,
+    display_name: str,
+    accuracy_testing: bool = False,
+) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
+    if accuracy_testing:
+        return _benchmark_vllm_accuracy(config, display_name)
+
     sampling_params = vllm.SamplingParams(
         max_tokens=config.max_tokens,
         ignore_eos=True,
@@ -224,6 +415,7 @@ def benchmark_vllm(
     )
 
     llm = _create_llm(config)
+    arch, device_count, mesh_shape = _get_device_info_from_engine(llm)
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
@@ -263,26 +455,42 @@ def benchmark_vllm(
         avg_decode_time_s,
         avg_tokens_per_sec,
     ) = _extract_metrics(outputs)
-    total_samples = sum(tokens_per_user)
 
+    return _build_result(
+        config=config,
+        display_name=display_name,
+        arch=arch,
+        device_count=device_count,
+        mesh_shape=mesh_shape,
+        dataset_name="Random Data",
+        # vLLM doesn't expose raw logits, so PCC comparison is not possible.
+        evaluation_score=0.0,
+        avg_ttft_ms=avg_ttft_ms,
+        avg_decode_time_s=avg_decode_time_s,
+        avg_tokens_per_sec=avg_tokens_per_sec,
+        total_samples=sum(tokens_per_user),
+        custom_measurements=_perf_measurements(avg_ttft_ms, avg_tokens_per_sec),
+    )
+
+
+def _build_result(
+    config: VLLMBenchmarkConfig,
+    display_name: str,
+    arch: str,
+    device_count: int,
+    mesh_shape: Any,
+    dataset_name: str,
+    evaluation_score: float,
+    avg_ttft_ms: float,
+    avg_decode_time_s: float,
+    avg_tokens_per_sec: float,
+    total_samples: int,
+    custom_measurements: List[dict],
+) -> Dict[str, Any]:
+    """Print the benchmark summary and build the standardised result dict."""
     metadata = get_benchmark_metadata()
     full_model_name = config.model
     model_type = "text-generation"
-    dataset_name = "Random Data"
-    # vLLM doesn't expose raw logits, so PCC comparison is not possible.
-    evaluation_score = 0.0
-    custom_measurements = [
-        {
-            "measurement_name": "ttft",
-            "value": avg_ttft_ms,
-            "target": -1,
-        },
-        {
-            "measurement_name": "samples_per_sec",
-            "value": avg_tokens_per_sec,
-            "target": -1,
-        },
-    ]
 
     print_benchmark_results(
         model_title=full_model_name,
@@ -300,8 +508,6 @@ def benchmark_vllm(
         input_sequence_length=config.max_model_len,
         ttft_ms=avg_ttft_ms,
     )
-
-    arch, device_count, mesh_shape = _get_device_info(config)
 
     return create_benchmark_result(
         full_model_name=full_model_name,
@@ -360,6 +566,8 @@ def benchmark_vllm_embedding(
     print(f"  LLM args: {llm_args}")
     llm = vllm.LLM(**llm_args)
 
+    arch, device_count, _ = _get_device_info_from_engine(llm)
+
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
         for _ in range(config.warmup_iterations):
@@ -417,9 +625,9 @@ def benchmark_vllm_embedding(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch="wormhole",
+        arch=arch,
         input_is_image=False,
         input_sequence_length=config.max_model_len,
-        device_count=1,
+        device_count=device_count,
         vllm=True,
     )

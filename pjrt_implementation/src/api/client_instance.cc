@@ -11,10 +11,15 @@
 #include "api/client_instance.h"
 
 // c++ standard library includes
+#include <cerrno>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <map>
 #include <optional>
+
+// system includes
+#include <unistd.h>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -117,6 +122,9 @@ static tt_pjrt_status launchDistributedRuntime() {
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
   // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
   const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
+  // On/off toggle for routing every rank through `python -m tracy` via ttrun
+  // Args forwarded verbatim to `python -m tracy`.
+  const char *tracy_cmd = std::getenv("TT_DISTRIBUTED_TRACY_CMD");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -129,13 +137,8 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
-  // On a single node setup (eg. split llmbox), these environment variables are
-  // not set.
-  if (!controller_host_name) {
-    DLOG_F(
-        WARNING,
-        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
-  }
+  // On a single-node setup (eg. split llmbox) the hosts env vars are not set;
+  // warn but continue, since MPI can still run locally.
   if (!hosts_list && !hosts_file) {
     DLOG_F(WARNING, "Neither TT_DISTRIBUTED_HOSTS_LIST nor "
                     "TT_DISTRIBUTED_HOSTS_FILE environment variable is set");
@@ -143,6 +146,7 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   tt::runtime::setMetalHome(metal_home);
 
+  // Parse the comma-separated hosts list (if provided) into a vector.
   std::vector<std::string> hosts_list_vec;
   if (hosts_list) {
     std::string host;
@@ -152,6 +156,7 @@ static tt_pjrt_status launchDistributedRuntime() {
     }
   }
 
+  // Run MPI over self+TCP; optionally override the remote-exec (rsh) agent.
   std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
@@ -175,16 +180,37 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
 
+  // Controller hostname: prefer the explicit env-var override, otherwise fall
+  // back to this machine's hostname.
+  if (controller_host_name) {
+    distributed_options.multiProcessArgs->withControllerHostname(
+        controller_host_name);
+  } else {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+      LOG_F(
+          ERROR,
+          "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set "
+          "and gethostname "
+          "failed: %s",
+          strerror(errno));
+    } else {
+      // gethostname may not null-terminate on truncation; do it ourselves.
+      hostname[sizeof(hostname) - 1] = '\0';
+      distributed_options.multiProcessArgs->withControllerHostname(hostname);
+      LOG_F(INFO,
+            "TT_DISTRIBUTED_CONTROLLER_HOST_NAME not set; defaulted "
+            "controller hostname to: %s",
+            hostname);
+    }
+  }
+
   if (tt_distributed_tcp_iface) {
     distributed_options.multiProcessArgs->withTcpInterface(
         tt_distributed_tcp_iface);
   }
 
-  if (controller_host_name) {
-    distributed_options.multiProcessArgs->withControllerHostname(
-        controller_host_name);
-  }
-
+  // Hosts list and hosts file are mutually exclusive (validated above).
   if (!hosts_list_vec.empty()) {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
   } else if (hosts_file) {
@@ -193,6 +219,20 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (rank_file_path) {
     distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
+  }
+
+  if (tracy_cmd) {
+    // NOTE: `-r` must be present in TT_DISTRIBUTED_TRACY_CMD for tracy to
+    // actually capture and write .tracy/csv output; without it the rank dirs
+    // stay empty.
+    std::vector<std::string> tracy_args;
+    std::istringstream tracy_arg_stream(tracy_cmd);
+    std::string tracy_arg;
+    while (tracy_arg_stream >> tracy_arg) {
+      tracy_args.push_back(tracy_arg);
+    }
+    distributed_options.multiProcessArgs->withTracy(true).withTracyArgs(
+        tracy_args);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
@@ -455,13 +495,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
     const std::unordered_map<std::string, std::string> &compile_options,
-    const std::optional<std::vector<int64_t>> &replica_device_ids) {
+    const std::optional<std::vector<int64_t>> &replica_device_ids,
+    size_t target_num_devices) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
-                                    compile_options, this);
+                                    compile_options, this, target_num_devices);
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -523,18 +564,14 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // [Workaround] Galaxy lacks a both-axis wrap, so
   // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
-  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
-  // Wormhole) have the wrap, so keep their auto-detected fabric.
-  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
-                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
-                          ::tt::target::Arch::Blackhole;
-  if (is_blackhole && m_devices.size() == 32) {
-    LOG_F(WARNING,
-          "Auto-overriding fabric config to FABRIC_1D for the "
-          "32-device Blackhole galaxy (UBB); this is a workaround, not "
-          "expected behaviour.");
+  // TopologyMapper; force FABRIC_1D there.
+  if (m_devices.size() == 32) {
+    LOG_F(
+        WARNING,
+        "Auto-overriding fabric config to FABRIC_1D for the 32-device galaxy; "
+        "this is a workaround, not expected behaviour.");
     return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
                                          {}};
   }
@@ -821,6 +858,14 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }
 
+  // SPMD partition count (>1 = genuine multi-device SPMD run) tells the module
+  // builder to give no-input graphs the full mesh instead of collapsing it.
+  // Uses num_partitions, not the device-assignment size: the size counts host
+  // devices and wrongly fires for a single-chip graph on a multi-chip host.
+  size_t target_num_devices =
+      static_cast<size_t>(CompileOptionsParser::extractNumPartitions(
+          args->compile_options, args->compile_options_size));
+
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {
@@ -836,7 +881,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map, replica_device_ids);
+      compile_options_map, replica_device_ids, target_num_devices);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

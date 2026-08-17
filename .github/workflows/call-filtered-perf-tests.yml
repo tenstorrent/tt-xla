@@ -63,6 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-perf-benchmarks.outputs.matrix }}
+      matrix_skip: ${{ steps.set-perf-benchmarks.outputs.matrix_skip }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
@@ -90,10 +91,12 @@ jobs:
         echo $result
         matrix=$(echo $result | jq -r -c '.matrix')
         echo "matrix=$matrix" >> $GITHUB_OUTPUT
+        matrix_skip=$(echo $result | jq -r -c '.matrix_skip')
+        echo "matrix_skip=$matrix_skip" >> $GITHUB_OUTPUT
 
   run-perf-benchmarks:
     needs: filter-tests
-    if: ${{ !cancelled() && needs.filter-tests.result == 'success' }}
+    if: ${{ !cancelled() && needs.filter-tests.result == 'success' && needs.filter-tests.outputs.matrix_skip != 'true' }}
     secrets: inherit
     uses: ./.github/workflows/call-perf-test.yml
     with:
@@ -105,5 +108,4 @@ jobs:
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
-      sh-runner: ${{ inputs.sh-runner || false }}
       check_fusions: ${{ inputs.check_fusions }}

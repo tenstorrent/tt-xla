@@ -135,6 +135,7 @@ jobs:
           venv/
           examples/
           scripts/
+          mixed_precision/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -156,6 +157,12 @@ jobs:
       env:
         JOB_ID: ${{ job.check_run_id }}
       run: |
+        # Check if --dump-irs is in matrix.build.args
+        if [[ "${{ matrix.build.args }}" == *"--dump-irs"* ]]; then
+          echo "dump-irs=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "dump-irs=${{ inputs.dump_irs }}" >> "$GITHUB_OUTPUT"
+        fi
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
@@ -235,13 +242,15 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+
+    - name: Generate topology environment exports
+      if: ${{ matrix.build.topology }}
+      shell: bash
+      run: |
         source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
-        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
@@ -338,7 +347,7 @@ jobs:
           $CONTAINS_ARG \
           $PYTEST_SPLITS"
 
-        if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
+        if [[ "${{ inputs.dump_irs }}" == "true" && "${{ matrix.build.args }}" != *"--dump-irs"* ]]; then
           BASE_PYTEST_CMD="$BASE_PYTEST_CMD --dump-irs"
         fi
 
@@ -371,7 +380,12 @@ jobs:
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
-        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+        COLLECTED_TESTS=$(grep "::" collected_tests.txt | tr '\n' ' ' || true)
+        if [[ -n "$COLLECTED_TESTS" ]]; then
+          NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $COLLECTED_TESTS 2>/dev/null | grep -c "::" || true)
+        else
+          NOTIMEOUT_COUNT=0
+        fi
         if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
           echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
           ESTIMATED_DURATION=240
@@ -441,29 +455,32 @@ jobs:
         if-no-files-found: 'ignore'
 
     - name: Prune oversized IR dump folders
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       shell: bash
       run: |
         ir_root="collected_irs"
-        max_bytes=$((100 * 1024 * 1024))
+        max_bytes=$((200 * 1024 * 1024))
 
         if [[ ! -d "$ir_root" ]]; then
           echo "$ir_root/ does not exist, nothing to prune"
           exit 0
         fi
 
+        echo "=== Removing .ttnn files from collected_irs ==="
+        find collected_irs -type f -name "*.ttnn" -print -delete
+
         for dir in "$ir_root"/*/; do
           size_bytes=$(du -sb "$dir" | cut -f1)
 
           if (( size_bytes > max_bytes )); then
             size_human=$(du -sh "$dir" | cut -f1)
-            echo "::warning::Pruning IR dump folder larger than 100MB (${size_human}): ${dir%/}"
+            echo "::warning::Pruning IR dump folder larger than 200MB (${size_human}): ${dir%/}"
             rm -rf -- "$dir"
           fi
         done
 
     - name: Upload IR Dumps
-      if: inputs.dump_irs && (success() || failure())
+      if: steps.strings.outputs.dump-irs == 'true' && (success() || failure())
       uses: actions/upload-artifact@v6
       with:
         name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}

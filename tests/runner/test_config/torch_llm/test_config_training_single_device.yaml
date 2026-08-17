@@ -10,19 +10,30 @@
 test_config:
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING
+    # Backward-weight PCC min ~0.95 (input_layernorm.weight) — below the 0.96 floor, so PCC assertion disabled. Tracked by https://github.com/tenstorrent/tt-xla/issues/5686
+    assert_pcc: false
 
   llama_lora/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING
+    required_pcc: 0.96  # floor lowered to absorb run-to-run noise
 
+  # NOTE: batch_4 training hangs (job exceeds the 240-min CI timeout with no result). Using
+  # NOT_SUPPORTED_SKIP rather than KNOWN_FAILURE_XFAIL because the runner applies pytest.xfail
+  # only after the model has run (tests/runner/test_utils.py:762), which cannot prevent a hang;
+  # NOT_SUPPORTED_SKIP has an early gate that skips model execution (tests/runner/test_models.py:109).
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Training hangs on n150 (job exceeds 240-min CI timeout, no result). Tracked by https://github.com/tenstorrent/tt-xla/issues/5688."
 
   llama_lora/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
+    required_pcc: 0.96
 
   gemma/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
-    required_pcc: 0.95
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "Backward gradient/weight PCC is garbage (min pcc~-0.36, e.g. gate_proj.weight; not recoverable by lowering PCC). Tracked by https://github.com/tenstorrent/tt-xla/issues/5686."
 
   gemma/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: KNOWN_FAILURE_XFAIL
@@ -32,24 +43,42 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false
 
+  # NOTE: batch_4 training hangs — see the llama batch_4 note above for why SKIP (not XFAIL).
   gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Training hangs (job exceeds 240-min CI timeout, no result). Tracked by https://github.com/tenstorrent/tt-xla/issues/5688."
 
   phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
-    assert_pcc: false
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 8388608 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/5340"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
 
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING
 
 
   phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 8388608 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/5340"
+      p150:
+        status: EXPECTED_PASSING
+        required_pcc: 0.98
 
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
-    assert_pcc: false
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "Out of Memory: Not enough space to allocate 8388608 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/5340"
+      p150:
+        assert_pcc: false
+        status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING

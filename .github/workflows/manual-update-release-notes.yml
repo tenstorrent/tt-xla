@@ -94,7 +94,16 @@ jobs:
         with:
           query: report/model_performance
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "wormhole"}'
-          output_file: perf.json
+          output_file: perf-n150.json
+          max_attempts: 12
+          retry_interval_seconds: 120
+
+      - name: Fetch model performance
+        uses: ./.github/actions/superset-api
+        with:
+          query: report/model_performance
+          query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "blackhole"}'
+          output_file: perf-p150.json
           max_attempts: 12
           retry_interval_seconds: 120
 
