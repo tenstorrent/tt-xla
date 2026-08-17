@@ -10,8 +10,8 @@ REGRESSION_THRESHOLD_PCT = 5.0
 
 
 def check_regression(label, prev, current):
-    if prev is None or current is None:
-        print(f"{label}: missing data, skipping")
+    if prev is None or current is None or prev == 0:
+        print(f"{label}: no valid baseline (prev={prev}, current={current}), skipping")
         return False
     drop_pct = (prev - current) / prev * 100
     if drop_pct >= REGRESSION_THRESHOLD_PCT:

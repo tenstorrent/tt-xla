@@ -8,6 +8,7 @@ from pathlib import Path
 import jax._src.xla_bridge as xb
 from pjrt_plugin_tt import (
     get_library_path,
+    normalize_tt_visible_devices,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
 )
@@ -18,6 +19,8 @@ from .monkeypatch import setup_monkey_patches
 def initialize():
     setup_tt_pjrt_plugin_dir()
     setup_tt_metal_home()
+    # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
+    normalize_tt_visible_devices()
     library_path = get_library_path()
 
     xb.register_plugin(

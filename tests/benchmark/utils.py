@@ -312,7 +312,9 @@ def print_benchmark_results(
     print(f"| Date: {date}")
     print(f"| Machine name: {machine_name}")
     print(f"| Total samples: {total_samples}")
-    print(f"| Avg. decode time: {total_time}")
+    print(f"| Total time (s): {total_time}")
+    avg_time_per_sample = total_time / total_samples if total_samples else 0.0
+    print(f"| Avg. time per sample (s): {avg_time_per_sample}")
     print(f"| Avg. samples per second: {samples_per_sec}")
 
     if cpu_samples_per_sec is not None:

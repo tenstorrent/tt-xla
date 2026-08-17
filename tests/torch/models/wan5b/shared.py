@@ -90,6 +90,25 @@ def load_first_frame_image(image_path: Path, height: int, width: int) -> torch.T
     return tensor.unsqueeze(0).unsqueeze(2).to(torch.bfloat16)  # (1, 3, 1, H, W)
 
 
+def make_synthetic_first_frame(height: int, width: int) -> torch.Tensor:
+    """Deterministic stand-in first-frame image in the exact
+    (1, 3, 1, H, W) bf16 [-1, 1] format ``load_first_frame_image`` returns.
+
+    The e2e comparison derives both the reference and the device output from
+    this same frame, so pixel *content* never affects pass/fail — only that a
+    valid frame flows through the encoder. Content must be deterministic (no
+    unseeded randomness) so runs are reproducible; a fixed RGB gradient does.
+    """
+    ys, xs = np.mgrid[0:height, 0:width].astype(np.float32)
+    r = xs / max(width - 1, 1)
+    g = ys / max(height - 1, 1)
+    b = (r + g) / 2.0
+    arr = np.stack([r, g, b], axis=-1)  # (H, W, 3) in [0, 1]
+    tensor = torch.from_numpy(arr).permute(2, 0, 1)  # (3, H, W)
+    tensor = tensor * 2.0 - 1.0  # [-1, 1]
+    return tensor.unsqueeze(0).unsqueeze(2).to(torch.bfloat16)  # (1, 3, 1, H, W)
+
+
 # ---------------------------------------------------------------------------
 # Prompt cleaning — matches diffusers/pipeline_wan.py:78-93 and Wan repo.
 # ---------------------------------------------------------------------------

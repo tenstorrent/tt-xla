@@ -130,7 +130,10 @@ def vllm_n300_llmbox():
         max_num_seqs=1,
         max_model_len=128,
         gpu_memory_utilization=0.002,
-        additional_config={**_DEVICE_OPTS, "enable_tensor_parallel": True},
+        additional_config={
+            **_DEVICE_OPTS,
+            "enable_tensor_parallel": True,
+        },
     )
 
 
@@ -205,3 +208,13 @@ def test_device_sampling_repetition_penalty(llm):
     assert (
         words.count(most_common) <= len(words) // 2
     ), f"Output looks like a repetition loop: {text!r}"
+
+
+@for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+def test_device_sampling_greedy_penalty(llm):
+    """Greedy (temperature=0) with a penalty active routes through
+    Sampler.greedy_sample instead of the sample_from_logits fast-path,
+    exercising the vocab-sharded greedy argmax on the sampler side."""
+    params = vllm.SamplingParams(temperature=0, repetition_penalty=1.1, max_tokens=32)
+    text = llm.generate([PROMPT], params)[0].outputs[0].text
+    assert_coherent(text, "greedy+rep_penalty")

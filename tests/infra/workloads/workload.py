@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import torch
 import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
@@ -110,7 +111,7 @@ class Workload:
                         f.unlink()
 
             xr.clear_computation_cache()
-
+            torch._dynamo.reset()
             self.execute()
             parse_compiled_artifacts_from_cache_to_disk(cache_dir, output_prefix)
 

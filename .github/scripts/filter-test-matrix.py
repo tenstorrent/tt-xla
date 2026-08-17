@@ -13,6 +13,8 @@ def flatten_matrix(data):
     for proj in data:
         test_defaults = proj.get("test-defaults", {})
         for test in proj.get("tests", []):
+            if test.get("skip"):
+                continue
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
             runs_on = merged_test.get("runs-on", [])
@@ -35,7 +37,8 @@ def filter_matrix_adv(matrix, adv_filter):
     Filter is JSON array with sets of conditions.
     Each condition might have elements:
       - "runs-on": machine(s) on which the test should run. If ommited, condition will be applied to all unskipped machines. Parameter can be string or array of strings.
-      - "filter": string that should be present in the test name.
+      - "filter": string (or comma-separated list / list of strings) that should be present in the test name (include match).
+      - "exclude": string (or comma-separated list / list of strings) — any test whose name contains one of these substrings is dropped. Applied AFTER "filter".
       - "accuracy-testing": whether to include accuracy testing or not.
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
@@ -69,18 +72,17 @@ def filter_matrix_adv(matrix, adv_filter):
 
         # Update conditions for target runners
         for runner in target_runners:
-            if condition.get("filter") is not None:
-                if "filter" not in runner_conditions[runner]:
-                    runner_conditions[runner]["filter"] = []
-                filter_value = condition["filter"]
-                if isinstance(filter_value, list):
-                    runner_conditions[runner]["filter"].extend(
-                        f.lower() for f in filter_value
-                    )
-                else:
-                    runner_conditions[runner]["filter"].extend(
-                        f.lower() for f in filter_value.split(",")
-                    )
+            for key in ("filter", "exclude"):
+                if condition.get(key) is not None:
+                    if key not in runner_conditions[runner]:
+                        runner_conditions[runner][key] = []
+                    value = condition[key]
+                    if isinstance(value, list):
+                        runner_conditions[runner][key].extend(v.lower() for v in value)
+                    else:
+                        runner_conditions[runner][key].extend(
+                            v.lower() for v in value.split(",")
+                        )
             if condition.get("accuracy-testing") is not None:
                 runner_conditions[runner]["accuracy-testing"] = condition[
                     "accuracy-testing"
@@ -96,10 +98,12 @@ def filter_matrix_adv(matrix, adv_filter):
             conditions = runner_conditions[runner]
             if conditions["skip"]:
                 continue
+            name_lc = item.get("name", "").lower()
             if "filter" in conditions and conditions["filter"]:
-                if not any(
-                    f in item.get("name", "").lower() for f in conditions["filter"]
-                ):
+                if not any(f in name_lc for f in conditions["filter"]):
+                    continue
+            if "exclude" in conditions and conditions["exclude"]:
+                if any(e in name_lc for e in conditions["exclude"]):
                     continue
             if "accuracy-testing" in conditions and conditions[
                 "accuracy-testing"
@@ -111,17 +115,18 @@ def filter_matrix_adv(matrix, adv_filter):
 
 
 def update_runners(matrix, sh_runner):
-    """Update runner names based on shared runner flag."""
-    runner_map = (
-        {"p150": "p150b", "p150-perf": "p150b"} if sh_runner else {"n150": "n150-perf"}
-    )
+    """Resolve each test's final ``runs-on`` label and shared-runner flag."""
+    no_shared_runner = ("galaxy-wh-6u", "galaxy-bh", "qb2-blackhole")
+    civ2_name_map = {"n150-perf": "n150", "p150-perf": "p150b"}
 
     for item in matrix:
-        item["runs-on-original"] = item.get("runs-on")
-        if item.get("runs-on") in runner_map:
-            item["runs-on"] = runner_map[item["runs-on"]]
-
-    return matrix
+        runs_on = item.get("runs-on")
+        item["runs-on-original"] = runs_on
+        item["shared-runners"] = sh_runner and runs_on not in no_shared_runner
+        if item["shared-runners"]:
+            item["runs-on"] = (
+                f"tt-ubuntu-2204-{civ2_name_map.get(runs_on, runs_on)}-stable"
+            )
 
 
 def main():

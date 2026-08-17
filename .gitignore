@@ -53,3 +53,6 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+# vLLM serving telemetry output (issue #5715); default dir is <cwd>/tt_telemetry
+tt_telemetry/

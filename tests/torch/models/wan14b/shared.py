@@ -5,15 +5,13 @@
 """
 Shared helpers for Wan 2.2 A14B (14B) component tests.
 
-A14B comes in two pipeline variants that share the same UMT5 text encoder
-and Wan 2.1 VAE but use different transformer repos:
-
-  - ``MODEL_ID_T2V`` — text-to-video (in_channels=16)
-  - ``MODEL_ID_I2V`` — image-to-video (in_channels=36; 16 latent + 4 mask + 16 cond)
-
-Both variants use a *dual* transformer (``transformer/`` high-noise expert +
-``transformer_2/`` low-noise expert), gated by ``boundary_ratio`` at inference
-time. ``load_dit(subfolder=...)`` picks one expert.
+These tests target the image-to-video (I2V) variant: ``MODEL_ID`` is the I2V
+transformer repo (``in_channels=36`` = 16 latent + 4 mask + 16 image-cond).
+A14B also has a text-to-video variant (``in_channels=16``); both share the same
+UMT5 text encoder and Wan 2.1 VAE and use a *dual* transformer
+(``transformer/`` high-noise expert + ``transformer_2/`` low-noise expert),
+gated by ``boundary_ratio`` at inference. ``load_dit(subfolder=...)`` picks one
+expert.
 
 Exposes:
   - RESOLUTIONS: dict of 480p and 720p shape configs (Wan 2.1 VAE: scale=8)
@@ -36,11 +34,10 @@ from PIL import Image
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-MODEL_ID_T2V = "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
 MODEL_ID_I2V = "Wan-AI/Wan2.2-I2V-A14B-Diffusers"
-# Default for standalone component tests (text encoder, VAE encoder/decoder,
-# DiT in_channels=16). The e2e test selects per-mode.
-MODEL_ID = MODEL_ID_T2V
+# Default repo for the component tests (text encoder, VAE encoder/decoder, DiT
+# in_channels=36). UMT5/VAE weights are shared with the T2V variant.
+MODEL_ID = MODEL_ID_I2V
 
 # Boundary timestep ratio = boundary_ratio * num_train_timesteps. Above
 # boundary → high-noise expert (``transformer``); below → low-noise expert
@@ -271,6 +268,16 @@ class WanDiTWrapper(nn.Module):
 
 _MESH_SHAPES = {32: (8, 4), 8: (2, 4), 4: (1, 4), 2: (1, 2), 1: (1, 1)}
 
+# Logical roles of the two mesh axes, shared by every Wan component on the 2D
+# ("batch", "model") mesh:
+#   TP_AXIS = "model" — tensor-parallel (Megatron column→row weight sharding).
+#       Always size 4 in _MESH_SHAPES, so head/d_ff splits are size-stable.
+#   SP_AXIS = "batch" — sequence-parallel (shard the activation L dim; no weight
+#       has an L dim, so it is applied via sharding_constraint on activations).
+#       Size 1/2/8 across the 4/8/32-device meshes.
+TP_AXIS = "model"
+SP_AXIS = "batch"
+
 
 def wan22_mesh() -> Mesh:
     """2D ("batch", "model") SPMD mesh sized to current device count."""
@@ -286,36 +293,45 @@ def wan22_mesh() -> Mesh:
 
 
 # ---------------------------------------------------------------------------
-# UMT5 sharding
+# UMT5 text-encoder sharding
 # ---------------------------------------------------------------------------
+#
+# Strategy: Megatron tensor parallelism (TP) on TP_AXIS ("model", size 4) only.
+# shard_umt5_specs shards the encoder weights column→row on "model"; the residual
+# stream, norms and embedding stay replicated. Only the "model" axis is sharded;
+# the "batch" axis is replicated.
+#
+# Per block:
+#   - column-parallel q/k/v, wi_0/wi_1  → (TP_AXIS, None)   no CCL
+#   - row-parallel    o, wo             → (None, TP_AXIS)   1 all-reduce on "model"
+#   - norms / residual D / embedding    → replicated → norms stay local
+#   - relative_attention_bias (per layer) → head dim on "model"
 
 
 def shard_umt5_specs(encoder) -> dict:
-    """Build shard specs for UMT5EncoderModel weights.
-
-    Mesh axes: ("batch", "model")
-    Column-parallel (q, k, v, wi_0, wi_1):  ("model", "batch")
-    Row-parallel   (o, wo):                 ("batch", "model")
     """
-    specs = {encoder.shared.weight: (None, "batch")}
+    Megatron tensor-parallel (TP) shard specs for the UMT5 encoder weights.
+    """
+    col = (TP_AXIS, None)  # column-parallel: shard output dim (heads / d_ff)
+    row = (None, TP_AXIS)  # row-parallel:    shard input dim → all-reduce after
 
+    specs: dict = {}
     for block in encoder.encoder.block:
         sa = block.layer[0].SelfAttention
-        specs[sa.q.weight] = ("model", "batch")
-        specs[sa.k.weight] = ("model", "batch")
-        specs[sa.v.weight] = ("model", "batch")
-        specs[sa.o.weight] = ("batch", "model")
-        specs[block.layer[0].layer_norm.weight] = ("batch",)
+        specs[sa.q.weight] = col
+        specs[sa.k.weight] = col
+        specs[sa.v.weight] = col
+        specs[sa.o.weight] = row
+        # Per-layer relative position bias [num_buckets, num_heads]: shard the
+        # head dim to match the head-split q/k/v (column-parallel) activation.
         if hasattr(sa, "relative_attention_bias"):
-            specs[sa.relative_attention_bias.weight] = (None, "model")
+            specs[sa.relative_attention_bias.weight] = row
 
         ffn = block.layer[1].DenseReluDense
-        specs[ffn.wi_0.weight] = ("model", "batch")
-        specs[ffn.wi_1.weight] = ("model", "batch")
-        specs[ffn.wo.weight] = ("batch", "model")
-        specs[block.layer[1].layer_norm.weight] = ("batch",)
+        specs[ffn.wi_0.weight] = col
+        specs[ffn.wi_1.weight] = col
+        specs[ffn.wo.weight] = row
 
-    specs[encoder.encoder.final_layer_norm.weight] = ("batch",)
     return specs
 
 
@@ -436,14 +452,6 @@ def shard_vae_decoder_specs(vae, mesh: Mesh) -> dict:
 # ---------------------------------------------------------------------------
 # DiT sharding
 # ---------------------------------------------------------------------------
-
-
-# Tensor-parallel axis (Megatron column→row weight sharding); the other matrix
-# dim and all boundary tensors stay replicated.
-TP_AXIS = "model"
-# Sequence-parallel axis for DiT activation sharding (the activation L dim has
-# no analog in any weight, so it is sharded via constraints, not shard_dit_specs).
-SP_AXIS = "batch"
 
 
 def _megatron_linear_pair_specs(linear_1, linear_2) -> dict:
@@ -572,6 +580,20 @@ def apply_dit_sp_activation_sharding(dit, mesh: Mesh) -> None:
     """
     from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
 
+    from .monkey_patch import _patch_pad_seq_len_to_tile_aligned
+
+    # SP shards the patchified sequence dim L. For the SP scatter (ttnn.mesh_partition)
+    # and the distributed reductions to stay tile-aligned, the padded L must be a
+    # multiple of SP*32, so each of the SP shards is a whole number of 32-row tiles.
+    # Pad to that target in two coordinated places, both keyed off `tile`:
+    #   - hidden_states: _patch_pad_seq_len_to_tile_aligned (model forward + K/V slice)
+    #   - rope freqs: the _rope_hook below (while replicated, before the SP shard)
+    # Both pads live here so the benchmark and the correctness suite get the fix
+    # purely by calling apply_dit_sp_activation_sharding (no per-test wiring).
+    sp = mesh.shape()[SP_AXIS]
+    tile = sp * 32
+    _patch_pad_seq_len_to_tile_aligned(tile=tile)
+
     def _block_entry_pre_hook(module, args):
         hidden_states = args[0]
         hidden_states = sharding_constraint_tensor(
@@ -585,13 +607,24 @@ def apply_dit_sp_activation_sharding(dit, mesh: Mesh) -> None:
     dit.blocks[0].register_forward_pre_hook(_block_entry_pre_hook)
 
     def _rope_hook(module, input, output):
+        import torch.nn.functional as F
+
         freqs_cos, freqs_sin = output
+        # Replicated anchor (terminates the reshape back-propagation).
         freqs_cos = sharding_constraint_tensor(
             freqs_cos, mesh, (None, None, None, None)
         )
         freqs_sin = sharding_constraint_tensor(
             freqs_sin, mesh, (None, None, None, None)
         )
+        # Pad L to `tile` (= SP*32) WHILE REPLICATED, so the SP shard below splits
+        # into whole 32-row tiles — same target as the hidden_states pad in
+        # _patch_pad_seq_len_to_tile_aligned. Padding a sharded dim would pile all
+        # padding on the last shard (uneven), so it must happen before the SP shard.
+        pad = (-freqs_cos.shape[1]) % tile
+        if pad:
+            freqs_cos = F.pad(freqs_cos, (0, 0, 0, 0, 0, pad))
+            freqs_sin = F.pad(freqs_sin, (0, 0, 0, 0, 0, pad))
         freqs_cos = sharding_constraint_tensor(
             freqs_cos, mesh, (None, SP_AXIS, None, None)
         )
