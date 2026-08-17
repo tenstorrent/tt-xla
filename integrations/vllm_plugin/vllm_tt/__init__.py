@@ -20,6 +20,14 @@ register_backend(
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+    # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
+    # Needed here as well: TT_VISIBLE_DEVICES is vLLM's device_control_env_var,
+    # and this is the earliest hook that runs in every spawned worker.
+    from pjrt_plugin_tt import normalize_tt_visible_devices
+
+    normalize_tt_visible_devices()
+
     return "vllm_tt.platform.TTPlatform"
 
 
@@ -39,4 +47,20 @@ def register_oot_layers():
 
     # Registers all OOT backends
     from .attention_impls import attention_mla  # noqa: F401
-    from .layers.fused_moe import TTFusedMoE  # noqa: F401
+
+    # Patch the FusedMoE factory for TT MoE.
+    from .layers.fused_moe import install_tt_fused_moe
+
+    install_tt_fused_moe()
+
+    # Gemma4's multimodal encoder queries torch.accelerator.get_memory_info(),
+    # which asserts on the TT device; route it to a host-memory estimate.
+    from .platform import install_tt_accelerator_memory_info
+
+    install_tt_accelerator_memory_info()
+
+    # Bound a sliding-window layer's per-request KV by the per-request prefill
+    # chunk instead of the batch-wide token budget.
+    from .platform import install_tt_sliding_window_admission
+
+    install_tt_sliding_window_admission()

@@ -302,6 +302,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         parallel_config = self.parallel_config
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
+        self.use_flat_model_io = self.tt_config.flat_model_io
 
         # Data parallel execution
         self.num_additional_inputs = 0
@@ -352,13 +353,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sliding_window = model_config.get_sliding_window()
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
-        self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
-        self.num_blocks_per_most_len_req = (
-            cdiv(self.most_model_len, self.block_size)
-            if self.most_model_len is not None
-            else None
-        )
 
         # Pooling runner always prepares request-wise batched inputs with shape
         # [num_reqs, padded_request_len]. Pad lengths are therefore bounded by
@@ -427,6 +422,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # If there's no kv_cache_spec, we don't need KV cache block tables
         kv_cache_spec = self.get_kv_cache_spec()
         block_sizes = [self.block_size] if kv_cache_spec else []
+        max_num_blocks_per_req = [cdiv(self.max_model_len, bs) for bs in block_sizes]
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -438,6 +434,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             vocab_size=self.model_config.get_vocab_size(),
             block_sizes=block_sizes,
             kernel_block_sizes=block_sizes,
+            max_num_blocks_per_req=max_num_blocks_per_req,
             logitsprocs=build_logitsprocs(
                 self.vllm_config,
                 "cpu",
@@ -460,16 +457,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self.positions_np = self.positions_cpu.numpy()
         # adjust num_reqs to avoid SMEM OOM.
-        self.num_reqs_most_model_len = (
-            min(
-                TTAttentionBackend.get_max_num_seqs(
-                    self.most_model_len, self.block_size
-                ),
-                self.max_num_reqs,
-            )
-            if self.most_model_len is not None
-            else None
-        )
         self.num_reqs_max_model_len = min(
             TTAttentionBackend.get_max_num_seqs(self.max_model_len, self.block_size),
             self.max_num_reqs,
@@ -872,35 +859,22 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_additional_inputs = 0
 
         # Get the number of scheduled tokens for each request.
-        use_max_model_len = self.most_model_len is None
         num_scheduled_tokens_per_req = []
         max_num_scheduled_tokens_all_reqs = 0
         end_index = start_index
 
-        # Use either most_model_len or max_model_len depending on request size.
         for i in range(start_index, num_reqs):
             req_id = self.input_batch.req_ids[i]
             assert req_id is not None
             num_tokens = scheduler_output.num_scheduled_tokens[req_id]
-            if not use_max_model_len and num_tokens > self.most_model_len:
-                use_max_model_len = True
             num_scheduled_tokens_per_req.append(num_tokens)
-        if use_max_model_len:
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_max_model_len
-                ]
-                end_index = start_index + self.num_reqs_max_model_len
-            else:
-                end_index = num_reqs
+        if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
+            num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
+                : self.num_reqs_max_model_len
+            ]
+            end_index = start_index + self.num_reqs_max_model_len
         else:
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_most_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_most_model_len
-                ]
-                end_index = start_index + self.num_reqs_most_model_len
-            else:
-                end_index = num_reqs
+            end_index = num_reqs
         max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
         num_scheduled_tokens_per_req = np.array(
             num_scheduled_tokens_per_req, dtype=np.int32
@@ -980,10 +954,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             + num_scheduled_tokens_per_req
         )
 
-        if use_max_model_len:
-            seq_lens = self.seq_lens_cpu[:num_reqs]
-        else:
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
+        seq_lens = self.seq_lens_cpu[:num_reqs]
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1214,6 +1185,48 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # then the embedding layer is not included in the CUDA graph.
             return input_ids, None
 
+    def _prepare_model_call_tensors(
+        self,
+        input_ids: torch.Tensor | None,
+        positions: torch.Tensor,
+        inputs_embeds: torch.Tensor | None,
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor,
+        torch.Tensor | None,
+        Optional[torch.Size],
+    ]:
+        if not self.use_flat_model_io:
+            return input_ids, positions, inputs_embeds, None
+
+        restore_shape: Optional[torch.Size] = None
+
+        if input_ids is not None and input_ids.ndim > 1:
+            restore_shape = input_ids.shape
+            input_ids = input_ids.reshape(-1)
+
+        if inputs_embeds is not None and inputs_embeds.ndim > 2:
+            if restore_shape is None:
+                restore_shape = torch.Size(inputs_embeds.shape[:-1])
+            inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+
+        if positions.ndim > 1:
+            if restore_shape is None:
+                restore_shape = positions.shape
+            positions = positions.reshape(-1)
+
+        return input_ids, positions, inputs_embeds, restore_shape
+
+    def _restore_model_hidden_states(
+        self,
+        hidden_states: torch.Tensor,
+        restore_shape: Optional[torch.Size],
+    ) -> torch.Tensor:
+        if restore_shape is None or hidden_states.ndim != 2:
+            return hidden_states
+
+        return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1264,10 +1277,23 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.vllm_config,
                 num_tokens=scheduler_output.total_num_scheduled_tokens,
             ):
+                (
+                    model_input_ids,
+                    model_positions,
+                    model_inputs_embeds,
+                    hidden_state_shape,
+                ) = self._prepare_model_call_tensors(
+                    input_ids,
+                    self.position_ids,
+                    inputs_embeds,
+                )
                 hidden_states = self.model(
-                    input_ids=input_ids,
-                    positions=self.position_ids,
-                    inputs_embeds=inputs_embeds,
+                    input_ids=model_input_ids,
+                    positions=model_positions,
+                    inputs_embeds=model_inputs_embeds,
+                )
+                hidden_states = self._restore_model_hidden_states(
+                    hidden_states, hidden_state_shape
                 )
                 hidden_states = hidden_states.to("cpu")
 
@@ -1527,9 +1553,22 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
-            out = self.model(
-                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(
+                input_ids,
+                position_ids,
+                inputs_embeds,
             )
+            out = self.model(
+                input_ids=model_input_ids,
+                positions=model_positions,
+                inputs_embeds=model_inputs_embeds,
+            )
+            out = self._restore_model_hidden_states(out, hidden_state_shape)
         self._hidden_states_dtype = out.dtype
 
     def _set_active_loras(
@@ -1569,11 +1608,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     num_reqs,
                     num_tokens,
                 )
-                if self.most_model_len is not None:
-                    self._dummy_run(
-                        num_reqs,
-                        num_tokens,
-                    )
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1654,8 +1688,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Trigger compilation for general shape.
         torch._dynamo.config.dynamic_shapes = False
         self._dummy_run(self.max_num_reqs, self.num_reqs_max_model_len)
-        if self.most_model_len is not None:
-            self._dummy_run(self.max_num_reqs, self.num_reqs_most_model_len)
 
         torch_xla.sync(wait=False)
         xm.wait_device_ops()

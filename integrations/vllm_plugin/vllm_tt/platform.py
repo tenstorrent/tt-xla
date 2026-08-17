@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
+from vllm.utils.math_utils import cdiv
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 if TYPE_CHECKING:
@@ -32,6 +33,7 @@ else:
 from torch_xla import runtime as xrt
 
 from .logger import tt_init_logger
+from .swa_cache_utils import sliding_ring_is_profitable, sliding_window_blocks
 
 logger = tt_init_logger(__name__)
 
@@ -89,6 +91,24 @@ class TTConfig:
     # Resolved/validated in TTPlatform.check_and_update_config.
     prefill_kv_watermark: float = 0.25
 
+    # Serving telemetry. When True, the scheduler and the v1 model
+    # runner emit JSON-lines telemetry (batch occupancy, prefill/decode pass
+    # split, decode rate, preemption, queue depth, KV/batch utilization) for
+    # offline analysis. Zero-cost when off (a single bool check on the hot path).
+    # No per-step disk I/O: records buffer in memory and flush on an interval /
+    # at request completion / at shutdown. See vllm_tt/telemetry.py.
+    # Override at runtime with env var TTXLA_TELEMETRY (truthy), which takes
+    # precedence over additional_config. Resolved in check_and_update_config.
+    telemetry_enabled: bool = False
+
+    # Directory for telemetry JSON-lines sinks (scheduler.jsonl, runner.jsonl,
+    # runner_snapshot.json). Env override: TTXLA_TELEMETRY_DIR. Default ./tt_telemetry.
+    telemetry_dir: str = "./tt_telemetry"
+
+    # Minimum gap (milliseconds) between telemetry disk flushes. Env override:
+    # TTXLA_TELEMETRY_FLUSH_MS. Default 1000.
+    telemetry_flush_ms: float = 1000.0
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -107,7 +127,7 @@ class TTConfig:
     enable_tensor_parallel: bool = False
 
     # Optimization level (0, 1, or 2) that controls multiple optimization passes.
-    # Level 0 (default): All optimizations disabled
+    # Level 0: All optimizations disabled
     # Level 1: Basic optimizations (optimizer + Conv2d fusion)
     # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
     optimization_level: int = 1
@@ -218,6 +238,7 @@ class TTConfig:
             if self.enable_tensor_parallel:
                 name = f"{name}_g{xrt.global_ordinal()}"
             cfg["export_model_name"] = name
+        logger.info("PJRT compile config: %s", cfg)
         return cfg
 
 
@@ -243,6 +264,44 @@ class TTPlatform(Platform):
     # whether seeded sampling is supported (host path supports it; the
     # device-side tt::sampling kernel does not yet).
     _cpu_sampling: bool = False
+
+    @classmethod
+    def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
+        """Validate the first TT speculative-decode support slice.
+
+        For now, TT only supports method='ngram' in synchronous scheduling.
+        All other methods and async scheduling are rejected explicitly.
+        """
+        speculative_config = vllm_config.speculative_config
+        if speculative_config is None:
+            return
+
+        method = getattr(speculative_config, "method", None)
+        if method != "ngram":
+            raise NotImplementedError(
+                "TT speculative decoding currently supports only "
+                "speculative_config.method='ngram'."
+            )
+
+        if getattr(vllm_config.scheduler_config, "async_scheduling", False):
+            raise NotImplementedError(
+                "TT ngram speculative decoding currently supports only "
+                "synchronous scheduling (async_scheduling=False)."
+            )
+
+        if hasattr(speculative_config, "use_ngram_gpu") and callable(
+            speculative_config.use_ngram_gpu
+        ):
+            if speculative_config.use_ngram_gpu():
+                raise NotImplementedError(
+                    "TT speculative decoding does not support ngram_gpu yet. "
+                    "Use method='ngram' (CPU proposer path)."
+                )
+
+        logger.info(
+            "[TT] Enabling speculative decoding with method='ngram' "
+            "(synchronous scheduling only)."
+        )
 
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
@@ -296,6 +355,57 @@ class TTPlatform(Platform):
 
         vm = psutil.virtual_memory()
         return vm.available, vm.total
+
+    @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        # Emit per-attention-type kv_cache_groups (like every other platform);
+        # the base default False downgrades sliding-window layers to full
+        # attention, making them pay the full max_model_len KV cost.
+        return True
+
+    @classmethod
+    def _maybe_disable_unprofitable_hybrid_kv_cache(
+        cls, vllm_config: "VllmConfig"
+    ) -> None:
+        """Opt out of the sliding-window ring where it costs more than full
+        attention.
+
+        Each sliding layer gets its own per-user ring on TT (vLLM's cross-group
+        byte-overlay is impossible here), which only beats full attention once
+        the window actually clips the context. Below that the window never
+        slides yet the ring still pays its ``+1`` straddle block and stick
+        alignment, so let vLLM unify the specs into the shared pool instead.
+
+        Decided at config time from the HF config rather than the per-layer
+        specs, and model-wide because ``disable_hybrid_kv_cache_manager`` is a
+        single switch.
+        """
+        model_config = vllm_config.model_config
+        scheduler_config = vllm_config.scheduler_config
+        # Respect an explicit user choice (either direction).
+        if scheduler_config.disable_hybrid_kv_cache_manager is not None:
+            return
+        sliding_window = model_config.get_sliding_window()
+        # max_model_len == -1 means vLLM auto-fits it later from the KV budget,
+        # so the value here is a placeholder -- leave the ring enabled.
+        if not sliding_window or model_config.original_max_model_len == -1:
+            return
+
+        max_model_len = model_config.max_model_len
+        block_size = vllm_config.cache_config.block_size
+        if sliding_ring_is_profitable(sliding_window, block_size, max_model_len):
+            return
+
+        scheduler_config.disable_hybrid_kv_cache_manager = True
+        logger.info(
+            "[TT] Disabling the hybrid KV cache manager: at max_model_len=%d a "
+            "sliding-window ring costs %d blocks per user per layer against %d "
+            "for full attention. Sliding layers will share the full-attention "
+            "pool.",
+            max_model_len,
+            sliding_window_blocks(sliding_window, block_size, max_model_len),
+            cdiv(max_model_len, block_size),
+        )
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -422,6 +532,40 @@ class TTPlatform(Platform):
             )
         additional_config["prefill_kv_watermark"] = wm
 
+        # Written back so the runner (typed TTConfig) and the scheduler (raw
+        # additional_config, separate process) read the same settings.
+        tele_enabled = bool(additional_config.get("telemetry_enabled", False))
+        env_tele = os.environ.get("TTXLA_TELEMETRY")
+        if env_tele is not None:
+            tele_enabled = env_tele.strip().lower() in {"1", "true", "yes", "on"}
+        additional_config["telemetry_enabled"] = tele_enabled
+
+        env_tele_dir = os.environ.get("TTXLA_TELEMETRY_DIR", "").strip()
+        # reset_sinks joins this path, so an empty value would delete
+        # sink-named files from the process CWD.
+        additional_config["telemetry_dir"] = (
+            env_tele_dir
+            or (additional_config.get("telemetry_dir") or "").strip()
+            or TTConfig.telemetry_dir
+        )
+
+        env_tele_flush = os.environ.get("TTXLA_TELEMETRY_FLUSH_MS")
+        if env_tele_flush is not None:
+            try:
+                additional_config["telemetry_flush_ms"] = float(env_tele_flush)
+            except ValueError:
+                # A telemetry knob must never crash the engine.
+                additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+        elif additional_config.get("telemetry_flush_ms") is None:
+            additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+
+        # Must precede every collector: the scheduler's is built after warmup
+        # and the snapshot is never truncated on init.
+        if additional_config["telemetry_enabled"]:
+            from .telemetry import reset_sinks
+
+            reset_sinks(additional_config["telemetry_dir"])
+
         vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
@@ -436,10 +580,31 @@ class TTPlatform(Platform):
                 "vllm_tt.scheduler.AscendScheduler"
             )
 
+        # TT does not support asynchronous scheduling (is_async_output_supported
+        # is False). v0.25.1 auto-enables it when left unset, which drives the
+        # AscendScheduler stale-request path into an endless preempt/retry loop.
+        # Force it off.
+        vllm_config.scheduler_config.async_scheduling = False
+
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
+
+        # The block pool is global but each replica holds its own KV cache, so
+        # block id N is different memory per device and a cross-replica hit
+        # reads zeros. Chunked-prefill continuation is unaffected (same request,
+        # same replica).
+        if (
+            tt_config.enable_data_parallel
+            and cache_config
+            and cache_config.enable_prefix_caching
+        ):
+            logger.warning(
+                "[TT] Disabling prefix caching: it is not safe under data "
+                "parallelism (per-replica KV cache vs global block pool)."
+            )
+            cache_config.enable_prefix_caching = False
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_TRACE_ONCE compilation level
@@ -463,9 +628,7 @@ class TTPlatform(Platform):
         if compilation_config.backend == "":
             compilation_config.backend = "tt"
 
-        assert (
-            vllm_config.speculative_config is None
-        ), "TT does not support speculative decoding"
+        cls._validate_speculative_decode_config(vllm_config)
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -485,14 +648,12 @@ class TTPlatform(Platform):
             vllm_config
         )  # type: ignore[assignment]
 
+        cls._maybe_disable_unprofitable_hybrid_kv_cache(vllm_config)
+
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
-
-        assert (
-            not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TT backend"
 
         if (
             scheduler_config.is_multimodal_model
@@ -550,6 +711,12 @@ class TTPlatform(Platform):
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
 
+        # Outside the branch chain on purpose: the MLA branch, a zero chunk_size
+        # and the pooling path all leave TT chunked prefill off, and the global
+        # has to be cleared for them too rather than keep a previous config's
+        # value in a shared process.
+        publish_tt_per_request_prefill_chunk(vllm_config)
+
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
         # TT backend requires a block size divisible by 32 for optimal performance.
@@ -562,7 +729,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "vllm.distributed.device_communicators.tpu_communicator.TpuCommunicator"  # noqa
+        return "vllm_tt.distributed.tpu_communicator.TpuCommunicator"
 
     @classmethod
     def validate_request(
@@ -623,3 +790,93 @@ class TTPlatform(Platform):
         worker after initializing the device.
         """
         return
+
+
+# Per-request prefill chunk for the sliding-window admission bound below.
+# Published from both TTPlatform.check_and_update_config (front-end process) and
+# TTWorker.__init__ (EngineCore, where the bound's consumers live).
+# 0 = TT chunked prefill is off, patch is a no-op.
+_TT_PER_REQUEST_PREFILL_CHUNK = 0
+
+
+def publish_tt_per_request_prefill_chunk(vllm_config) -> None:
+    """Record one request's in-flight token bound for the admission bound below.
+
+    vLLM's own bound is ``max_concurrent_batches * max_num_batched_tokens`` --
+    every concurrent batch may hold a full batch-wide budget -- so the
+    per-request analogue carries the same multiplier over the per-request chunk.
+    Reading it from the config rather than assuming 1 keeps this correct if TT
+    ever enables pipeline parallelism or async scheduling.
+
+    Always assigns, so a config without TT chunked prefill clears a value a
+    previous config published.
+    """
+    global _TT_PER_REQUEST_PREFILL_CHUNK
+    scheduler_config = vllm_config.scheduler_config
+    if not getattr(scheduler_config, "tt_chunked_prefill_enabled", False):
+        _TT_PER_REQUEST_PREFILL_CHUNK = 0
+        return
+    _TT_PER_REQUEST_PREFILL_CHUNK = (
+        getattr(scheduler_config, "tt_prefill_chunk_size", 0)
+        * vllm_config.max_concurrent_batches
+    )
+
+
+def install_tt_sliding_window_admission() -> None:
+    """Bound a sliding-window layer by one request's chunk, not the batch's.
+
+    ``SlidingWindowSpec.max_admission_blocks_per_request`` sizes a request's
+    in-flight KV from ``VllmConfig.max_in_flight_tokens``, which is built on
+    ``max_num_batched_tokens``. Under TT chunked prefill that is the batch-wide
+    budget (``tt_prefill_chunk_size * max_num_seqs``) while AscendScheduler caps
+    each request at ``tt_prefill_chunk_size``, so the bound is inflated by up to
+    ``max_num_seqs`` x. That over-charge feeds the startup admission check,
+    which then rejects long-context configurations over pool memory they would
+    never use.
+
+    Patch the spec method rather than either caller: vLLM treats it as the
+    single source of truth for both the startup pool sizer and the runtime
+    admission cap, and warns that drift between the two re-introduces a deadlock
+    (vllm#39734) or mid-prefill OOM.
+    """
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    original = SlidingWindowSpec.max_admission_blocks_per_request
+    if getattr(original, "_tt_patched", False):
+        return  # idempotent: never stack wrappers and clamp twice
+
+    def _tt_max_admission_blocks_per_request(
+        self, max_in_flight_tokens: int, max_model_len: int
+    ) -> int:
+        if _TT_PER_REQUEST_PREFILL_CHUNK:
+            max_in_flight_tokens = min(
+                max_in_flight_tokens, _TT_PER_REQUEST_PREFILL_CHUNK
+            )
+        return original(
+            self,
+            max_in_flight_tokens=max_in_flight_tokens,
+            max_model_len=max_model_len,
+        )
+
+    _tt_max_admission_blocks_per_request._tt_patched = True
+    SlidingWindowSpec.max_admission_blocks_per_request = (
+        _tt_max_admission_blocks_per_request
+    )
+
+
+def install_tt_accelerator_memory_info() -> None:
+    """Route ``torch.accelerator.get_memory_info`` to the TT host-memory estimate.
+
+    vLLM 0.25.1's Gemma4 multimodal encoder sizes its vision-encoder chunks with
+    ``torch.accelerator.get_memory_info()``, which asserts on the TT (xla/"jax")
+    device because it has no torch ``DeviceAllocator``. Reuse the same host-memory
+    estimate as ``TTPlatform.mem_get_info`` (the value only scales the encoder
+    chunk size, so a host-memory estimate is always safe).
+    """
+    if not hasattr(torch, "accelerator"):
+        return
+
+    def _tt_get_memory_info(device=None) -> tuple[int, int]:
+        return TTPlatform.mem_get_info()
+
+    torch.accelerator.get_memory_info = _tt_get_memory_info

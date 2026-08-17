@@ -35,6 +35,7 @@ pytest.ini @mrakitaTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdju
 /python_package/ @mrakitaTT @pilkicTT @nvukobratTT @sgligorijevicTT @acicovicTT
 /python_package/tt_jax/ @mrakitaTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
 /python_package/tt_torch/ @nvukobratTT @dgolubovicTT @jameszianxuTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT
+/python_package/tt_torch/moe_backend.py @nvukobratTT @dgolubovicTT @jameszianxuTT @AleksKnezevic @mstojkovicTT @ppadjinTT @vkovinicTT @sshonTT
 
 # Third Party
 /third_party/ @mrakitaTT @pilkicTT @nvukobratTT @acolicTT @jameszianxuTT @sdjukicTT @sgligorijevicTT @acicovicTT

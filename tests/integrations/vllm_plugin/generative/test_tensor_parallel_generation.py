@@ -186,7 +186,7 @@ def test_tensor_parallel_generation_llmbox_large(
     flat_model_io: bool,
 ):
     prompts = [
-        "I like taking walks in the",
+        "Continue in English: I like taking walks in the",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
@@ -259,7 +259,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_mistral_large(
     [
         # [8, 4] exceed the SDPA decode tree-reduction limit at opt_level=1 (tt-mlir#9007).
         pytest.param([1, 4], 1, marks=pytest.mark.bhqb),
-        pytest.param([8, 4], 0, marks=pytest.mark.bh_galaxy),
+        pytest.param([8, 4], 0, marks=pytest.mark.galaxy_bh),
     ],
 )
 def test_tensor_parallel_generation_gemma4_31b(
@@ -303,14 +303,13 @@ def test_tensor_parallel_generation_gemma4_31b(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "opt_level"],
+    ["model_name"],
     [
-        # opt_level=1 OOMs in the mm-encoder precompile (tt-mlir#9006).
-        pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503", 0),
-        pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506", 0),
+        pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503"),
+        pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506"),
     ],
 )
-def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: int):
+def test_tensor_parallel_generation_mistral_small(model_name: str):
     image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
 
     user_text = "What action do you think I should take in this situation? "
@@ -336,7 +335,6 @@ def test_tensor_parallel_generation_mistral_small(model_name: str, opt_level: in
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": "bfp_bf8",
-            "optimization_level": opt_level,
         },
     }
     llm = vllm.LLM(**llm_args)

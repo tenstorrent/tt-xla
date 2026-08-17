@@ -23,10 +23,15 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
 
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
+
+
+# Deduplicates the size-1-axis warning below; see the call site for why.
+_WARNED_SIZE1_AXIS: set = set()
 
 
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
@@ -58,6 +63,24 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
             safe_spec.append(None)
             continue
         mesh_axis_size = _axis_size(axis)
+        if mesh_axis_size == 1:
+            # No-op: the dim stays replicated while siblings shard on a real
+            # axis. This is how DP-only pinned the batch dim to size-1 "model"
+            # on a (dp, 1) mesh and corrupted rows silently.
+            msg = (
+                f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) asked to "
+                f"shard on mesh axis {axis!r}, which has size 1 -- this is a "
+                f"no-op and the dim stays replicated"
+            )
+            if strict:
+                raise ValueError(msg + "; strict=True")
+            # Deduped: pure-TP legitimately marks a size-1 "batch" axis from
+            # _dummy_run on every step.
+            if msg not in _WARNED_SIZE1_AXIS:
+                _WARNED_SIZE1_AXIS.add(msg)
+                logger.warning("%s", msg)
+            safe_spec.append(None)
+            continue
         if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "
@@ -78,6 +101,37 @@ class ParallelismMode(Enum):
     TENSOR_PARALLEL_ONLY_1D = "tensor_parallel_only_1D"
     TENSOR_PARALLEL_ONLY_2D = "tensor_parallel_only_2d"
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
+
+
+def kv_cache_shard_factor(runner, kv_cache_spec) -> int:
+    """How many ways the KV cache is actually sharded across the mesh.
+
+    Only the "model" axis shards KV heads, so this is that axis' size — 1 when
+    the cache ends up replicated on every chip instead. Callers use it to
+    reconcile vLLM's TP-unaware block budget (which always assumes the full,
+    un-sharded num_kv_heads) with what each chip really holds.
+
+    Must stay in sync with the mark_sharding call in
+    ``TTModelRunner.initialize_kv_cache``; KV heads shard on "model" for
+    TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
+    blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
+
+    ``kv_cache_spec`` (layer name -> spec) is required, not optional: MLA keeps
+    one replicated latent cache instead of head-sharding, and reporting
+    tp_size there hands out tp_size times more blocks than a chip holds. Pass
+    ``None`` only where the specs are known to be non-MLA.
+    """
+    if not runner.enable_tensor_parallel:
+        return 1
+    if kv_cache_spec and any(
+        isinstance(s, (MLAAttentionSpec, SlidingWindowMLASpec))
+        for s in kv_cache_spec.values()
+    ):
+        return 1
+    mesh = runner.mesh
+    if hasattr(mesh, "shape"):
+        return mesh.shape()["model"]
+    return dict(zip(mesh.axis_names, mesh.mesh_shape))["model"]
 
 
 class XlaMergedColumnParallelLinear(nn.Module):
@@ -293,8 +347,8 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -355,13 +409,13 @@ def partition_fused_moe(
     mesh (see below), independent of the DP/TP weight-sharding flag.
 
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
-    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
-    path on a genuine 2D mesh (both axes > 1), where experts are distributed
-    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
-    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
-    the dense bmm path, which needs the full expert set on every device, so
-    leave the expert weights replicated (mirrors the is_2d guard in
-    layers/fused_moe.py)."""
+    [E, H, I] on the RoutedExperts submodule. The TT MoE path only takes the
+    expert-parallel (tt_experts_forward) path on a genuine 2D mesh (both axes >
+    1), where experts are distributed across *all* devices via a compound
+    sharding over both axes (e.g. (2,2) -> 4-way split of E). On a 1D /
+    degenerate / single-chip mesh it uses the dense bmm path, which needs the
+    full expert set on every device, so leave the expert weights replicated
+    (mirrors the is_2d guard in TTRoutedExperts.forward_native)."""
     mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
     if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
         logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
@@ -387,8 +441,12 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
-        ("TTFusedMoE", partition_fused_moe),
-        ("TTSharedFusedMoE", partition_fused_moe),
+        # vLLM 0.25.1 moved the stacked expert weights (w13_weight/w2_weight)
+        # from the old monolithic TTFusedMoE module onto the RoutedExperts
+        # submodule; TT injects TTRoutedExperts there (see layers/fused_moe.py).
+        # partition_fused_moe reads w13_weight/w2_weight, so it must match that
+        # class. Only fires on MoE + genuine 2D mesh (expert parallelism).
+        ("TTRoutedExperts", partition_fused_moe),
     ]
 )
 

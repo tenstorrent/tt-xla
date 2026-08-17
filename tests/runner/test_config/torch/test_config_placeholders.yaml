@@ -23,8 +23,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   genmo/mochi-1-preview:
     bringup_status: NOT_STARTED
-  mistralai/Mixtral-8x7B-Instruct-v0.1:
-    bringup_status: NOT_STARTED
   Hiperglobal Shallow uNet:
     bringup_status: NOT_STARTED
   KLA K-SegNet:
@@ -34,8 +32,6 @@ PLACEHOLDER_MODELS:
   MiniMaxAI/MiniMax-Text-01:
     bringup_status: NOT_STARTED
   MiniMaxAI/MiniMax-VL-01:
-    bringup_status: NOT_STARTED
-  mistralai/Pixtral-Large-Instruct-2411:
     bringup_status: NOT_STARTED
   Gaussian Splatting:
     bringup_status: NOT_STARTED
