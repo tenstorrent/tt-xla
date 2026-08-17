@@ -856,6 +856,13 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "vllm_llama_3_1_8b_sharded_sampling_galaxy_tp",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-8b-sharded-sampling-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "vllm_llama_3_1_70b_qb2_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-70b-qb2-tp]",
         "vllm": true,
@@ -938,6 +945,13 @@
       {
         "name": "wan14b_dit_720p_sharded",
         "pytest": "tests/benchmark/test_wan.py::test_wan_dit[14b-720p-sharded]",
+        "runs-on": [
+          "qb2-blackhole"
+        ]
+      },
+      {
+        "name": "hunyuan_video_1_5",
+        "pytest": "tests/benchmark/test_video_gen.py::test_hunyuan_video_1_5",
         "runs-on": [
           "qb2-blackhole"
         ]

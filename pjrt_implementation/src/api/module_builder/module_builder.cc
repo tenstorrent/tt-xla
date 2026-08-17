@@ -43,6 +43,7 @@
 
 // stablehlo includes
 #include "stablehlo/dialect/Register.h"
+#include "stablehlo/dialect/StablehloOps.h"
 #include "stablehlo/transforms/Passes.h"
 
 // shardy includes
@@ -98,6 +99,40 @@ moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
            "Expected exactly one public function in module, got {}",
            public_func_ops.size());
   return public_func_ops[0].getNumArguments() > 0;
+}
+
+// Returns true if the module contains a sharding-constraint placeholder
+// (`stablehlo.custom_call @tt.sharding_constraint` or `@Sharding`). These are
+// emitted by `sharding_constraint_tensor` / GSPMD and signal that the graph
+// genuinely needs a multi-device mesh. A purely replicated computation that
+// merely has input arguments (e.g. a single-device argmax) has none, so it must
+// not be forced onto the full physical mesh.
+static bool
+moduleHasShardingConstraints(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  bool found = false;
+  m.get().walk([&](mlir::stablehlo::CustomCallOp customCallOp) {
+    llvm::StringRef target = customCallOp.getCallTargetName();
+    if (target == mlir::tt::sharding_utils::kTTShardingConstraintTargetName ||
+        target == mlir::tt::gspmd_utils::kShardingCustomCallTargetName) {
+      found = true;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return found;
+}
+
+// Returns true if any sharding genuinely partitions a tensor across devices
+// (`MeshShardType::Devices`). Replicate / presharded-replicate shardings do not
+// count, since they do not require a multi-device mesh.
+static bool anyShardedAcrossDevices(
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+  return std::any_of(
+      shardings.begin(), shardings.end(),
+      [](const mlir::tt::sharding_utils::MeshSharding &sharding) {
+        return sharding.getShardType() ==
+               mlir::tt::ttcore::MeshShardType::Devices;
+      });
 }
 
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
@@ -386,10 +421,10 @@ ModuleBuilder::buildModule(
       parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
                   : std::nullopt;
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name,
-                                        current_mesh_shape, target_num_devices);
+  status = runCompilerStableHLOPipeline(
+      mlir_module, result_presharded, output_shardings,
+      compile_options.export_path, compile_options.export_model_name,
+      current_mesh_shape, target_num_devices);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -774,6 +809,7 @@ std::vector<int64_t> ModuleBuilder::collectResultPresharded(
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<int64_t> &result_presharded,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
     const std::optional<std::vector<uint32_t>> &current_mesh_shape,
@@ -783,12 +819,32 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // A no-input graph on a multi-device run must adopt the full mesh: a no-input
-  // replicated value (e.g. a const-folded torch.arange) would otherwise default
-  // to 1x1, collapse the mesh, and break the live sharded buffers.
-  // See https://github.com/tenstorrent/tt-xla/issues/5360
+  // Fallback mesh shape for AnalyzeMeshPass. Normally that pass establishes the
+  // device mesh on its own, from the Shardy/GSPMD sharding annotations on the
+  // module's inputs. This block does NOT drive that normal path -- it only
+  // supplies an explicit meshShape for graphs where input-based inference has
+  // nothing to work from, so the pass builds the real mesh instead of
+  // collapsing to a degenerate 1x1. Three such cases exist:
+  //   1. The graph expresses sharding via tt.sharding_constraint / @Sharding
+  //      custom-call placeholders rather than input annotations (e.g.
+  //      sample_from_logits / sharded topk). The mesh_idx_N placeholders in
+  //      those constraints need a mesh to resolve against, but no input
+  //      annotation exists for the pass to create one from.
+  //   2. A result is genuinely partitioned across devices
+  //      (MeshShardType::Devices), so the graph must run on the full mesh.
+  //   3. A no-input graph on a multi-device run: a const-folded replicated
+  //      value (e.g. torch.arange) has no inputs to infer from and would
+  //      otherwise default to 1x1, collapse the mesh, and break the live
+  //      sharded buffers (see
+  //      https://github.com/tenstorrent/tt-xla/issues/5360).
+  // A purely replicated computation that merely has input arguments (e.g. a
+  // single-device argmax) matches none of these: AnalyzeMeshPass correctly
+  // leaves it at 1x1 to match what torch-xla executes, so we must not force it
+  // onto the full mesh (doing so caused a runtime device-count mismatch).
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      !moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1) {
+      (moduleHasShardingConstraints(mlir_module) ||
+       anyShardedAcrossDevices(output_shardings) ||
+       (!moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1))) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

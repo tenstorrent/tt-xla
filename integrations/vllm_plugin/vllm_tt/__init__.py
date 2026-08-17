@@ -20,6 +20,14 @@ register_backend(
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+    # WORKAROUND (tt-xla#5521), not a fix; no-op unless TT_VISIBLE_DEVICES is set.
+    # Needed here as well: TT_VISIBLE_DEVICES is vLLM's device_control_env_var,
+    # and this is the earliest hook that runs in every spawned worker.
+    from pjrt_plugin_tt import normalize_tt_visible_devices
+
+    normalize_tt_visible_devices()
+
     return "vllm_tt.platform.TTPlatform"
 
 

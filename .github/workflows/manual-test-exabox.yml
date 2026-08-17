@@ -3,14 +3,6 @@ name: Run Test Exabox
 on:
   workflow_dispatch:
     inputs:
-      runs_on:
-        description: >-
-          Exabox hardware to allocate (sc1 = 1 Galaxy)
-        required: true
-        type: choice
-        default: 'sc1'
-        options:
-          - 'sc1'
       dir:
         description: 'Path passed to pytest'
         required: true
@@ -19,6 +11,14 @@ on:
         description: 'Mark passed to pytest (-m)'
         required: false
         type: string
+      runs_on:
+        description: >-
+          Exabox hardware config (sc1 = 1 Galaxy)
+        required: true
+        type: choice
+        default: 'sc1'
+        options:
+          - 'sc1'
 
 permissions:
   actions: write
@@ -49,10 +49,8 @@ jobs:
     steps:
       - id: generate
         run: |
-          # "runs-on" carries the exabox hardware (sc1/sc4/sc16) rather than a
-          # runner label; call-test-exabox.yml turns it into an allocation spec.
           TEST_CONFIG=$(jq -n \
-            --arg runs_on '${{ inputs.runs_on }}' \
+            --arg runs_on 'exabox-multihost-ci-${{ inputs.runs_on }}' \
             --arg dir '${{ inputs.dir }}' \
             --arg mark '${{ inputs.mark }}' \
             '[{"runs-on": $runs_on,"name": "Exabox test","dir": $dir,"test-mark": $mark}]')

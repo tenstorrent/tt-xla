@@ -12,6 +12,11 @@ import psutil
 import pytest
 
 TEST_TIMEOUT_FALLBACK_SECONDS = 60 * 60
+# The alarm is armed in an autouse fixture, so it also covers the setup of every
+# fixture ordered after it -- the shared server one costs ~120s. Recorded
+# durations only measure the call, so a sub-second entry would otherwise arm a
+# 2s alarm on a test that cannot start in under two minutes.
+TEST_TIMEOUT_FLOOR_SECONDS = 300
 
 
 def _load_test_durations() -> dict[str, float]:
@@ -39,7 +44,7 @@ def _get_timeout_seconds(nodeid: str) -> int:
     recorded_seconds = _TEST_DURATIONS.get(nodeid)
     if recorded_seconds is None:
         return TEST_TIMEOUT_FALLBACK_SECONDS
-    return max(1, int(math.ceil(recorded_seconds * 2)))
+    return max(TEST_TIMEOUT_FLOOR_SECONDS, int(math.ceil(recorded_seconds * 2)))
 
 
 # Common English function words used by `assert_output_coherent` to detect

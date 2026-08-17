@@ -238,6 +238,7 @@ class TTConfig:
             if self.enable_tensor_parallel:
                 name = f"{name}_g{xrt.global_ordinal()}"
             cfg["export_model_name"] = name
+        logger.info("PJRT compile config: %s", cfg)
         return cfg
 
 
@@ -728,7 +729,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "vllm.distributed.device_communicators.tpu_communicator.TpuCommunicator"  # noqa
+        return "vllm_tt.distributed.tpu_communicator.TpuCommunicator"
 
     @classmethod
     def validate_request(

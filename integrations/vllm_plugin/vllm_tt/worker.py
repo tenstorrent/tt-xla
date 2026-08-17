@@ -378,9 +378,9 @@ class TTWorker:
         # tensor is already correctly sharded tp_size-ways via mark_sharding
         # (confirmed in the compiled IR). Counterbalance by inflating the
         # available budget here instead of touching the cache tensor's shape
-        # or sharding. Returns 1 where the cache is not actually sharded
-        # (no TP, or DP+TP), leaving the budget untouched.
-        kv_shard_factor = kv_cache_shard_factor(self.model_runner)
+        # or sharding. Returns 1 without TP, where the cache really is
+        # replicated, leaving the budget untouched.
+        kv_shard_factor = kv_cache_shard_factor(self.model_runner, kv_cache_spec)
         usable_memory_size *= kv_shard_factor
         kv_cache_bytes = max(usable_memory_size - profiled, 0)
         head_size = self.model_config.get_head_size()
