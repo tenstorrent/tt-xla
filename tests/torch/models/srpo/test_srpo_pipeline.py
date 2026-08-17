@@ -22,10 +22,7 @@ from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.srpo.pytorch import ModelLoader, ModelVariant
-from third_party.tt_forge_models.srpo.pytorch.pipeline import (
-    SrpoConfig,
-    SrpoPipeline,
-)
+from third_party.tt_forge_models.srpo.pytorch.pipeline import SrpoConfig, SrpoPipeline
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
