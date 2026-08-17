@@ -22,15 +22,10 @@ from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.srpo.pytorch import ModelLoader, ModelVariant
-
-# The SRPO e2e pipeline lives in tt-forge-models; skip cleanly until the
-# submodule uplift brings in srpo/pytorch/pipeline.py (this PR carries no bump).
-_pipeline = pytest.importorskip(
-    "third_party.tt_forge_models.srpo.pytorch.pipeline",
-    reason="requires tt-forge-models srpo/pytorch/pipeline.py (submodule uplift)",
+from third_party.tt_forge_models.srpo.pytorch.pipeline import (
+    SrpoConfig,
+    SrpoPipeline,
 )
-SrpoConfig = _pipeline.SrpoConfig
-SrpoPipeline = _pipeline.SrpoPipeline
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
