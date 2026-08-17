@@ -22,10 +22,7 @@ from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.fibo.pytorch import ModelLoader, ModelVariant
-from third_party.tt_forge_models.fibo.pytorch.pipeline import (
-    FiboConfig,
-    FiboPipeline,
-)
+from third_party.tt_forge_models.fibo.pytorch.pipeline import FiboConfig, FiboPipeline
 
 VARIANT_NAME = ModelVariant.BASE
 MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
