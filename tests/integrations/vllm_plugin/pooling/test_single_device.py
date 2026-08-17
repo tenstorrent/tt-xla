@@ -19,12 +19,14 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
-            75,
+            32,
         ),
     ],
 )
 def test_embedding_push(model_name: str, baseline_path, max_model_len: int):
-    run_pooling_test(model_name, baseline_path, max_model_len, min_context_len=32)
+    run_pooling_test(
+        model_name, baseline_path, max_model_len, max_num_reqs=1, min_context_len=32
+    )
 
 
 @pytest.mark.push
@@ -150,23 +152,22 @@ def test_embedding_nightly(
         baseline_path,
         max_model_len,
         experimental_weight_dtype,
+        max_num_reqs=1,
     )
 
 
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.parametrize(
-    ["model_name", "baseline_path", "optimization_level"],
+    ["model_name", "baseline_path"],
     [
         pytest.param(
             "BAAI/bge-m3",
             "baseline/bge_m3_baseline.pt",
-            0,
         ),
         pytest.param(
             "Qwen/Qwen3-Embedding-0.6B",
             "baseline/qwen3_embedding_0.6B_baseline.pt",
-            1,
         ),
     ],
 )
@@ -180,7 +181,6 @@ def test_embedding_nightly(
 def test_batched_inference(
     model_name: str,
     baseline_path: str,
-    optimization_level: int,
     max_num_reqs: int,
     max_num_batched_tokens: int,
 ):
@@ -205,7 +205,6 @@ def test_batched_inference(
         max_model_len=64,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
-        optimization_level=optimization_level,
     )
 
 

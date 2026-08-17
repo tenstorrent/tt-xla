@@ -27,7 +27,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release,manylinux
+      build_types: release,manylinux,explorer
 
   nightly_tests:
     uses: ./.github/workflows/call-test.yml
@@ -85,6 +85,16 @@ jobs:
       wheel_build: manylinux
       dump_irs: ${{ github.event.schedule == '0 0 * * 0' }}
 
+  process_ir:
+    if: always() && !cancelled() && github.event.schedule == '0 0 * * 0'
+    uses: ./.github/workflows/call-process-dumped-irs.yml
+    needs: [ build-image, build-ttxla, nightly_tests, test_full_model, test_forge_models_passing, test_forge_models_xfail ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      dumped_irs_run_id: ${{ github.run_id }}
+      target_time_min: 180
+
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     needs: [ build-image, build-ttxla ]
@@ -94,7 +104,7 @@ jobs:
       sh-runner: false
       skip-device-perf: true
       regression_check: true
-      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf"}, {"runs-on": "p150-perf"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"}, {"runs-on": "qb2-blackhole"} ]'
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150-perf"}, {"runs-on": "p150-perf"}, {"runs-on": "galaxy-wh-6u"}, {"runs-on": "qb2-blackhole"} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux

@@ -18,6 +18,20 @@ on:
         required: false
         type: boolean
         default: false
+      model_filter:
+        description: 'Optional filter for specific models to process'
+        required: false
+        type: string
+      target_time_min:
+        description: 'Target time in minutes for each processing job'
+        required: false
+        type: number
+        default: 240
+      seconds_per_unique_op:
+        description: 'Estimated seconds to compile+run one unique op, used to size processing jobs'
+        required: false
+        type: number
+        default: 30
   workflow_dispatch:
     inputs:
       docker_image:
@@ -33,6 +47,20 @@ on:
         required: false
         type: boolean
         default: false
+      model_filter:
+        description: 'Optional filter for specific models to process'
+        required: false
+        type: string
+      target_time_min:
+        description: 'Target time in minutes for each processing job'
+        required: false
+        type: number
+        default: 240
+      seconds_per_unique_op:
+        description: 'Estimated seconds to compile+run one unique op, used to size processing jobs'
+        required: false
+        type: number
+        default: 30
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -44,38 +72,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       skip_ir_processing: ${{ steps.check-dumped-irs.outputs.skip_ir_processing }}
-      ir_count: ${{ steps.check-dumped-irs.outputs.ir_count }}
-      ir_jobs: ${{ steps.check-dumped-irs.outputs.ir_jobs }}
-    env:
-      MAX_PARALLEL_JOBS: 5
     steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
       - name: Check for dumped IRs
         id: check-dumped-irs
         shell: bash
         run: |
           echo "Checking for dumped IR artifacts in run ${{ inputs.dumped_irs_run_id }}"
-          # Get artifacts for this run
-          artifacts_json=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts)
+          artifacts_json=$(gh api -H "Accept: application/vnd.github+json" --paginate \
+            "/repos/${{ github.repository }}/actions/runs/${{ inputs.dumped_irs_run_id }}/artifacts?per_page=100" | jq -s '{total_count:(map(.artifacts | length) | add), artifacts:(map(.artifacts[]) )}')
           # Check if any artifacts match the pattern "ir-dumps-*"
-          ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
-          echo "Found $ir_count dumped IR artifacts"
-          if [ "$ir_count" -gt 0 ]; then
-            echo "IR processing workflow will continue"
-            echo "skip_ir_processing=false" >> "$GITHUB_OUTPUT"
-            if [ "$ir_count" -gt ${{ env.MAX_PARALLEL_JOBS }} ]; then
-              echo "Number of irs is larger than max parallel jobs. Limiting to ${{ env.MAX_PARALLEL_JOBS }}."
-              ir_count=${{ env.MAX_PARALLEL_JOBS }}
-            fi
-            echo "ir_count=$ir_count" >> "$GITHUB_OUTPUT"
-            echo "ir_jobs=[$(seq 0 $((ir_count-1)) | tr '\n' ',')]" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::No dumped IR artifacts found, skipping IR processing"
+          art_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("ir-dumps-"))] | length')
+          echo "Found $art_count artifacts matching 'ir-dumps-*'"
+
+          if [ "$art_count" -eq 0 ]; then
+            echo "No ir-dumps-* artifacts in this run; skipping IR processing."
             echo "skip_ir_processing=true" >> "$GITHUB_OUTPUT"
-            echo "ir_count=0" >> "$GITHUB_OUTPUT"
-            echo "ir_jobs=[]" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          echo "skip_ir_processing=false" >> "$GITHUB_OUTPUT"
 
   # Make sure explorer wheel is built before processing dumped IRs, since the op-by-op tests require it
   build_ttxla_explorer:
@@ -87,17 +107,146 @@ jobs:
       docker_image: ${{ inputs.docker_image }}
       build_types: explorer
 
-  process_dumped_irs:
+  # Extract every op from every model IR, deduplicate globally by op_string, and
+  # plan the processing jobs over the unique ops rather than over whole models.
+  # This runs on a device runner because op extraction needs op_by_op_infra from
+  # the explorer wheel, which is why planning happens here and not in
+  # check_dumped_irs (that job has no wheel).
+  extract_unique_ops:
     needs: [ check_dumped_irs, build_ttxla_explorer ]
     if: needs.check_dumped_irs.outputs.skip_ir_processing == 'false'
+
+    # No device: op extraction is pure MLIR parsing/splitting.
+    # `extract_ops_from_module` only runs `MLIRModuleSplitter.split`, and unlike
+    # `execute_extracted_ops` it never calls `_ensure_system_desc()`, so nothing
+    # here opens a Tenstorrent device. The explorer wheel is still required for
+    # the `op_by_op_infra` / ttmlir python bindings, hence the container image and
+    # the dependency on build_ttxla_explorer.
+    runs-on: tt-ubuntu-2204-large-stable
+
+    outputs:
+      skip_ir_processing: ${{ steps.plan-unique-ops.outputs.skip_ir_processing }}
+      ir_count: ${{ steps.plan-unique-ops.outputs.ir_count }}
+      job_matrix: ${{ steps.plan-unique-ops.outputs.job_matrix }}
+
+    container:
+      image: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker_image }}
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "wheel_artifact_name=xla-whl-explorer${{ needs.build_ttxla_explorer.outputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ needs.build_ttxla_explorer.outputs.artifacts_run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download and install tt-xla wheel
+        shell: bash
+        run: |
+          echo "=== Downloading wheel ==="
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          ls -la wheels
+
+          echo "=== Installing wheel ==="
+          source venv/activate
+          pip install wheels/*.whl
+
+      - name: Download dumped IR artifacts
+        shell: bash
+        run: |
+          echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
+          gh run download ${{ inputs.dumped_irs_run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "ir-dumps-*" \
+            --dir collected_irs
+
+          echo "Downloaded collected_irs: $(find collected_irs -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+          echo "Model dirs found: $(find collected_irs -mindepth 2 -maxdepth 2 -type d | wc -l | tr -d ' ')"
+
+          echo "=== Deduplicating models (prefer n150 copies) ==="
+          python3 .github/scripts/ir_process_analyzer.py dedupe \
+            --root collected_irs \
+            --preferred-machine n150
+
+          echo "=== Removing .ttnn files from collected_irs ==="
+          find collected_irs -type f -name "*.ttnn" -print -delete
+
+          echo "Model dirs after dedupe: $(find collected_irs -mindepth 2 -maxdepth 2 -type d | wc -l | tr -d ' ')"
+
+      - name: Extract globally unique ops
+        shell: bash
+        run: |
+          source venv/activate
+
+          echo "=== Verifying op_by_op_infra is importable ==="
+          python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
+
+          echo "=== Extracting unique ops across all model IRs ==="
+          python3 .github/scripts/ir_process_analyzer.py extract-unique-ops \
+            --root collected_irs \
+            --ir-file-prefix "irs/shlo_compiler" \
+            --model-filter "${{ inputs.model_filter }}" \
+            --output-root unique_ir_ops \
+            --manifest unique_ops_manifest.json
+
+      - name: Plan processing jobs over unique ops
+        id: plan-unique-ops
+        shell: bash
+        run: |
+          time_per_job=${{ inputs.target_time_min }}
+          target_job_seconds=$((time_per_job * 60))
+          echo "Target time per job: ${time_per_job} minutes (${target_job_seconds}s)"
+          echo "Per-unique-op estimate: ${{ inputs.seconds_per_unique_op }}s"
+
+          # Model filtering already happened during extraction, so plan over
+          # every unique op that survived it.
+          python3 .github/scripts/ir_process_analyzer.py plan \
+            --root unique_ir_ops \
+            --target-job-seconds "$target_job_seconds" \
+            --seconds-per-model ${{ inputs.seconds_per_unique_op }} \
+            --output ir_assignment.json \
+            --github-output "$GITHUB_OUTPUT" \
+            --print-summary
+
+      # Deterministic names: the processing jobs below download these by name and
+      # cannot see this job's check_run_id.
+      - name: Upload unique-op modules
+        uses: actions/upload-artifact@v6
+        with:
+          name: unique-ops-ir-${{ github.run_id }}-${{ github.run_attempt }}
+          path: unique_ir_ops
+          if-no-files-found: 'error'
+
+      - name: Upload unique-op manifest
+        uses: actions/upload-artifact@v6
+        if: success() || failure()
+        with:
+          name: unique-ops-manifest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: unique_ops_manifest.json
+          if-no-files-found: 'warn'
+
+  process_dumped_irs:
+    needs: [ check_dumped_irs, build_ttxla_explorer, extract_unique_ops ]
+    if: needs.extract_unique_ops.outputs.skip_ir_processing == 'false'
 
     # TODO do we know oll ops can run on n150?
 
     runs-on: ${{ !inputs.shared-runners && 'n150' || 'tt-ubuntu-2204-n150-stable' }}
     strategy:
       fail-fast: false
-      matrix:
-        job_index: ${{ fromJson(needs.check_dumped_irs.outputs.ir_jobs) }}
+      matrix: ${{ fromJson(needs.extract_unique_ops.outputs.job_matrix) }}
 
     name: "process_dumped_irs (job ${{ matrix.job_index }})"
 
@@ -145,71 +294,48 @@ jobs:
           source venv/activate
           pip install wheels/*.whl
 
-      # TODO we are splitting the flow in multiple jobs, should each one download all irs dumps or can we do better?
-
-      - name: Download dumped IR artifacts
-        shell: bash
-        run: |
-          echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
-          gh run download ${{ inputs.dumped_irs_run_id }} \
-            --repo ${{ github.repository }} \
-            --pattern "ir-dumps-*" \
-            --dir collected_irs
+      # Only the deduplicated unique ops are downloaded here: extraction and
+      # model-level dedupe already happened once in extract_unique_ops, so these
+      # jobs no longer each pull down the full IR dump set.
+      - name: Download unique-op modules
+        uses: actions/download-artifact@v6
+        with:
+          name: unique-ops-ir-${{ github.run_id }}-${{ github.run_attempt }}
+          path: collected_irs
 
       - name: Verify downloaded IRs
         shell: bash
         run: |
-          echo "=== Contents of collected_irs ==="
+          echo "=== Unique-op modules available to this job ==="
+          echo "Op dirs: $(find collected_irs -mindepth 2 -maxdepth 2 -type d | wc -l | tr -d ' ')"
           set +o pipefail
           find collected_irs -type f -name "*.mlir" | head -20
           set -o pipefail
 
-      # TODO how long does one run take, do we need to split? what if we start processing irs in separate workflow and it can take longer
-
       - name: Split IRs for parallel processing
         shell: bash
+        env:
+          JOB_INDEX: ${{ matrix.job_index }}
+          MODELS_JSON: ${{ matrix.models_json }}
+          ESTIMATED_SECONDS: ${{ matrix.estimated_seconds }}
         run: |
           job_index=${{ matrix.job_index }}
-          total_jobs=${{ needs.check_dumped_irs.outputs.ir_count }}
-          echo "=== Splitting IRs for job $job_index of $total_jobs ==="
+          total_jobs=${{ needs.extract_unique_ops.outputs.ir_count }}
+          echo "=== Splitting unique ops for job $job_index of $total_jobs ==="
 
-          # Get all model directories (first-level subdirectories)
-          cd collected_irs
-          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
-          total_models=${#model_dirs[@]}
+          python3 .github/scripts/ir_process_analyzer.py materialize \
+            --root collected_irs \
+            --job-index "$JOB_INDEX" \
+            --models-json "$MODELS_JSON" \
+            --estimated-seconds "$ESTIMATED_SECONDS"
 
-          echo "Total models found: $total_models"
-          echo "Model directories: ${model_dirs[@]}"
-
-          # Calculate which models this job should process
-          models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
-          start_idx=$((job_index * models_per_job))
-          end_idx=$(((job_index + 1) * models_per_job))
-
-          if [ $end_idx -gt $total_models ]; then
-            end_idx=$total_models
-          fi
-
-          echo "This job will process models from index $start_idx to $((end_idx - 1))"
-
-          # Create a new directory with only this job's models
-          cd ..
-          mkdir -p collected_irs_job_$job_index
-
-          for i in $(seq $start_idx $((end_idx - 1))); do
-            if [ $i -lt $total_models ]; then
-              model="${model_dirs[$i]}"
-              echo "Including model: $model"
-              mv "collected_irs/$model" "collected_irs_job_$job_index/"
-            fi
-          done
-
-          # Replace collected_irs with the filtered version
-          rm -rf collected_irs
-          mv collected_irs_job_$job_index collected_irs
-
-          echo "=== Final IRs for this job ==="
-          ls -la collected_irs/
+          echo "=== Final unique ops for this job ==="
+          # A full recursive listing is hundreds of entries now that each dir
+          # holds a single op, so summarize by op name instead.
+          find collected_irs -mindepth 2 -maxdepth 2 -type d -printf '%f\n' \
+            | sed -E 's/^op_[0-9]+_//' | sort | uniq -c | sort -rn
+          echo "=== Size of IRs for this job ==="
+          du -sh collected_irs
 
       - name: Run op-by-op tests
         shell: bash
@@ -224,12 +350,12 @@ jobs:
             --folder=collected_irs \
             --ir-file-prefix="irs/shlo_compiler" \
             --json-report \
-            --json-report-file=op_by_op_report.json
+            --json-report-file=op_by_op_report-${{ job.check_run_id }}.json
 
       - name: Upload op-by-op test report
         uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: op-by-op-report-${{ matrix.job_index }}-${{ job.check_run_id }}
-          path: op_by_op_report.json
+          path: op_by_op_report-${{ job.check_run_id }}.json
           if-no-files-found: 'warn'

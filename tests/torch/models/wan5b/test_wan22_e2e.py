@@ -39,10 +39,10 @@ from .shared import (
     VAEEncoderWrapper,
     WanDiTWrapper,
     load_dit,
-    load_first_frame_image,
     load_tokenizer,
     load_umt5,
     load_vae,
+    make_synthetic_first_frame,
     prompt_clean,
     run_component,
     shard_dit_specs,
@@ -183,9 +183,11 @@ def _build_components(mode: str) -> _Components:
 # ---------------------------------------------------------------------------
 
 
-# First-frame conditioning image for i2v. Resized via cover-fit + center
-# crop to the active resolution. Ignored when mode == "t2v".
-IMAGE_PATH = Path(__file__).parent / "reze.jpg"
+# First-frame conditioning input for i2v. Generated deterministically at the
+# active resolution (see make_synthetic_first_frame); content is irrelevant to
+# pass/fail since reference and device outputs derive from the same frame.
+# Ignored when mode == "t2v". The stem is a stable string used in output names.
+SYNTHETIC_FRAME_STEM = "synthetic_first_frame"
 _OUT_DIR = Path(__file__).parent / "generated"
 
 
@@ -207,7 +209,7 @@ def _devtag(mode: str) -> str:
 def _stem(mode: str, resolution: str) -> str:
     base = f"wan22_{mode}_{resolution}_steps{NUM_STEPS}_{_devtag(mode)}"
     if mode == "i2v":
-        base += f"_{IMAGE_PATH.stem}"
+        base += f"_{SYNTHETIC_FRAME_STEM}"
     return base
 
 
@@ -263,16 +265,22 @@ def _run_e2e(mode: str, resolution: str, prompt: str, negative_prompt: str) -> N
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan22_t2v_480p_e2e():
     _run_e2e("t2v", "480p", PROMPT_T2V, NEG_T2V)
 
 
+# strict=False: fails on galaxy-bh (Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM
+# ~14.7 GB, bank_manager.cpp:462); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh DRAM OOM (~14.7 GB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5680.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan22_t2v_720p_e2e():
     _run_e2e("t2v", "720p", PROMPT_T2V, NEG_T2V)
 
@@ -281,16 +289,22 @@ def test_wan22_t2v_720p_e2e():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan22_i2v_480p_e2e():
     _run_e2e("i2v", "480p", PROMPT_I2V, NEG_I2V)
 
 
+# strict=False: fails on galaxy-bh (Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM
+# ~10.7 GB, bank_manager.cpp:462); may still pass on other blackhole archs.
+@pytest.mark.xfail(
+    reason="galaxy-bh DRAM OOM (~10.7 GB, bank_manager.cpp:462) -> Bad StatusOr access: Error code 13. Tracked by https://github.com/tenstorrent/tt-xla/issues/5680.",
+    strict=False,
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan22_i2v_720p_e2e():
     _run_e2e("i2v", "720p", PROMPT_I2V, NEG_I2V)
 
@@ -477,7 +491,7 @@ def _run_vae(
             on_tt=TT_VAE_DECODER,
             mesh=mesh,
             shard_module=decoder_wrapper.vae,
-            shard_fn=shard_vae_decoder_specs,
+            shard_fn=lambda m: shard_vae_decoder_specs(m, mesh),
         )
     _record(timings_slot, time.perf_counter() - t0)
     return result
@@ -580,9 +594,10 @@ def _run(
     image_latent = None
     if mode == "i2v":
         assert components.vae_encoder is not None, "i2v requires components.vae_encoder"
-        image = load_first_frame_image(IMAGE_PATH, shapes["video_h"], shapes["video_w"])
+        image = make_synthetic_first_frame(shapes["video_h"], shapes["video_w"])
         _log(
-            f"i2v first-frame loaded image={IMAGE_PATH.name} shape={tuple(image.shape)}"
+            f"i2v first-frame synthesized name={SYNTHETIC_FRAME_STEM} "
+            f"shape={tuple(image.shape)}"
         )
 
         t = time.perf_counter()
@@ -592,7 +607,7 @@ def _run(
             on_tt=TT_VAE_ENCODER,
             mesh=_mesh,
             shard_module=components.vae_encoder.vae,
-            shard_fn=shard_vae_encoder_specs,
+            shard_fn=lambda m: shard_vae_encoder_specs(m, _mesh),
         )
         _record(timings.vae_encoder, time.perf_counter() - t)
         _log(

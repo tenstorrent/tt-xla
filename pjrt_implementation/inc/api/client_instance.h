@@ -154,7 +154,8 @@ public:
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
       const std::unordered_map<std::string, std::string> &compile_options,
-      const std::optional<std::vector<int64_t>> &replica_device_ids);
+      const std::optional<std::vector<int64_t>> &replica_device_ids,
+      size_t target_num_devices = 1);
 
 private:
   tt_pjrt_status populateDevices();

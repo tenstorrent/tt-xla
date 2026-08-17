@@ -70,7 +70,6 @@ def test_linear_permute_a(request):
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["linear_permute_b.ttnn.mlir"])
-@pytest.mark.xfail(reason="Turns out linear fusion is broken?")
 def test_linear_permute_b(request):
     def linear_permute_b(
         x: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor

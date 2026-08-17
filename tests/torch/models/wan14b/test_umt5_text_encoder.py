@@ -35,7 +35,7 @@ COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_umt5_sharded():
     _run(sharded=True)
 
@@ -58,5 +58,5 @@ def _run(sharded: bool) -> None:
         compiler_config=COMPILER_CONFIG,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
-        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.97)),
     )

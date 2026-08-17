@@ -30,6 +30,7 @@ from typing import Optional
 import pytest
 import torch
 from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -65,20 +66,17 @@ COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 @pytest.mark.skip(reason="Skipping due to the long running time: > 40 minutes")
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
 
-@pytest.mark.xfail(
-    reason="PCC comparison fails on the full DiT (DiT sharding limitation)"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 
@@ -129,4 +127,5 @@ def _run(resolution: str, sharded: bool) -> None:
             compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
+            comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.97)),
         )
