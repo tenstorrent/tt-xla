@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanVideo 1.5 (480p t2v distilled) — nightly e2e pipeline test, DiT
-PCC-gated per denoising step against a CPU twin. Only the DiT runs on TT;
-text encoders/scheduler/VAE stay on CPU. Both the TT DiT and its CPU twin
-run bf16.
+"""HunyuanVideo 1.5 (480p t2v distilled) — nightly e2e pipeline test, every TT
+component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
+ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU. The
+encoders are checked once each, the DiT once per denoising step.
 """
 
 import pytest
@@ -19,12 +19,19 @@ from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.model_utils import (
+    QwenPromptEmbedsWrapper,
+)
 from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
+    HIDDEN_STATE_SKIP_LAYER,
+    PROMPT_TEMPLATE_ENCODE_START_IDX,
     HunyuanVideo15Config,
     HunyuanVideo15Pipeline,
 )
 
-PROMPT = "a cat sitting on a boat"
+# The double-quoted span is what routes text through text_encoder_2 (the ByT5
+# glyph encoder); without it the pipeline feeds the DiT zero glyph embeds.
+PROMPT = 'A girl holding a paper with words "Hello, world!"'
 SEED = 42
 NUM_INFERENCE_STEPS = 10
 NUM_FRAMES = 25
@@ -41,49 +48,60 @@ def _pcc(device_out, golden_out) -> float:
     return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
 
 
-def _attach_dit_pcc_check(pipeline: HunyuanVideo15Pipeline) -> None:
-    """Wrap the DiT forward with an inline bf16-CPU-twin PCC check, asserted
-    per forward so a diverging step fails fast; the pipeline continues using
-    the real TT output regardless."""
-    transformer = pipeline.transformer
-    orig_forward = transformer.forward
-    twin = {"model": None}
-    step = {"n": 0}
+def _twin(variant: ModelVariant):
+    """Load the CPU golden for a component, in the dtype it runs on TT."""
+    return ModelLoader(variant).load_model(dtype_override=torch.bfloat16)
 
-    def _cpu_twin():
-        if twin["model"] is None:
-            logger.info("[PCC] loading bf16 CPU DiT twin")
-            twin["model"] = ModelLoader(ModelVariant.TRANSFORMER).load_model(
-                dtype_override=torch.bfloat16
-            )
-        return twin["model"]
 
-    def _cpu(x):
-        return x.to("cpu") if isinstance(x, torch.Tensor) else x
+def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
+    """Wrap every TT component's forward with a CPU-twin PCC check, asserted per
+    forward so a diverging step fails fast. The pipeline keeps using the real TT
+    output."""
 
-    def wrapped_forward(*args, **kwargs):
-        out = orig_forward(*args, **kwargs)
-        device_sample = (out[0] if isinstance(out, (tuple, list)) else out).to("cpu")
+    def attach(module, name, build_twin, pick=lambda out: out):
+        orig_forward = module.forward
+        twin = {"model": None}
+        step = {"n": 0}
 
-        golden_sample = _cpu_twin()(
-            _cpu(kwargs["hidden_states"]),
-            _cpu(kwargs["timestep"]),
-            _cpu(kwargs["encoder_hidden_states"]),
-            _cpu(kwargs["encoder_attention_mask"]),
-            _cpu(kwargs["encoder_hidden_states_2"]),
-            _cpu(kwargs["encoder_attention_mask_2"]),
-            _cpu(kwargs["image_embeds"]),
-        )
+        def _cpu_twin():
+            if twin["model"] is None:
+                logger.info("[PCC] loading bf16 CPU twin: {}", name)
+                twin["model"] = build_twin()
+            return twin["model"]
 
-        step["n"] += 1
-        pcc = _pcc(device_sample, golden_sample)
-        logger.info("[PCC] dit forward {}: pcc={:.6f}", step["n"], pcc)
-        assert (
-            pcc >= PCC_THRESHOLD
-        ), f"DiT forward {step['n']} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
-        return out
+        # The pipeline calls every component positionally, so the twin gets the
+        # same args on CPU; a future kwargs call raises rather than mismatching.
+        def wrapped_forward(*args):
+            out = orig_forward(*args)
+            device_sample = pick(out).to("cpu")
+            golden = pick(_cpu_twin()(*[a.to("cpu") for a in args]))
 
-    transformer.forward = wrapped_forward
+            step["n"] += 1
+            pcc = _pcc(device_sample, golden)
+            logger.info("[PCC] {} forward {}: pcc={:.6f}", name, step["n"], pcc)
+            assert (
+                pcc >= PCC_THRESHOLD
+            ), f"{name} forward {step['n']} PCC {pcc:.6f} below {PCC_THRESHOLD}"
+            return out
+
+        module.forward = wrapped_forward
+
+    attach(
+        pipeline.text_encoder,
+        "text_encoder (Qwen)",
+        lambda: QwenPromptEmbedsWrapper(
+            _twin(ModelVariant.TEXT_ENCODER),
+            HIDDEN_STATE_SKIP_LAYER,
+            PROMPT_TEMPLATE_ENCODE_START_IDX,
+        ),
+    )
+    attach(
+        pipeline.text_encoder_2,
+        "text_encoder_2 (ByT5)",
+        lambda: _twin(ModelVariant.TEXT_ENCODER_2),
+        pick=lambda out: out[0],
+    )
+    attach(pipeline.transformer, "transformer", lambda: _twin(ModelVariant.TRANSFORMER))
 
 
 @pytest.mark.nightly
@@ -99,7 +117,7 @@ def _attach_dit_pcc_check(pipeline: HunyuanVideo15Pipeline) -> None:
     bringup_status=BringupStatus.PASSED,
 )
 def test_pipeline():
-    """Run the HunyuanVideo15 pipeline (DiT tensor-parallel) with per-step DiT PCC."""
+    """Run the HunyuanVideo15 pipeline with per-component PCC vs CPU twins."""
     xr.set_device_type("TT")
 
     pipeline = HunyuanVideo15Pipeline(
@@ -108,6 +126,6 @@ def test_pipeline():
         )
     )
     pipeline.setup()
-    _attach_dit_pcc_check(pipeline)
+    _attach_pcc_checks(pipeline)
 
     pipeline.generate(prompt=PROMPT, seed=SEED)
