@@ -98,7 +98,8 @@
       {
         "name": "ideogram_4",
         "pytest": "tests/benchmark/test_imagegen.py::test_ideogram_4",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "pyreq": "git+https://github.com/ideogram-oss/ideogram4.git"
       },
       {
         "name": "janus_pro_1b",
