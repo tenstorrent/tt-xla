@@ -115,6 +115,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "sana",
+        "pytest": "tests/benchmark/test_sana.py::test_sana"
+        "runs-on": "n150"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
