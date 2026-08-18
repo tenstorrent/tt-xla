@@ -34,7 +34,7 @@ from tt_torch.custom_ops import tt_lang_op_dispatch
 # The tt-mlir flatbuffer emitter checks the same value; bump on any
 # breaking schema change. Schema documented at the
 # ``_serialize_compiled_operation`` definition below.
-_ARTIFACT_FORMAT_VERSION = 1
+_ARTIFACT_FORMAT_VERSION = 2
 
 
 _VALID_ROLES = frozenset({"in", "out"})
@@ -875,7 +875,7 @@ def _serialize_compiled_operation(
     The payload structure is::
 
         {
-          "format_version": 1,
+          "format_version": 2,
           "kernels": [
             {
               "thread_type":   "compute" | "noc",
@@ -886,10 +886,17 @@ def _serialize_compiled_operation(
           ],
           "core_range":  {"start": [x, y], "end": [x, y]},
           "cb_configs":  [{...}, ...],            # see _serialize_cb_config
-          "num_tensors":            <int>,
-          "num_pipe_sync_semaphores": <int>,
+          "num_tensors":               <int>,
+          "num_pipe_sync_semaphores":  <int>,
+          "num_pipe_global_semaphores":<int>,
+          "pipe_sram_scratch_bytes":   <int>,
           "operand_metadata":       { ... }       # see resolve_operation
         }
+
+    The three ``pipe_*`` keys are the PipeNet resources tt-mlir must
+    materialize before building the ``ttnn.generic``: program-local sync
+    semaphores, ``GlobalSemaphore`` ready counters, and the per-core SRAM
+    scratch region holding the pipe address table.
 
     Every field is structured (no Python ``repr`` strings). The cpp
     sources are *embedded* directly, not referenced by path: this is
@@ -926,11 +933,11 @@ def _serialize_compiled_operation(
         "core_range": _serialize_core_range(compiled.core_ranges),
         "cb_configs": [_serialize_cb_config(c) for c in compiled.cb_configs],
         "num_tensors": int(compiled.num_tensors),
-        # PipeNet sync-semaphore count. tt-lang exposes this as
-        # CompiledTTNNKernel.num_pipe_sync_semaphores (renamed from
-        # num_pipe_nets in the post-1.1.1 uplift); the artifact uses the
-        # current name too.
+        # PipeNet resource counts, named after the CompiledTTNNKernel
+        # attributes tt-lang exposes them under.
         "num_pipe_sync_semaphores": int(compiled.num_pipe_sync_semaphores),
+        "num_pipe_global_semaphores": int(compiled.num_pipe_global_semaphores),
+        "pipe_sram_scratch_bytes": int(compiled.pipe_sram_scratch_bytes),
     }
     if operand_metadata is not None:
         payload["operand_metadata"] = operand_metadata

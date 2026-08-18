@@ -23,10 +23,15 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.v1.kv_cache_interface import MLAAttentionSpec, SlidingWindowMLASpec
 
 from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
+
+
+# Deduplicates the size-1-axis warning below; see the call site for why.
+_WARNED_SIZE1_AXIS: set = set()
 
 
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
@@ -58,6 +63,24 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
             safe_spec.append(None)
             continue
         mesh_axis_size = _axis_size(axis)
+        if mesh_axis_size == 1:
+            # No-op: the dim stays replicated while siblings shard on a real
+            # axis. This is how DP-only pinned the batch dim to size-1 "model"
+            # on a (dp, 1) mesh and corrupted rows silently.
+            msg = (
+                f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) asked to "
+                f"shard on mesh axis {axis!r}, which has size 1 -- this is a "
+                f"no-op and the dim stays replicated"
+            )
+            if strict:
+                raise ValueError(msg + "; strict=True")
+            # Deduped: pure-TP legitimately marks a size-1 "batch" axis from
+            # _dummy_run on every step.
+            if msg not in _WARNED_SIZE1_AXIS:
+                _WARNED_SIZE1_AXIS.add(msg)
+                logger.warning("%s", msg)
+            safe_spec.append(None)
+            continue
         if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "
@@ -80,7 +103,7 @@ class ParallelismMode(Enum):
     DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
-def kv_cache_shard_factor(runner) -> int:
+def kv_cache_shard_factor(runner, kv_cache_spec) -> int:
     """How many ways the KV cache is actually sharded across the mesh.
 
     Only the "model" axis shards KV heads, so this is that axis' size — 1 when
@@ -89,15 +112,21 @@ def kv_cache_shard_factor(runner) -> int:
     un-sharded num_kv_heads) with what each chip really holds.
 
     Must stay in sync with the mark_sharding call in
-    ``TTModelRunner.initialize_kv_cache``; in particular DP+TP returns 1
-    because that path deliberately leaves the cache un-annotated.
+    ``TTModelRunner.initialize_kv_cache``; KV heads shard on "model" for
+    TP-only and DP+TP alike, and blocks stay replicated on "batch". Sharding
+    blocks too would make this ``tp_size * dp_size`` (#5796 follow-up).
+
+    ``kv_cache_spec`` (layer name -> spec) is required, not optional: MLA keeps
+    one replicated latent cache instead of head-sharding, and reporting
+    tp_size there hands out tp_size times more blocks than a chip holds. Pass
+    ``None`` only where the specs are known to be non-MLA.
     """
     if not runner.enable_tensor_parallel:
         return 1
-    if runner.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
-        # DP+TP leaves the cache replicated, so per-chip usage already equals
-        # the full budget — no reconciliation to do. Sharding it properly
-        # (heads on "model", blocks on "batch") is tracked in #5796.
+    if kv_cache_spec and any(
+        isinstance(s, (MLAAttentionSpec, SlidingWindowMLASpec))
+        for s in kv_cache_spec.values()
+    ):
         return 1
     mesh = runner.mesh
     if hasattr(mesh, "shape"):
@@ -318,8 +347,8 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 

@@ -243,7 +243,7 @@ def main():
     test_dir = Path("tests/torch")
 
     # Marker expression to filter by
-    marker_expression = "(nightly or push) and not (single_device or dual_chip or llmbox or galaxy or bh_galaxy or multi_host_cluster)"
+    marker_expression = "(nightly or push) and not (single_device or dual_chip or llmbox or galaxy or galaxy_bh or multi_host_cluster)"
 
     if len(sys.argv) > 1:
         marker_expression = sys.argv[1]

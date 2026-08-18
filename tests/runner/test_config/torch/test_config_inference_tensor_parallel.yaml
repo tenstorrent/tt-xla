@@ -461,6 +461,19 @@ test_config:
     inject_custom_moe: true
     required_pcc: 0.98
 
+  deepseek/deepseek_moe/pytorch-DEEPSEEK_V2_CHAT-tensor_parallel-inference:
+    supported_archs: [galaxy-bh]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    inject_custom_moe: true
+    required_pcc: 0.98
+
+  exaone_moe/pytorch-K_EXAONE_236B_A23B-tensor_parallel-inference:
+    supported_archs: [galaxy-bh]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
   nous_research/moe/pytorch-Nous-Hermes-2-Mixtral-8x7B-DPO-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
@@ -482,5 +495,56 @@ test_config:
     status: EXPECTED_PASSING
 
   phi4/causal_lm/pytorch-Phi_4_Reasoning_Plus-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  molmo/multimodal/pytorch-Molmo-72B-0924-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    inject_custom_moe: true
+    required_pcc: 0.97
+
+  molmo/causal_lm/pytorch-Molmo-72B-0924-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    inject_custom_moe: true
+
+  qwen_3_5/causal_lm/pytorch-35B_A3B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
+  qwen_3_5/causal_lm/pytorch-27B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  internlm2/pytorch-internlm2-chat-20b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
+  llama2_70b_chat/pytorch-Llama-2-70b-chat-hf-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  metamath_70b/pytorch-MetaMath-70B-V1.0-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  solar/pytorch-Solar-Pro-Preview-Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+    enable_weight_bfp8_conversion: true
+
+  exaone_4_5/pytorch-EXAONE_4_5_33B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  llava/pytorch-1.6_34B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING

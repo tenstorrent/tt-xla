@@ -53,9 +53,12 @@ class RejectionSampler(nn.Module):
                 max_num_logprobs=-1,
             ),
         )
-        bonus_token_ids = bonus_sampler_output.sampled_token_ids.to(torch.int32).cpu()
+        # Transfer first, cast on host. An on-device .to(dtype) before .cpu()
+        # makes the tt-mlir runtime memcpy assert on a dst/src dtype mismatch
+        # (runtime.cpp: dstDataType == getTensorDataType(src)) and abort.
+        bonus_token_ids = bonus_sampler_output.sampled_token_ids.cpu().to(torch.int32)
 
-        target_logits = logits[metadata.target_logits_indices].to(torch.float32).cpu()
+        target_logits = logits[metadata.target_logits_indices].cpu().to(torch.float32)
         target_logits = self.apply_logits_processors(
             target_logits,
             sampling_metadata,
@@ -230,9 +233,10 @@ class RejectionSampler(nn.Module):
         sampling_metadata,
     ) -> torch.Tensor:
         batch_size = len(num_draft_tokens)
-        draft_token_ids = draft_token_ids.to(torch.int32).cpu()
-        target_logits = target_logits.to(torch.float32).cpu()
-        bonus_token_ids = bonus_token_ids.to(torch.int32).cpu()
+        # Transfer-then-cast, as above (these may still be device tensors).
+        draft_token_ids = draft_token_ids.cpu().to(torch.int32)
+        target_logits = target_logits.cpu().to(torch.float32)
+        bonus_token_ids = bonus_token_ids.cpu().to(torch.int32)
         output_token_ids = torch.full(
             (batch_size, max_spec_len + 1),
             _PLACEHOLDER_TOKEN_ID,
@@ -240,7 +244,7 @@ class RejectionSampler(nn.Module):
             device="cpu",
         )
 
-        cu = cu_num_draft_tokens.to(torch.int64).cpu().tolist()
+        cu = cu_num_draft_tokens.cpu().to(torch.int64).tolist()
 
         for req_idx in range(batch_size):
             draft_len = int(num_draft_tokens[req_idx])

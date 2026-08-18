@@ -11,6 +11,7 @@ ALLOWED_ARCHES = {
     "n300",
     "n300-llmbox",
     "galaxy-wh-6u",
+    "galaxy-bh",
     "qb2-blackhole",
     "lb-blackhole",
 }
