@@ -115,6 +115,20 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "longcat_image_text_encoder",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_text_encoder",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "longcat_image_transformer",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_transformer",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "longcat_image_vae_decoder",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_vae_decoder"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
