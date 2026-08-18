@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+VALID_GROUPS = ("regular", "experimental")
+
 
 def flatten_matrix(data):
     """Flatten the matrix."""
@@ -15,6 +17,13 @@ def flatten_matrix(data):
         for test in proj.get("tests", []):
             if test.get("skip"):
                 continue
+            # Required per test: a missing or misspelled group would drop the
+            # benchmark from every nightly without any error.
+            if test.get("group") not in VALID_GROUPS:
+                raise ValueError(
+                    f"Test '{test.get('name', '<unnamed>')}': \"group\" must be one of "
+                    f"{', '.join(VALID_GROUPS)}, got {test.get('group')!r}"
+                )
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
             runs_on = merged_test.get("runs-on", [])
@@ -39,7 +48,8 @@ def filter_matrix_adv(matrix, adv_filter):
       - "runs-on": machine(s) on which the test should run. If ommited, condition will be applied to all unskipped machines. Parameter can be string or array of strings.
       - "filter": string (or comma-separated list / list of strings) that should be present in the test name (include match).
       - "exclude": string (or comma-separated list / list of strings) — any test whose name contains one of these substrings is dropped. Applied AFTER "filter".
-      - "accuracy-testing": whether to include accuracy testing or not.
+      - "accuracy-testing": whether to include accuracy testing or not. If ommited, the accuracy flag is not constrained.
+      - "group": scheduled nightly that owns the test ("regular" or "experimental").
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
     # Create initial structure with all runners marked as skip=True
@@ -83,12 +93,9 @@ def filter_matrix_adv(matrix, adv_filter):
                         runner_conditions[runner][key].extend(
                             v.lower() for v in value.split(",")
                         )
-            if condition.get("accuracy-testing") is not None:
-                runner_conditions[runner]["accuracy-testing"] = condition[
-                    "accuracy-testing"
-                ]
-            if condition.get("skip") is not None:
-                runner_conditions[runner]["skip"] = condition["skip"]
+            for key in ("accuracy-testing", "group", "skip"):
+                if condition.get(key) is not None:
+                    runner_conditions[runner][key] = condition[key]
 
     # Filter the matrix based on the constructed runner conditions
     filtered_matrix = []
@@ -108,6 +115,8 @@ def filter_matrix_adv(matrix, adv_filter):
             if "accuracy-testing" in conditions and conditions[
                 "accuracy-testing"
             ] != item.get("accuracy-testing", False):
+                continue
+            if "group" in conditions and conditions["group"] != item["group"]:
                 continue
             filtered_matrix.append(item)
 
