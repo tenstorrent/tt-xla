@@ -312,7 +312,9 @@ def print_benchmark_results(
     print(f"| Date: {date}")
     print(f"| Machine name: {machine_name}")
     print(f"| Total samples: {total_samples}")
-    print(f"| Avg. decode time: {total_time}")
+    print(f"| Total time (s): {total_time}")
+    avg_time_per_sample = total_time / total_samples if total_samples else 0.0
+    print(f"| Avg. time per sample (s): {avg_time_per_sample}")
     print(f"| Avg. samples per second: {samples_per_sec}")
 
     if cpu_samples_per_sec is not None:
@@ -581,3 +583,10 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     if image_np.shape[0] == 3:
         image_np = image_np.transpose(1, 2, 0)
     Image.fromarray(image_np).save(filepath)
+
+
+def save_video(frames, filepath: str = "output.mp4", fps: int = 15):
+    """Save a video-gen pipeline's output frames (list of PIL images) as an MP4."""
+    from diffusers.utils import export_to_video
+
+    export_to_video(frames, filepath, fps=fps)

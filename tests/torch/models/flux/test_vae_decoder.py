@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""FLUX.1-dev — AutoencoderKL decoder component test (1024x1024)."""
+
+import pytest
+import torch
+import torch_xla.runtime as xr
+from infra import Framework, RunMode, run_graph_test
+from utils import BringupStatus, Category
+
+from third_party.tt_forge_models.config import Parallelism
+from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
+
+from . import skip_on_wormhole
+
+
+# Hangs on blackhole (240-min job timeout); skipped so it can't hang the job. See #5678.
+@pytest.mark.skip(
+    reason="VAE decoder hangs on blackhole (240-min job timeout). https://github.com/tenstorrent/tt-xla/issues/5678"
+)
+@pytest.mark.single_device
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_info=ModelLoader.get_model_info(ModelVariant.VAE),
+    parallelism=Parallelism.SINGLE_DEVICE,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
+def test_vae_decoder():
+    skip_on_wormhole("VAE decoder")
+    xr.set_device_type("TT")
+    torch.manual_seed(42)
+
+    loader = ModelLoader(ModelVariant.VAE)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
+
+    run_graph_test(
+        model,
+        inputs,
+        framework=Framework.TORCH,
+    )

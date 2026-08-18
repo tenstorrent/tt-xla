@@ -2,9 +2,50 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Shared conftest for vLLM generative tests."""
+import json
+import math
 import re
+import signal
+from pathlib import Path
 
 import psutil
+import pytest
+
+TEST_TIMEOUT_FALLBACK_SECONDS = 60 * 60
+# The alarm is armed in an autouse fixture, so it also covers the setup of every
+# fixture ordered after it -- the shared server one costs ~120s. Recorded
+# durations only measure the call, so a sub-second entry would otherwise arm a
+# 2s alarm on a test that cannot start in under two minutes.
+TEST_TIMEOUT_FLOOR_SECONDS = 300
+
+
+def _load_test_durations() -> dict[str, float]:
+    """Load per-test durations from the repository .test_durations file."""
+    durations_file = Path(__file__).resolve().parents[4] / ".test_durations"
+    if not durations_file.exists():
+        return {}
+
+    try:
+        data = json.loads(durations_file.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    return {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
+
+
+_TEST_DURATIONS = _load_test_durations()
+
+
+def _get_timeout_seconds(nodeid: str) -> int:
+    """Return timeout as 2x recorded duration for this test."""
+    recorded_seconds = _TEST_DURATIONS.get(nodeid)
+    if recorded_seconds is None:
+        return TEST_TIMEOUT_FALLBACK_SECONDS
+    return max(TEST_TIMEOUT_FLOOR_SECONDS, int(math.ceil(recorded_seconds * 2)))
+
 
 # Common English function words used by `assert_output_coherent` to detect
 # the 2D-mesh sampler garbage-output bug (issue #4440). Coherent natural-
@@ -21,25 +62,115 @@ _STOPWORDS = frozenset(
 _WORD_RE = re.compile(r"[A-Za-z']+")
 _MIN_STOPWORD_RATIO = 0.10
 _MIN_WORDS = 5
+# Longest plausible English word in generated text. Degenerate repetition with
+# no separators ("BlockBlockBlock...") lands in a single _WORD_RE match, which
+# the stopword check cannot see because it is one word.
+_MAX_WORD_LEN = 30
+# Distinct words required once there are enough words to judge. Catches
+# low-diversity loops like 'and "r" and "r" and "r"', whose stopword ratio is
+# high precisely *because* the repeated token is a stopword.
+_MIN_UNIQUE_WORDS = 3
+# Non-Latin script characters (Hebrew/CJK/Cyrillic ...) as a fraction of the
+# output. Restored after #4563 removed the original check: that one tested
+# `ord(c) > 127`, i.e. non-ASCII, so it failed on ordinary smart quotes. This
+# allows Latin-1/Latin-Extended plus General Punctuation (smart quotes, dashes,
+# ellipsis) and only counts genuinely non-Latin scripts.
+_MAX_NON_LATIN_RATIO = 0.03
+# Fraction of the output made of word characters. Catches a lone real word
+# adrift in punctuation ('celona. ( ( ( ( (' -- observed on main under DP),
+# which every other check either passes or skips as "too short to judge".
+_MIN_WORD_CHAR_RATIO = 0.35
+
+
+def _non_latin_ratio(s: str) -> float:
+    def is_latin_ish(c: str) -> bool:
+        o = ord(c)
+        # Latin blocks through Latin Extended-B, General Punctuation, whitespace.
+        return o < 0x250 or 0x2000 <= o <= 0x206F or c.isspace()
+
+    return sum(1 for c in s if not is_latin_ish(c)) / len(s)
 
 
 def assert_output_coherent(text: str) -> None:
     """Heuristic assertion: text is natural-language, not token soup.
 
-    Uses English stopword ratio as the token-soup detector — coherent
-    continuations contain several stopwords per ~30-token output, while
-    token-soup garbage contains ~zero.
+    Stopword ratio is the primary token-soup detector (#4440), but it cannot see
+    every degeneration we have actually shipped: a single repeated token is one
+    "word", and a loop over a stopword scores a *high* ratio. So also reject
+    over-long single words, low word diversity, and non-Latin script runs. These
+    checks run before the short-output early return, since garbage is frequently
+    short by this measure.
     """
     s = text.strip()
     assert s, f"empty output: {text!r}"
     words = [w.lower() for w in _WORD_RE.findall(s)]
     assert words, f"output has no word characters: {text!r}"
+
+    nlr = _non_latin_ratio(s)
+    assert nlr <= _MAX_NON_LATIN_RATIO, (
+        f"non-Latin script ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
+        f"{text!r}"
+    )
+
+    wcr = sum(len(w) for w in words) / len(s)
+    assert wcr >= _MIN_WORD_CHAR_RATIO, (
+        f"too little of the output is words ({wcr:.3f} < "
+        f"{_MIN_WORD_CHAR_RATIO}): {text!r}"
+    )
+
+    longest = max(words, key=len)
+    assert len(longest) <= _MAX_WORD_LEN, (
+        f"degenerate repeated token ({len(longest)} chars > {_MAX_WORD_LEN}): "
+        f"{longest[:40]!r} in {text!r}"
+    )
+
+    if len(words) >= _MIN_UNIQUE_WORDS + 1:
+        unique = len(set(words))
+        assert unique >= _MIN_UNIQUE_WORDS, (
+            f"too few distinct words ({unique} < {_MIN_UNIQUE_WORDS}) in "
+            f"{len(words)} words: {text!r}"
+        )
+
     if len(words) < _MIN_WORDS:
         return
     sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
     assert (
         sr >= _MIN_STOPWORD_RATIO
     ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
+
+
+# Unambiguous greedy prompt->answer checks. Batched, they force >1 seq/device
+# (where TP/DP+TP prefill corrupts a slot); answers are landslides so a corrupted
+# slot fails but benign near-tie TP fp drift (#5520) does not.
+GROUNDED_BATCH_CHECKS = [
+    ("1 + 1 =", "2"),
+    ("The opposite of up is", "down"),
+    ("Roses are red, violets are", "blue"),
+    ("To be or not to be, that is the", "question"),
+]
+
+
+def assert_batch_grounded(outputs, checks=GROUNDED_BATCH_CHECKS) -> None:
+    """Greedy wide-batch correctness: each output contains its grounded answer
+    and isn't a degenerate repeat-loop. Detects per-slot prefill corruption
+    (garbage or 'answer-then-loop'); tolerant of the #5520 near-tie fp drift
+    since the answers are unambiguous."""
+    assert len(outputs) == len(
+        checks
+    ), f"expected {len(checks)} outputs, got {len(outputs)}"
+    for (prompt, expected), out in zip(checks, outputs):
+        text = out.outputs[0].text
+        token_ids = out.outputs[0].token_ids
+        # Repeat-loop guard: degenerate loops (e.g. "down, up, down, up") sit far
+        # below a coherent continuation's unique-token ratio (~0.8).
+        uniq_ratio = len(set(token_ids)) / max(len(token_ids), 1)
+        assert uniq_ratio >= 0.5, (
+            f"degenerate/repetitive output for {prompt!r} "
+            f"(unique ratio {uniq_ratio:.2f}): {text!r}"
+        )
+        assert (
+            expected.lower() in text.lower()
+        ), f"expected {expected!r} for {prompt!r}, got {text!r}"
 
 
 def check_host_memory(model_name: str) -> float:
@@ -59,6 +190,8 @@ def check_host_memory(model_name: str) -> float:
     model_rss_limits_gb = {
         "Qwen/Qwen3-0.6B": 5,
         "Qwen/Qwen3-32B": 150,
+        # 26B-A4B measured ~57 GB host RSS; ~50% headroom.
+        "google/gemma-4-26B-A4B-it": 85,
     }
 
     # Measures max RSS across child processes; assumes one engine at a time.
@@ -76,3 +209,21 @@ def check_host_memory(model_name: str) -> float:
         )
 
     return rss_gb
+
+
+@pytest.fixture(autouse=True)
+def _test_timeout(request):
+    """Kill any test that hangs longer than 2x its recorded duration."""
+
+    timeout_seconds = _get_timeout_seconds(request.node.nodeid)
+
+    def _handler(_signum, _frame):
+        raise TimeoutError(f"Test {request.node.nodeid} exceeded {timeout_seconds}s")
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)

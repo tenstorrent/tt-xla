@@ -1,0 +1,16 @@
+# Configuration for GitHub's automatically generated release notes.
+# Consumed by `generate_release_notes: true` in call-publish-release.yml.
+# Docs: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+changelog:
+  exclude:
+    # Keep automated dependency/version uplift PRs out of "What's Changed".
+    # NOTE: exclude.labels does NOT support glob/wildcards (only categories.labels
+    # does), so each uplift label must be listed explicitly by exact name.
+    labels:
+      - "uplift"
+      - "uplift-mlir"
+      - "uplift-forge-models"
+  categories:
+    - title: What's Changed
+      labels:
+        - "*"

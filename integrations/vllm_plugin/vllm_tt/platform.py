@@ -3,11 +3,14 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
+from vllm.utils.math_utils import cdiv
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 if TYPE_CHECKING:
@@ -30,6 +33,7 @@ else:
 from torch_xla import runtime as xrt
 
 from .logger import tt_init_logger
+from .swa_cache_utils import sliding_ring_is_profitable, sliding_window_blocks
 
 logger = tt_init_logger(__name__)
 
@@ -50,8 +54,68 @@ class TTConfig:
     enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
+
+    # Minimum request-batch size to preallocate and precompile for. This is
+    # used as the lower bound for request-count shape warmup.
+    # If unset, it resolves to scheduler_config.max_num_seqs.
+    min_num_seqs: Optional[int] = None
+
+    # Maximum request-batch size for *prefill* compilation and tracing.
+    # When set to a value smaller than max_num_seqs, prefill graphs compile
+    # and trace at this batch shape instead of max_num_seqs. With
+    # enable_trace=True, each traced bucket keeps its peak activations
+    # resident in DRAM; capping prefill here is the primary knob for
+    # reducing prefill DRAM footprint. Decode is unaffected (always
+    # compiles at max_num_seqs). Must satisfy min_num_seqs <=
+    # max_prefill_num_seqs <= max_num_seqs. Defaults to max_num_seqs.
+    max_prefill_num_seqs: Optional[int] = None
+
+    # b1-prefill batch threshold. When <= this many prefills are
+    # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
+    # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
+    # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
+    prefill_batch_threshold: int = 0
+
+    # KV-cache high-watermark for *fresh* prefill admission, as a fraction of
+    # the block pool (tt-xla: large-context concurrency thrash). AscendScheduler
+    # stops admitting NEW prefills once doing so would leave less than this
+    # fraction of the pool free, reserving headroom for in-flight requests to
+    # finish decoding instead of evicting (preempting) them and re-prefilling.
+    # Continuation chunks of already-started prefills and decode are NOT gated
+    # (decode may use the pool to 100%). A forward-progress guard always admits
+    # at least one prefill when nothing is running, so a single large prompt is
+    # never starved. 0.0 = off (legacy 1% watermark for all prefills).
+    # Default 0.25 (reserve 25% free => stop admitting above ~75% usage).
+    # Override at runtime with env var TTXLA_PREFILL_KV_WATERMARK_PERCENT (a
+    # percent, e.g. 25), which takes precedence over additional_config.
+    # Resolved/validated in TTPlatform.check_and_update_config.
+    prefill_kv_watermark: float = 0.25
+
+    # Serving telemetry. When True, the scheduler and the v1 model
+    # runner emit JSON-lines telemetry (batch occupancy, prefill/decode pass
+    # split, decode rate, preemption, queue depth, KV/batch utilization) for
+    # offline analysis. Zero-cost when off (a single bool check on the hot path).
+    # No per-step disk I/O: records buffer in memory and flush on an interval /
+    # at request completion / at shutdown. See vllm_tt/telemetry.py.
+    # Override at runtime with env var TTXLA_TELEMETRY (truthy), which takes
+    # precedence over additional_config. Resolved in check_and_update_config.
+    telemetry_enabled: bool = False
+
+    # Directory for telemetry JSON-lines sinks (scheduler.jsonl, runner.jsonl,
+    # runner_snapshot.json). Env override: TTXLA_TELEMETRY_DIR. Default ./tt_telemetry.
+    telemetry_dir: str = "./tt_telemetry"
+
+    # Minimum gap (milliseconds) between telemetry disk flushes. Env override:
+    # TTXLA_TELEMETRY_FLUSH_MS. Default 1000.
+    telemetry_flush_ms: float = 1000.0
+
     batch_size: int = 1
     enable_precompile_all: bool = True
+
+    # Per-step prefill chunk size (caps max_num_batched_tokens); 0 (default) =
+    # opt-out. When set, long prompts split into chunks of this many tokens,
+    # bounding compile time + peak prefill DRAM by the chunk, not max_model_len.
+    prefill_chunk_size: int = 0
 
     # Flag to enable data parallel execution of a model. It will require
     # - max_num_seqs > 1
@@ -62,8 +126,11 @@ class TTConfig:
     # TPU model loader to share the model across multiple devices.
     enable_tensor_parallel: bool = False
 
-    # Optimization level for tt-mlir compilation.
-    optimization_level: int = 0
+    # Optimization level (0, 1, or 2) that controls multiple optimization passes.
+    # Level 0: All optimizations disabled
+    # Level 1: Basic optimizations (optimizer + Conv2d fusion)
+    # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
+    optimization_level: int = 1
 
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
@@ -81,6 +148,17 @@ class TTConfig:
     experimental_enable_permute_matmul_fusion: bool = True
 
     # Enable fp32 destination accumulation in matmul/reduction kernels.
+    #
+    # PREFER LEAVING THIS None (unset). Do NOT set it to False as a default /
+    # convenience in a model config or test. It is a GRAPH-WIDE override applied
+    # to every matmul, including tiny index-arithmetic matmuls (e.g. the per-user
+    # last-token gather that lowers to `flat_index = indices @ strides` ->
+    # embedding). Forcing bf16 destination accumulation there rounds flat
+    # indices >= 512 to the wrong value -> wrong gathered row -> wrong logits ->
+    # per-user divergence in batched greedy decoding (tt-xla #5116). Unset is
+    # better for accuracy: ttnn picks fp32 accumulation for fp32-output ops
+    # (exact index math) and bf16 for bf16 compute matmuls (no memory
+    # regression). Only set True/False deliberately for a validated reason.
     fp32_dest_acc_en: Optional[bool] = None
 
     # Override the on-device KV cache element dtype.
@@ -118,9 +196,17 @@ class TTConfig:
     use_2d_mesh: bool = True
 
     # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
-    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # execution. When None, use_2d_mesh / parallel_mode determine the shape.
     # When set, it overrides use_2d_mesh.
     mesh_shape: Optional[list[int]] = None
+
+    # When True, weight partition specs include the "batch" (DP) axis —
+    # FSDP-style sharding that saves memory at the cost of extra communication.
+    # When False (default), weights are sharded only on the "model" (TP) axis
+    # and replicated across DP replicas (classic DP+TP), which incurs fewer
+    # CCLs. Enable batch-axis sharding only for models that otherwise don't fit
+    # on a machine.
+    shard_weights_on_batch_axis: bool = False
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
@@ -152,6 +238,7 @@ class TTConfig:
             if self.enable_tensor_parallel:
                 name = f"{name}_g{xrt.global_ordinal()}"
             cfg["export_model_name"] = name
+        logger.info("PJRT compile config: %s", cfg)
         return cfg
 
 
@@ -178,6 +265,44 @@ class TTPlatform(Platform):
     # device-side tt::sampling kernel does not yet).
     _cpu_sampling: bool = False
 
+    @classmethod
+    def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
+        """Validate the first TT speculative-decode support slice.
+
+        For now, TT only supports method='ngram' in synchronous scheduling.
+        All other methods and async scheduling are rejected explicitly.
+        """
+        speculative_config = vllm_config.speculative_config
+        if speculative_config is None:
+            return
+
+        method = getattr(speculative_config, "method", None)
+        if method != "ngram":
+            raise NotImplementedError(
+                "TT speculative decoding currently supports only "
+                "speculative_config.method='ngram'."
+            )
+
+        if getattr(vllm_config.scheduler_config, "async_scheduling", False):
+            raise NotImplementedError(
+                "TT ngram speculative decoding currently supports only "
+                "synchronous scheduling (async_scheduling=False)."
+            )
+
+        if hasattr(speculative_config, "use_ngram_gpu") and callable(
+            speculative_config.use_ngram_gpu
+        ):
+            if speculative_config.use_ngram_gpu():
+                raise NotImplementedError(
+                    "TT speculative decoding does not support ngram_gpu yet. "
+                    "Use method='ngram' (CPU proposer path)."
+                )
+
+        logger.info(
+            "[TT] Enabling speculative decoding with method='ngram' "
+            "(synchronous scheduling only)."
+        )
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -192,6 +317,9 @@ class TTPlatform(Platform):
             raise NotImplementedError(
                 "Sparse Attention is not supported on TT devices."
             )
+        if attn_selector_config.use_mla:
+            logger.info("Using TT MLA Attention backend.")
+            return AttentionBackendEnum.FLASH_ATTN_MLA.get_path()
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
@@ -212,6 +340,72 @@ class TTPlatform(Platform):
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
         raise NotImplementedError
+
+    @classmethod
+    def mem_get_info(cls) -> tuple[int, int]:
+        """Return ``(free, total)`` memory in bytes.
+
+        Some upstream multimodal models call this to size a
+        memory-safe chunk for the vision encoder. TT device DRAM is managed by
+        tt-metal and not queryable through this CUDA-style hook, so we report
+        host memory: the value only scales the encoder chunk size (smaller ->
+        more, smaller passes), so a host-memory estimate is always safe.
+        """
+        import psutil
+
+        vm = psutil.virtual_memory()
+        return vm.available, vm.total
+
+    @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        # Emit per-attention-type kv_cache_groups (like every other platform);
+        # the base default False downgrades sliding-window layers to full
+        # attention, making them pay the full max_model_len KV cost.
+        return True
+
+    @classmethod
+    def _maybe_disable_unprofitable_hybrid_kv_cache(
+        cls, vllm_config: "VllmConfig"
+    ) -> None:
+        """Opt out of the sliding-window ring where it costs more than full
+        attention.
+
+        Each sliding layer gets its own per-user ring on TT (vLLM's cross-group
+        byte-overlay is impossible here), which only beats full attention once
+        the window actually clips the context. Below that the window never
+        slides yet the ring still pays its ``+1`` straddle block and stick
+        alignment, so let vLLM unify the specs into the shared pool instead.
+
+        Decided at config time from the HF config rather than the per-layer
+        specs, and model-wide because ``disable_hybrid_kv_cache_manager`` is a
+        single switch.
+        """
+        model_config = vllm_config.model_config
+        scheduler_config = vllm_config.scheduler_config
+        # Respect an explicit user choice (either direction).
+        if scheduler_config.disable_hybrid_kv_cache_manager is not None:
+            return
+        sliding_window = model_config.get_sliding_window()
+        # max_model_len == -1 means vLLM auto-fits it later from the KV budget,
+        # so the value here is a placeholder -- leave the ring enabled.
+        if not sliding_window or model_config.original_max_model_len == -1:
+            return
+
+        max_model_len = model_config.max_model_len
+        block_size = vllm_config.cache_config.block_size
+        if sliding_ring_is_profitable(sliding_window, block_size, max_model_len):
+            return
+
+        scheduler_config.disable_hybrid_kv_cache_manager = True
+        logger.info(
+            "[TT] Disabling the hybrid KV cache manager: at max_model_len=%d a "
+            "sliding-window ring costs %d blocks per user per layer against %d "
+            "for full attention. Sliding layers will share the full-attention "
+            "pool.",
+            max_model_len,
+            sliding_window_blocks(sliding_window, block_size, max_model_len),
+            cdiv(max_model_len, block_size),
+        )
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: Optional[bool]) -> bool:
@@ -267,12 +461,112 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
-        additional_config = vllm_config.additional_config or {}
+        if vllm_config.additional_config is None:
+            vllm_config.additional_config = {}
+        additional_config = vllm_config.additional_config
+        tt_config = TTConfig(**additional_config)
         if "batch_size" in additional_config:
             logger.warning(
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
+
+        max_num_seqs = vllm_config.scheduler_config.max_num_seqs
+
+        # Resolve/validate max_prefill_num_seqs first so min_num_seqs can default to it.
+        if tt_config.max_prefill_num_seqs is None:
+            additional_config["max_prefill_num_seqs"] = max_num_seqs
+            tt_config.max_prefill_num_seqs = additional_config["max_prefill_num_seqs"]
+        elif tt_config.max_prefill_num_seqs < 1:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= 1 for the TT backend."
+            )
+        elif tt_config.max_prefill_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        # Resolve/validate min_num_seqs after max_prefill_num_seqs.
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = tt_config.max_prefill_num_seqs
+            tt_config.min_num_seqs = additional_config["min_num_seqs"]
+        elif tt_config.min_num_seqs < 1:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
+            )
+        elif tt_config.min_num_seqs > max_num_seqs:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be <= max_num_seqs "
+                "for the TT backend."
+            )
+
+        if tt_config.max_prefill_num_seqs < tt_config.min_num_seqs:
+            raise ValueError(
+                "additional_config['max_prefill_num_seqs'] must be >= min_num_seqs "
+                "for the TT backend."
+            )
+
+        # b1-prefill batch threshold: resolve default (0 = off)
+        # and persist so the AscendScheduler sees a concrete value; validate >= 0.
+        if additional_config.get("prefill_batch_threshold") is None:
+            additional_config["prefill_batch_threshold"] = 0
+        elif int(additional_config["prefill_batch_threshold"]) < 0:
+            raise ValueError(
+                "additional_config['prefill_batch_threshold'] must be >= 0."
+            )
+
+        # Resolve prefill_kv_watermark to a concrete fraction the scheduler can
+        # read directly: default, then env override (percent), then validate.
+        # See TTConfig.prefill_kv_watermark.
+        if additional_config.get("prefill_kv_watermark") is None:
+            additional_config["prefill_kv_watermark"] = TTConfig.prefill_kv_watermark
+        env_wm = os.environ.get("TTXLA_PREFILL_KV_WATERMARK_PERCENT")
+        if env_wm is not None:
+            additional_config["prefill_kv_watermark"] = float(env_wm) / 100.0
+        wm = float(additional_config["prefill_kv_watermark"])
+        if not (0.0 <= wm < 1.0):
+            raise ValueError(
+                "prefill_kv_watermark (TTXLA_PREFILL_KV_WATERMARK_PERCENT / 100) "
+                f"must be in [0, 1); got {wm}."
+            )
+        additional_config["prefill_kv_watermark"] = wm
+
+        # Written back so the runner (typed TTConfig) and the scheduler (raw
+        # additional_config, separate process) read the same settings.
+        tele_enabled = bool(additional_config.get("telemetry_enabled", False))
+        env_tele = os.environ.get("TTXLA_TELEMETRY")
+        if env_tele is not None:
+            tele_enabled = env_tele.strip().lower() in {"1", "true", "yes", "on"}
+        additional_config["telemetry_enabled"] = tele_enabled
+
+        env_tele_dir = os.environ.get("TTXLA_TELEMETRY_DIR", "").strip()
+        # reset_sinks joins this path, so an empty value would delete
+        # sink-named files from the process CWD.
+        additional_config["telemetry_dir"] = (
+            env_tele_dir
+            or (additional_config.get("telemetry_dir") or "").strip()
+            or TTConfig.telemetry_dir
+        )
+
+        env_tele_flush = os.environ.get("TTXLA_TELEMETRY_FLUSH_MS")
+        if env_tele_flush is not None:
+            try:
+                additional_config["telemetry_flush_ms"] = float(env_tele_flush)
+            except ValueError:
+                # A telemetry knob must never crash the engine.
+                additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+        elif additional_config.get("telemetry_flush_ms") is None:
+            additional_config["telemetry_flush_ms"] = TTConfig.telemetry_flush_ms
+
+        # Must precede every collector: the scheduler's is built after warmup
+        # and the snapshot is never truncated on init.
+        if additional_config["telemetry_enabled"]:
+            from .telemetry import reset_sinks
+
+            reset_sinks(additional_config["telemetry_dir"])
+
+        vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
@@ -286,10 +580,31 @@ class TTPlatform(Platform):
                 "vllm_tt.scheduler.AscendScheduler"
             )
 
+        # TT does not support asynchronous scheduling (is_async_output_supported
+        # is False). v0.25.1 auto-enables it when left unset, which drives the
+        # AscendScheduler stale-request path into an endless preempt/retry loop.
+        # Force it off.
+        vllm_config.scheduler_config.async_scheduling = False
+
         cache_config = vllm_config.cache_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
+
+        # The block pool is global but each replica holds its own KV cache, so
+        # block id N is different memory per device and a cross-replica hit
+        # reads zeros. Chunked-prefill continuation is unaffected (same request,
+        # same replica).
+        if (
+            tt_config.enable_data_parallel
+            and cache_config
+            and cache_config.enable_prefix_caching
+        ):
+            logger.warning(
+                "[TT] Disabling prefix caching: it is not safe under data "
+                "parallelism (per-replica KV cache vs global block pool)."
+            )
+            cache_config.enable_prefix_caching = False
         compilation_config = vllm_config.compilation_config
 
         # TT only supports DYNAMO_TRACE_ONCE compilation level
@@ -313,9 +628,7 @@ class TTPlatform(Platform):
         if compilation_config.backend == "":
             compilation_config.backend = "tt"
 
-        assert (
-            vllm_config.speculative_config is None
-        ), "TT does not support speculative decoding"
+        cls._validate_speculative_decode_config(vllm_config)
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -329,20 +642,18 @@ class TTPlatform(Platform):
             )
             model_config.dtype = torch.bfloat16
 
-        from .attention import TTAttentionBackend
+        from .attention_impls.attention import TTAttentionBackend
 
         cache_config.block_size = TTAttentionBackend.get_page_size(
             vllm_config
         )  # type: ignore[assignment]
 
+        cls._maybe_disable_unprofitable_hybrid_kv_cache(vllm_config)
+
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
-
-        assert (
-            not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TT backend"
 
         if (
             scheduler_config.is_multimodal_model
@@ -361,11 +672,50 @@ class TTPlatform(Platform):
                 "prefill and prefix caching to be disabled."
             )
             vllm_config.scheduler_config.enable_chunked_prefill = False
-            vllm_config.scheduler_config.chunked_prefill_enabled = False
+            vllm_config.scheduler_config.tt_chunked_prefill_enabled = False
             vllm_config.scheduler_config.max_num_batched_tokens = max(
                 vllm_config.model_config.max_model_len,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
+        elif model_config is not None and model_config.runner_type != "pooling":
+            # Opt-in via prefill_chunk_size. tt_chunked_prefill_enabled is a
+            # TT-only attr (vLLM has no such field) gating the TT path; vLLM's
+            # enable_chunked_prefill defaults True and can't stand in for it.
+            chunk_size = int(additional_config.get("prefill_chunk_size", 0))
+            if chunk_size > 0:
+                # PER-SEQUENCE cap bounding the prefill activation + token-padding
+                # ladder, not a batch-wide sum. Floor at one block for alignment.
+                per_seq_chunk = max(chunk_size, cache_config.block_size)
+
+                # Per-step batch-wide budget: one chunk per user, so scale by
+                # max_num_seqs to batch all users' same-stage chunks in one step.
+                budget = per_seq_chunk * scheduler_config.max_num_seqs
+                logger.info(
+                    "[TT] Chunked prefill: per-seq chunk %d, "
+                    "max_num_batched_tokens %d -> %d (= chunk x max_num_seqs %d) "
+                    "so up to %d users prefill per step.",
+                    per_seq_chunk,
+                    scheduler_config.max_num_batched_tokens,
+                    budget,
+                    scheduler_config.max_num_seqs,
+                    scheduler_config.max_num_seqs,
+                )
+                scheduler_config.enable_chunked_prefill = True
+                scheduler_config.tt_chunked_prefill_enabled = True
+                # TT-internal per-sequence chunk cap, read by AscendScheduler
+                # (per-request chunk sizing) and TTModelRunner (bucket ladder).
+                scheduler_config.tt_prefill_chunk_size = per_seq_chunk
+                # Derived value: a user-supplied max_num_batched_tokens is
+                # intentionally overridden here (logged above).
+                scheduler_config.max_num_batched_tokens = budget
+                scheduler_config.max_num_encoder_input_tokens = budget
+                scheduler_config.encoder_cache_size = budget
+
+        # Outside the branch chain on purpose: the MLA branch, a zero chunk_size
+        # and the pooling path all leave TT chunked prefill off, and the global
+        # has to be cleared for them too rather than keep a previous config's
+        # value in a shared process.
+        publish_tt_per_request_prefill_chunk(vllm_config)
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
@@ -379,7 +729,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "vllm.distributed.device_communicators.tpu_communicator.TpuCommunicator"  # noqa
+        return "vllm_tt.distributed.tpu_communicator.TpuCommunicator"
 
     @classmethod
     def validate_request(
@@ -433,3 +783,100 @@ class TTPlatform(Platform):
             max_model_len,
         )
         return max_model_len
+
+    @classmethod
+    def manual_seed_all(cls, seed: int) -> None:
+        """Set RNG seed across all devices for the current platform. Set in
+        worker after initializing the device.
+        """
+        return
+
+
+# Per-request prefill chunk for the sliding-window admission bound below.
+# Published from both TTPlatform.check_and_update_config (front-end process) and
+# TTWorker.__init__ (EngineCore, where the bound's consumers live).
+# 0 = TT chunked prefill is off, patch is a no-op.
+_TT_PER_REQUEST_PREFILL_CHUNK = 0
+
+
+def publish_tt_per_request_prefill_chunk(vllm_config) -> None:
+    """Record one request's in-flight token bound for the admission bound below.
+
+    vLLM's own bound is ``max_concurrent_batches * max_num_batched_tokens`` --
+    every concurrent batch may hold a full batch-wide budget -- so the
+    per-request analogue carries the same multiplier over the per-request chunk.
+    Reading it from the config rather than assuming 1 keeps this correct if TT
+    ever enables pipeline parallelism or async scheduling.
+
+    Always assigns, so a config without TT chunked prefill clears a value a
+    previous config published.
+    """
+    global _TT_PER_REQUEST_PREFILL_CHUNK
+    scheduler_config = vllm_config.scheduler_config
+    if not getattr(scheduler_config, "tt_chunked_prefill_enabled", False):
+        _TT_PER_REQUEST_PREFILL_CHUNK = 0
+        return
+    _TT_PER_REQUEST_PREFILL_CHUNK = (
+        getattr(scheduler_config, "tt_prefill_chunk_size", 0)
+        * vllm_config.max_concurrent_batches
+    )
+
+
+def install_tt_sliding_window_admission() -> None:
+    """Bound a sliding-window layer by one request's chunk, not the batch's.
+
+    ``SlidingWindowSpec.max_admission_blocks_per_request`` sizes a request's
+    in-flight KV from ``VllmConfig.max_in_flight_tokens``, which is built on
+    ``max_num_batched_tokens``. Under TT chunked prefill that is the batch-wide
+    budget (``tt_prefill_chunk_size * max_num_seqs``) while AscendScheduler caps
+    each request at ``tt_prefill_chunk_size``, so the bound is inflated by up to
+    ``max_num_seqs`` x. That over-charge feeds the startup admission check,
+    which then rejects long-context configurations over pool memory they would
+    never use.
+
+    Patch the spec method rather than either caller: vLLM treats it as the
+    single source of truth for both the startup pool sizer and the runtime
+    admission cap, and warns that drift between the two re-introduces a deadlock
+    (vllm#39734) or mid-prefill OOM.
+    """
+    from vllm.v1.kv_cache_interface import SlidingWindowSpec
+
+    original = SlidingWindowSpec.max_admission_blocks_per_request
+    if getattr(original, "_tt_patched", False):
+        return  # idempotent: never stack wrappers and clamp twice
+
+    def _tt_max_admission_blocks_per_request(
+        self, max_in_flight_tokens: int, max_model_len: int
+    ) -> int:
+        if _TT_PER_REQUEST_PREFILL_CHUNK:
+            max_in_flight_tokens = min(
+                max_in_flight_tokens, _TT_PER_REQUEST_PREFILL_CHUNK
+            )
+        return original(
+            self,
+            max_in_flight_tokens=max_in_flight_tokens,
+            max_model_len=max_model_len,
+        )
+
+    _tt_max_admission_blocks_per_request._tt_patched = True
+    SlidingWindowSpec.max_admission_blocks_per_request = (
+        _tt_max_admission_blocks_per_request
+    )
+
+
+def install_tt_accelerator_memory_info() -> None:
+    """Route ``torch.accelerator.get_memory_info`` to the TT host-memory estimate.
+
+    vLLM 0.25.1's Gemma4 multimodal encoder sizes its vision-encoder chunks with
+    ``torch.accelerator.get_memory_info()``, which asserts on the TT (xla/"jax")
+    device because it has no torch ``DeviceAllocator``. Reuse the same host-memory
+    estimate as ``TTPlatform.mem_get_info`` (the value only scales the encoder
+    chunk size, so a host-memory estimate is always safe).
+    """
+    if not hasattr(torch, "accelerator"):
+        return
+
+    def _tt_get_memory_info(device=None) -> tuple[int, int]:
+        return TTPlatform.mem_get_info()
+
+    torch.accelerator.get_memory_info = _tt_get_memory_info

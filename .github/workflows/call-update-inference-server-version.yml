@@ -96,12 +96,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          models=(efficientnet mobilenetv2 resnet-50 segformer vit vovnet)
+          # Each entry: "<model>|<runner-label>|<device-type>"
+          entries=(
+            "efficientnet|n150|n150"
+            "mobilenetv2|n150|n150"
+            "resnet-50|n150|n150"
+            "segformer|n150|n150"
+            "vit|n150|n150"
+            "vovnet|n150|n150"
+            "Falcon3-7B-Instruct|p150|p150"
+          )
 
           checklist="$RUNNER_TEMP/checklist.md"
           : > "$checklist"
 
-          for model in "${models[@]}"; do
+          for entry in "${entries[@]}"; do
+            IFS='|' read -r model runner device <<< "$entry"
+
             prev_id="$(gh run list \
               --repo "$SHIELD_REPO" \
               --workflow on-dispatch.yml \
@@ -109,13 +120,13 @@ jobs:
               --limit 1 \
               --json databaseId -q '.[0].databaseId' 2>/dev/null || echo '')"
 
-            echo "Dispatching ${SHIELD_REPO} on-dispatch.yml for model=${model} inference-server-git-ref=${BRANCH}"
+            echo "Dispatching ${SHIELD_REPO} on-dispatch.yml for model=${model} runner-label=${runner} inference-server-git-ref=${BRANCH}"
             gh workflow run on-dispatch.yml \
               --repo "$SHIELD_REPO" \
               --ref main \
-              -f model="${model}" \
-              -f runner-label=n150 \
-              -f device-type=n150 \
+              -f custom-model="${model}" \
+              -f runner-label="${runner}" \
+              -f device-type="${device}" \
               -f tt-metal-git-ref=main \
               -f inference-server-git-ref="${BRANCH}" \
               -f vllm-git-ref=dev \

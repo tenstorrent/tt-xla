@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import itertools
+import os
 from typing import List, Optional, Union
 
 import torch
+import torch._dynamo as torchdynamo
 from torch import Tensor
 from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
 from ttxla_tools.logging import logger
@@ -25,7 +28,57 @@ Since we want to run torch models wihout modifying them, we will substitute torc
 anything in model in order to get performance improvement.
 """
 
+################# composite builder #################
+
+# torch_xla's StableHLOCompositeBuilder assigns each builder a random
+# `uuid.uuid4()` id (see mark_pattern_utils._get_uuid). That id becomes part of
+# the composite "boundary key" (name + "__@@__" + id) that torch_xla's
+# BuildStableHLOCompositePass groups output ops by and names the decomposition
+# function from ("<name>.impl"). When a graph contains multiple composites with
+# the same name (e.g. several tenstorrent.topk in the sampler), the pass iterates
+# an std::unordered_map keyed by that boundary key and uniques the colliding
+# function names to ".impl", ".impl_0", ".impl_1", ... in iteration order. Random
+# uuids hash to different buckets each process, so the same graph serializes with
+# those suffixes permuted. That permutation changes the StableHLO text without
+# changing semantics and breaks codegen load-mode matching, which keys on a hash
+# of that text.
+#
+# Replace the random id with a deterministic, monotonic counter. The id only has
+# to be unique per composite instance within a graph (so distinct boundaries are
+# not merged), which a counter satisfies, while being identical across processes
+# that trace the same graphs in the same order. `assume_constant_result` mirrors
+# torch_xla's own _get_uuid so dynamo bakes the value in as a constant.
+_composite_id_counter = itertools.count()
+
+
+@torchdynamo.assume_constant_result
+def _deterministic_composite_id() -> str:
+    return str(next(_composite_id_counter))
+
+
+def _make_composite_builder(name, attr=None):
+    builder = StableHLOCompositeBuilder(name=name, attr=attr)
+    builder.id = _deterministic_composite_id()
+    return builder
+
+
 ################# function replacements #################
+
+
+def _normalize_dim(dim: int, rank: int) -> int:
+    """Normalize a (possibly negative) reduction dim to a non-negative index.
+
+    The ``dim`` value recorded in a composite's attributes is consumed verbatim
+    by tt-mlir. tt-mlir's ``ttnn.argmax`` declares ``dim`` as a signless
+    ``I32Attr``, so its ``getDim()`` accessor returns ``uint32_t``: a negative
+    dim (e.g. -1) is read back as a huge positive value, defeating the
+    ``if (dim < 0) dim += rank`` normalization in ArgMaxOpDimRewritePattern and
+    causing an out-of-bounds SmallVector access (SIGABRT) during compilation on
+    the non-sharded / degenerate-mesh path. Emitting a non-negative dim avoids
+    the negative-dim path entirely; the sharded custom_call path normalizes
+    independently, so positive dims are correct for both. See tt-xla #4494.
+    """
+    return dim + rank if dim < 0 else dim
 
 
 def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
@@ -39,7 +92,7 @@ def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
     name = "tenstorrent.gelu" + ("_tanh" if tanh else "")
     attr = {"approximate": "tanh"} if tanh else None
 
-    builder = StableHLOCompositeBuilder(name=name, attr=attr)
+    builder = _make_composite_builder(name=name, attr=attr)
 
     input = builder.mark_inputs(input)
     input = torch.nn.functional.gelu(input, approximate=approximate)
@@ -67,7 +120,7 @@ def composite_rms_norm(
     if eps is not None:
         attr["epsilon"] = eps
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.rms_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.rms_norm", attr=attr)
 
     if weight is not None:
         input, weight = builder.mark_inputs(input, weight)
@@ -108,7 +161,16 @@ def composite_layer_norm(
 
     attr = {"normalized_shape": normalized_shape_list, "epsilon": eps}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.layer_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.layer_norm", attr=attr)
+
+    # Match affine params to the input dtype. With AOTAutograd on (#3795), a
+    # dtype mismatch between the input (e.g. bf16) and fp32 weight/bias makes the
+    # traced output dtype disagree with the device tensor, which aborts at
+    # transferFromDevice (runtime.cpp: dstDataType == getTensorDataType(src)).
+    if weight is not None and weight.dtype != input.dtype:
+        weight = weight.to(input.dtype)
+    if bias is not None and bias.dtype != input.dtype:
+        bias = bias.to(input.dtype)
 
     if weight is not None and bias is not None:
         input, weight, bias = builder.mark_inputs(input, weight, bias)
@@ -151,7 +213,7 @@ def composite_group_norm(
     """
     attr = {"num_groups": num_groups, "epsilon": eps, "channel_dim": 1}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.group_norm", attr=attr)
+    builder = _make_composite_builder(name="tenstorrent.group_norm", attr=attr)
 
     if weight is not None and bias is not None:
         input, weight, bias = builder.mark_inputs(input, weight, bias)
@@ -182,9 +244,10 @@ def composite_topk(
     Creates composite topk operation for torch-xla using StableHLOCompositeBuilder.
     Returns a (values, indices) tuple.
     """
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
 
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk", attr=attrs)
 
     input = builder.mark_inputs(input)
     values, indices = torch.topk(input, k, dim, largest, sorted, out=out)
@@ -202,8 +265,9 @@ def composite_topk_values(
     out: tuple[Tensor, ...] | list[Tensor] | None = None,
 ) -> Tensor:
     """Composite topk returning only values. Marks a single output at pos=0."""
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_values", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk_values", attr=attrs)
     input = builder.mark_inputs(input)
     values, _ = torch.topk(input, k, dim, largest, sorted)
     values = builder.mark_outputs(values)
@@ -220,12 +284,33 @@ def composite_topk_indices(
     out: tuple[Tensor, ...] | list[Tensor] | None = None,
 ) -> Tensor:
     """Composite topk returning only indices. Marks a single output at pos=0."""
+    dim = _normalize_dim(dim, input.dim())
     attrs = {"k": k, "dim": dim, "largest": largest, "sorted": sorted}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.topk_indices", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.topk_indices", attr=attrs)
     input = builder.mark_inputs(input)
     _, indices = torch.topk(input, k, dim, largest, sorted)
     indices = builder.mark_outputs(indices)
     return indices
+
+
+def composite_argmax(
+    input: Tensor,
+    dim: int = -1,
+    keepdim: bool = False,
+) -> Tensor:
+    """Composite argmax with custom sharding rule for distributed argmax.
+
+    Uses ttnn.argmax (fast O(n) max reduction) instead of ttnn.topk
+    (O(n log²n) bitonic sort), yielding significant speedup for greedy
+    decoding on vocab-sharded tensors.
+    """
+    dim = _normalize_dim(dim, input.dim())
+    attrs = {"dim": dim, "keepdim": keepdim}
+    builder = _make_composite_builder(name="tenstorrent.argmax", attr=attrs)
+    input = builder.mark_inputs(input)
+    output = torch.argmax(input, dim=dim, keepdim=keepdim)
+    output = builder.mark_outputs(output)
+    return output
 
 
 def composite_scaled_dot_product_attention(
@@ -246,11 +331,22 @@ def composite_scaled_dot_product_attention(
     if scale is not None:
         attr["scale"] = scale
 
-    builder = StableHLOCompositeBuilder(
+    builder = _make_composite_builder(
         name="tenstorrent.scaled_dot_product_attention", attr=attr
     )
 
     if attn_mask is not None:
+        # Fused SDPA adds the mask to the scores, and ttnn.scaled_dot_product_attention
+        # accepts only a float mask (BF16/BFP8/BFP4), so convert a bool mask to additive
+        # form (True -> 0, False -> -inf). Gated by the same flag that allows capturing
+        # a bool mask in _check_sdpa_constraints.
+        # torch reference: https://github.com/pytorch/pytorch/blob/9f48642d4bf84566ca3191576c7ff30138953af8/torch/nn/functional.py#L6365
+        # ttnn check: tt-metal .../transformer/sdpa/device/sdpa_device_operation.cpp ("must be in BF16, BFP8, or BFP4 dataformat")
+        if (
+            os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
+            and attn_mask.dtype == torch.bool
+        ):
+            attn_mask = torch.where(attn_mask, 0.0, float("-inf")).to(query.dtype)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
@@ -290,7 +386,7 @@ def composite_gather(
         out: preallocated output tensor, will be ignored when generating composite op
     """
     attrs = {"dim": dim, "sparse_grad": sparse_grad}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.gather", attr=attrs)
+    builder = _make_composite_builder(name="tenstorrent.gather", attr=attrs)
     input, index = builder.mark_inputs(input, index)
     output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
     output = builder.mark_outputs(output)
@@ -473,20 +569,68 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
         )
         return False
 
-    # Check all inputs are bfloat16
-    tensor_args = list(node.args) + [
-        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
-    ]
-    for arg in tensor_args:
-        if hasattr(arg, "meta"):
+    # By default every SDPA input (including attn_mask) is gated on bf16, so a bool
+    # mask skips the composite. Catching bool masks by default regressed perf
+    # (issue #5426), so it is opt-in via TT_XLA_CATCH_BOOL_MASK_SDPA for models with
+    # no perf concern at the moment. When set, only the mask is exempted (bf16 or
+    # bool); Q/K/V are always gated on bf16.
+    def _dtype(arg):
+        if isinstance(arg, torch.fx.Node) and hasattr(arg, "meta"):
             val = arg.meta.get("example_value", None)
-            if val is not None and val.dtype != torch.bfloat16:
-                logger.debug(
-                    "composite scaled_dot_product_attention only supports bfloat16 inputs, "
-                    "skipping composite and using native implementation."
-                )
-                return False
+            if val is not None:
+                return val.dtype
+        return None
 
+    # Q/K/V (positional or named) must always be bf16.
+    qkv = list(node.args[:3]) + [
+        node.kwargs[name] for name in ("query", "key", "value") if name in node.kwargs
+    ]
+    for arg in qkv:
+        dtype = _dtype(arg)
+        if dtype is not None and dtype != torch.bfloat16:
+            logger.debug(
+                "composite scaled_dot_product_attention only supports bfloat16 Q/K/V, "
+                "skipping composite and using native implementation."
+            )
+            return False
+
+    # attn_mask dtype policy:
+    #   - bf16: accepted as-is.
+    #   - bool: accepted only under the flag; converted to an additive bf16 bias in
+    #     the composite (see composite_scaled_dot_product_attention).
+    #   - anything else (int, f32, ...): the fused kernel needs a float mask and we
+    #     do not convert it, so skip and fall back to the native implementation.
+    mask = node.args[3] if len(node.args) > 3 else node.kwargs.get("attn_mask")
+    mask_dtype = _dtype(mask)
+    if mask_dtype is not None and mask_dtype != torch.bfloat16:
+        catch_bool = os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
+        if not (catch_bool and mask_dtype == torch.bool):
+            logger.debug(
+                "composite scaled_dot_product_attention only supports a bfloat16 mask "
+                "(or a bool mask with TT_XLA_CATCH_BOOL_MASK_SDPA=1), "
+                "skipping composite and using native implementation."
+            )
+            return False
+
+    return True
+
+
+def _check_argmax_constraints(node: torch.fx.Node) -> bool:
+    """
+    Skip the composite when torch.argmax is called without an explicit dim.
+    Native torch.argmax(x) flattens the input and returns a scalar index, but
+    composite_argmax defaults to dim=-1, so applying it to a bare argmax would
+    silently change the output shape. Fall back to the native op in that case.
+    dim is the second positional arg or the `dim` kwarg; None (explicit or
+    defaulted) means "flatten", so we reject it.
+    """
+    dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+    if dim is None:
+        logger.debug(
+            "composite argmax requires an explicit dim, "
+            "skipping composite and using native implementation."
+        )
+        return False
     return True
 
 
@@ -504,6 +648,7 @@ Maps torch API calls to constraint functions.
 """
 constraints = {
     torch.nn.functional.scaled_dot_product_attention: _check_sdpa_constraints,
+    torch.argmax: _check_argmax_constraints,
 }
 
 
@@ -531,6 +676,7 @@ replacements = {
         frozenset({0}): composite_topk_values,
         frozenset({1}): composite_topk_indices,
     },
+    torch.argmax: composite_argmax,
     torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import os
 import subprocess
 import sys
@@ -11,12 +12,47 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLES_DIR = Path(__file__).resolve().parent.parent.parent / "examples"
+from tests.runner.requirements import RequirementsManager
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+EXAMPLES_DIR = REPO_ROOT / "examples"
 PATTERN = "**/*.py"
+
+# Examples whose imports need per-model requirements that the base test
+# environment does not carry. Mapped to the tt_forge_models requirements.txt
+# that provides them; installed for the duration of the example and rolled back
+# afterwards, the same way tests/runner/test_models.py handles component tests.
+EXAMPLE_REQUIREMENTS: dict[str, str] = {
+    "pytorch/xtts_v2_pipeline.py": (
+        "third_party/tt_forge_models/xtts_v2/pytorch/requirements.txt"
+    ),
+}
 
 # Directories with known issues - tests will be marked as xfail with the given reason
 XFAIL_DIRS: dict[str, str] = {
     "vllm": "vLLM examples require server setup and are not suitable for automated testing",
+}
+
+# Examples that need specific hardware. Tagged with markers (must be registered
+# in pytest.ini) so a matching CI job runs them on the right runner and the
+# default Wormhole examples job skips them.
+HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/hunyuan_image_2_1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/diffusiongemma.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/hunyuan_video_1_5.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/krea_realtime_video.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
 }
 
 # Specific files with known issues - tests will be marked as xfail with the given reason
@@ -140,12 +176,34 @@ def test_pytest_examples(script: Path):
         )
 
 
+def _requirements_for(script: Path):
+    """Context manager installing ``script``'s per-model requirements, if any.
+
+    Returns a no-op context for the common case where the example runs against
+    the base environment.
+    """
+    rel = str(script.relative_to(EXAMPLES_DIR))
+    req = EXAMPLE_REQUIREMENTS.get(rel)
+    if not req:
+        return contextlib.nullcontext()
+
+    RequirementsManager.capture_golden_state()
+    return RequirementsManager(str(REPO_ROOT / req), framework="torch")
+
+
+def _script_example_params() -> list:
+    """Parametrize script examples, tagging hardware-specific ones
+    (HARDWARE_MARKS) with markers so CI routes them to the matching runner."""
+    params = []
+    for p in _discover_script_examples():
+        rel = str(p.relative_to(EXAMPLES_DIR))
+        marks = [getattr(pytest.mark, m) for m in HARDWARE_MARKS.get(rel, [])]
+        params.append(pytest.param(p, marks=marks, id=rel))
+    return params
+
+
 @pytest.mark.push
-@pytest.mark.parametrize(
-    "script",
-    _discover_script_examples(),
-    ids=lambda p: str(p.relative_to(EXAMPLES_DIR)),
-)
+@pytest.mark.parametrize("script", _script_example_params())
 def test_script_examples(script: Path):
     """Run example files that have a main block as standalone scripts."""
     xfail_reason = _get_xfail_reason(script)
@@ -155,12 +213,13 @@ def test_script_examples(script: Path):
     cmd = [sys.executable, str(script)]
     env = os.environ.copy()
 
-    proc = subprocess.run(
-        cmd,
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    with _requirements_for(script):
+        proc = subprocess.run(
+            cmd,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
 
     if proc.returncode != 0:
         out_tail = "\n".join(proc.stdout.splitlines()[-100:])

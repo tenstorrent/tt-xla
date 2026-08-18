@@ -31,11 +31,9 @@ from .shared import (
     wan22_mesh,
 )
 
-_COMPILER_CONFIG = CompilerConfig(
+COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
-    export_path="model",
-    export_model_name="vae_decoder",
     enable_trace=True,
 )
 
@@ -44,7 +42,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 @pytest.mark.skip(
     reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir"
 )
@@ -56,7 +54,7 @@ def test_vae_decoder_720p():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+@pytest.mark.galaxy_bh
 @pytest.mark.skip(
     reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir"
 )
@@ -97,7 +95,7 @@ def _run(resolution: str, sharded: bool) -> None:
             graph=model,
             inputs=[z],
             framework=Framework.TORCH,
-            compiler_config=_COMPILER_CONFIG,
+            compiler_config=COMPILER_CONFIG,
             mesh=mesh,
             shard_spec_fn=shard_spec_fn,
             comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),

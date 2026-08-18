@@ -9,14 +9,24 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.testers.single_chip.model.torch_model_tester import _mask_jax_accelerator
+from infra.utilities.torch_multichip_utils import get_mesh
 
+from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.cog_videox.pytorch import ModelLoader, ModelVariant
 
 
 @pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 3183476736 B DRAM buffer across 12 bank - https://github.com/tenstorrent/tt-xla/issues/4646"
+    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9645380615162079 - https://github.com/tenstorrent/tt-xla/issues/5569"
 )
-def test_transformer():
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.model_test
+def test_transformer_sharded():
+    _run(sharded=True)
+
+
+def _run(sharded: bool):
     xr.set_device_type("TT")
     torch.manual_seed(42)
 
@@ -24,8 +34,20 @@ def test_transformer():
     model = loader.load_model(dtype_override=torch.bfloat16)
     inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
-    run_graph_test(
-        model,
-        inputs,
-        framework=Framework.TORCH,
-    )
+    mesh = None
+    shard_spec_fn = None
+    if sharded:
+        mesh_shape, mesh_names = loader.get_mesh_config(
+            xr.global_runtime_device_count()
+        )
+        mesh = get_mesh(mesh_shape, mesh_names)
+        shard_spec_fn = loader.load_shard_spec
+
+    with _mask_jax_accelerator():
+        run_graph_test(
+            model,
+            inputs,
+            framework=Framework.TORCH,
+            mesh=mesh,
+            shard_spec_fn=shard_spec_fn,
+        )

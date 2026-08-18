@@ -732,29 +732,37 @@ def _patch_wan_time_embedder_dtype_probe() -> None:
     WanTimeTextImageEmbedding.forward = patched_forward
 
 
-def _disable_tt_torch_function_override() -> None:
-    """Pop `TorchFunctionOverride` off the global TorchFunctionMode stack.
+from contextlib import contextmanager
 
-    `tt_torch/torch_overrides.py` enters a `TorchFunctionMode` at import
-    time. Its body is gated by `torch.compiler.is_compiling()` and does
-    nothing on the compile path, but the mode still sits on dynamo's
-    function-mode stack and forces a `__torch_function__` trace for every
-    matmul / linear encountered during tracing.
+
+@contextmanager
+def torch_function_override_disabled():
+    """Pop the always-on tt_torch 4D matmul/linear -> einsum override for the
+    scope, restore on exit.
+
+    tt_torch installs a global ``TorchFunctionMode`` (``torch_function_override``,
+    entered at import time). Some ``torch.compile``-d call sites must not see
+    that mode during their dynamo trace (e.g. forwards that call
+    ``Tensor.unflatten(..., -1)``); this temporarily pops it.
+
+    This branch's ``tt_torch.torch_overrides`` exposes the ``torch_function_override``
+    instance but no disabled-context manager, so we wrap the public instance here.
+    The fix stays test-local; the tt_torch package is not modified. Nested usage
+    is safe: an inner block is a no-op while the outer block pops on enter and
+    restores on exit.
     """
-    try:
-        import tt_torch.torch_overrides as overrides
-    except ImportError:
-        return
-
-    mode = getattr(overrides, "torch_function_override", None)
-    if mode is None:
-        return
+    from tt_torch.torch_overrides import torch_function_override
 
     try:
-        mode.__exit__(None, None, None)
-    except Exception:
-        # Mode wasn't on the stack or was already popped – ignore.
-        pass
+        torch_function_override.__exit__(None, None, None)
+        popped = True
+    except RuntimeError:
+        popped = False
+    try:
+        yield
+    finally:
+        if popped:
+            torch_function_override.__enter__()
 
 
 # ---------------------------------------------------------------------------

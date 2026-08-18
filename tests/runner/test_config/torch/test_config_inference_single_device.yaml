@@ -39,6 +39,7 @@ test_config:
     status: EXPECTED_PASSING
 
   clip/pytorch-Base_Patch16-single_device-inference:
+    markers: [baseline_uplift]
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2793
     status: EXPECTED_PASSING
 
@@ -65,7 +66,7 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
-  bloom/pytorch-single_device-inference:
+  bloom/pytorch-1b1-single_device-inference:
     status: EXPECTED_PASSING
 
   xglm/pytorch-564M-single_device-inference:
@@ -95,10 +96,12 @@ test_config:
 
   yolov3/pytorch-Base-single_device-inference:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.9725883603096008. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "datasets.exceptions.DatasetGenerationError: An error occurred while generating the dataset, error in datasets"
     markers: ["extended"]
 
   yolov4/pytorch-Base-single_device-inference:
+    markers: [baseline_uplift]
     required_pcc: 0.98  # AssertionError: PCC comparison failed. Calculated: pcc=0.9872550368309021. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
@@ -112,11 +115,12 @@ test_config:
     status: EXPECTED_PASSING
 
   musicgen_small/pytorch-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   falcon/pytorch-3_1B_Base-single_device-inference:
     status: EXPECTED_PASSING
-    markers: [push]
+    markers: [push, baseline_uplift]
     optimization_level: 2
 
   falcon/pytorch-3_3B_Base-single_device-inference:
@@ -176,6 +180,7 @@ test_config:
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
   bart/pytorch-Large-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   bert/question_answering/pytorch-Large_Finetuned_Squad2-single_device-inference:
@@ -224,6 +229,7 @@ test_config:
     status: EXPECTED_PASSING
 
   distilbert/masked_lm/pytorch-Base_Cased-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   distilbert/masked_lm/pytorch-Base_Uncased-single_device-inference:
@@ -289,6 +295,7 @@ test_config:
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-B0-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   efficientnet/pytorch-B1-single_device-inference:
@@ -384,12 +391,17 @@ test_config:
     markers: [push, nightly]
 
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
     optimization_level: 2
 
   motif_image_6B_preview/text_to_image/pytorch-Motif-Image-6B-Preview-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "DYNAMO_FAKE_TENSORS_FX_NODE: Dynamo failed to run FX node with fake tensors: aten.add.Tensor — two different devices xla:0, cpu"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -425,6 +437,7 @@ test_config:
     status: EXPECTED_PASSING
 
   segformer/pytorch-Mit_B0-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   segformer/pytorch-Mit_B1-single_device-inference:
@@ -449,6 +462,7 @@ test_config:
     status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-S-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   swin/image_classification/pytorch-B-single_device-inference:
@@ -504,7 +518,7 @@ test_config:
       - split_query_key_value_and_split_heads.ttnn.mlir
       - layer_norm.ttnn.mlir
     optimization_level: 1
-    markers: [push, nightly]
+    markers: [push, nightly, baseline_uplift]
 
   vit/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
@@ -525,6 +539,7 @@ test_config:
     status: EXPECTED_PASSING
 
   roberta/masked_lm/pytorch-Xlm_Base-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   mamba/pytorch-2.8b_HF-single_device-inference:
@@ -541,6 +556,7 @@ test_config:
     status: EXPECTED_PASSING
 
   mistral/pytorch-Ministral_3B_Instruct-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   mlp_mixer/pytorch-Mixer_B16_224-single_device-inference:
@@ -564,6 +580,7 @@ test_config:
     assert_pcc: false
 
   phi2/causal_lm/pytorch-Phi_2-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
     optimization_level: 2
 
@@ -611,7 +628,7 @@ test_config:
 
   bert/masked_lm/pytorch-Base_Uncased-single_device-inference:
     status: EXPECTED_PASSING
-    markers: ["extended"]
+    markers: [extended, baseline_uplift]
 
   bert/sequence_classification/pytorch-Base_Uncased_Sst_2-single_device-inference:
     status: EXPECTED_PASSING
@@ -698,6 +715,7 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Base_v1-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Large_v1-single_device-inference:
@@ -728,7 +746,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PCC comparison failed (calc ~0.19, required 0.99). https://github.com/tenstorrent/tt-xla/issues/5739"
     optimization_level: 2
 
   yolos/pytorch-single_device-inference:
@@ -770,13 +789,13 @@ test_config:
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
-    assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8167537277595653. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Failure due to incompatible torchvision version. Issue: https://github.com/tenstorrent/tt-xla/issues/5519"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -889,7 +908,9 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     filechecks:
       - concatenate_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
@@ -898,14 +919,18 @@ test_config:
     optimization_level: 1
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-0_6B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
@@ -988,6 +1013,7 @@ test_config:
     markers: [push]
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-single_device-inference:
@@ -1011,6 +1037,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yolov7/pytorch-Default-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   yolov7/pytorch-W6-single_device-inference:
@@ -1205,6 +1232,7 @@ test_config:
     status: EXPECTED_PASSING
 
   stable_diffusion_unet/pytorch-Base-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   sana/pytorch-1600M_1024px-single_device-inference:
@@ -1255,6 +1283,7 @@ test_config:
     reason: "ttir.scatter does not work - https://github.com/tenstorrent/tt-xla/issues/2391"
 
   gemma/pytorch-1.1_2B_IT-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   nbeats/pytorch-generic_basis-single_device-inference:
@@ -1433,6 +1462,7 @@ test_config:
     status: EXPECTED_PASSING
 
   resnet/pytorch-ResNet50_HuggingFace_High_Resolution-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   resnet/pytorch-ResNet50_TIMM_High_Resolution-single_device-inference:
@@ -1465,16 +1495,6 @@ test_config:
   bi_lstm_crf/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
-
-  flux/pytorch-Schnell-single_device-inference:
-    supported_archs: ["p150"]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9354927640542214. Required: pcc=0.99"
-
-  flux/pytorch-Dev-single_device-inference:
-    supported_archs: ["p150"]
-    status: EXPECTED_PASSING
 
   gliner/pytorch-Multi_v2.1-single_device-inference:
     status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/4267
@@ -1526,6 +1546,7 @@ test_config:
         reason: "Running the test CRASHED with signal 9 https://github.com/tenstorrent/tt-xla/issues/2254"
 
   phi3/causal_lm/pytorch-Mini_128K_Instruct-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   phi3/causal_lm/pytorch-Mini_4K_Instruct-single_device-inference:
@@ -1576,6 +1597,10 @@ test_config:
   vadv2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Host OOM: process SIGKILL (signal 9) on n150 runner during nightly (heavy model exceeds host memory); cannot run to its classified failure"
 
   huggyllama/pytorch-Llama_7B-single_device-inference:
     status: EXPECTED_PASSING
@@ -1717,7 +1742,8 @@ test_config:
     optimization_level: 2
     arch_overrides:
       p150:
-        status: EXPECTED_PASSING
+        status: KNOWN_FAILURE_XFAIL
+        reason: "PCC comparison failed (calc ~0.43). https://github.com/tenstorrent/tt-xla/issues/5739"
 
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1819,8 +1845,9 @@ test_config:
 
   qwen_3/causal_lm/pytorch-14B-single_device-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: EXPECTED_PASSING
-    required_pcc: 0.98
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
 
   qwen_3/causal_lm/pytorch-30B_A3b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -1829,7 +1856,9 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-8B-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC regression from tt-mlir decode RoPE/QKV fusing on Qwen3 QK-norm (#8931). Fix: https://github.com/tenstorrent/tt-mlir/pull/9042"
     optimization_level: 2
     arch_overrides:
       n150:
@@ -2124,11 +2153,8 @@ test_config:
     reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9793780977131366. Required: pcc=0.99."
 
   transfuser/pytorch-single_device-inference:
-    arch_overrides:
-        n150:
-          status: EXPECTED_PASSING
-        p150:
-          status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2225,10 +2251,12 @@ test_config:
     status: EXPECTED_PASSING
 
   detr/object_detection/pytorch-ResNet50_Backbone-single_device-inference:
+    markers: [baseline_uplift]
     assert_pcc: false
     status: EXPECTED_PASSING
 
   sentencizer/pytorch-Xlm_Roberta_Base-single_device-inference:
+    markers: [baseline_uplift]
     assert_pcc: false
     status: EXPECTED_PASSING
 
@@ -2282,13 +2310,16 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: EXPECTED_PASSING
+    markers: [baseline_uplift]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "ValueError: Error code: 13 - https://github.com/tenstorrent/tt-xla/issues/5338"
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2237
 
   yolos_small/pytorch-Small-single_device-inference:
+    markers: [baseline_uplift]
     required_pcc: 0.965
     status: EXPECTED_PASSING
 
@@ -2300,10 +2331,13 @@ test_config:
     status: EXPECTED_PASSING
 
   yolop/pytorch-Default-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
+    # Regressed by the tt-mlir uplift in #5850; restore 0.98 once fixed.
+    required_pcc: 0.97
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
+    markers: [baseline_uplift]
     required_pcc: 0.97  # https://github.com/tenstorrent/tt-xla/issues/3182
     status: EXPECTED_PASSING
 
@@ -2479,6 +2513,7 @@ test_config:
     status: EXPECTED_PASSING
 
   dinov2/image_classification/pytorch-Small-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   dinov2/image_classification/pytorch-Base-single_device-inference:
@@ -2494,6 +2529,7 @@ test_config:
     status: EXPECTED_PASSING
 
   bge_1_5/embedding_generation/pytorch-Large_En_v1_5-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   allam/causal_lm/pytorch-7B_Instruct-single_device-inference:
@@ -2506,6 +2542,7 @@ test_config:
         required_pcc: 0.98
 
   siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   siglip/image_text_similarity/pytorch-Base_Patch16_256-single_device-inference:
@@ -2571,6 +2608,7 @@ test_config:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
+    markers: [baseline_uplift]
     status: EXPECTED_PASSING
 
   ssd512/object_detection/pytorch-ssd512-single_device-inference:
@@ -2726,3 +2764,23 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+
+  xtts_v2/pytorch-speaker_encoder-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-conditioning-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_prefill-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_decode-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-gpt_latents-single_device-inference:
+    status: EXPECTED_PASSING
+
+  xtts_v2/pytorch-hifigan_decoder-single_device-inference:
+    status: EXPECTED_PASSING
+    # Has never met 0.98 since bring-up (#5376); measures 0.9797.
+    required_pcc: 0.97
