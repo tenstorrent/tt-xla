@@ -49,6 +49,10 @@ HARDWARE_MARKS: dict[str, list[str]] = {
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/krea_realtime_video.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
 }
 
 # Specific files with known issues - tests will be marked as xfail with the given reason
