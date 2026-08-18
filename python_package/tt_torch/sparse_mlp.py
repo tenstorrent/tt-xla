@@ -795,7 +795,8 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 # Raw-logits gate: use external routing function
                 topk_idx, topk_weight = self._route_fn(gate_output)
             elif isinstance(gate_output, (tuple, list)):
-                out1, out2 = gate_output
+                # Index rather than unpack: HiDream's MoEGate appends aux_loss.
+                out1, out2 = gate_output[0], gate_output[1]
                 if self._gate_returns_idx_first:
                     topk_idx, topk_weight = out1, out2
                 else:
