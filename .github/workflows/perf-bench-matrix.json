@@ -115,6 +115,10 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "voxtral_mini_3b",
+        "pytest": "tests/benchmark/test_audio.py::test_voxtral_mini_3b"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"

@@ -13,6 +13,14 @@ librosa==0.11.0
 numba==0.63.1
 llvmlite==0.46.0
 
+# Voxtral tokenizes through the mistral_common backend (it ships a tekken.json,
+# not a Jinja chat template). This cannot be installed per-loader at test time:
+# transformers resolves what is available while it is being imported and memoizes
+# it, so a later install leaves the processor on a tokenizer with no chat template
+# ("tokenizer.chat_template is not set"). It has to be in the environment before
+# pytest starts.
+mistral-common[audio]
+
 lit
 loguru
 graphviz
