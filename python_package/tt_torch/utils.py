@@ -96,11 +96,7 @@ def apply_xla_dynamo_guard_repr_patch() -> None:
             )
 
         ref = self.arg_ref(guard)
-        # GuardBuilder.get(name) evals its argument as a source string, so it
-        # must receive guard.name (a str), not the Guard object. Passing the
-        # Guard here crashes with "eval() arg 1 must be a string" on any
-        # non-TypeSource ID_MATCH guard (e.g. an nn.Module inline candidate).
-        val = self.get(guard.name)
+        val = self.get(guard)
         id_val = self.id_ref(val, guard.name)
 
         # Generate safe string representation without materializing XLA tensors
@@ -115,12 +111,10 @@ def apply_xla_dynamo_guard_repr_patch() -> None:
 
         code = f"___check_obj_id({ref}, {id_val}), type={type_repr}"
         self._set_guard_export_info(guard, [code], provided_func_name="ID_MATCH")
-        # This torch build's add_id_match_guard binding takes (id_val,
-        # verbose_code_parts) only — passing guard.user_stack as a third arg
-        # raises "incompatible function arguments". Match torch's own call site.
         self.get_guard_manager(guard).add_id_match_guard(
             id_val,
             get_verbose_code_parts(code, guard, recompile_hint),
+            guard.user_stack,
         )
 
         # Handle LocalSource for Module objects
