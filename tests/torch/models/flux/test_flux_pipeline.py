@@ -179,7 +179,8 @@ class _PccVAEDecoder:
     second copy is needed.
     """
 
-    def __init__(self, vae, mesh):
+    def __init__(self, vae):
+        # No mesh: the VAE runs replicated, so it needs no shard annotations.
         self._dev = torch_xla.device()
         self.config = vae.config
         self.dtype = next(vae.parameters()).dtype
@@ -293,7 +294,7 @@ class FluxTTPipeline:
             PCC_CHECK_STEPS,
         )
         self.pipe.transformer = _PccDenoiser(self.pipe.transformer, self.mesh)
-        self.pipe.vae = _PccVAEDecoder(self.pipe.vae, self.mesh)
+        self.pipe.vae = _PccVAEDecoder(self.pipe.vae)
 
         generator = torch.Generator().manual_seed(seed) if seed is not None else None
         result = self.pipe(
