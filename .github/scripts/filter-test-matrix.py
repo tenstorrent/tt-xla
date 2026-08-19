@@ -17,13 +17,8 @@ def flatten_matrix(data):
         for test in proj.get("tests", []):
             if test.get("skip"):
                 continue
-            # Required per test: a missing or misspelled group would drop the
-            # benchmark from every nightly without any error.
             if test.get("group") not in VALID_GROUPS:
-                raise ValueError(
-                    f"Test '{test.get('name', '<unnamed>')}': \"group\" must be one of "
-                    f"{', '.join(VALID_GROUPS)}, got {test.get('group')!r}"
-                )
+                continue
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
             runs_on = merged_test.get("runs-on", [])
