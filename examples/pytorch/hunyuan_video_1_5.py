@@ -5,8 +5,9 @@
 """Runnable HunyuanVideo 1.5 (480p t2v distilled) text-to-video example on Tenstorrent.
 
 Pipeline implementation lives in ``tt_forge_models``; this is a thin demo. The
-DiT (the heavy net) runs tensor-parallel sharded on the Tenstorrent backend;
-the text encoders (Qwen2.5-VL + ByT5), the scheduler and the VAE run on CPU.
+DiT (the heavy net) and the Qwen2.5-VL text encoder run tensor-parallel sharded
+on the Tenstorrent backend, with the ByT5 glyph encoder replicated there; the
+scheduler and the VAE run on CPU.
 """
 
 from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
@@ -15,7 +16,9 @@ from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
     save_video,
 )
 
-PROMPT = "a cat sitting on a boat"
+# The double-quoted span is what routes text through text_encoder_2 (the ByT5
+# glyph encoder); without it the pipeline feeds the DiT zero glyph embeds.
+PROMPT = 'A girl holding a paper with words "Hello, world!"'
 SEED = 42
 NUM_INFERENCE_STEPS = 10
 NUM_FRAMES = 25
