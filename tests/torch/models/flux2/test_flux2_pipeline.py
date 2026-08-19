@@ -260,7 +260,9 @@ class Flux2TTPipeline:
             prompt_embeds = te_compiled(input_ids.to(dev), attention_mask.to(dev))
         # .cpu() forces execution and blocks until the embeds are on host.
         prompt_embeds = prompt_embeds.cpu()
-        _assert_pcc("text_encoder", prompt_embeds, golden_embeds, TEXT_ENCODER_PCC_THRESHOLD)
+        _assert_pcc(
+            "text_encoder", prompt_embeds, golden_embeds, TEXT_ENCODER_PCC_THRESHOLD
+        )
 
         # Free the 24B encoder from device before placing the 32B denoiser.
         self.pipe.text_encoder = text_encoder.to("cpu")
