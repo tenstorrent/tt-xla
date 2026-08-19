@@ -90,6 +90,11 @@
         "group": "experimental"
       },
       {
+        "name": "xtts_v2",
+        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2",
+        "group": "experimental"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
         "group": "regular"
