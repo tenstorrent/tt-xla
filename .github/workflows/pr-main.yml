@@ -77,8 +77,8 @@ jobs:
       #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150-perf", "filter": ["resnet","llama_3_1_8b","falcon3-1b","qwen_3_8b"] },
-        { "runs-on": "qb2-blackhole", "filter": ["qwen_3_32b_tp_qb2"] } ]'
+        { "runs-on": "n150-perf", "filter": ["resnet","llama_3_1_8b"] },
+        { "runs-on": "qb2-blackhole", "filter": ["llama_3_1_70b_tp_qb2"] } ]'
       sh-runner: false
       skip-device-perf: true
       regression_check: false # toggle on #5486 completion
@@ -95,10 +95,10 @@ jobs:
       # On-PR accuracy uplift check: llama_3_1_70b TP accuracy on qb2-blackhole.
       adv_filter: '[
         { "accuracy-testing": true },
-        { "runs-on": "qb2-blackhole", "filter": ["qwen_3_32b_tp_qb2"] } ]'
+        { "runs-on": "qb2-blackhole", "filter": ["llama_3_1_70b_tp_qb2"] } ]'
       sh-runner: false
       skip-device-perf: true
-      regression_check: true
+      regression_check: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 

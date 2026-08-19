@@ -82,14 +82,16 @@ def _run_video_gen(
 
 
 def test_hunyuan_video_1_5(output_file, request):
-    """HunyuanVideo 1.5 (480p t2v distilled): DiT tensor-parallel on TT, text
-    encoders/scheduler/VAE on CPU. Config matches the nightly pipeline test."""
+    """HunyuanVideo 1.5 (480p t2v distilled): DiT and text encoders on TT,
+    scheduler/VAE on CPU. Config matches the nightly pipeline test."""
     from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
         HunyuanVideo15Config,
         HunyuanVideo15Pipeline,
     )
 
-    PROMPT = "a cat sitting on a boat"
+    # The double-quoted span is what routes text through text_encoder_2 (the
+    # ByT5 glyph encoder); without it that stage never runs.
+    PROMPT = 'A girl holding a paper with words "Hello, world!"'
     HEIGHT = 480
     WIDTH = 848
     NUM_FRAMES = 25
