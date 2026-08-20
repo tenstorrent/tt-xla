@@ -619,10 +619,12 @@ def test_hunyuan_image_2_1(output_file, request):
         HunyuanImage21Pipeline,
     )
 
-    # HunyuanImage-2.1 (Distilled): 2048x2048, 8 steps, distilled guidance 3.5.
-    # Only the ~17.45B MMDiT transformer runs on TT (tensor-parallel sharded across
-    # the mesh's model axis); the Qwen2.5-VL + ByT5 text encoders, scheduler and
-    # VAE run on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    # HunyuanImage-2.1: 2048x2048. Guidance is real CFG, so each step is two
+    # transformer forwards (cond + uncond).
+    # Only the ~17.43B MMDiT transformer runs on TT (tensor-parallel sharded across
+    # the mesh's model axis); the Qwen2.5-VL + ByT5 text encoders, scheduler,
+    # guider combine and VAE run on CPU. Multichip — wired to the 4-chip
+    # blackhole (qb2).
     prompt = (
         "A cute, cartoon-style anthropomorphic penguin plush toy with fluffy fur, "
         "standing in a painting studio, wearing a red knitted scarf and a red beret "
@@ -630,7 +632,7 @@ def test_hunyuan_image_2_1(output_file, request):
         "expression as it paints an oil painting of the Mona Lisa, rendered in a "
         "photorealistic photographic style."
     )
-    num_inference_steps = 8
+    num_inference_steps = 10  # 10 for now, will be boosted to 50 later
     height = width = 2048
 
     def build_pipeline_fn(compile_options):

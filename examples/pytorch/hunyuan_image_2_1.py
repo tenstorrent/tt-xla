@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Runnable HunyuanImage 2.1 (Distilled) text-to-image example on Tenstorrent.
+"""Runnable HunyuanImage 2.1 text-to-image example on Tenstorrent.
 
 The pipeline implementation lives in ``tt_forge_models``; this is a thin runnable
 demo that calls it.
@@ -18,7 +18,6 @@ Run (multichip blackhole, qb2):
 import torch_xla.runtime as xr
 
 from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.pipeline import (
-    DISTILLED_GUIDANCE_SCALE,
     NUM_INFERENCE_STEPS,
     PROMPT,
     SEED,
@@ -38,7 +37,6 @@ def main():
 
     image = pipeline.generate(
         prompt=PROMPT,
-        distilled_guidance_scale=DISTILLED_GUIDANCE_SCALE,
         num_inference_steps=NUM_INFERENCE_STEPS,
         seed=SEED,
     )
