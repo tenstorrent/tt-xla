@@ -24,7 +24,8 @@
       },
       {
         "name": "internvl3_1b",
-        "pytest": "tests/benchmark/test_multimodal.py::test_internvl3"
+        "pytest": "tests/benchmark/test_multimodal.py::test_internvl3",
+        "group": "regular"
       },
       {
         "name": "playground_v2_5",
