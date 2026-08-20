@@ -2,16 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from types import SimpleNamespace
 from typing import Callable
 
 import numpy as np
 import pytest
 import torch
 import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from diffusers.models.transformers.transformer_hidream_image import MOEFeedForwardSwiGLU
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM
 from transformers.models.falcon.modeling_falcon import FalconMLP
@@ -728,3 +732,71 @@ def test_moe_activation_swiglu_limit():
     gate_up = torch.randn(1, 64, 256, dtype=torch.bfloat16) * 5.0
 
     run_graph_test(model, [gate_up], framework=Framework.TORCH)
+
+
+"""HiDream-I1 MoE block (stock moe_infer on CPU vs A2aSparseMLP on TT)"""
+
+
+@pytest.mark.nightly
+@pytest.mark.qb2_blackhole
+@pytest.mark.parametrize(
+    "seq_len", [4096, 4480], ids=["double_stream", "single_stream"]
+)
+def test_hidream_moe_cpu_vs_tt(seq_len):
+    """
+    Verify enable_sparse_mlp reproduces HiDream-I1's stock MoE block on TT.
+
+    Stock moe_infer sorts tokens by expert and slices one ragged group per
+    expert, so its shapes follow the router's output: a bincount graph break
+    plus a recompile per distinct group size. A2aSparseMLP keeps them static.
+    seq_len covers both block types -- the 16 double-stream blocks call ff_i
+    with 4096 image tokens, the 32 single-stream blocks with 4480 (image plus
+    text), batch 2 in both cases for CFG.
+    """
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    dim = 2560
+    # hidden_dim is folded down internally: int(2 * 10240 / 3) -> 6912.
+    moe = MOEFeedForwardSwiGLU(
+        dim=dim,
+        hidden_dim=4 * dim,
+        num_routed_experts=4,
+        num_activated_experts=2,
+    )
+    moe = moe.to(torch.bfloat16).eval()
+
+    hidden_states = torch.randn(2, seq_len, dim, dtype=torch.bfloat16)
+
+    # Run stock moe_infer BEFORE enable_sparse_mlp (init restacks the experts)
+    with torch.no_grad():
+        golden = moe(hidden_states)
+
+    enable_spmd()
+    device = xm.xla_device()
+    mesh_shape = (1, xr.global_runtime_device_count())
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
+    xs.set_global_mesh(mesh)
+
+    # HiDream spells it num_activated_experts, so without num_experts_per_tok
+    # create_a2a_from_deepseek_v3_moe falls back to its default of 6.
+    config = SimpleNamespace(n_routed_experts=4, num_experts_per_tok=2)
+    # cluster_axis=1: mesh is (1, N), so axis 0 would dispatch nowhere.
+    tt_moe = enable_sparse_mlp(moe, mesh=mesh_shape, cluster_axis=1, config=config).to(
+        device
+    )
+
+    # Experts stack into one tensor each, sharded on the expert dim. Mirrors
+    # get_tt_moe_shard_specs, which cannot be called here -- it walks
+    # model.model.layers.
+    experts = tt_moe.mlp.experts
+    compound = ("batch", "model")
+    xs.mark_sharding(experts.gate_proj, mesh, (compound, None, None))
+    xs.mark_sharding(experts.up_proj, mesh, (compound, None, None))
+    xs.mark_sharding(experts.down_proj, mesh, (compound, None, None))
+
+    compiled = torch.compile(tt_moe, backend="tt")
+    with torch.no_grad():
+        tt_out = compiled(hidden_states.to(device)).to("cpu")
+
+    TorchComparisonEvaluator(ComparisonConfig()).evaluate(tt_out, golden)
