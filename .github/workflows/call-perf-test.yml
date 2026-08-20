@@ -82,9 +82,33 @@ jobs:
     - name: Set caching env variables
       shell: bash
       run: |
+        # CI-ONLY PROBE, NOT FOR MERGE. Normally this sets DOCKER_CACHE_ROOT for
+        # non-shared runners. We export IRD_LF_CACHE instead so get_file() is forced
+        # to attempt a wget from the IRD large-file cache, to establish whether that
+        # host is reachable from the bare-metal perf pool at all.
         if [[ "${{ matrix.build.shared-runners }}" != "true" ]]; then
-          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
         fi
+
+    - name: Probe IRD large-file cache reachability
+      shell: bash
+      continue-on-error: true
+      run: |
+        URL="${{ vars.IRD_LF_CACHE }}"
+        FIXTURE="test_files/pytorch/whisper/1272-128104-0000.pt"
+        echo "IRD_LF_CACHE=$URL"
+        HOST=$(echo "$URL" | sed -E 's#^https?://##; s#[:/].*$##')
+        echo "--- host: $HOST"
+        echo "--- DNS (getent):"; getent hosts "$HOST" || echo "  DNS RESOLUTION FAILED"
+        echo "--- HTTP HEAD on cache root:"
+        curl -sS -o /dev/null -w "  http_code=%{http_code} connect=%{time_connect}s\n" \
+          --connect-timeout 15 --max-time 30 "$URL/" || echo "  CURL FAILED (root)"
+        echo "--- HTTP HEAD on the fixture:"
+        curl -sS -o /dev/null -w "  http_code=%{http_code} size=%{size_download}\n" \
+          --connect-timeout 15 --max-time 60 -I "$URL/$FIXTURE" || echo "  CURL FAILED (fixture)"
+        echo "--- /mnt/dockercache presence of the same fixture:"
+        ls -la "/mnt/dockercache/models/tt-ci-models-private/$(dirname $FIXTURE)/" 2>&1 | head -20 \
+          || echo "  dockercache dir not present"
 
     - uses: actions/checkout@v6
       with:
