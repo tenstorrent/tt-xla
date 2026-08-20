@@ -446,12 +446,16 @@ jobs:
       run: |
         echo "display_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.config.display_name')" >> $GITHUB_OUTPUT
 
-        if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
-          mode="accuracy"
+        if [[ "${{ matrix.build.group }}" == "experimental" ]]; then
           workflow_file="schedule-benchmark-experimental.yml"
         else
-          mode="perf"
           workflow_file="schedule-nightly.yml"
+        fi
+
+        if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
+          mode="accuracy"
+        else
+          mode="perf"
         fi
         echo "mode=$mode" >> $GITHUB_OUTPUT
         workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \

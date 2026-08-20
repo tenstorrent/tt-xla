@@ -31,7 +31,6 @@ on:
           - 'llmbox-1'
           - 'llmbox-2'
           - 'galaxy-wh-6u'
-          - 'galaxy-bh'
           - 'qb2-blackhole'
           - 'cpu'
       shared_runners:
