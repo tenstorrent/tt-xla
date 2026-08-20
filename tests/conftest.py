@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from contextlib import contextmanager
@@ -601,23 +602,23 @@ class _StreamTee:
     """
     Tee capture for a single stream (stdout or stderr).
 
-    Redirects a file descriptor to a memory-backed file (memfd). A background
-    thread reads from the memfd and forwards to both a capture buffer and the
-    original terminal.
+    Redirects a file descriptor to a seekable backing file (memfd when available,
+    otherwise a temp file). A background thread reads from that file and forwards
+    to both a capture buffer and the original terminal.
 
     Architecture::
 
-        Process -> stdout -> memfd -> Reader Thread -> Buffer + Terminal
+        Process -> stdout -> backing fd -> Reader Thread -> Buffer + Terminal
 
     Attributes:
         _CHUNK_SIZE: Maximum bytes to read per iteration (class constant).
         _original_fd: File descriptor of the stream being captured.
         _saved_fd: Duplicated fd pointing to the original terminal for forwarding.
-        _memfd: Memory-backed file descriptor that receives redirected writes.
-        _read_fd: Separate fd for reading memfd with independent file position.
+        _memfd: Backing file descriptor that receives redirected writes.
+        _read_fd: Separate fd for reading the backing file with independent position.
         _buffer: StringIO buffer accumulating captured output.
         _thread: Background thread running the reader loop.
-        _read_pos: Current byte position in the memfd for reading.
+        _read_pos: Current byte position in the backing file for reading.
         _final_size: Termination signal for reader thread. None means keep looping,
             a numeric value N means exit after reading N bytes.
     """
@@ -635,10 +636,18 @@ class _StreamTee:
         self._final_size = None
 
     def start(self):
-        """Redirect stream to memfd and start reader thread."""
+        """Redirect stream to a backing file and start reader thread."""
         self._saved_fd = os.dup(self._original_fd)
-        self._memfd = os.memfd_create(f"tee_capture_{self._original_fd}")
-        self._read_fd = os.open(f"/proc/self/fd/{self._memfd}", os.O_RDONLY)
+        # Some Python builds (e.g. older uv/python-build-standalone) omit memfd_create.
+        if hasattr(os, "memfd_create"):
+            self._memfd = os.memfd_create(f"tee_capture_{self._original_fd}")
+            self._read_fd = os.open(f"/proc/self/fd/{self._memfd}", os.O_RDONLY)
+        else:
+            fd, path = tempfile.mkstemp(prefix=f"tee_capture_{self._original_fd}_")
+            self._memfd = fd
+            self._read_fd = os.open(path, os.O_RDONLY)
+            # Unlink so the file is removed when fds close; name is no longer needed.
+            os.unlink(path)
         self._thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._thread.start()
         os.dup2(self._memfd, self._original_fd)
@@ -720,7 +729,7 @@ class TeeCapture:
             self._stdout_tee.start()
             self._stderr_tee.start()
             self._started = True
-        except OSError:
+        except (OSError, AttributeError):
             self._started = False
 
     def stop(self):
