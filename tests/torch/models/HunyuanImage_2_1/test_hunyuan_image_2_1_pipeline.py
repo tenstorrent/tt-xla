@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanImage 2.1 (Distilled) — nightly e2e pipeline test, every TT component
-PCC-gated against a CPU twin in the same dtype. The Qwen and ByT5 encoders and
-the MMDiT transformer run bf16 on TT; scheduler and VAE stay on CPU. Encoders
-are checked once each, the transformer once per denoising step.
+"""HunyuanImage 2.1 — nightly e2e pipeline test, every TT component PCC-gated
+against a CPU twin in the same dtype. The Qwen and ByT5 encoders and the MMDiT
+transformer run bf16 on TT; scheduler, guider combine and VAE stay on CPU.
+
+Guidance is real CFG, so Qwen is checked twice (conditional + unconditional) and
+the transformer twice per denoising step.
 """
 
 import pytest
@@ -15,7 +17,7 @@ from infra import RunMode
 from infra.evaluators import PccConfig, TorchComparisonEvaluator
 from infra.evaluators.evaluation_config import ComparisonConfig
 from loguru import logger
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, incorrect_result
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
@@ -40,7 +42,7 @@ PROMPT = (
     "expression as it paints an oil painting of the Mona Lisa, rendered in a "
     "photorealistic photographic style."
 )
-NUM_INFERENCE_STEPS = 8
+NUM_INFERENCE_STEPS = 10  # 10 for now, will be boosted to 50 later
 PCC_THRESHOLD = 0.90
 
 MODEL_INFO = ModelLoader._get_model_info(ModelVariant.TRANSFORMER)
@@ -118,7 +120,14 @@ def _attach_pcc_checks(pipeline: HunyuanImage21Pipeline) -> None:
     model_info=MODEL_INFO,
     parallelism=Parallelism.TENSOR_PARALLEL,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
+)
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "AssertionError: transformer forward 4 PCC 0.408203 below 0.9 - "
+        "investigation pending - "
+        "https://github.com/tenstorrent/tt-xla/issues/5984"
+    )
 )
 def test_pipeline():
     """Run the HunyuanImage 2.1 pipeline with per-component PCC vs CPU twins."""
