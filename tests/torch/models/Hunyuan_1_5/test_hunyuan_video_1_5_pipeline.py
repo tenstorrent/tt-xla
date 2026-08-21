@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanVideo 1.5 (480p t2v distilled) — nightly e2e pipeline test, every TT
+"""HunyuanVideo 1.5 (480p t2v base) — nightly e2e pipeline test, every TT
 component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
-ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU. The
-encoders are checked once each, the DiT once per denoising step.
+ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU.
+
+Guidance is real CFG, so Qwen is checked twice (cond + uncond) and the DiT twice
+per denoising step; ByT5 once, since the negative prompt's glyph stream is zeros.
 """
 
 import pytest
@@ -15,7 +17,7 @@ from infra import RunMode
 from infra.evaluators import PccConfig, TorchComparisonEvaluator
 from infra.evaluators.evaluation_config import ComparisonConfig
 from loguru import logger
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, incorrect_result
 
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
@@ -114,8 +116,15 @@ def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
     model_info=MODEL_INFO,
     parallelism=Parallelism.TENSOR_PARALLEL,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+    bringup_status=BringupStatus.INCORRECT_RESULT,
 )
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "PCC comparison failed. Calculated: pcc=-0.084473 (transformer forward 17, "
+#         "step 9 conditional CFG pass). Required: pcc=0.9 "
+#         "https://github.com/tenstorrent/tt-xla/issues/5991"
+#     )
+# )
 def test_pipeline():
     """Run the HunyuanVideo15 pipeline with per-component PCC vs CPU twins."""
     xr.set_device_type("TT")
