@@ -602,3 +602,56 @@ def test_hunyuan_image_2_1(output_file, request):
         optimization_level=0,
         output_image_path="test_hunyuan_image_2_1_output.png",
     )
+
+
+def test_fibo(output_file, request):
+    """FIBO (briaai/FIBO) diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    FIBO is an 8B DiT flow-matching model. Like FLUX.1 / GLM-Image, the heavy
+    net (DiT) runs tensor-parallel across a multi-chip mesh (Megatron-1D on the
+    model axis) while the SmolLM3 text encoder, scheduler and Wan 2.2 VAE stay
+    on CPU. Drives the shared FiboPipeline from tt_forge_models (companion
+    pipeline PR tenstorrent/tt-forge-models#794). 1024x1024, 50 steps,
+    guidance 5.0 (model-card Generate defaults). Multichip — the matrix pins
+    this entry to the 4-chip blackhole (qb2-blackhole).
+    """
+    from third_party.tt_forge_models.fibo.pytorch.pipeline import (
+        HEIGHT,
+        WIDTH,
+        FiboConfig,
+        FiboPipeline,
+    )
+    from third_party.tt_forge_models.fibo.pytorch.src.model_utils import BRINGUP_PROMPT
+
+    prompt = BRINGUP_PROMPT
+    num_inference_steps = 50
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); text encoder,
+        # scheduler and VAE on CPU. compile_options are already applied globally
+        # by the harness.
+        pipeline = FiboPipeline(config=FiboConfig(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="fibo",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_fibo_output.png",
+    )
