@@ -140,7 +140,7 @@ def _setup_mark_weight_primitive():
         """Mark a tensor as a weight for hardware optimization."""
         return mark_weight_p.bind(x)
 
-    def lowering_mark_weight(_, x):
+    def lowering_mark_weight(ctx, x):
         """MLIR lowering for mark_weight primitive."""
         x_type = ir.RankedTensorType(x.type)
         with ir.Location.current:
@@ -161,27 +161,13 @@ def _setup_mark_weight_primitive():
                 # If any error occurs in checking, just proceed with marking
                 pass
 
-            # Get the current module from the insertion point
-            try:
-                current_op = ir.InsertionPoint.current.block.owner
-                while (
-                    current_op
-                    and hasattr(current_op, "name")
-                    and current_op.name != "builtin.module"
-                ):
-                    if hasattr(current_op, "parent"):
-                        current_op = current_op.parent
-                    else:
-                        break
-            except Exception:
-                current_op = None
-
-            func_name = "tt.mark"
-            if current_op:
-                try:
-                    func_name = _create_tt_mark_function(current_op, x)
-                except Exception:
-                    func_name = "tt.mark"
+            # Get the enclosing module from the lowering context. Walking the
+            # insertion point to find builtin.module is fragile across jaxlib
+            # MLIR versions -- on jax 0.11 it fails to reach the module and the
+            # old code silently fell back to an undefined @tt.mark, which the
+            # verifier rejects. The context always carries the module.
+            module_op = ctx.module_context.module.operation
+            func_name = _create_tt_mark_function(module_op, x)
 
             # Create the func.call to the specific tt.mark function
             op = ir.Operation.create(

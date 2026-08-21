@@ -71,6 +71,10 @@ public:
     return m_addressable_devices;
   }
 
+  // Returns the (replica, partition) logical ids of the addressable devices,
+  // in the same order as `getAddressableDevices()`. Computed lazily and cached.
+  const std::vector<PJRT_LogicalDeviceIds> &getAddressableDeviceLogicalIds();
+
   // Returns true if the client was initialized in compile-only mode.
   bool isCompileOnly() const;
 
@@ -161,6 +165,10 @@ protected:
   // Subset of client's addressable devices that this executable will run on.
   const std::vector<DeviceInstance *> m_addressable_devices;
 
+  // Cached (replica, partition) logical ids for the addressable devices, built
+  // on first access by getAddressableDeviceLogicalIds().
+  std::vector<PJRT_LogicalDeviceIds> m_addressable_device_logical_ids;
+
   // True if loaded executable was deleted, i.e. its resources are released.
   bool m_deleted;
 
@@ -183,6 +191,10 @@ onLoadedExecutableGetExecutable(PJRT_LoadedExecutable_GetExecutable_Args *args);
 // Implements PJRT_LoadedExecutable_AddressableDevices API function.
 PJRT_Error *onLoadedExecutableAddressableDevices(
     PJRT_LoadedExecutable_AddressableDevices_Args *args);
+
+// Implements PJRT_LoadedExecutable_AddressableDeviceLogicalIds API function.
+PJRT_Error *onLoadedExecutableAddressableDeviceLogicalIds(
+    PJRT_LoadedExecutable_AddressableDeviceLogicalIds_Args *args);
 
 // Implements PJRT_LoadedExecutable_Delete API function.
 PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args);
