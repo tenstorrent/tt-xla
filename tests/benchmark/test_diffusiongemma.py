@@ -7,11 +7,13 @@ Unlike the autoregressive models in ``test_llms.py`` there is no per-token decod
 generation denoises a whole canvas block, so there is no TTFT in the usual sense and
 throughput is generated-tokens / wall-clock.
 
-Warm iterations are measured *per component while it is resident*, the same shape
-``test_wan.py`` uses. Encoder and decoder cannot be co-resident (2 x 51.6GB against
-102.8GB of mesh DRAM), so the pipeline evicts one before loading the other -- and eviction
-necessarily discards the compiled graph, since the executable pins the weight buffers. So a
-warmup-then-time loop across *calls* would just re-measure that rebuild every time.
+Warm iterations are measured *per component while it is resident*. Encoder and decoder
+cannot be co-resident (2 x 51.6GB against 102.8GB of mesh DRAM), so the pipeline evicts one
+before loading the other -- and eviction necessarily discards the compiled graph, since the
+executable pins the weight buffers. So a warmup-then-time loop across *calls* would just
+re-measure that rebuild every time. Unlike ``test_wan.py``, which benchmarks each component
+as its own test, both components must run in one call here: the decoder consumes the KV
+cache the encoder produced. Hence the repeat lives inside the residency.
 
 Timing repeated forwards within one residency yields genuine warm numbers. The repeat lives
 in ``_staged_forwards``, not here: the encoder is freed before its forward returns, so
