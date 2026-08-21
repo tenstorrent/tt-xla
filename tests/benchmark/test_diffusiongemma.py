@@ -3,25 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Perf benchmark for DiffusionGemma-26B-A4B-it block-diffusion text generation.
 
-Unlike the autoregressive models in ``test_llms.py`` there is no per-token decode loop:
-generation denoises a whole canvas block, so there is no TTFT in the usual sense and
+Generation denoises a whole canvas block, so there is no TTFT in the usual sense and
 throughput is generated-tokens / wall-clock.
 
-Warm iterations are measured *per component while it is resident*. Encoder and decoder
-cannot be co-resident (2 x 51.6GB against 102.8GB of mesh DRAM), so the pipeline evicts one
-before loading the other -- and eviction necessarily discards the compiled graph, since the
-executable pins the weight buffers. So a warmup-then-time loop across *calls* would just
-re-measure that rebuild every time. Unlike ``test_wan.py``, which benchmarks each component
-as its own test, both components must run in one call here: the decoder consumes the KV
-cache the encoder produced. Hence the repeat lives inside the residency.
+Encoder and decoder cannot be co-resident, so the pipeline evicts one before loading the
+other -- and eviction discards the compiled graph, since the executable pins the weight
+buffers. Warm numbers are therefore taken per component while it is resident: the encoder
+repeat lives in ``_staged_forwards``, whose forward frees the encoder before returning.
 
-Timing repeated forwards within one residency yields genuine warm numbers. The repeat lives
-in ``_staged_forwards``, not here: the encoder is freed before its forward returns, so
-looping the forward would evict and recompile every iteration.
-
-Measured on n300-llmbox, warm kernel cache: encoder 321.9s cold -> 1.11s warm; decoder
-313.9s step 1 -> ~7-9s steady. Compilation is not the bottleneck (~39s of ~2355s); kernel
-JIT is, so CI must persist TT_METAL_CACHE to reproduce these numbers.
+Kernel JIT and program build dominate, not compilation, so CI must persist TT_METAL_CACHE
+for these numbers to be reproducible.
 """
 
 import inspect
@@ -106,8 +97,8 @@ def test_diffusiongemma_26b(
         total_new_tokens = 0
 
         for _ in range(loop_count):
-            # Warm encoder needs repeats inside one residency; the loop lives in
-            # _staged_forwards because the forward frees the encoder before returning.
+            # The warm-encoder repeat lives in _staged_forwards: the forward frees the
+            # encoder before returning, so repeating it here would recompile.
             encoder_forward, decoder_forward = pipeline._staged_forwards(
                 vocab_size,
                 encoder_iters=max(1, warm_encoder_iters),
