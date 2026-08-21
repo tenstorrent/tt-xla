@@ -498,6 +498,59 @@ def test_bge_m3(output_file, request):
     )
 
 
+def test_vibevoice(output_file, request):
+    """Benchmark VibeVoice-1.5B (microsoft/VibeVoice-1.5B).
+
+    VibeVoice is a long-form, generation-based text-to-speech model. In this
+    benchmark its forward reduces to the Qwen2.5 LM backbone producing logits
+    (speech_tensors=None; the semantic connector is exercised but unused), so
+    it runs cleanly through the generic single-forward encoder harness. The
+    loader wraps the model so forward() returns the bare logits tensor.
+    """
+    from third_party.tt_forge_models.vibevoice.pytorch.loader import ModelLoader
+
+    def inputs_to_device(inputs, device):
+        """Move tensor entries to device; pass non-tensors (e.g. return_dict) through."""
+        return {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in inputs.items()
+        }
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+    seq_len = 32
+
+    # Load model
+    loader = ModelLoader()
+    model_info_name = loader.get_model_info().name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        batch_size=batch_size, seq_len=seq_len, dtype_override=DTYPE_MAP[data_format]
+    )
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    output_processor_fn = lambda out, inputs: out
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="vibevoice",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=seq_len,
+        loop_count=32,
+        optimization_level=1,
+        trace_enabled=False,
+    )
+
+
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
 def test_unet_for_conditional_generation(output_file, request):
     """Test UNet for Conditional Generation model. This is a core component of the Stable Diffusion XL pipeline (https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)"""

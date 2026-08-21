@@ -120,6 +120,12 @@
         "group": "regular"
       },
       {
+        "name": "vibevoice",
+        "pytest": "tests/benchmark/test_encoders.py::test_vibevoice",
+        "runs-on": "n150-perf",
+        "group": "experimental"
+      },
+      {
         "name": "llama_3_1_8b_instruct_tp_qb2",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp_qb2",
         "runs-on": "qb2-blackhole",
