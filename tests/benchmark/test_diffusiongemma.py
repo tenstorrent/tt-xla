@@ -4,24 +4,22 @@
 """Perf benchmark for DiffusionGemma-26B-A4B-it block-diffusion text generation.
 
 Unlike the autoregressive models in ``test_llms.py`` there is no per-token decode loop:
-generation denoises a whole canvas block, so throughput is generated-tokens / wall-clock
-over one ``manual_generate`` call and there is no TTFT.
+generation denoises a whole canvas block, so there is no TTFT in the usual sense and
+throughput is generated-tokens / wall-clock.
 
-There is no warmup-then-time loop like the other benchmarks here. Encoder and decoder cannot
-be co-resident, so ``free_tt_graphs()`` runs between stages and every call recompiles. That
-is not just the double-load described in tenstorrent/tt-xla#5538 -- the encoder's text
-weights are in fact tied to the decoder's, so one load covers both -- but the shard map
-replicates attention (2 global KV heads can't shard 8 devices) and the embeddings, so a
-single co-resident copy still exhausts device DRAM (measured: OOM placing lm_head, 1.48GB,
-with ~91GB of ~98GB already allocated).
+Warm iterations are measured *per component while it is resident*, the same shape
+``test_wan.py`` uses. Encoder and decoder cannot be co-resident (2 x 51.6GB against
+102.8GB of mesh DRAM), so the pipeline evicts one before loading the other -- and eviction
+necessarily discards the compiled graph, since the executable pins the weight buffers. So a
+warmup-then-time loop across *calls* would just re-measure that rebuild every time.
 
-Two numbers are therefore reported:
+Timing repeated forwards within one residency yields genuine warm numbers. The repeat lives
+in ``_staged_forwards``, not here: the encoder is freed before its forward returns, so
+looping the forward would evict and recompile every iteration.
 
-  * ``samples_per_sec`` -- generated-tokens / wall-clock for the whole call, compile and
-    weight loading included. This is what a user actually waits for.
-  * ``warm_decode_steps_per_sec`` -- mean over denoising steps 2..N, which reuse the decoder
-    graph compiled on step 1. This is the compile-free number comparable to the warm
-    measurements the other benchmarks report.
+Measured on n300-llmbox, warm kernel cache: encoder 321.9s cold -> 1.11s warm; decoder
+313.9s step 1 -> ~7-9s steady. Compilation is not the bottleneck (~39s of ~2355s); kernel
+JIT is, so CI must persist TT_METAL_CACHE to reproduce these numbers.
 """
 
 import inspect
@@ -44,6 +42,7 @@ from tests.runner.requirements import RequirementsManager
 
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_LOOP_COUNT = 1
+DEFAULT_WARM_ENCODER_ITERS = 3
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 
@@ -54,10 +53,11 @@ def test_diffusiongemma_26b(
     output_file,
     request,
     loop_count=DEFAULT_LOOP_COUNT,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
     data_format=DEFAULT_DATA_FORMAT,
     batch_size=DEFAULT_BATCH_SIZE,
 ):
-    """End-to-end text-generation throughput for DiffusionGemma 26B on 8 chips."""
+    """End-to-end text generation plus per-component warm timings on 8 chips."""
     from third_party.tt_forge_models.diffusiongemma.pytorch import (
         loader as diffgemma_loader,
     )
@@ -85,6 +85,7 @@ def test_diffusiongemma_26b(
         )
         setup_start = time.perf_counter()
         pipeline.setup()
+        setup_time = time.perf_counter() - setup_start
 
         inputs = pipeline.loader.load_inputs(
             dtype_override=torch.bfloat16, prompt=PROMPT
@@ -97,19 +98,24 @@ def test_diffusiongemma_26b(
         prompt_len = inputs["input_ids"].shape[-1]
         vocab_size = pipeline.cpu_model.config.text_config.vocab_size
 
-        setup_time = time.perf_counter() - setup_start
-
-        # manual_generate is driven directly (rather than pipeline.generate) so the
-        # generated token count is exact instead of inferred from decoded text.
+        encoder_times = []
+        decode_step_times = []
         total_time = 0.0
         total_new_tokens = 0
-        warm_step_times = []
-        for _ in range(loop_count):
-            encoder_forward, decoder_forward = pipeline._staged_forwards(vocab_size)
-            step_times = []
 
-            # Step 1 compiles the decoder; 2..N reuse that graph, so only those are warm.
-            def timed_decoder_forward(_inner=decoder_forward, _acc=step_times, **kw):
+        for _ in range(loop_count):
+            # Warm encoder needs repeats inside one residency; the loop lives in
+            # _staged_forwards because the forward frees the encoder before returning.
+            encoder_forward, decoder_forward = pipeline._staged_forwards(
+                vocab_size,
+                encoder_iters=max(1, warm_encoder_iters),
+                encoder_times=encoder_times,
+            )
+
+            # Step 1 compiles the decoder; 2..N reuse that graph while it stays resident.
+            def timed_decoder_forward(
+                _inner=decoder_forward, _acc=decode_step_times, **kw
+            ):
                 step_start = time.perf_counter()
                 out = _inner(**kw)
                 _acc.append(time.perf_counter() - step_start)
@@ -128,13 +134,18 @@ def test_diffusiongemma_26b(
             )
             total_time += time.perf_counter() - start
             total_new_tokens += int(output.shape[-1] - prompt_len)
-            warm_step_times.extend(step_times[1:])
 
     tokens_per_sec = total_new_tokens / total_time if total_time else 0.0
-    mean_warm_step = (
-        sum(warm_step_times) / len(warm_step_times) if warm_step_times else 0.0
-    )
-    warm_steps_per_sec = 1.0 / mean_warm_step if mean_warm_step else 0.0
+
+    def _mean(values):
+        return sum(values) / len(values) if values else 0.0
+
+    # Drop the first of each: it carries that component's compile.
+    warm_encoder_s = _mean(encoder_times[1:])
+    warm_decode_step_s = _mean(decode_step_times[1:])
+    cold_encoder_s = encoder_times[0] if encoder_times else 0.0
+    cold_decode_step_s = decode_step_times[0] if decode_step_times else 0.0
+
     metadata = get_benchmark_metadata()
     arch = get_xla_device_arch()
     device_count = xr.global_runtime_device_count()
@@ -153,6 +164,7 @@ def test_diffusiongemma_26b(
         data_format=data_format,
         input_size=(batch_size, prompt_len),
         input_sequence_length=prompt_len,
+        ttft_ms=cold_encoder_s * 1e3,
     )
 
     results = create_benchmark_result(
@@ -170,14 +182,17 @@ def test_diffusiongemma_26b(
             create_measurement("tokens_per_sec", tokens_per_sec, MODEL_INFO_NAME),
             create_measurement("setup_time", setup_time, MODEL_INFO_NAME),
             create_measurement("max_new_tokens", MAX_NEW_TOKENS, MODEL_INFO_NAME),
+            # Per-component, measured while that component is device-resident.
+            create_measurement("warm_encoder_s", warm_encoder_s, MODEL_INFO_NAME),
+            create_measurement("cold_encoder_s", cold_encoder_s, MODEL_INFO_NAME),
             create_measurement(
-                "warm_decode_steps_per_sec", warm_steps_per_sec, MODEL_INFO_NAME
+                "warm_decode_step_s", warm_decode_step_s, MODEL_INFO_NAME
             ),
             create_measurement(
-                "mean_warm_decode_step_s", mean_warm_step, MODEL_INFO_NAME
+                "cold_decode_step_s", cold_decode_step_s, MODEL_INFO_NAME
             ),
             create_measurement(
-                "warm_decode_steps", len(warm_step_times), MODEL_INFO_NAME
+                "warm_decode_steps", max(0, len(decode_step_times) - 1), MODEL_INFO_NAME
             ),
         ],
         display_name=resolved_display_name,
