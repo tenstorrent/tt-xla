@@ -30,6 +30,8 @@ on:
           - 'vllm-model-tests-nightly.json'
           - 'fusion-tests.json'
           - 'model-test-emitpy.json'
+          - 'model-test-emitpy-xfail.json'
+          - 'model-test-emitpy-weekly.json'
           - 'basic-multihost-test.json'
           - 'Custom'
       test_suite_custom:
