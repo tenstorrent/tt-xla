@@ -64,7 +64,7 @@ test_config:
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.95 # measured pcc=0.9519 (2026-08-12), 0.9604 (2026-07-15); floor set below to absorb run-to-run noise. Attention/KV is replicated (out of the shard map) since the 2 global KV heads can't shard 8 devices, same gap as the gemma4 multimodal entries above. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5642
+    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/5642
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
