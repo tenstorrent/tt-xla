@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Mochi-1 preview — nightly e2e pipeline test, DiT PCC-gated per denoising
-step against a CPU twin. Only the DiT runs on TT; the T5-XXL text encoder,
-scheduler and VAE stay on CPU. Both the TT DiT and its CPU twin run bf16.
+"""Mochi-1 preview — nightly e2e pipeline test, every TT component PCC-gated
+against a CPU twin in the same dtype. The T5-XXL text encoder (replicated) and
+the DiT (tensor-parallel) run bf16 on TT; scheduler and VAE stay on CPU. The
+encoder is checked on each of its two forwards (cond + uncond), the DiT once per
+denoising step.
 
 CFG is on (guidance_scale=4.5), so every DiT forward — and every twin forward —
 sees a batch-2 cat([uncond, cond]) input.
@@ -46,48 +48,61 @@ def _pcc(device_out, golden_out) -> float:
     return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
 
 
-def _attach_dit_pcc_check(pipeline: Mochi1Pipeline) -> None:
-    """Wrap the DiT forward with an inline bf16-CPU-twin PCC check, asserted
-    per forward so a diverging step fails fast; the pipeline continues using
-    the real TT output regardless."""
-    transformer = pipeline.transformer
-    orig_forward = transformer.forward
-    twin = {"model": None}
-    step = {"n": 0}
+def _cpu(x):
+    return x.to("cpu") if isinstance(x, torch.Tensor) else x
 
-    def _cpu_twin():
-        if twin["model"] is None:
-            logger.info("[PCC] loading bf16 CPU DiT twin")
-            twin["model"] = ModelLoader(
-                VARIANT_NAME, subfolder="transformer"
-            ).load_model(dtype_override=torch.bfloat16)
-        return twin["model"]
 
-    def _cpu(x):
-        return x.to("cpu") if isinstance(x, torch.Tensor) else x
+def _attach_pcc_checks(pipeline: Mochi1Pipeline) -> None:
+    """Wrap every TT component's forward with an inline bf16-CPU-twin PCC check,
+    asserted per forward so a diverging step fails fast; the pipeline continues
+    using the real TT output regardless."""
 
-    def wrapped_forward(*args, **kwargs):
-        out = orig_forward(*args, **kwargs)
-        device_sample = (out[0] if isinstance(out, (tuple, list)) else out).to("cpu")
+    def attach(module, name, subfolder, pick=lambda out: out):
+        orig_forward = module.forward
+        twin = {"model": None}
+        step = {"n": 0}
 
-        golden_sample = _cpu_twin()(
-            hidden_states=_cpu(kwargs["hidden_states"]),
-            encoder_hidden_states=_cpu(kwargs["encoder_hidden_states"]),
-            timestep=_cpu(kwargs["timestep"]),
-            encoder_attention_mask=_cpu(kwargs["encoder_attention_mask"]),
-            attention_kwargs=None,
-            return_dict=False,
-        )[0]
+        def _cpu_twin():
+            if twin["model"] is None:
+                logger.info("[PCC] loading bf16 CPU twin: {}", name)
+                twin["model"] = ModelLoader(
+                    VARIANT_NAME, subfolder=subfolder
+                ).load_model(dtype_override=torch.bfloat16)
+            return twin["model"]
 
-        step["n"] += 1
-        pcc = _pcc(device_sample, golden_sample)
-        logger.info("[PCC] dit forward {}: pcc={:.6f}", step["n"], pcc)
-        assert (
-            pcc >= PCC_THRESHOLD
-        ), f"DiT forward {step['n']} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
-        return out
+        # The twin sees the same args, positional or keyword, moved to host.
+        def wrapped_forward(*args, **kwargs):
+            out = orig_forward(*args, **kwargs)
+            device_sample = pick(out).to("cpu")
+            golden = pick(
+                _cpu_twin()(
+                    *[_cpu(a) for a in args],
+                    **{k: _cpu(v) for k, v in kwargs.items()},
+                )
+            )
 
-    transformer.forward = wrapped_forward
+            step["n"] += 1
+            pcc = _pcc(device_sample, golden)
+            logger.info("[PCC] {} forward {}: pcc={:.6f}", name, step["n"], pcc)
+            assert (
+                pcc >= PCC_THRESHOLD
+            ), f"{name} forward {step['n']} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
+            return out
+
+        module.forward = wrapped_forward
+
+    attach(
+        pipeline.text_encoder,
+        "text_encoder",
+        "text_encoder",
+        pick=lambda out: out[0],
+    )
+    attach(
+        pipeline.transformer,
+        "dit",
+        "transformer",
+        pick=lambda out: out[0] if isinstance(out, (tuple, list)) else out,
+    )
 
 
 @pytest.mark.nightly
@@ -103,7 +118,7 @@ def _attach_dit_pcc_check(pipeline: Mochi1Pipeline) -> None:
     bringup_status=BringupStatus.PASSED,
 )
 def test_pipeline():
-    """Run the Mochi-1 pipeline (DiT tensor-parallel) with per-step DiT PCC."""
+    """Run the Mochi-1 pipeline with per-component PCC vs bf16 CPU twins."""
     xr.set_device_type("TT")
 
     pipeline = Mochi1Pipeline(
@@ -112,6 +127,6 @@ def test_pipeline():
         )
     )
     pipeline.setup()
-    _attach_dit_pcc_check(pipeline)
+    _attach_pcc_checks(pipeline)
 
     pipeline.generate(prompt=PROMPT, seed=SEED)

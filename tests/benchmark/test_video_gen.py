@@ -133,3 +133,60 @@ def test_hunyuan_video_1_5(output_file, request):
         fps=FPS,
         request=request,
     )
+
+
+def test_mochi_1_preview(output_file, request):
+    """Mochi-1 preview: DiT and T5-XXL text encoder on TT, scheduler/VAE on CPU.
+    Config matches the nightly pipeline test."""
+    from third_party.tt_forge_models.mochi.pytorch.src.pipeline import (
+        Mochi1Config,
+        Mochi1Pipeline,
+    )
+
+    PROMPT = (
+        "Close-up of a chameleon's eye, with its scaly skin changing color. "
+        "Ultra high resolution 4k."
+    )
+    HEIGHT = 480
+    WIDTH = 848
+    # 24 frames / 10 steps instead of the stock 84 / 64:
+    # https://github.com/tenstorrent/tt-xla/issues/4638
+    NUM_FRAMES = 24
+    NUM_INFERENCE_STEPS = 10
+    FPS = 15
+
+    def build_pipeline_fn(compile_options):
+        # compile_options are applied globally by the harness before this call;
+        # the pipeline configures TT via SPMD sharding and needs nothing further.
+        pipeline = Mochi1Pipeline(
+            config=Mochi1Config(
+                num_inference_steps=NUM_INFERENCE_STEPS,
+                height=HEIGHT,
+                width=WIDTH,
+                num_frames=NUM_FRAMES,
+            )
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, num_inference_steps):
+            return pipeline.generate(
+                prompt=prompt,
+                seed=DEFAULT_SEED,
+                num_inference_steps=num_inference_steps,
+                output_type="pil",
+            )
+
+        return pipeline, generate_fn
+
+    _run_video_gen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="Mochi-1-preview",
+        output_file=output_file,
+        prompt=PROMPT,
+        num_inference_steps=NUM_INFERENCE_STEPS,
+        height=HEIGHT,
+        width=WIDTH,
+        num_frames=NUM_FRAMES,
+        fps=FPS,
+        request=request,
+    )

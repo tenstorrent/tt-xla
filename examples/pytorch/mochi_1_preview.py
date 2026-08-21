@@ -6,7 +6,8 @@
 
 Pipeline implementation lives in ``tt_forge_models``; this is a thin demo. The
 DiT (the heavy net, ~10B) runs tensor-parallel sharded on the Tenstorrent
-backend; the T5-XXL text encoder, the scheduler and the VAE run on CPU.
+backend and the T5-XXL text encoder runs there too (replicated across the
+mesh); the scheduler and the VAE run on CPU.
 """
 
 from third_party.tt_forge_models.mochi.pytorch.src.pipeline import (
