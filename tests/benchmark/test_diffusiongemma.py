@@ -60,8 +60,6 @@ def test_diffusiongemma_26b(
         request=request, fallback="diffusiongemma_26b_a4b_it"
     )
 
-    # transformers>=5.11 is required for DiffusionGemma but the env is pinned lower;
-    # install the loader's version for this run and roll back on exit.
     loader_path = inspect.getsourcefile(diffgemma_loader)
     with RequirementsManager.for_loader(loader_path, framework="torch"):
         from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
@@ -97,8 +95,6 @@ def test_diffusiongemma_26b(
         total_new_tokens = 0
 
         for _ in range(loop_count):
-            # The warm-encoder repeat lives in _staged_forwards: the forward frees the
-            # encoder before returning, so repeating it here would recompile.
             encoder_forward, decoder_forward = pipeline._staged_forwards(
                 vocab_size,
                 encoder_iters=max(1, warm_encoder_iters),

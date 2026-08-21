@@ -55,7 +55,6 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
 
 MAX_NEW_TOKENS = 256
 SEED = 0
-# Measured worst step: 0.970110 (2026-08-12), 0.969719 (2026-07-20).
 PCC_THRESHOLD = 0.96
 
 
