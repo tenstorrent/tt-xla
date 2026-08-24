@@ -117,7 +117,7 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
         )
         pcc = _pcc(_to_device(tt_lhs, "cpu"), cpu_out.last_hidden_state)
         pcc_records.append(("encoder", ctr["block"], 0, pcc))
-        logger.warning("[PCC] block={} encoder: pcc={:.6f}", ctr["block"], pcc)
+        logger.info("[PCC] block={} encoder: pcc={:.6f}", ctr["block"], pcc)
         assert (
             pcc >= PCC_THRESHOLD
         ), f"encoder(block {ctr['block']}) PCC {pcc:.6f} < {PCC_THRESHOLD}"
@@ -161,7 +161,7 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
         )
         pcc = _pcc(_to_device(tt_logits, "cpu"), cpu_out.logits)
         pcc_records.append(("decoder", ctr["block"], ctr["step"], pcc))
-        logger.warning(
+        logger.info(
             "[PCC] block={} step={} decoder: pcc={:.6f}", ctr["block"], ctr["step"], pcc
         )
         assert (
@@ -236,7 +236,7 @@ def test_diffusiongemma_e2e():
         # default and the assert below would succeed without a single check having run.
         assert pcc_records, "no PCC checks ran: encoder/decoder forwards never fired"
         worst = min(p for *_, p in pcc_records)
-        logger.warning(
+        logger.info(
             "per-iteration PCC: {} checks, worst={:.6f}", len(pcc_records), worst
         )
         assert worst >= PCC_THRESHOLD

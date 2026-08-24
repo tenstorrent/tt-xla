@@ -11,8 +11,7 @@ other -- and eviction discards the compiled graph, since the executable pins the
 buffers. Warm numbers are therefore taken per component while it is resident: the encoder
 repeat lives in ``_staged_forwards``, whose forward frees the encoder before returning.
 
-Kernel JIT and program build dominate, not compilation, so CI must persist TT_METAL_CACHE
-for these numbers to be reproducible.
+Kernel JIT and program build dominate, not compilation.
 """
 
 import inspect
@@ -136,9 +135,8 @@ def test_diffusiongemma_26b(
     cold_encoder_s = encoder_times[0] if encoder_times else 0.0
     cold_decode_step_s = decode_step_times[0] if decode_step_times else 0.0
 
-    # At warning level so the per-component split is in every CI log, not just the
-    # --output-file json: cold vs warm is what this benchmark exists to report.
-    logger.warning(
+    # The per-component split is what this benchmark exists to report.
+    logger.info(
         "[PERF] encoder cold={:.2f}s warm={:.2f}s | decode step cold={:.2f}s warm={:.2f}s ({} warm steps)",
         cold_encoder_s,
         warm_encoder_s,
