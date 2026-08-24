@@ -6,12 +6,9 @@
 Generation denoises a whole canvas block, so there is no TTFT in the usual sense and
 throughput is generated-tokens / wall-clock.
 
-Encoder and decoder cannot be co-resident, so the pipeline evicts one before loading the
-other -- and eviction discards the compiled graph, since the executable pins the weight
-buffers. Warm numbers are therefore taken per component while it is resident: the encoder
-repeat lives in ``_staged_forwards``, whose forward frees the encoder before returning.
-
-Kernel JIT and program build dominate, not compilation.
+Encoder and decoder cannot be co-resident, so one is evicted before the other loads -- and
+eviction discards the compiled graph. Warm numbers are therefore per component while it is
+resident; the encoder repeat lives in ``_staged_forwards``, which frees it on return.
 """
 
 import inspect
@@ -101,7 +98,7 @@ def test_diffusiongemma_26b(
                 encoder_times=encoder_times,
             )
 
-            # Step 1 compiles the decoder; 2..N reuse that graph while it stays resident.
+            # Step 1 builds the graph; 2..N reuse it while resident.
             def timed_decoder_forward(
                 _inner=decoder_forward, _acc=decode_step_times, **kw
             ):
@@ -129,13 +126,12 @@ def test_diffusiongemma_26b(
     def _mean(values):
         return sum(values) / len(values) if values else 0.0
 
-    # Drop the first of each: it carries that component's compile.
+    # Drop the first of each: it carries the build.
     warm_encoder_s = _mean(encoder_times[1:])
     warm_decode_step_s = _mean(decode_step_times[1:])
     cold_encoder_s = encoder_times[0] if encoder_times else 0.0
     cold_decode_step_s = decode_step_times[0] if decode_step_times else 0.0
 
-    # The per-component split is what this benchmark exists to report.
     logger.info(
         "[PERF] encoder cold={:.2f}s warm={:.2f}s | decode step cold={:.2f}s warm={:.2f}s ({} warm steps)",
         cold_encoder_s,
@@ -181,7 +177,7 @@ def test_diffusiongemma_26b(
             create_measurement("tokens_per_sec", tokens_per_sec, MODEL_INFO_NAME),
             create_measurement("setup_time", setup_time, MODEL_INFO_NAME),
             create_measurement("max_new_tokens", MAX_NEW_TOKENS, MODEL_INFO_NAME),
-            # Per-component, measured while that component is device-resident.
+            # Measured while that component is resident.
             create_measurement("warm_encoder_s", warm_encoder_s, MODEL_INFO_NAME),
             create_measurement("cold_encoder_s", cold_encoder_s, MODEL_INFO_NAME),
             create_measurement(
