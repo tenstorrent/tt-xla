@@ -22,6 +22,7 @@ import time
 import pytest
 import torch
 import torch_xla.runtime as xr
+from loguru import logger
 from utils import (
     create_benchmark_result,
     create_measurement,
@@ -134,6 +135,17 @@ def test_diffusiongemma_26b(
     warm_decode_step_s = _mean(decode_step_times[1:])
     cold_encoder_s = encoder_times[0] if encoder_times else 0.0
     cold_decode_step_s = decode_step_times[0] if decode_step_times else 0.0
+
+    # At warning level so the per-component split is in every CI log, not just the
+    # --output-file json: cold vs warm is what this benchmark exists to report.
+    logger.warning(
+        "[PERF] encoder cold={:.2f}s warm={:.2f}s | decode step cold={:.2f}s warm={:.2f}s ({} warm steps)",
+        cold_encoder_s,
+        warm_encoder_s,
+        cold_decode_step_s,
+        warm_decode_step_s,
+        max(0, len(decode_step_times) - 1),
+    )
 
     metadata = get_benchmark_metadata()
     arch = get_xla_device_arch()
