@@ -33,7 +33,9 @@ OUTPUT_PATH = "qwen_image_output.png"
 def main():
     xr.set_device_type("TT")
 
-    pipeline = QwenImagePipeline(config=QwenImageConfig())
+    # warm_iters=1: a demo reports no timings, so there is no reason to pay
+    # for the extra VAE decode the benchmark uses to sample warm cost.
+    pipeline = QwenImagePipeline(config=QwenImageConfig(warm_iters=1))
     pipeline.setup()
 
     image = pipeline.generate(

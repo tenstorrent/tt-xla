@@ -47,6 +47,7 @@ def test_imagegen(
     optimization_level=DEFAULT_OPTIMIZATION_LEVEL,
     trace_enabled=DEFAULT_TRACE_ENABLED,
     output_image_path=None,
+    staged_residency=False,
 ):
     """Run a text-to-image benchmark with the given configuration.
 
@@ -61,6 +62,10 @@ def test_imagegen(
         optimization_level: Optimization level (0, 1, or 2).
         trace_enabled: Enable trace.
         output_image_path: If set, the steady-state image is saved here.
+        staged_residency: True for pipelines that evict each component (and its
+            compiled graph) before placing the next; skips the outer warmup pass,
+            which such a pipeline would spend recompiling. See
+            ``benchmarks/imagegen_benchmark.py``.
     """
     resolved_display_name = resolve_display_name(
         request=request, fallback=model_info_name
@@ -68,8 +73,7 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -77,8 +81,7 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
@@ -92,6 +95,7 @@ def test_imagegen(
         trace_enabled=trace_enabled,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         output_image_path=output_image_path,
+        staged_residency=staged_residency,
     )
 
     if output_file:
@@ -307,6 +311,10 @@ def test_qwen_image(output_file, request):
         width=width,
         optimization_level=0,
         output_image_path="test_qwen_image_output.png",
+        # Encoder, transformer and VAE are each freed with their compiled graph
+        # before the next is placed, so a second generate() would recompile
+        # everything instead of running warm.
+        staged_residency=True,
     )
 
 
