@@ -91,6 +91,11 @@
         "group": "experimental"
       },
       {
+        "name": "xtts_v2",
+        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2",
+        "group": "experimental"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
         "group": "regular"
@@ -666,6 +671,14 @@
       {
         "name": "hunyuan_video_1_5",
         "pytest": "tests/benchmark/test_video_gen.py::test_hunyuan_video_1_5",
+        "runs-on": [
+          "qb2-blackhole"
+        ],
+        "group": "experimental"
+      },
+      {
+        "name": "mochi_1_preview",
+        "pytest": "tests/benchmark/test_video_gen.py::test_mochi_1_preview",
         "runs-on": [
           "qb2-blackhole"
         ],
