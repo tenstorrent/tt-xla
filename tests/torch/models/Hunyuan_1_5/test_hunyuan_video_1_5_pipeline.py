@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanImage 2.1 (Distilled) — nightly e2e pipeline test, every TT component
-PCC-gated against a CPU twin in the same dtype. The Qwen and ByT5 encoders and
-the MMDiT transformer run bf16 on TT; scheduler and VAE stay on CPU. Encoders
-are checked once each, the transformer once per denoising step.
+"""HunyuanVideo 1.5 (480p t2v distilled) — nightly e2e pipeline test, every TT
+component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
+ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU. The
+encoders are checked once each, the DiT once per denoising step.
 """
 
 import pytest
@@ -18,32 +18,27 @@ from loguru import logger
 from utils import BringupStatus, Category
 
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
-    ModelLoader,
-    ModelVariant,
-)
-from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.pipeline import (
-    HIDDEN_STATE_SKIP_LAYER,
-    PROMPT_TEMPLATE_ENCODE_START_IDX,
-    TT_DTYPE,
-    HunyuanImage21Config,
-    HunyuanImage21Pipeline,
-)
-from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.src.model_utils import (
+from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.model_utils import (
     QwenPromptEmbedsWrapper,
 )
-
-PROMPT = (
-    "A cute, cartoon-style anthropomorphic penguin plush toy with fluffy fur, "
-    "standing in a painting studio, wearing a red knitted scarf and a red beret "
-    "with the word 'Tencent' on it, holding a paintbrush with a focused "
-    "expression as it paints an oil painting of the Mona Lisa, rendered in a "
-    "photorealistic photographic style."
+from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
+    HIDDEN_STATE_SKIP_LAYER,
+    PROMPT_TEMPLATE_ENCODE_START_IDX,
+    HunyuanVideo15Config,
+    HunyuanVideo15Pipeline,
 )
-NUM_INFERENCE_STEPS = 8
+
+# The double-quoted span is what routes text through text_encoder_2 (the ByT5
+# glyph encoder); without it the pipeline feeds the DiT zero glyph embeds.
+PROMPT = 'A girl holding a paper with words "Hello, world!"'
+SEED = 42
+NUM_INFERENCE_STEPS = 10
+NUM_FRAMES = 25
 PCC_THRESHOLD = 0.90
 
-MODEL_INFO = ModelLoader._get_model_info(ModelVariant.TRANSFORMER)
+VARIANT_NAME = ModelVariant.TRANSFORMER
+MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
 _PCC_CONFIG = PccConfig()
@@ -55,12 +50,13 @@ def _pcc(device_out, golden_out) -> float:
 
 def _twin(variant: ModelVariant):
     """Load the CPU golden for a component, in the dtype it runs on TT."""
-    return ModelLoader(variant).load_model(dtype_override=TT_DTYPE)
+    return ModelLoader(variant).load_model(dtype_override=torch.bfloat16)
 
 
-def _attach_pcc_checks(pipeline: HunyuanImage21Pipeline) -> None:
+def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
     """Wrap every TT component's forward with a CPU-twin PCC check, asserted per
-    forward. The pipeline keeps using the real TT output."""
+    forward so a diverging step fails fast. The pipeline keeps using the real TT
+    output."""
 
     def attach(module, name, build_twin, pick=lambda out: out):
         orig_forward = module.forward
@@ -69,7 +65,7 @@ def _attach_pcc_checks(pipeline: HunyuanImage21Pipeline) -> None:
 
         def _cpu_twin():
             if twin["model"] is None:
-                logger.info("[PCC] loading CPU twin: {}", name)
+                logger.info("[PCC] loading bf16 CPU twin: {}", name)
                 twin["model"] = build_twin()
             return twin["model"]
 
@@ -121,11 +117,15 @@ def _attach_pcc_checks(pipeline: HunyuanImage21Pipeline) -> None:
     bringup_status=BringupStatus.PASSED,
 )
 def test_pipeline():
-    """Run the HunyuanImage 2.1 pipeline with per-component PCC vs CPU twins."""
+    """Run the HunyuanVideo15 pipeline with per-component PCC vs CPU twins."""
     xr.set_device_type("TT")
 
-    pipeline = HunyuanImage21Pipeline(config=HunyuanImage21Config())
+    pipeline = HunyuanVideo15Pipeline(
+        config=HunyuanVideo15Config(
+            num_inference_steps=NUM_INFERENCE_STEPS, num_frames=NUM_FRAMES
+        )
+    )
     pipeline.setup()
     _attach_pcc_checks(pipeline)
 
-    pipeline.generate(prompt=PROMPT, num_inference_steps=NUM_INFERENCE_STEPS)
+    pipeline.generate(prompt=PROMPT, seed=SEED)

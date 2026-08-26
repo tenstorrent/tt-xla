@@ -37,11 +37,35 @@ XFAIL_DIRS: dict[str, str] = {
 # in pytest.ini) so a matching CI job runs them on the right runner and the
 # default Wormhole examples job skips them.
 HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/flux1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/flux2.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/hunyuan_image_2_1.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/z_image.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); weights exceed single-Wormhole DRAM
     "pytorch/diffusiongemma.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/hunyuan_video_1_5.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/krea_realtime_video.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/mochi_1_preview.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)

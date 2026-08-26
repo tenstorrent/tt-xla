@@ -583,3 +583,10 @@ def save_image(image: torch.Tensor, filepath: str = "output.png"):
     if image_np.shape[0] == 3:
         image_np = image_np.transpose(1, 2, 0)
     Image.fromarray(image_np).save(filepath)
+
+
+def save_video(frames, filepath: str = "output.mp4", fps: int = 15):
+    """Save a video-gen pipeline's output frames (list of PIL images) as an MP4."""
+    from diffusers.utils import export_to_video
+
+    export_to_video(frames, filepath, fps=fps)

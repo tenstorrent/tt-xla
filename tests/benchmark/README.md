@@ -45,6 +45,7 @@ tests/benchmark/
 ├── test_llms.py             # LLM test definitions
 ├── test_vision.py           # Vision model test definitions
 ├── test_encoders.py         # Encoder model test definitions
+├── test_tts.py              # Text-to-speech test definitions
 ├── benchmarks/              # Core benchmark implementations
 ├── llm_utils/               # LLM-specific utilities
 ```
@@ -130,6 +131,42 @@ def test_new_model(
 
 Vision and encoder tests follow the same pattern — import the existing `ModelLoader`, pick a variant, and call `test_vision()` or `test_encoder()`.
 
+### Adding a text-to-speech model
+
+`benchmarks/tts_benchmark.py` is model-agnostic: a new TTS model needs a
+`build_pipeline_fn` and a pipeline that fills in a `_perf` dict (`components`,
+`steps`, `step_metric_name`, `total`, `audio_samples`), plus a `test_<model>` entry
+in `test_tts.py`. See `benchmarks/xtts_v2_pipeline.py` for a worked example.
+
+Two things differ from the other families:
+
+- **Headline metric.** `samples_per_sec` is the *real-time factor* — generated audio
+  seconds per wall-clock second — so `total_samples` is the audio duration, not a
+  count of items.
+- **Fixed work per run.** The generated token count is pinned, so an RTF change is a
+  pure wall-clock change and a graph compiling inside a timed region is a hard
+  failure (`assert_no_recompiles`) rather than a warning.
+
 ### Adding the test to CI
 
 In order for a new test to run in CI, it needs to be added to `.github/workflows/perf-bench-matrix.json`.
+
+#### Choosing a nightly with `group`
+
+Each entry carries a `group` that decides which scheduled nightly runs it:
+
+| `group` | Workflow | Use for |
+| --- | --- | --- |
+| `regular` (default) | `schedule-nightly.yml` | Priority benchmarks tracked for perf regressions every night. |
+| `experimental` | `schedule-benchmark-experimental.yml` | Experimental benchmarks. |
+
+Example of adding an imagegen benchmark model that runs on qb2-blackhole in experimental nightly CI:
+
+```json
+{
+  "name": "my_new_model",
+  "pytest": "tests/benchmark/test_imagegen.py::test_my_new_model",
+  "runs-on": "qb2-blackhole",
+  "group": "experimental"
+}
+```
