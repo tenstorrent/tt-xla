@@ -36,7 +36,6 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import get_mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
-
 from third_party.tt_forge_models.ltx2_3.pytorch import ModelLoader, ModelVariant
 
 

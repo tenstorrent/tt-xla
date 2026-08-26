@@ -24,7 +24,6 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
-
 from third_party.tt_forge_models.ltx2_3.pytorch import ModelLoader, ModelVariant
 
 
