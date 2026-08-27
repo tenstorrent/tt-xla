@@ -282,7 +282,9 @@ def test_flux2(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = Flux2TTPipeline(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2TTPipeline(
+            config=Flux2Config(compile_options=compile_options, warm_iters=1)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -331,7 +333,9 @@ def test_flux(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = FluxTTPipeline(config=FluxConfig(compile_options=compile_options))
+        pipeline = FluxTTPipeline(
+            config=FluxConfig(compile_options=compile_options, warm_iters=1)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
