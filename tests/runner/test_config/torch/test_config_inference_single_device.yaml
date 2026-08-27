@@ -2770,6 +2770,16 @@ test_config:
 
   xtts_v2/pytorch-conditioning-single_device-inference:
     status: EXPECTED_PASSING
+    # GroupNorm(32, 1024) at H*W~259, non-tile-aligned. opt >= 1 is what routes it
+    # to the fused ttnn.group_norm; the filecheck pins that, since PCC and atol
+    # both pass on the decomposed path too. See tt-metal#51159 / #52924.
+    optimization_level: 2
+    filechecks:
+      - group_norm_fused.ttnn.mlir
+    # PCC is blind to a wrong group_norm (per-group affine shift), so assert max
+    # abs error too. Coarse bound: measured 0.6775 and 0.7762 across runs.
+    assert_atol: true
+    required_atol: 0.95
 
   xtts_v2/pytorch-gpt_prefill-single_device-inference:
     status: EXPECTED_PASSING
