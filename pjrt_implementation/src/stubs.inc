@@ -15,11 +15,8 @@
   // ---------------------------------------------------------------------------
   // PJRT_Device stubs:
 
-  // This is used for diagnostic purposes and is allowed to return unimplemented
-  // status code, but we could implement at least `bytes_in_use` calculation
-  // which is the only non-optional stat that has to be set in this function.
-  // https://github.com/tenstorrent/tt-xla/issues/470
-  _STUB(PJRT_Device_MemoryStats);
+  // The runtime has no notion of resettable peak/alloc counters, so there is
+  // nothing to clear.
   _STUB(PJRT_Device_ClearMemoryStats);
 
   // Not required to be implemented. Needs further investigation into if and how

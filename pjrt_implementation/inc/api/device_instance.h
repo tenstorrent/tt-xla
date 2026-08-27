@@ -135,6 +135,9 @@ onDeviceAddressableMemories(PJRT_Device_AddressableMemories_Args *args);
 // Implements PJRT_Device_DefaultMemory API function.
 PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args);
 
+// Implements PJRT_Device_MemoryStats API function.
+PJRT_Error *onDeviceMemoryStats(PJRT_Device_MemoryStats_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt

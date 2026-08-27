@@ -13,7 +13,13 @@
 // tracy includes
 #include "tracy/Tracy.hpp"
 
+// tt-mlir includes
+#include "tt/runtime/runtime.h"
+#include "tt/runtime/types.h"
+
 // tt-xla includes
+#include "api/client_instance.h"
+#include "api/error_instance.h"
 #include "api/memory_instance.h"
 #include "utils/logging.h"
 
@@ -41,6 +47,7 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
   api->PJRT_Device_AddressableMemories = internal::onDeviceAddressableMemories;
   api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
+  api->PJRT_Device_MemoryStats = internal::onDeviceMemoryStats;
 }
 
 namespace internal {
@@ -95,6 +102,38 @@ PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
 
   return nullptr;
 };
+
+PJRT_Error *onDeviceMemoryStats(PJRT_Device_MemoryStats_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_MemoryStats");
+
+  const std::optional<tt::runtime::Device> &mesh =
+      DeviceInstance::unwrap(args->device)->getClient()->parentMesh();
+  if (!mesh.has_value()) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnavailable).release();
+  }
+
+  std::unordered_map<tt::runtime::MemoryBufferType, tt::runtime::MemoryView>
+      memory_view = tt::runtime::getMemoryView(*mesh);
+  auto dram = memory_view.find(tt::runtime::MemoryBufferType::DRAM);
+  if (dram == memory_view.end()) {
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnavailable).release();
+  }
+
+  // The runtime reports per-bank figures; scale by the bank count to get the
+  // per-device DRAM totals that PJRT clients expect.
+  const tt::runtime::MemoryView &view = dram->second;
+  args->bytes_in_use =
+      static_cast<int64_t>(view.totalBytesAllocatedPerBank * view.numBanks);
+  args->bytes_limit =
+      static_cast<int64_t>(view.totalBytesPerBank * view.numBanks);
+  args->bytes_limit_is_set = true;
+  args->largest_free_block_bytes = static_cast<int64_t>(
+      view.largestContiguousBytesFreePerBank * view.numBanks);
+  args->largest_free_block_bytes_is_set = true;
+
+  return nullptr;
+}
 
 } // namespace internal
 
