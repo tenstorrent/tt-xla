@@ -161,7 +161,8 @@ test_config:
     status: EXPECTED_PASSING
 
   mnist/image_classification/pytorch-Cnn_Dropout-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "SIGFPE (integer divide-by-zero) in ttnn create_simple_matmul_program_config for the 4x9216 @ 9216x128 fc1 - https://github.com/tenstorrent/tt-metal/issues/54639. Crashes the process, so it cannot run to a classified failure. Needs optimization_level >= 1; restore status and the settings below once the metal fix lands."
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
     markers: [push, nightly]
