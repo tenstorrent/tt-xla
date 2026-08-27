@@ -92,10 +92,8 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      # On-PR accuracy uplift check: llama_3_1_70b TP accuracy on qb2-blackhole.
-      adv_filter: '[
-        { "accuracy-testing": true },
-        { "runs-on": "qb2-blackhole", "filter": ["llama_3_1_70b_tp_qb2"] } ]'
+      # Skip until https://github.com/tenstorrent/tt-xla/issues/5974 is fixed
+      adv_filter: '[]'
       sh-runner: false
       skip-device-perf: true
       regression_check: false

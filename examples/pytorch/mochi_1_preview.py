@@ -5,8 +5,9 @@
 """Runnable Mochi-1 preview text-to-video example on Tenstorrent.
 
 Pipeline implementation lives in ``tt_forge_models``; this is a thin demo. The
-DiT (the heavy net, ~10B) runs tensor-parallel sharded on the Tenstorrent
-backend; the T5-XXL text encoder, the scheduler and the VAE run on CPU.
+DiT (the heavy net, ~10B, bf16) and the T5-XXL text encoder (fp32) both run
+tensor-parallel sharded on the Tenstorrent backend; the scheduler and the VAE
+run on CPU.
 """
 
 from third_party.tt_forge_models.mochi.pytorch.src.pipeline import (
