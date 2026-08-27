@@ -6,18 +6,26 @@
 
 Runs the full text-to-video pipeline end-to-end: the CLIP text encoder, the
 1.97B ``PyramidFluxTransformer`` DiT and the ``CausalVideoVAE`` decoder all run
-on Tenstorrent via ``torch.compile(backend="tt")``. The pyramid flow-matching
-sampler stays on CPU - it is control flow, not a net.
+on Tenstorrent via ``torch.compile(backend="tt")``. Two pieces stay on host on
+purpose: the 4.76B T5-XXL encoder, which feeds the DiT's
+``encoder_hidden_states`` but reaches only PCC 0.8598 on device, and the pyramid
+flow-matching sampler, which is control flow rather than a net.
 
 Per-component bringup that this test assembles:
   - DiT + CLIP text encoder: tt-forge-models#841
   - CausalVideoVAE decode:   tt-forge-models#900 (PCC 0.999956, T=1, n150)
+  - the pipeline itself:      tt-forge-models#905
 
-The reusable pipeline implementation belongs in ``tt_forge_models`` next to the
+The reusable pipeline implementation lives in ``tt_forge_models`` next to the
 components it drives, the way SD1.5's does
 (``third_party/tt_forge_models/stable_diffusion_1_5/pytorch/pipeline.py``), so
-this file only wires it into CI. Until that companion PR lands the import below
-fails and the test skips rather than erroring at collection.
+this file only wires it into CI. Until #905 merges and the submodule is uplifted
+the import below fails and the test skips rather than erroring at collection.
+
+Measured on one n150 through #905's own driver (bf16, 384p, ``temp=1``, 4 steps
+per pyramid stage): host-vs-device final latent PCC 0.983202. That is
+accumulated drift over 12 bf16 DiT forwards plus the decode, not a component
+number - the gated per-component PCCs are in #900 and #841.
 
 Scope, for now: one temporal unit (``temp=1``, a single latent frame), 384p,
 single device. That is the shape #900 validated the VAE decode at; the
@@ -49,7 +57,9 @@ PROMPT = (
     "A red double-decker bus driving along a sunny coastal road, "
     "waves breaking on the beach below"
 )
-NEGATIVE_PROMPT = ""
+# None keeps upstream's own negative prompt, which the pipeline applies by
+# default - the frame a prompt produces then matches upstream's for that prompt.
+NEGATIVE_PROMPT = None
 SEED = 12345
 VARIANT = "diffusion_transformer_384p"
 # 384p renders 640x384. temp=1 -> a single frame (temp=k -> 8k-7 frames).
