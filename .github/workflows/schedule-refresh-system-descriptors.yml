@@ -14,8 +14,9 @@ name: Refresh System Descriptors
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 21 * * *'
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 21 * * *'
 
 permissions:
   actions: write
