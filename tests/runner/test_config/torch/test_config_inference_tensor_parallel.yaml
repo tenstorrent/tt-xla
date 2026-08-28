@@ -521,6 +521,18 @@ test_config:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
 
+  qwen_3_6/causal_lm/pytorch-35B_A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
+  qwen_3_6/multimodal/pytorch-Qwen/Qwen3.6-35B-A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
   internlm2/pytorch-internlm2-chat-20b-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
