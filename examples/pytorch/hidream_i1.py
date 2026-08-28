@@ -7,9 +7,10 @@
 The pipeline implementation lives in ``tt_forge_models``; this is a thin runnable
 demo that calls it.
 
-Only the Sparse-MoE MM-DiT transformer (the heavy net) runs on the Tenstorrent
-backend — tensor-parallel sharded across the device mesh; the CLIP-L, CLIP-G,
-T5-XXL and Llama-3.1-8B text encoders, the scheduler and the VAE run on CPU.
+The CLIP-L and CLIP-G text encoders, the Sparse-MoE MM-DiT transformer and the
+VAE decoder run on the Tenstorrent backend in bf16, with the transformer
+tensor-parallel sharded across the device mesh. The T5-XXL and Llama-3.1-8B
+encoders and the scheduler run on CPU.
 
 Run (multichip blackhole, qb2):
     python examples/pytorch/hidream_i1.py
