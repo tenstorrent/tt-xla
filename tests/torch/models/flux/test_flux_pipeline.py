@@ -81,9 +81,7 @@ _PCC_CONFIG = PccConfig()
 
 def _assert_pcc(stage: str, device_out, golden_out, threshold: float) -> float:
     pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
-    # logger.warning, not info: tt-xla sets loguru's default level to WARNING, so
-    # an info line is invisible in CI and a red nightly would carry no values.
-    logger.warning(f"[PCC] {stage}: pcc={pcc:.6f} (threshold {threshold})")
+    logger.info(f"[PCC] {stage}: pcc={pcc:.6f} (threshold {threshold})")
     assert pcc >= threshold, f"{stage} PCC {pcc:.6f} below threshold {threshold}"
     return pcc
 
@@ -127,7 +125,7 @@ class _PccDenoiser(_DeviceDenoiser):
         # Loaded on first use so the second copy is only resident while the
         # checked steps run.
         if self._twin is None:
-            logger.warning(f"[load] CPU twin: transformer ({DTYPE})")
+            logger.info(f"[load] CPU twin: transformer ({DTYPE})")
             self._twin = load_transformer(DTYPE)
         return self._twin
 
@@ -148,7 +146,7 @@ class _PccDenoiser(_DeviceDenoiser):
                 )
             )
             if self._step == PCC_CHECK_STEPS:
-                logger.warning("[free] CPU twin: transformer (checked steps done)")
+                logger.info("[free] CPU twin: transformer (checked steps done)")
                 self._twin = None
                 gc.collect()
         return result
@@ -245,4 +243,4 @@ def test_flux_pipeline():
         width, height = img.size
         assert width == WIDTH, f"Expected width {WIDTH}, got {width}"
         assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
-    logger.warning(f"Output image saved to {output_path} ({width}x{height})")
+    logger.info(f"Output image saved to {output_path} ({width}x{height})")

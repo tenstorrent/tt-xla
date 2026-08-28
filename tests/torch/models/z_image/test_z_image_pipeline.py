@@ -64,9 +64,7 @@ _PCC_CONFIG = PccConfig()
 
 def _assert_pcc(name: str, device_out, golden_out) -> None:
     pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
-    # logger.warning, not info: tt-xla sets loguru's default level to WARNING, so
-    # an info line is invisible in CI and a red nightly would carry no values.
-    logger.warning(f"[PCC] {name}: pcc={pcc:.6f} (threshold {PCC_THRESHOLD})")
+    logger.info(f"[PCC] {name}: pcc={pcc:.6f} (threshold {PCC_THRESHOLD})")
     assert pcc >= PCC_THRESHOLD, f"{name} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
 
 
@@ -203,4 +201,4 @@ def test_z_image_pipeline():
         width, height = img.size
         assert width == WIDTH, f"Expected width {WIDTH}, got {width}"
         assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
-    logger.warning(f"Z-Image e2e pipeline test passed ({width}x{height}).")
+    logger.info(f"Z-Image e2e pipeline test passed ({width}x{height}).")
