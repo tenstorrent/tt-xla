@@ -111,9 +111,12 @@ endif()
 
 link_directories(${TTMLIR_TOOLCHAIN_DIR}//lib)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    add_definitions(-DLOGURU_DEBUG_LOGGING=1)
-endif()
+# DEBUG BRANCH: force DLOG_F in for every build type. Loguru compiles DLOG_F out
+# whenever NDEBUG is defined, so a Release CI build silently loses every
+# `DLOG_F(LOG_DEBUG, ...)` call site (buffer_instance, client_instance, ...) no
+# matter what TTXLA_LOGGER_LEVEL is set to at runtime. Without this the CI log
+# can never be diffed against a local `cmake --preset debug` log.
+add_definitions(-DLOGURU_DEBUG_LOGGING=1)
 
 # Set up library directories for third-party dependencies
 include(GNUInstallDirs)
