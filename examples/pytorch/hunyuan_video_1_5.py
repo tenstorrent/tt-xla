@@ -10,6 +10,9 @@ on the Tenstorrent backend, with the ByT5 glyph encoder replicated there; the
 scheduler and the VAE run on CPU.
 """
 
+import os
+from pathlib import Path
+
 from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
     HunyuanVideo15Config,
     HunyuanVideo15Pipeline,
@@ -23,7 +26,14 @@ SEED = 42
 NUM_INFERENCE_STEPS = 10
 NUM_FRAMES = 25
 FPS = 15
-OUTPUT_PATH = "hunyuan_video_1_5_output.mp4"
+
+# Default to `generated/` beside this file rather than the cwd, so CI knows where
+# to find the video (see the "Upload Generated Media" step in call-test.yml).
+# Override with TT_EXAMPLE_OUTPUT_DIR to write somewhere else.
+OUTPUT_DIR = Path(
+    os.environ.get("TT_EXAMPLE_OUTPUT_DIR", Path(__file__).parent / "generated")
+)
+OUTPUT_PATH = OUTPUT_DIR / "hunyuan_video_1_5_output.mp4"
 
 
 def main():
@@ -37,7 +47,8 @@ def main():
 
     frames = pipeline.generate(prompt=PROMPT, seed=SEED)
 
-    save_video(frames, OUTPUT_PATH, fps=FPS)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    save_video(frames, str(OUTPUT_PATH), fps=FPS)
     print(f"Saved output video to {OUTPUT_PATH}")
 
 

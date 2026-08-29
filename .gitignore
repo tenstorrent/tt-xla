@@ -51,6 +51,10 @@ tests/benchmark/reference_outputs/*.refpt
 # Runtime-generated tt-metal debug artifacts
 /generated/
 
+# Media produced by examples and model tests (uploaded as CI artifacts, never committed)
+examples/**/generated/
+tests/**/generated/
+
 # Tracy profiling files
 /tracy_artifacts/
 
