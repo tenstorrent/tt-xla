@@ -303,12 +303,11 @@ jobs:
           PYTEST_FORKED="--forked"
         fi
 
-        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
-        if [[ -n "$PYTEST_FORKED" ]]; then
-          VERBOSITY="-vv"
-        else
-          VERBOSITY="-sv"
-        fi
+        # DEBUG BRANCH: always -svv so the CI log is byte-comparable with a local
+        # `pytest -svv` run. -s must stay on even when forking, otherwise pytest
+        # swallows the plugin's stderr (the TTXLA_LOGGER_LEVEL stream) on passing
+        # tests and there is nothing left to diff against the local log.
+        VERBOSITY="-svv"
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
@@ -409,6 +408,12 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        # DEBUG BRANCH: raise the PJRT plugin's loguru verbosity to match the
+        # local repro. Default is INFO, which drops every DLOG_F/VLOG_F(LOG_DEBUG)
+        # line -- including the per-stage `MLIR Module <stage>:` dumps. DEBUG (not
+        # VERBOSE) is what the local log was captured at; VERBOSE additionally
+        # turns on per-pass IR printing and disables MLIR multithreading.
+        TTXLA_LOGGER_LEVEL: DEBUG
       shell: bash
       run: |
         source venv/activate
