@@ -49,6 +49,10 @@ HARDWARE_MARKS: dict[str, list[str]] = {
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/hidream_i1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/z_image.py": [
         "nightly",
         "bh_single",

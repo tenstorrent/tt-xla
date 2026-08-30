@@ -564,6 +564,55 @@ def test_glm_image(output_file, request):
     )
 
 
+def test_hidream_i1(output_file, request):
+    from third_party.tt_forge_models.hidream_i1.pytorch.pipeline import (
+        GUIDANCE_SCALE,
+        NEGATIVE_PROMPT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        HiDreamI1Config,
+        HiDreamI1Pipeline,
+    )
+
+    # HiDream-I1-Full: 1024x1024, CFG guidance 5.0 (model card). Only the ~17B
+    # Sparse-MoE MM-DiT runs on TT (tensor-parallel sharded across the mesh's
+    # model axis); the CLIP-L/CLIP-G/T5/Llama text encoders, scheduler and VAE
+    # run on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    prompt = PROMPT
+    # 10 for now, will be bumped to 50 once the rest of the components are
+    # enabled on TT.
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        pipeline = HiDreamI1Pipeline(config=HiDreamI1Config())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                negative_prompt=NEGATIVE_PROMPT,
+                guidance_scale=GUIDANCE_SCALE,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="hidream-i1-full",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_hidream_i1_output.png",
+    )
+
+
 def test_hunyuan_image_2_1(output_file, request):
     from third_party.tt_forge_models.hunyuan_image_2_1.pytorch.pipeline import (
         HunyuanImage21Config,
