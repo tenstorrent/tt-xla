@@ -68,6 +68,12 @@
         "group": "experimental"
       },
       {
+        "name": "hidream_i1",
+        "pytest": "tests/benchmark/test_imagegen.py::test_hidream_i1",
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro",
         "group": "experimental"
@@ -88,6 +94,11 @@
         "name": "glm_image",
         "pytest": "tests/benchmark/test_imagegen.py::test_glm_image",
         "runs-on": "qb2-blackhole",
+        "group": "experimental"
+      },
+      {
+        "name": "xtts_v2",
+        "pytest": "tests/benchmark/test_tts.py::test_xtts_v2",
         "group": "experimental"
       },
       {
@@ -666,6 +677,14 @@
       {
         "name": "hunyuan_video_1_5",
         "pytest": "tests/benchmark/test_video_gen.py::test_hunyuan_video_1_5",
+        "runs-on": [
+          "qb2-blackhole"
+        ],
+        "group": "experimental"
+      },
+      {
+        "name": "mochi_1_preview",
+        "pytest": "tests/benchmark/test_video_gen.py::test_mochi_1_preview",
         "runs-on": [
           "qb2-blackhole"
         ],
