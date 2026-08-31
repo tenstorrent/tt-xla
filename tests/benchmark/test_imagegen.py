@@ -68,8 +68,7 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -77,8 +76,7 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
@@ -284,7 +282,9 @@ def test_flux2(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = Flux2TTPipeline(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2TTPipeline(
+            config=Flux2Config(compile_options=compile_options, warm_iters=1)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -333,7 +333,9 @@ def test_flux(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = FluxTTPipeline(config=FluxConfig(compile_options=compile_options))
+        pipeline = FluxTTPipeline(
+            config=FluxConfig(compile_options=compile_options, warm_iters=1)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -381,7 +383,12 @@ def test_zimage(output_file, request):
 
     def build_pipeline_fn(compile_options):
         pipeline = ZImageTTPipeline(
-            config=ZImageConfig(compile_options=compile_options)
+            # warm_iters=1: one extra in-residency VAE decode (~2s), so the VAE
+            # gets a warm number it otherwise has none for. The text encoder needs
+            # none -- it already runs two forwards per residency (prompt + empty
+            # negative prompt, identical padded shapes) -- and the transformer's
+            # warm steps come from its own loop.
+            config=ZImageConfig(compile_options=compile_options, warm_iters=1)
         )
         pipeline.setup()
 

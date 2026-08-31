@@ -4,14 +4,19 @@
 
 """FLUX.2-dev — nightly PCC-gated text-to-image e2e test on Tenstorrent.
 
-The standard diffusers ``Flux2Pipeline`` orchestrates the run (tokenizer +
-scheduler stay on CPU), but every compute module runs on Tenstorrent, compiled
-with ``torch.compile(backend="tt")`` and tensor-parallel sharded via the SPMD
-shard specs from ``tt_forge_models``:
+The pipeline implementation is the shared one in ``tt_forge_models``, the same
+code the demo (``examples/pytorch/flux2.py``) and the benchmark
+(``tests/benchmark/test_imagegen.py::test_flux2``) run. This module only adds the
+PCC gating, via the pipeline's substitution seams:
 
-  - text encoder (Mistral3, ~24B)  → sharded
-  - transformer  (Flux2, ~32B)     → sharded
-  - VAE decoder  (~84M)            → replicated
+  - ``DENOISER_CLS`` / ``VAE_CLS`` swap in checking subclasses of the shared
+    plain-callable wrappers,
+  - ``_pre_place`` computes the text encoder's golden while the module is still
+    on host, and ``_intercept`` compares the device result against it.
+
+Nothing about staging, eviction or the compiled graphs is duplicated here, so
+the test exercises the shipped pipeline rather than a copy that can drift from
+it — which is what this file previously did with its own ``Flux2TTPipeline``.
 
 Every stage is gated on PCC against a CPU twin fed the same inputs the device
 saw: the prompt embeds once, the noise prediction on the first
@@ -19,61 +24,50 @@ saw: the prompt embeds once, the noise prediction on the first
 always advanced with the *device* output (deployment behavior), so a PCC drop
 anywhere shows up as a test failure rather than a silently degraded image.
 
-The transformer's CPU twin is a second ~32B module, so it is loaded lazily at the
-first checked step and dropped once the checked steps are done — the remaining
-steps then run device-only at the normal peak.
-
-Memory strategy (peak ≈ max(component) rather than the sum):
-  * Stage 1 runs the CPU golden on the encoder *before* placing it on device (no
-    second copy), encodes the prompt on TT, then evicts the encoder.
-  * Stage 2 routes the pipeline's transformer/VAE calls through compiled wrappers
-    that move inputs to device and return CPU tensors each call, so the denoise
-    loop keeps only one step's activations resident. The VAE is placed lazily at
-    first decode (after the denoise loop) so it never inflates the denoise peak.
+Memory strategy (peak ≈ max(component) rather than the sum) is preserved: the
+~24B encoder's golden runs on the host copy *before* placement so it costs no
+second copy, the transformer's twin is loaded lazily at the first checked step
+and dropped once the checked steps finish, and the VAE's golden runs before its
+lazy placement.
 """
 
 import gc
 from pathlib import Path
-from typing import Optional
 
 import pytest
 import torch
-import torch_xla
-import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from diffusers import Flux2Pipeline
 from infra import RunMode
 from infra.evaluators import PccConfig, TorchComparisonEvaluator
 from infra.evaluators.evaluation_config import ComparisonConfig
-from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from loguru import logger
 from PIL import Image
 from utils import BringupStatus, Category, ModelGroup
 
-from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.flux2.pytorch.pipeline import (
+    NUM_INFERENCE_STEPS,
+    Flux2Config,
+    Flux2TTPipeline,
+    _DeviceDenoiser,
+    _DeviceVAEDecoder,
+    save_image,
+)
 from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
     DTYPE,
-    GUIDANCE_SCALE,
     HEIGHT,
     PROMPT,
-    REPO_ID,
     SEED,
     WIDTH,
-    Mistral3TextEncoderWrapper,
     load_transformer,
-    shard_text_encoder_specs,
-    shard_transformer_specs,
-    tokenize_prompt,
 )
 
-NUM_INFERENCE_STEPS = 50
-# Denoise steps that get a CPU twin + PCC assert. The twin is another ~32B
-# module and one CPU forward dominates the step time, so gate the leading steps
-# (where a numerical break shows up first) instead of all 50.
+# Denoise steps that get a CPU twin + PCC assert. The twin is a second copy of
+# the ~32B denoiser and one CPU forward dominates the step time, so gate the
+# leading steps (where a numerical break shows up first) instead of all 50.
 PCC_CHECK_STEPS = 4
 
-# Transformer steps and vae decode clear the default; text_encoder measures
-# 0.984375 on this setup, so it gets a relaxed gate.
+# Transformer steps and vae decode clear the default; the text encoder measures
+# ~0.981 (TP Mistral3), so it gets its own gate.
 PCC_THRESHOLD = 0.99
 TEXT_ENCODER_PCC_THRESHOLD = 0.98
 
@@ -81,217 +75,122 @@ _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=Fal
 _PCC_CONFIG = PccConfig()
 
 
-def _pcc(device_out, golden_out) -> float:
-    return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
-
-
 def _assert_pcc(stage: str, device_out, golden_out, threshold: float) -> float:
-    pcc = _pcc(device_out, golden_out)
-    logger.info("[PCC] {}: pcc={:.6f} (threshold {})", stage, pcc, threshold)
+    pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
+    logger.info(f"[PCC] {stage}: pcc={pcc:.6f} (threshold {threshold})")
     assert pcc >= threshold, f"{stage} PCC {pcc:.6f} below threshold {threshold}"
     return pcc
 
 
-class _PccDenoiser:
-    """Routes Flux2Pipeline's transformer calls to the TP-sharded model on TT.
+class _PccEncoderCheck:
+    """Wraps the text encoder's COMPILED callable and compares against a golden
+    captured before placement (see ``_pre_place``)."""
 
-    The first ``PCC_CHECK_STEPS`` calls also run an fp-identical CPU twin on the
-    same inputs and assert PCC on the noise prediction.
-    """
+    def __init__(self, compiled, pipeline):
+        self._compiled = compiled
+        self._pipeline = pipeline
+        self._checked = False
 
-    def __init__(self, transformer, mesh):
-        self._dev = torch_xla.device()
-        self.config = transformer.config
-        self.dtype = next(transformer.parameters()).dtype
+    def __call__(self, *args, **kwargs):
+        out = self._compiled(*args, **kwargs)
+        golden = self._pipeline.goldens.get("text_encoder")
+        if not self._checked and golden is not None:
+            self._checked = True
+            self._pipeline.pccs["text_encoder"] = _assert_pcc(
+                "text_encoder", out.cpu().to(DTYPE), golden, TEXT_ENCODER_PCC_THRESHOLD
+            )
+        return out
+
+
+class _PccDenoiser(_DeviceDenoiser):
+    """Shared TP-sharded denoiser, PCC-checked on the first PCC_CHECK_STEPS calls."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._step = 0
         self._twin = None
         self.pccs = []
 
-        transformer = transformer.to(self._dev)
-        if hasattr(transformer, "tie_weights"):
-            transformer.tie_weights()
-        specs = shard_transformer_specs(transformer)
-        assert specs, "transformer shard spec is empty — would run replicated/OOM"
-        for tensor, spec in specs.items():
-            xs.mark_sharding(tensor, mesh, spec)
-        self._compiled = torch.compile(transformer, backend="tt")
-
     def _cpu_twin(self):
-        # Loaded on first use so the second ~32B copy is only resident while the
+        # Loaded on first use so the second copy is only resident while the
         # checked steps run.
         if self._twin is None:
-            logger.info("[load] CPU twin: transformer ({})", DTYPE)
+            logger.info(f"[load] CPU twin: transformer ({DTYPE})")
             self._twin = load_transformer(DTYPE)
         return self._twin
 
-    def _release_twin(self):
-        if self._twin is not None:
-            logger.info("[free] CPU twin: transformer (checked steps done)")
-            self._twin = None
-            gc.collect()
-
     def __call__(self, **kwargs):
         self._step += 1
-        checked = self._step <= PCC_CHECK_STEPS
-
-        moved = {
-            k: (v.to(self._dev) if torch.is_tensor(v) else v) for k, v in kwargs.items()
-        }
-        out = self._compiled(**moved)
-        # .cpu() is the sync point: it forces the pending graph to execute and
-        # only returns once the result is on host, so no explicit sync is needed.
-        if isinstance(out, (tuple, list)):
-            result = type(out)(o.cpu() if torch.is_tensor(o) else o for o in out)
-        else:
-            result = out.cpu()
-
-        if checked:
+        result = super().__call__(**kwargs)
+        if self._step <= PCC_CHECK_STEPS:
             with torch.no_grad():
                 golden = self._cpu_twin()(**kwargs)
-            device_pred = result[0] if isinstance(result, (tuple, list)) else result
-            golden_pred = golden[0] if isinstance(golden, (tuple, list)) else golden
+            dev_pred = result[0] if isinstance(result, (tuple, list)) else result
+            gold_pred = golden[0] if isinstance(golden, (tuple, list)) else golden
             self.pccs.append(
                 _assert_pcc(
                     f"transformer step {self._step}/{NUM_INFERENCE_STEPS}",
-                    device_pred,
-                    golden_pred,
+                    dev_pred,
+                    gold_pred,
                     PCC_THRESHOLD,
                 )
             )
             if self._step == PCC_CHECK_STEPS:
-                self._release_twin()
-
+                logger.info("[free] CPU twin: transformer (checked steps done)")
+                self._twin = None
+                gc.collect()
         return result
 
 
-class _PccVAEDecoder:
-    """Routes Flux2Pipeline's vae.decode() to TT (replicated), placed lazily.
+class _PccVAEDecoder(_DeviceVAEDecoder):
+    """Shared VAE decode, PCC-checked on its first decode.
 
-    The pipeline reads ``vae.bn`` / ``vae.config`` / ``vae.dtype`` for the
-    host-side batch-norm denorm, then calls
-    ``vae.decode(latents, return_dict=False)[0]``. The CPU golden runs on the
-    same module before it is placed on device, so no second copy is needed.
+    The golden runs on the host copy before the shared decode places it, so the
+    check costs no second copy.
     """
 
-    def __init__(self, vae):
-        # No mesh: the VAE runs replicated, so it needs no shard annotations.
-        self._dev = torch_xla.device()
-        self.config = vae.config
-        self.dtype = next(vae.parameters()).dtype
-        self.bn = vae.bn  # stays on CPU; pipeline reads it host-side for denorm
-        self._vae = vae
-        self._compiled = None
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.pcc = None
 
     def decode(self, latents, return_dict=False):
-        # CPU golden first — while the VAE is still on host, so the check costs
-        # no extra copy.
-        if self._compiled is None:
+        golden = None
+        if self._compiled is None:  # first decode: VAE still on host
             with torch.no_grad():
                 golden = self._vae.decode(latents, return_dict=False)[0]
-            # Lazy device placement: keep the VAE off-device during the denoise
-            # loop so it does not inflate the denoiser's peak DRAM.
-            vae = self._vae.to(self._dev)
-            self._compiled = torch.compile(
-                lambda z: vae.decode(z, return_dict=False)[0], backend="tt"
-            )
-        else:
-            golden = None
-
-        # .cpu() forces the graph to execute and blocks until the result is on
-        # host — the compiled lambda always returns a tensor, so no guard needed.
-        image = self._compiled(latents.to(self._dev)).cpu()
-
+        out = super().decode(latents, return_dict=return_dict)
         if golden is not None:
-            self.pcc = _assert_pcc("vae decode", image, golden, PCC_THRESHOLD)
+            self.pcc = _assert_pcc(
+                "vae decode", self.last_pixels, golden, PCC_THRESHOLD
+            )
+        return out
 
-        return (image,)
 
+class PccFlux2TTPipeline(Flux2TTPipeline):
+    """The shipped pipeline with PCC checks on every stage.
 
-class Flux2TTPipeline:
-    """diffusers Flux2Pipeline with every module on TT, tensor-parallel sharded,
-    each stage gated on PCC against a CPU twin."""
+    generate(), staging, eviction and the warm machinery are all inherited.
+    """
 
-    def __init__(self, height: int = HEIGHT, width: int = WIDTH):
-        self.height = height
-        self.width = width
+    DENOISER_CLS = _PccDenoiser
+    VAE_CLS = _PccVAEDecoder
 
-    def setup(self):
-        enable_spmd()
-        self.num_devices = xr.global_runtime_device_count()
-        # Mesh from device count: the "model" axis carries the shard specs'
-        # contraction-parallel degree, extra devices go to "batch".
-        mesh_shape, mesh_names = ModelLoader(ModelVariant.TRANSFORMER).get_mesh_config(
-            self.num_devices
-        )
-        self.mesh = get_mesh(mesh_shape, mesh_names)
-        logger.info("[setup] mesh {} over {} device(s)", mesh_shape, self.num_devices)
-        self.pipe = Flux2Pipeline.from_pretrained(REPO_ID, torch_dtype=DTYPE)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.goldens = {}
+        self.pccs = {}
 
-    def generate(
-        self,
-        prompt: str,
-        num_inference_steps: int = NUM_INFERENCE_STEPS,
-        seed: Optional[int] = SEED,
-    ):
-        dev = torch_xla.device()
+    def _pre_place(self, name, wrapper, *inputs):
+        # Still on host: capture the golden here so the check needs no second copy
+        # of the ~24B encoder.
+        if name == "text_encoder":
+            with torch.no_grad():
+                self.goldens[name] = wrapper(*inputs).to(DTYPE)
 
-        # ── Stage 1: text encoder (sharded, compiled) → prompt embeds, evict ──
-        logger.info("[STAGE] text_encoder (sharded): start")
-        text_encoder = self.pipe.text_encoder
-        encoder_wrapper = Mistral3TextEncoderWrapper(text_encoder).eval()
-        input_ids, attention_mask = tokenize_prompt(prompt)
-
-        # CPU golden on the host copy, before device placement — the twin costs
-        # nothing extra because the module has not moved yet.
-        with torch.no_grad():
-            golden_embeds = encoder_wrapper(input_ids, attention_mask)
-
-        text_encoder = text_encoder.to(dev)
-        if hasattr(text_encoder, "tie_weights"):
-            text_encoder.tie_weights()
-        te_specs = shard_text_encoder_specs(text_encoder)
-        assert te_specs, "text-encoder shard spec is empty — descent failed (would OOM)"
-        for tensor, spec in te_specs.items():
-            xs.mark_sharding(tensor, self.mesh, spec)
-        te_compiled = torch.compile(encoder_wrapper, backend="tt")
-
-        with torch.no_grad():
-            prompt_embeds = te_compiled(input_ids.to(dev), attention_mask.to(dev))
-        # .cpu() forces execution and blocks until the embeds are on host.
-        prompt_embeds = prompt_embeds.cpu()
-        _assert_pcc(
-            "text_encoder", prompt_embeds, golden_embeds, TEXT_ENCODER_PCC_THRESHOLD
-        )
-
-        # Free the 24B encoder from device before placing the 32B denoiser.
-        self.pipe.text_encoder = text_encoder.to("cpu")
-        del te_compiled, encoder_wrapper, golden_embeds
-        gc.collect()
-        torch_xla.sync()
-        logger.info("[STAGE] text_encoder: done")
-
-        # ── Stage 2: denoiser (sharded) + VAE (replicated, lazy) → image ─────
-        logger.info(
-            "[STAGE] transformer (sharded) + vae: start ({} steps, PCC on first {})",
-            num_inference_steps,
-            PCC_CHECK_STEPS,
-        )
-        self.pipe.transformer = _PccDenoiser(self.pipe.transformer, self.mesh)
-        self.pipe.vae = _PccVAEDecoder(self.pipe.vae)
-
-        generator = torch.Generator().manual_seed(seed) if seed is not None else None
-        result = self.pipe(
-            prompt=None,
-            prompt_embeds=prompt_embeds,
-            height=self.height,
-            width=self.width,
-            num_inference_steps=num_inference_steps,
-            guidance_scale=GUIDANCE_SCALE,
-            generator=generator,
-        )
-        logger.info("[STAGE] transformer + vae: done")
-        return result.images[0]
+    def _intercept(self, name, compiled):
+        if name == "text_encoder":
+            return _PccEncoderCheck(compiled, self)
+        return compiled
 
 
 @pytest.mark.tensor_parallel
@@ -305,6 +204,7 @@ class Flux2TTPipeline:
     model_group=ModelGroup.RED,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
+    pcc=PCC_THRESHOLD,
 )
 def test_flux2_pipeline():
     """FLUX.2-dev pipeline — all modules on TT (sharded), every stage PCC-gated."""
@@ -316,12 +216,15 @@ def test_flux2_pipeline():
     if output_file.exists():
         output_file.unlink()
 
-    pipeline = Flux2TTPipeline()
+    # warm_iters defaults to 0: this test gates correctness, so there is no reason
+    # to pay for the extra in-residency repeats the benchmark uses.
+    pipeline = PccFlux2TTPipeline(config=Flux2Config())
     pipeline.setup()
-    image = pipeline.generate(
+    pixels = pipeline.generate(
         PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, seed=SEED
     )
-    image.save(output_path)
+    # The shared pipeline returns raw pixels in [-1, 1]; save them as the demo does.
+    save_image(pixels, output_path)
 
     assert output_file.exists(), f"Output image {output_path} was not created"
     with Image.open(output_path) as img:
