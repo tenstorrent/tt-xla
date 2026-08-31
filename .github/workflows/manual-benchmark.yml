@@ -11,14 +11,6 @@ on:
         description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
         type: string
-      benchmark_group:
-        description: "Benchmark group to run"
-        required: true
-        type: choice
-        options:
-          - regular
-          - experimental
-        default: regular
       runs-on-filter:
         description: "Architecture you want to run the tests on"
         required: false
@@ -99,9 +91,9 @@ jobs:
         # Prepare the advanced filter for the perf benchmarks
         echo "[" > adv_filter.json
         if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
-          echo '{ "skip": false, "accuracy-testing": false, "group": "${{ inputs.benchmark_group }}" }' >> adv_filter.json
+          echo '{ "skip": false, "accuracy-testing": false }' >> adv_filter.json
         else
-          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false, "group": "${{ inputs.benchmark_group }}" }' >> adv_filter.json
+          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
         fi
         if [ -n "${{ inputs.test_filter }}" ]; then
           echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
@@ -113,7 +105,6 @@ jobs:
         # Set up the summary for the job
         echo "### Perf benchmarks inputs" >> $GITHUB_STEP_SUMMARY
         echo "Test filter: ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
-        echo "Benchmark group: ${{ inputs.benchmark_group }}" >> $GITHUB_STEP_SUMMARY
         echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
         echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
         echo "Perf regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY

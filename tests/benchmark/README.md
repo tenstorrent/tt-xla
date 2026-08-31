@@ -150,23 +150,3 @@ Two things differ from the other families:
 ### Adding the test to CI
 
 In order for a new test to run in CI, it needs to be added to `.github/workflows/perf-bench-matrix.json`.
-
-#### Choosing a nightly with `group`
-
-Each entry carries a `group` that decides which scheduled nightly runs it:
-
-| `group` | Workflow | Use for |
-| --- | --- | --- |
-| `regular` (default) | `schedule-nightly.yml` | Priority benchmarks tracked for perf regressions every night. |
-| `experimental` | `schedule-benchmark-experimental.yml` | Experimental benchmarks. |
-
-Example of adding an imagegen benchmark model that runs on qb2-blackhole in experimental nightly CI:
-
-```json
-{
-  "name": "my_new_model",
-  "pytest": "tests/benchmark/test_imagegen.py::test_my_new_model",
-  "runs-on": "qb2-blackhole",
-  "group": "experimental"
-}
-```

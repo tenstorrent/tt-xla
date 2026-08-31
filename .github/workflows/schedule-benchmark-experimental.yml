@@ -25,29 +25,12 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  run-media-benchmarks:
-    needs: [build-image, build-ttxla]
-    secrets: inherit
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
-    with:
-      adv_filter: '[
-        { "accuracy-testing": false, "group": "experimental" },
-        { "runs-on": "n150-perf" },
-        { "runs-on": "p150-perf" },
-        { "runs-on": "qb2-blackhole" }
-      ]'
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      sh-runner: false
-      skip-device-perf: true
-      regression_check: true
-
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "n150-perf", "accuracy-testing": true, "group": "experimental"} ]'
+      adv_filter: '[ {"runs-on": "n150-perf", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
@@ -58,7 +41,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "qb2-blackhole", "accuracy-testing": true, "group": "experimental"} ]'
+      adv_filter: '[ {"runs-on": "qb2-blackhole", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       regression_check: true
@@ -68,14 +51,13 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true, "group": "experimental"} ]'
+      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       regression_check: true
 
   fail-notify:
     needs:
-      - run-media-benchmarks
       - run-n150-accuracy-benchmarks
       - run-qb2-accuracy-benchmarks
       - run-galaxy-accuracy-benchmarks
