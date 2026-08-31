@@ -2,8 +2,9 @@ name: On weekly
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 8 * * 6'
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 8 * * 6'
 
 permissions:
   actions: write
