@@ -40,6 +40,7 @@ class SDXLLightningConfig:
         unet_on_tt: bool = True,
         vae_on_tt: bool = True,
         compile_options: Optional[dict] = None,
+        evict_between_stages: bool = False,
     ):
         self.model_id = MODEL_ID
         self.width = WIDTH
@@ -51,6 +52,13 @@ class SDXLLightningConfig:
         self.text_encoder_2_on_tt = text_encoder_2_on_tt
         self.unet_on_tt = unet_on_tt
         self.vae_on_tt = vae_on_tt
+        # Keep every component on device between stages. Measured: all four
+        # together are only 8.14 GiB of a 31.83 GiB chip (te fp32 0.46 +
+        # te2 fp32 2.59 + unet bf16 4.78 + vae fp32 0.31 = 25.6%), so evicting
+        # bought nothing and cost a full rebuild on every later call -- the
+        # benchmark's second pass measured that rebuild, not warm performance
+        # (issue #6010). Flip to True to restore the old evicting behaviour.
+        self.evict_between_stages = evict_between_stages
         # Harness-set compile options; used to preserve them around the
         # VAE-only opt_level switch (only relevant if vae_on_tt is True).
         self.compile_options = compile_options or {}
@@ -70,8 +78,10 @@ class SDXLLightningPipeline:
     def load_models(self):
         # Load all models on CPU. For TT-bound components we only register the
         # `tt` dynamo backend here; the actual move to xla_device happens in
-        # generate() right before the forward, and we evict back to CPU after.
-        # This keeps at most one model resident on TT DRAM at a time.
+        # generate() right before the first forward, and they stay there.
+        # Components stay resident between stages by default (see
+        # SDXLLightningConfig.evict_between_stages); at 25.6% of a chip there
+        # is no reason to evict, and evicting forces a rebuild every call.
         self.text_encoder = ModelLoader(ModelVariant.TEXT_ENCODER).load_model(
             dtype_override=torch.float32
         )
@@ -167,7 +177,7 @@ class SDXLLightningPipeline:
                 prompt_embeds_1 = prompt_embeds_1.to("cpu")
             self._perf["components"]["text_encoder_1"] = time.perf_counter() - t0
 
-            if self.config.text_encoder_on_tt:
+            if self.config.text_encoder_on_tt and self.config.evict_between_stages:
                 self.text_encoder = self.text_encoder.to("cpu")
 
             logger.info("[STAGE] Text encoder 1: done")
@@ -195,7 +205,7 @@ class SDXLLightningPipeline:
                 pooled_prompt_embeds = pooled_prompt_embeds.to("cpu")
             self._perf["components"]["text_encoder_2"] = time.perf_counter() - t0
 
-            if self.config.text_encoder_2_on_tt:
+            if self.config.text_encoder_2_on_tt and self.config.evict_between_stages:
                 self.text_encoder_2 = self.text_encoder_2.to("cpu")
 
             logger.info("[STAGE] Text encoder 2: done")
@@ -268,7 +278,7 @@ class SDXLLightningPipeline:
                     noise_pred, t, latents, return_dict=False
                 )[0]
             # Evict UNet from TT before VAE comes onto the device.
-            if self.config.unet_on_tt:
+            if self.config.unet_on_tt and self.config.evict_between_stages:
                 self.unet = self.unet.to("cpu")
             logger.info("[STAGE] UNet denoising loop: done")
 
@@ -292,7 +302,7 @@ class SDXLLightningPipeline:
                 image = image.to("cpu")
             self._perf["components"]["vae"] = time.perf_counter() - t0
 
-            if self.config.vae_on_tt:
+            if self.config.vae_on_tt and self.config.evict_between_stages:
                 self.vae = self.vae.to("cpu")
                 # Restore harness-set options (un-merge the VAE opt_level bump).
                 torch_xla.set_custom_compile_options(self.config.compile_options)
