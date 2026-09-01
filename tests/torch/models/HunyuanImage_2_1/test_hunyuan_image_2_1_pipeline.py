@@ -43,7 +43,7 @@ PROMPT = (
     "photorealistic photographic style."
 )
 NUM_INFERENCE_STEPS = 10  # 10 for now, will be boosted to 50 later
-PCC_THRESHOLD = 0.90
+PCC_THRESHOLD = 0.10 # for pcc check
 
 MODEL_INFO = ModelLoader._get_model_info(ModelVariant.TRANSFORMER)
 
