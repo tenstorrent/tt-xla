@@ -2,8 +2,9 @@ name: On nightly Experimental
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 4 * * *'
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 4 * * *'
 
 permissions:
   actions: write

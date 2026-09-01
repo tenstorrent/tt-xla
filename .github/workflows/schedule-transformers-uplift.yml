@@ -9,8 +9,9 @@ permissions:
   pull-requests: none
 
 on:
-  schedule:
-    - cron: '0 4 * * *'   # 04:00 UTC daily
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 4 * * *'   # 04:00 UTC daily
   workflow_dispatch: {}
 
 concurrency:
