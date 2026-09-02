@@ -334,7 +334,7 @@ def test_flux(output_file, request):
 
     def build_pipeline_fn(compile_options):
         pipeline = FluxTTPipeline(
-            config=FluxConfig(compile_options=compile_options, warm_iters=1)
+            config=FluxConfig(compile_options=compile_options)
         )
         pipeline.setup()
 
@@ -383,12 +383,7 @@ def test_zimage(output_file, request):
 
     def build_pipeline_fn(compile_options):
         pipeline = ZImageTTPipeline(
-            # warm_iters=1: one extra in-residency VAE decode (~2s), so the VAE
-            # gets a warm number it otherwise has none for. The text encoder needs
-            # none -- it already runs two forwards per residency (prompt + empty
-            # negative prompt, identical padded shapes) -- and the transformer's
-            # warm steps come from its own loop.
-            config=ZImageConfig(compile_options=compile_options, warm_iters=1)
+config=ZImageConfig(compile_options=compile_options)
         )
         pipeline.setup()
 
