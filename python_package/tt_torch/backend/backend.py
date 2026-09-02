@@ -592,13 +592,55 @@ class XLAExecutor:
         self.compiled_graph = None
         self.lazy_execution = lazy_execution
 
+    def _isolate_user_inputs(self, full_args):
+        """Trace-time only: replace USER_INPUT tensors with private device copies.
+
+        torch-xla's bridge matches HLO inputs to arguments by the tensor id on
+        the device buffer, and its pre-trace clone of every argument shares that
+        buffer. An argument shared by two dynamo graphs gets re-tagged while
+        compiling the first, is unmatched in the second and frozen as a
+        trace-time constant, so later calls read the first call's value
+        (HiDream Llama: stacked hidden state 31 stale, pcc 0.83). Private
+        copies share nothing. Weights are untouched; calls use the caller's
+        tensors. A copy is only used if its sharding spec matches, otherwise
+        the bridge would retrace against the shared original.
+        """
+        n_user = sum(
+            spec.kind is InputKind.USER_INPUT for spec in self.signature.input_specs
+        )
+        if n_user == 0:
+            return full_args
+        head, tail = full_args[:-n_user], full_args[-n_user:]
+        copies = []
+        for arg in tail:
+            if isinstance(arg, torch.Tensor) and arg.device.type == "xla":
+                # A real op, not clone (which shares the buffer).
+                if arg.dtype == torch.bool:
+                    arg = arg.logical_or(torch.zeros_like(arg))
+                else:
+                    arg = arg + 0
+            copies.append(arg)
+        torch_xla.sync()
+        if xr.is_spmd():
+            from torch_xla.distributed.spmd.xla_sharding import get_xla_sharding_specs
+
+            for i, (orig, copy) in enumerate(zip(tail, copies)):
+                if isinstance(orig, torch.Tensor) and get_xla_sharding_specs(
+                    [orig]
+                ) != get_xla_sharding_specs([copy]):
+                    copies[i] = orig
+        return tuple(head) + tuple(copies)
+
     def _call_experimental_compile(self, full_args):
         if self.compiled_graph is None:
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
-            # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
+            # without any tracing. Traced against isolated user inputs, see
+            # _isolate_user_inputs.
+            self.compiled_graph = bridge.extract_compiled_graph(
+                self.module, self._isolate_user_inputs(full_args)
+            )
 
         return self.compiled_graph(*full_args)
 
