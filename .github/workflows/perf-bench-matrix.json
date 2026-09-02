@@ -102,6 +102,11 @@
         "group": "experimental"
       },
       {
+        "name": "vibevoice_1_5b",
+        "pytest": "tests/benchmark/test_tts.py::test_vibevoice_1_5b",
+        "group": "experimental"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
         "group": "regular"
