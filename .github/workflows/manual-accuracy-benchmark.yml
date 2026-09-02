@@ -1,0 +1,159 @@
+name: Accuracy Benchmark
+
+# Manually triggered TOP1/TOP5 token-accuracy sweep.
+#
+# Runs the `*_accuracy` matrix entries, which pass --accuracy-testing to pytest.
+# That makes the benchmark teacher-force against reference tokens and emit
+# top1_accuracy_p5 / top5_accuracy_p5 / top1_accuracy_mean / top5_accuracy_mean
+# into the perf report, on top of the usual samples-per-second and PCC numbers.
+# The plain Performance Benchmark workflow pins accuracy-testing to false, so it
+# can never produce these.
+#
+# Pair it with `mlir_override` to A/B a tt-mlir change on accuracy, the same way
+# Performance Benchmark is used to A/B on throughput.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      runs-on-filter:
+        description: "Architecture you want to run the tests on"
+        required: false
+        type: choice
+        options:
+          - All
+          - n150-perf
+          - p150-perf
+          - qb2-blackhole
+          - galaxy-wh-6u
+        default: n150-perf
+      test_filter:
+        description: "Only run models whose name contains one of these (case insensitive, comma separated, e.g. 'qwen,falcon3-7b'). Empty runs the whole accuracy set."
+        required: false
+        type: string
+      exclude_filter:
+        description: "Drop models whose name contains one of these (comma separated). Default drops google_gemma-2-2b-it, the one accuracy entry with no non-accuracy perf counterpart to compare against."
+        required: false
+        type: string
+        default: gemma-2-2b
+      regression_check:
+        description: "Fail on >5% drop in TOP1/TOP5 vs the stored baseline"
+        required: false
+        type: boolean
+        default: false
+      skip-device-perf:
+        description: "Skip device performance measurement"
+        required: false
+        type: boolean
+        default: true
+      sh-runner:
+        description: "Run on shared runner"
+        required: false
+        type: boolean
+        default: true
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
+        required: false
+        type: string
+        default: ''
+      manylinux_build:
+        description: 'Build and use manylinux wheel'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  packages: write
+  checks: write
+  contents: write
+  id-token: write
+  actions: write
+
+jobs:
+  docker-build:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
+
+  build:
+    needs: docker-build
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+      docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.docker-build.outputs.docker-image-manylinux }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+
+  set-inputs:
+    runs-on: ubuntu-latest
+    outputs:
+      filter: ${{ steps.set-accuracy-benchmarks.outputs.filter }}
+    steps:
+    - name: Set Inputs and Summary
+      id: set-accuracy-benchmarks
+      shell: bash
+      run: |
+        # Build the advanced filter. "accuracy-testing": true is what separates
+        # this workflow from Performance Benchmark, which pins it to false.
+        echo "[" > adv_filter.json
+        if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
+          echo '{ "skip": false, "accuracy-testing": true }' >> adv_filter.json
+        else
+          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": true }' >> adv_filter.json
+        fi
+        if [ -n "${{ inputs.test_filter }}" ]; then
+          echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
+        fi
+        if [ -n "${{ inputs.exclude_filter }}" ]; then
+          echo ',{"exclude": "${{ inputs.exclude_filter }}"}' >> adv_filter.json
+        fi
+        echo "]" >> adv_filter.json
+        filter=$(cat adv_filter.json | jq -r -c '.')
+        echo "filter=$filter" >> $GITHUB_OUTPUT
+
+        # Set up the summary for the job
+        echo "### Accuracy benchmark inputs" >> $GITHUB_STEP_SUMMARY
+        echo "tt-mlir override: ${{ inputs.mlir_override || '(none)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
+        echo "Test filter: ${{ inputs.test_filter || '(all)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "Exclude filter: ${{ inputs.exclude_filter || '(none)' }}" >> $GITHUB_STEP_SUMMARY
+        echo "Accuracy regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY
+        echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
+        echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
+        echo "Resolved filter: \`$filter\`" >> $GITHUB_STEP_SUMMARY
+
+  run-accuracy-benchmarks:
+    needs: [docker-build, set-inputs, build]
+    if: ${{ !cancelled() && needs.set-inputs.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    secrets: inherit
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    with:
+      adv_filter: ${{ needs.set-inputs.outputs.filter }}
+      docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
+      torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+      skip-device-perf: ${{ inputs.skip-device-perf || false }}
+      regression_check: ${{ inputs.regression_check || false }}
+      sh-runner: ${{ inputs.sh-runner || false }}
+      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+
+  fail-notify:
+    if: always()
+    needs:
+      - run-accuracy-benchmarks
+    runs-on: ubuntu-latest
+    outputs:
+      failed: ${{ steps.check.outputs.failure }}
+    steps:
+      - name: Check if the needed jobs succeeded or failed
+        id: check
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
