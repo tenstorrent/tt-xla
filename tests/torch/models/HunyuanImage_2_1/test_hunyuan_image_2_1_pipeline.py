@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanImage 2.1 (Distilled) — nightly e2e pipeline test, every TT component
-PCC-gated against a CPU twin in the same dtype. The Qwen and ByT5 encoders and
-the MMDiT transformer run bf16 on TT; scheduler and VAE stay on CPU. Encoders
-are checked once each, the transformer once per denoising step.
+"""HunyuanImage 2.1 — nightly e2e pipeline test, every TT component PCC-gated
+against a CPU twin in the same dtype. The Qwen and ByT5 encoders and the MMDiT
+transformer run bf16 on TT; scheduler, guider combine and VAE stay on CPU.
+
+Guidance is real CFG, so Qwen is checked twice (conditional + unconditional) and
+the transformer twice per denoising step.
 """
 
 import pytest
@@ -40,7 +42,7 @@ PROMPT = (
     "expression as it paints an oil painting of the Mona Lisa, rendered in a "
     "photorealistic photographic style."
 )
-NUM_INFERENCE_STEPS = 8
+NUM_INFERENCE_STEPS = 10  # 10 for now, will be boosted to 50 later
 PCC_THRESHOLD = 0.90
 
 MODEL_INFO = ModelLoader._get_model_info(ModelVariant.TRANSFORMER)
