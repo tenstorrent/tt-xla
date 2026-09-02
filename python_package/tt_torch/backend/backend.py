@@ -35,6 +35,7 @@ from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
+from .bridge_debug import install_bridge_input_debug
 from .decompositions import populate_decompositions
 from .metadata_propagation import (
     MetadataDispatchMode,
@@ -594,6 +595,8 @@ class XLAExecutor:
 
     def _call_experimental_compile(self, full_args):
         if self.compiled_graph is None:
+            # TT_TORCH_DEBUG_BRIDGE_INPUTS=1 logs how the bridge feeds each graph.
+            install_bridge_input_debug()
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
