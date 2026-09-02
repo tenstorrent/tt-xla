@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Runnable HunyuanVideo 1.5 (480p t2v distilled) text-to-video example on Tenstorrent.
+"""Runnable HunyuanVideo 1.5 (480p t2v base) text-to-video example on Tenstorrent.
 
 Pipeline implementation lives in ``tt_forge_models``; this is a thin demo. The
 DiT (the heavy net) and the Qwen2.5-VL text encoder run tensor-parallel sharded

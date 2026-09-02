@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanVideo 1.5 (480p t2v distilled) — nightly e2e pipeline test, every TT
+"""HunyuanVideo 1.5 (480p t2v base) — nightly e2e pipeline test, every TT
 component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
-ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU. The
-encoders are checked once each, the DiT once per denoising step.
+ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU.
+
+Guidance is real CFG, so Qwen is checked twice (cond + uncond) and the DiT twice
+per denoising step; ByT5 once, since the negative prompt's glyph stream is zeros.
 """
 
 import pytest
