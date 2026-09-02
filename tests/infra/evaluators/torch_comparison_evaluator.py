@@ -27,6 +27,22 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         )
 
     @staticmethod
+    def _layer_to_legacy(layer) -> tuple:
+        """
+        Convert a single Cache layer to a (a, b) tensor pair for comparison.
+
+        Attention layers (DynamicLayer, StaticLayer, ...) expose .keys/.values
+        via CacheLayerMixin. Linear-attention/SSM layers (e.g. NemotronH's
+        Mamba2 mixer, in a hybrid cache alongside attention layers) instead
+        expose .conv_states/.recurrent_states via LinearAttentionCacheLayerMixin.
+        """
+        if hasattr(layer, "keys"):
+            return (layer.keys, layer.values)
+        if hasattr(layer, "conv_states"):
+            return (layer.conv_states, layer.recurrent_states)
+        return layer
+
+    @staticmethod
     def _cache_to_legacy(cache: Cache) -> tuple:
         """
         Convert a Cache (DynamicCache, StaticCache, etc.) to legacy tuple of
@@ -35,9 +51,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         if hasattr(cache, "to_legacy_cache"):
             return cache.to_legacy_cache()
         # Fallback for any Cache with .layers (DynamicCache, StaticCache in transformers 5.x,
-        # and any other Cache subclass). Each layer exposes .keys and .values via CacheLayerMixin.
+        # and any other Cache subclass, including hybrid caches with mixed layer types).
         if hasattr(cache, "layers"):
-            return tuple((layer.keys, layer.values) for layer in cache.layers)
+            return tuple(
+                TorchComparisonEvaluator._layer_to_legacy(layer)
+                for layer in cache.layers
+            )
         # Handle EncoderDecoderCache (transformers 5.x): contains self_attention_cache and
         # cross_attention_cache as separate DynamicCache objects instead of .layers directly.
         if hasattr(cache, "self_attention_cache") and hasattr(
