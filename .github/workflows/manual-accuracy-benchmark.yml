@@ -13,6 +13,8 @@ name: Accuracy Benchmark
 # Performance Benchmark is used to A/B on throughput.
 
 on:
+  # Dispatch is only selectable once this file reaches the default branch. Until
+  # then the push trigger below is what runs it, straight off the topic branch.
   workflow_dispatch:
     inputs:
       mlir_override:
@@ -64,6 +66,16 @@ on:
         required: false
         type: boolean
         default: false
+  push:
+    branches:
+      - bmalesevic/revert-benchmark-ci-model-cleanup
+    paths:
+      # Bumping TT_MLIR_VERSION in third_party/CMakeLists.txt is the A/B knob
+      # when dispatch is unavailable: it is the same value mlir_override
+      # substitutes for, and a new commit means a new artifact_suffix, so the
+      # build is never served from another revision's cache.
+      - third_party/CMakeLists.txt
+      - .github/workflows/manual-accuracy-benchmark.yml
 
 permissions:
   packages: write
@@ -93,40 +105,75 @@ jobs:
   set-inputs:
     runs-on: ubuntu-latest
     outputs:
-      filter: ${{ steps.set-accuracy-benchmarks.outputs.filter }}
+      filter: ${{ steps.cfg.outputs.filter }}
+      skip_device_perf: ${{ steps.cfg.outputs.skip_device_perf }}
+      regression_check: ${{ steps.cfg.outputs.regression_check }}
+      sh_runner: ${{ steps.cfg.outputs.sh_runner }}
     steps:
-    - name: Set Inputs and Summary
-      id: set-accuracy-benchmarks
+    - name: Resolve inputs and build filter
+      id: cfg
       shell: bash
+      env:
+        IN_RUNNER: ${{ inputs.runs-on-filter }}
+        IN_TEST_FILTER: ${{ inputs.test_filter }}
+        IN_EXCLUDE: ${{ inputs.exclude_filter }}
+        IN_SKIP_DEVICE_PERF: ${{ inputs.skip-device-perf }}
+        IN_REGRESSION: ${{ inputs.regression_check }}
+        IN_SH_RUNNER: ${{ inputs.sh-runner }}
       run: |
+        # A push event carries no `inputs` context, so every IN_* above is "".
+        # Branch on the event rather than defaulting with `||` in a GitHub
+        # expression: `${{ inputs.sh-runner || true }}` would also rewrite an
+        # explicit false on a dispatch.
+        if [ "${{ github.event_name }}" = "push" ]; then
+          RUNNER=n150-perf
+          TEST_FILTER=""
+          EXCLUDE=gemma-2-2b
+          SKIP_DEVICE_PERF=true
+          REGRESSION=false
+          SH_RUNNER=true
+        else
+          RUNNER="$IN_RUNNER"
+          TEST_FILTER="$IN_TEST_FILTER"
+          EXCLUDE="$IN_EXCLUDE"
+          SKIP_DEVICE_PERF="$IN_SKIP_DEVICE_PERF"
+          REGRESSION="$IN_REGRESSION"
+          SH_RUNNER="$IN_SH_RUNNER"
+        fi
+
         # Build the advanced filter. "accuracy-testing": true is what separates
         # this workflow from Performance Benchmark, which pins it to false.
-        echo "[" > adv_filter.json
-        if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
-          echo '{ "skip": false, "accuracy-testing": true }' >> adv_filter.json
-        else
-          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": true }' >> adv_filter.json
-        fi
-        if [ -n "${{ inputs.test_filter }}" ]; then
-          echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
-        fi
-        if [ -n "${{ inputs.exclude_filter }}" ]; then
-          echo ',{"exclude": "${{ inputs.exclude_filter }}"}' >> adv_filter.json
-        fi
-        echo "]" >> adv_filter.json
-        filter=$(cat adv_filter.json | jq -r -c '.')
-        echo "filter=$filter" >> $GITHUB_OUTPUT
+        {
+          echo "["
+          if [ "$RUNNER" = "All" ]; then
+            echo '{ "skip": false, "accuracy-testing": true }'
+          else
+            echo "{\"runs-on\": \"$RUNNER\", \"accuracy-testing\": true }"
+          fi
+          [ -n "$TEST_FILTER" ] && echo ",{\"filter\": \"$TEST_FILTER\"}"
+          [ -n "$EXCLUDE" ] && echo ",{\"exclude\": \"$EXCLUDE\"}"
+          echo "]"
+        } > adv_filter.json
+        filter=$(jq -r -c '.' adv_filter.json)
 
-        # Set up the summary for the job
-        echo "### Accuracy benchmark inputs" >> $GITHUB_STEP_SUMMARY
-        echo "tt-mlir override: ${{ inputs.mlir_override || '(none)' }}" >> $GITHUB_STEP_SUMMARY
-        echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
-        echo "Test filter: ${{ inputs.test_filter || '(all)' }}" >> $GITHUB_STEP_SUMMARY
-        echo "Exclude filter: ${{ inputs.exclude_filter || '(none)' }}" >> $GITHUB_STEP_SUMMARY
-        echo "Accuracy regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY
-        echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
-        echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
-        echo "Resolved filter: \`$filter\`" >> $GITHUB_STEP_SUMMARY
+        {
+          echo "filter=$filter"
+          echo "skip_device_perf=$SKIP_DEVICE_PERF"
+          echo "regression_check=$REGRESSION"
+          echo "sh_runner=$SH_RUNNER"
+        } >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### Accuracy benchmark inputs"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "tt-mlir override: ${{ inputs.mlir_override || '(none - using TT_MLIR_VERSION from third_party/CMakeLists.txt)' }}"
+          echo "Runs-on filter: $RUNNER"
+          echo "Test filter: ${TEST_FILTER:-(all)}"
+          echo "Exclude filter: ${EXCLUDE:-(none)}"
+          echo "Accuracy regression check: $REGRESSION"
+          echo "Skip device perf: $SKIP_DEVICE_PERF"
+          echo "Resolved filter: \`$filter\`"
+        } >> "$GITHUB_STEP_SUMMARY"
 
   run-accuracy-benchmarks:
     needs: [docker-build, set-inputs, build]
@@ -139,9 +186,9 @@ jobs:
       artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
-      skip-device-perf: ${{ inputs.skip-device-perf || false }}
-      regression_check: ${{ inputs.regression_check || false }}
-      sh-runner: ${{ inputs.sh-runner || false }}
+      skip-device-perf: ${{ fromJSON(needs.set-inputs.outputs.skip_device_perf) }}
+      regression_check: ${{ fromJSON(needs.set-inputs.outputs.regression_check) }}
+      sh-runner: ${{ fromJSON(needs.set-inputs.outputs.sh_runner) }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
 
   fail-notify:
