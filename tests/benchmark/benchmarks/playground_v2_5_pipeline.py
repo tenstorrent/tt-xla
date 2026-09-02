@@ -52,12 +52,9 @@ class PlaygroundV25Config:
         self.text_encoder_2_on_tt = text_encoder_2_on_tt
         self.unet_on_tt = unet_on_tt
         self.vae_on_tt = vae_on_tt
-        # Keep every component on device between stages. Measured: all four
-        # together are only 8.14 GiB of a 31.83 GiB chip (te fp32 0.46 +
-        # te2 fp32 2.59 + unet bf16 4.78 + vae fp32 0.31 = 25.6%), so evicting
-        # bought nothing and cost a full rebuild on every later call -- the
-        # benchmark's second pass measured that rebuild, not warm performance
-        # (issue #6010). Flip to True to restore the old evicting behaviour.
+        # Keep components on device between stages: all four are 8.14 GiB of
+        # 31.83 (25.6%), so evicting bought nothing and cost a rebuild every
+        # later call (#6010). True restores the old evicting behaviour.
         self.evict_between_stages = evict_between_stages
         # Harness-set compile options; used to preserve them around the
         # VAE-only opt_level switch in generate().
