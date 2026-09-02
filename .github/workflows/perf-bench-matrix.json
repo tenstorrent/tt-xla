@@ -76,7 +76,8 @@
       {
         "name": "qwen_image",
         "pytest": "tests/benchmark/test_imagegen.py::test_qwen_image",
-        "runs-on": "qb2-blackhole"
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
       },
       {
         "name": "janus_pro_1b",
