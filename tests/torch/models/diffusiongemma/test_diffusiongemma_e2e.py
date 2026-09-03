@@ -46,7 +46,7 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
     cache_to_device as _cache_to_device,
 )
 from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
-    free_tt_graphs as _free_tt_graphs,
+    evict_component as _evict_component,
 )
 from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import manual_generate
 from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
@@ -55,7 +55,7 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
 
 MAX_NEW_TOKENS = 256
 SEED = 0
-PCC_THRESHOLD = 0.95
+PCC_THRESHOLD = 0.96
 
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
@@ -102,7 +102,7 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
         # Free the previous block's decoder (if any) so only one model is device-resident.
         if stage["dec_tt"] is not None:
             stage["dec_tt"] = stage["dec_model"] = None
-            _free_tt_graphs()
+            _evict_component()
         # Load the encoder as an independent model, shard, compile; then CPU golden + TT prefill.
         enc_model = _load_sharded(ModelVariant.ENCODER)
         enc_tt = torch.compile(_TTEncoder(enc_model), backend="tt")
@@ -126,7 +126,7 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
         xm.mark_step()
         tt_pkv["host"] = _cache_to_device(pkv, "cpu")
         del enc_tt, enc_model, pkv
-        _free_tt_graphs()
+        _evict_component()
         return cpu_out
 
     def decoder_forward(**kw):
@@ -232,7 +232,10 @@ def test_diffusiongemma_e2e():
             **extra_kwargs,
         )
 
-        worst = min((p for *_, p in pcc_records), default=1.0)
+        # Guard against a vacuous pass: with no records `worst` would fall back to its
+        # default and the assert below would succeed without a single check having run.
+        assert pcc_records, "no PCC checks ran: encoder/decoder forwards never fired"
+        worst = min(p for *_, p in pcc_records)
         logger.info(
             "per-iteration PCC: {} checks, worst={:.6f}", len(pcc_records), worst
         )

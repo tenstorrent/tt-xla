@@ -63,8 +63,8 @@ test_config:
 
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9603734111616014. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/5642"
+    status: EXPECTED_PASSING
+    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/5642
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:

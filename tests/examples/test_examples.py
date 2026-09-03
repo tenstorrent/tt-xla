@@ -59,8 +59,8 @@ HARDWARE_MARKS: dict[str, list[str]] = {
     ],  # single Blackhole chip (p150); weights exceed single-Wormhole DRAM
     "pytorch/diffusiongemma.py": [
         "nightly",
-        "bhqb",
-    ],  # 4-chip Blackhole (qb2-blackhole)
+        "llmbox",
+    ],  # 8-chip Wormhole (n300-llmbox)
     "pytorch/hunyuan_video_1_5.py": [
         "nightly",
         "bhqb",
