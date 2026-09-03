@@ -17,9 +17,11 @@ import time
 
 import pytest
 import torch
+import torch_xla
 import torch_xla.runtime as xr
 from loguru import logger
 from utils import (
+    build_xla_export_name,
     create_benchmark_result,
     create_measurement,
     get_benchmark_metadata,
@@ -35,6 +37,7 @@ DEFAULT_LOOP_COUNT = 1
 DEFAULT_WARM_ENCODER_ITERS = 3
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
+MODULE_EXPORT_PATH = "modules"
 
 
 @pytest.mark.nightly
@@ -55,6 +58,21 @@ def test_diffusiongemma_26b(
     xr.set_device_type("TT")
     resolved_display_name = resolve_display_name(
         request=request, fallback="diffusiongemma_26b_a4b_it"
+    )
+
+    # The shared benchmarks/ harnesses own this block; this benchmark measures
+    # staged residency itself and so never passes through one. Without it no
+    # ./modules/irs/*.mlir is written and the CI IR-dump steps fail on a bare cp.
+    torch_xla.set_custom_compile_options(
+        {
+            "export_path": MODULE_EXPORT_PATH,
+            "export_model_name": build_xla_export_name(
+                model_name=resolved_display_name,
+                num_layers=None,
+                batch_size=batch_size,
+                input_sequence_length=None,
+            ),
+        }
     )
 
     loader_path = inspect.getsourcefile(diffgemma_loader)
