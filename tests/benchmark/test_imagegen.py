@@ -632,10 +632,10 @@ def test_hidream_i1(output_file, request):
     )
 
     # HiDream-I1-Full: 1024x1024, CFG guidance 5.0 (model card). The CLIP-L/CLIP-G
-    # text encoders, the ~17B Sparse-MoE MM-DiT (tensor-parallel sharded across the
-    # mesh's model axis) and the VAE decoder run on TT in bf16; the T5/Llama
-    # encoders and the scheduler run on CPU. Multichip — wired to the 4-chip
-    # blackhole (qb2).
+    # and Llama-3.1-8B text encoders, the ~17B Sparse-MoE MM-DiT and the VAE
+    # decoder run on TT in bf16 (Llama and the MM-DiT tensor-parallel sharded
+    # across the mesh's model axis); the T5 encoder and the scheduler run on CPU.
+    # Multichip — wired to the 4-chip blackhole (qb2).
     prompt = PROMPT
     # 10 for now, will be bumped to 50 once the rest of the components are
     # enabled on TT.
