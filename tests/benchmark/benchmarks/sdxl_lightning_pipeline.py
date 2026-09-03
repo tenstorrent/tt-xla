@@ -40,7 +40,6 @@ class SDXLLightningConfig:
         unet_on_tt: bool = True,
         vae_on_tt: bool = True,
         compile_options: Optional[dict] = None,
-        evict_between_stages: bool = False,
     ):
         self.model_id = MODEL_ID
         self.width = WIDTH
@@ -52,12 +51,8 @@ class SDXLLightningConfig:
         self.text_encoder_2_on_tt = text_encoder_2_on_tt
         self.unet_on_tt = unet_on_tt
         self.vae_on_tt = vae_on_tt
-        # Keep components on device between stages: all four are 8.14 GiB of
-        # 31.83 (25.6%), so evicting bought nothing and cost a rebuild every
-        # later call (#6010). True restores the old evicting behaviour.
-        self.evict_between_stages = evict_between_stages
-        # Harness-set compile options; used to preserve them around the
-        # VAE-only opt_level switch (only relevant if vae_on_tt is True).
+        # Harness-set compile options; merged with the VAE-only opt_level
+        # bump below (only relevant if vae_on_tt is True).
         self.compile_options = compile_options or {}
 
 
@@ -75,10 +70,9 @@ class SDXLLightningPipeline:
     def load_models(self):
         # Load all models on CPU. For TT-bound components we only register the
         # `tt` dynamo backend here; the actual move to xla_device happens in
-        # generate() right before the first forward, and they stay there.
-        # Components stay resident between stages by default (see
-        # SDXLLightningConfig.evict_between_stages); at 25.6% of a chip there
-        # is no reason to evict, and evicting forces a rebuild every call.
+        # generate() right before the first forward. All four together are
+        # 8.14 GiB of 31.83 (26%), so they stay on device between calls and
+        # later calls reuse their compiled graphs.
         self.text_encoder = ModelLoader(ModelVariant.TEXT_ENCODER).load_model(
             dtype_override=torch.float32
         )
@@ -174,9 +168,6 @@ class SDXLLightningPipeline:
                 prompt_embeds_1 = prompt_embeds_1.to("cpu")
             self._perf["components"]["text_encoder_1"] = time.perf_counter() - t0
 
-            if self.config.text_encoder_on_tt and self.config.evict_between_stages:
-                self.text_encoder = self.text_encoder.to("cpu")
-
             logger.info("[STAGE] Text encoder 1: done")
 
             # ── Text encoder 2 (CLIPTextModelWithProjection) ──────────────
@@ -201,9 +192,6 @@ class SDXLLightningPipeline:
                 prompt_embeds_2 = prompt_embeds_2.to("cpu")
                 pooled_prompt_embeds = pooled_prompt_embeds.to("cpu")
             self._perf["components"]["text_encoder_2"] = time.perf_counter() - t0
-
-            if self.config.text_encoder_2_on_tt and self.config.evict_between_stages:
-                self.text_encoder_2 = self.text_encoder_2.to("cpu")
 
             logger.info("[STAGE] Text encoder 2: done")
 
@@ -235,7 +223,7 @@ class SDXLLightningPipeline:
             logger.info(
                 f"[STAGE] UNet denoising loop: start ({num_inference_steps} steps)"
             )
-            # Move UNet to TT once before the loop; evict after.
+            # Move the UNet to TT once, before the loop.
             if self.config.unet_on_tt:
                 self.unet = self.unet.to(device)
 
@@ -274,9 +262,6 @@ class SDXLLightningPipeline:
                 latents = self.scheduler.step(
                     noise_pred, t, latents, return_dict=False
                 )[0]
-            # Evict UNet from TT before VAE comes onto the device.
-            if self.config.unet_on_tt and self.config.evict_between_stages:
-                self.unet = self.unet.to("cpu")
             logger.info("[STAGE] UNet denoising loop: done")
 
             # ── VAE decode (standard SDXL: divide by scaling_factor) ──────
@@ -298,11 +283,6 @@ class SDXLLightningPipeline:
             if self.config.vae_on_tt:
                 image = image.to("cpu")
             self._perf["components"]["vae"] = time.perf_counter() - t0
-
-            if self.config.vae_on_tt and self.config.evict_between_stages:
-                self.vae = self.vae.to("cpu")
-                # Restore harness-set options (un-merge the VAE opt_level bump).
-                torch_xla.set_custom_compile_options(self.config.compile_options)
 
             logger.info("[STAGE] VAE decode: done")
             self._perf["total"] = time.perf_counter() - t_total_start

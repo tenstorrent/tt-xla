@@ -8,23 +8,23 @@ Mirrors the structure of ``vision_benchmark.py``: the per-model configuration
 lives in ``test_imagegen.py`` and this module owns the reusable measurement
 logic. Diffusion pipelines don't fit the single-forward vision harness — each
 generation is a multi-step denoising loop — so this harness offers two schemes,
-selected per model by ``staged_residency``:
+selected by the pipeline's own ``benchmark_staged_residency`` attribute:
 
-  - ``staged_residency=False`` (default, resident pipelines): the classic
-    two-pass scheme. Pass 1 is a single-step ``generate()`` that triggers the
-    first-forward compile of every component; pass 2 is a full
-    ``generate(num_inference_steps)`` in which every forward is a cache hit,
-    because the components stay on device between the two calls. Pass 2's image
-    is saved and its latency drives the reported throughput.
+  - resident pipelines (the default): the two-pass scheme. Pass 1 is a
+    single-step ``generate()`` that triggers the first-forward compile of every
+    component; pass 2 is a full ``generate(num_inference_steps)`` in which every
+    forward is a cache hit, because the components stay on device between the
+    two calls. Pass 2's image is saved and its latency drives the reported
+    throughput.
 
-  - ``staged_residency=True``: ONE ``generate()`` call, no outer warmup. A staged
-    pipeline loads, runs and frees each component in turn, and eviction discards
-    that component's compiled graph along with its weights — the executable pins
-    the weight buffers, so weights cannot be freed while the graph is kept. A
-    second ``generate()`` therefore recompiles everything, and timing it would
-    report cold cycles as warm. Warm cost for these models comes from repeating
-    each forward INSIDE its own residency, which the pipeline measures itself and
-    reports through ``_perf["cold"]`` / ``_perf["warm"]``.
+  - staged pipelines (``benchmark_staged_residency = True``): ONE ``generate()``
+    call, no outer warmup. A staged pipeline loads, runs and frees each component
+    in turn, and eviction discards that component's compiled graph along with its
+    weights — the executable pins the weight buffers, so weights cannot be freed
+    while the graph is kept. A second ``generate()`` would therefore recompile
+    everything and report cold cycles as warm. Warm cost for these models comes
+    from repeating each forward INSIDE its own residency, which the pipeline
+    measures itself and reports through ``_perf["cold"]`` / ``_perf["warm"]``.
 
 Per-model wiring provides a ``build_pipeline_fn`` that returns
 ``(pipeline, generate_fn)``; this module sets the XLA compile options,
@@ -63,7 +63,6 @@ def benchmark_imagegen_torch_xla(
     ttnn_perf_metrics_output_file,
     display_name=None,
     output_image_path=None,
-    staged_residency=False,
 ):
     """Benchmark a text-to-image diffusion pipeline on the TT backend.
 
@@ -82,10 +81,6 @@ def benchmark_imagegen_torch_xla(
         ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
         display_name: Display name used for export naming / dashboard.
         output_image_path: If set, the steady-state image is saved here.
-        staged_residency: True for pipelines that free each component (and its
-            compiled graph) before placing the next. Skips the outer warmup pass,
-            which for these models would measure recompilation rather than warm
-            performance. See the module docstring.
 
     Returns:
         Standardized benchmark result dict (see ``create_benchmark_result``).
@@ -112,12 +107,9 @@ def benchmark_imagegen_torch_xla(
     # the first forward, i.e. during the warmup pass below).
     pipeline, generate_fn = build_pipeline_fn(options)
 
-    # A pipeline can declare it itself, so the fact lives next to the eviction
-    # code it describes rather than being restated per model in test_imagegen.py.
-    # The explicit argument still wins, for ad-hoc experiments.
-    staged_residency = staged_residency or getattr(
-        pipeline, "benchmark_staged_residency", False
-    )
+    # Declared by the pipeline, next to the eviction code it describes, rather
+    # than restated per model in test_imagegen.py.
+    staged_residency = getattr(pipeline, "benchmark_staged_residency", False)
 
     if staged_residency:
         # No outer warmup: every component is evicted with its graph, so a second
@@ -161,9 +153,9 @@ def benchmark_imagegen_torch_xla(
     tt_components_total = sum(components.values()) + sum(steps)
     cpu_overhead = max(0.0, perf["total"] - tt_components_total)
 
-    # The measured pass recomposed with each component's warm figure: what a
-    # resident pipeline gets from its second call, which staged residency cannot
-    # run. Emitted only by pipelines publishing warm; e2e_latency is unchanged.
+    # The measured pass recomposed with each component's warm figure. For a
+    # staged pipeline this is the second call it cannot run; for a resident one
+    # it tracks e2e_latency. Emitted only when the pipeline reports warm.
     warm_e2e_latency = None
     if warm:
         warm_step_s = warm.get(step_metric_name, step_mean_s)
@@ -223,8 +215,8 @@ def benchmark_imagegen_torch_xla(
     # One measurement per scalar component (e.g. text_encoder_1_s, vae_s).
     for name, value in components.items():
         custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
-    # Warm/cold splits and compile cost, so a regression in recompilation is
-    # visible on the dashboard instead of hiding inside the component total.
+    # Warm/cold splits, so a regression in recompilation is visible on the
+    # dashboard instead of hiding inside the component total.
     for name, value in warm.items():
         custom_measurements.append(
             {"measurement_name": f"{name}_warm_s", "value": value}

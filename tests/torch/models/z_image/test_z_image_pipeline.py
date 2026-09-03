@@ -11,10 +11,9 @@ the PCC gating: each device wrapper is subclassed to run the component's first
 TT forward through a CPU twin and assert PCC against ``PCC_THRESHOLD``, and the
 pipeline is subclassed to swap those wrappers in via its ``*_CLS`` seams.
 
-Nothing about staging, eviction or the compiled graphs is duplicated here, so
+Nothing about device residency or the compiled graphs is duplicated here, so
 the test exercises the shipped pipeline rather than a copy that can drift from
-it — which is what previously happened when this file carried its own 165-line
-``ZImagePipeline``.
+it.
 
 Memory: Z-Image is DRAM-tight on a single chip (issue #4756), so each CPU twin is
 loaded only for the one forward it checks and dropped immediately. The twins are
@@ -143,8 +142,8 @@ _COMPARE_AS = {"text_encoder": _trim_to_valid_tokens}
 class PccZImagePipeline(ZImageTTPipeline):
     """The shipped pipeline with a PCC check on each component's first forward.
 
-    generate(), staging, eviction and the warm machinery are all inherited -- this
-    class only overrides the ``_intercept`` hook.
+    generate() and the residency handling are inherited -- this class only
+    overrides the ``_intercept`` hook.
     """
 
     def _intercept(self, name, compiled):
@@ -185,9 +184,6 @@ def test_z_image_pipeline():
     if output_file.exists():
         output_file.unlink()
 
-    # warm_iters defaults to 0: this test gates correctness, so there is no reason
-    # to pay for the extra in-residency repeats the benchmark uses to measure
-    # steady-state cost.
     pipeline = PccZImagePipeline(config=ZImageConfig())
     pipeline.setup()
     image = pipeline.generate(

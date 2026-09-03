@@ -16,7 +16,7 @@ PCC gating, via the pipeline's substitution seams:
 
 Nothing about staging, eviction or the compiled graphs is duplicated here, so
 the test exercises the shipped pipeline rather than a copy that can drift from
-it — which is what this file previously did with its own ``Flux2TTPipeline``.
+it.
 
 Every stage is gated on PCC against a CPU twin fed the same inputs the device
 saw: the prompt embeds once, the noise prediction on the first
@@ -169,7 +169,7 @@ class _PccVAEDecoder(_DeviceVAEDecoder):
 class PccFlux2TTPipeline(Flux2TTPipeline):
     """The shipped pipeline with PCC checks on every stage.
 
-    generate(), staging, eviction and the warm machinery are all inherited.
+    generate(), the staging and the warm machinery are all inherited.
     """
 
     DENOISER_CLS = _PccDenoiser
@@ -216,8 +216,8 @@ def test_flux2_pipeline():
     if output_file.exists():
         output_file.unlink()
 
-    # warm_iters defaults to 0: this test gates correctness, so there is no reason
-    # to pay for the extra in-residency repeats the benchmark uses.
+    # warm_iters defaults to 0: this test gates correctness, so it does not pay
+    # for the in-residency repeats the benchmark uses.
     pipeline = PccFlux2TTPipeline(config=Flux2Config())
     pipeline.setup()
     pixels = pipeline.generate(

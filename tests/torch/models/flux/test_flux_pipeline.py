@@ -14,9 +14,9 @@ PCC gating, via the pipeline's substitution seams:
   - ``_pre_place`` computes each text encoder's golden while the module is still
     on host, and ``_intercept`` compares the device result against it.
 
-Nothing about staging, eviction or the compiled graphs is duplicated here, so
+Nothing about device residency or the compiled graphs is duplicated here, so
 the test exercises the shipped pipeline rather than a copy that can drift from
-it — which is what this file previously did with its own ``FluxTTPipeline``.
+it.
 
 Every stage is gated on PCC against a CPU twin fed the same inputs the device
 saw: both prompt-embed streams once, the noise prediction on the first
@@ -24,11 +24,10 @@ saw: both prompt-embed streams once, the noise prediction on the first
 always advanced with the *device* output (deployment behavior), so a PCC drop
 anywhere shows up as a test failure rather than a silently degraded image.
 
-Memory strategy (peak ≈ max(component) rather than the sum) is preserved: each
-encoder's golden runs on the host copy *before* placement so it costs no second
-copy, the transformer's twin is loaded lazily at the first checked step and
-dropped once the checked steps finish, and the VAE's golden runs before its lazy
-placement.
+The goldens cost no second device copy: each encoder's runs on the host copy
+*before* placement, the transformer's twin is loaded lazily at the first checked
+step and dropped once the checked steps finish, and the VAE's runs before its
+lazy placement.
 """
 
 import gc
@@ -179,7 +178,7 @@ class _PccVAEDecoder(_DeviceVAEDecoder):
 class PccFluxTTPipeline(FluxTTPipeline):
     """The shipped pipeline with PCC checks on every stage.
 
-    generate(), staging, eviction and the warm machinery are all inherited.
+    generate() and the residency handling are inherited.
     """
 
     DENOISER_CLS = _PccDenoiser
@@ -225,8 +224,6 @@ def test_flux_pipeline():
     if output_file.exists():
         output_file.unlink()
 
-    # warm_iters defaults to 0: this test gates correctness, so there is no reason
-    # to pay for the extra in-residency repeats the benchmark uses.
     pipeline = PccFluxTTPipeline(config=FluxConfig())
     pipeline.setup()
     pixels = pipeline.generate(
