@@ -153,11 +153,9 @@ def benchmark_imagegen_torch_xla(
     perf = pipeline._perf
     components = perf["components"]
     steps = perf["steps"]
-    # Staged pipelines also publish per-component cold/warm splits and per-stage
-    # compile counters; absent for resident pipelines.
+    # Per-component cold/warm splits; absent on pipelines that do not report them.
     cold = perf.get("cold") or {}
     warm = perf.get("warm") or {}
-    counters = perf.get("counters") or {}
     step_metric_name = perf["step_metric_name"]
     step_mean_s = sum(steps) / len(steps) if steps else 0.0
     tt_components_total = sum(components.values()) + sum(steps)
@@ -204,12 +202,6 @@ def benchmark_imagegen_torch_xla(
         + (f"   (cold {cold[name]:.3f})\n" if name in cold else "\n")
         for name, value in warm.items()
     )
-    counter_lines = "".join(
-        f"|   {name}: compile {c.get('compile_s', 0.0):.3f}s, "
-        f"{c.get('graphs_compiled', 0)} graph(s), wall {c.get('wall_s', 0.0):.3f}s\n"
-        for name, c in counters.items()
-        if isinstance(c, dict)
-    )
     print(
         f"| Num inference steps: {num_inference_steps}\n"
         f"| Steady-state:\n"
@@ -221,8 +213,6 @@ def benchmark_imagegen_torch_xla(
         print(f"| Warm (measured inside residency):\n{warm_lines}", end="")
     if warm_e2e_latency is not None:
         print(f"|   warm-equivalent e2e (s):  {warm_e2e_latency:.3f}")
-    if counter_lines:
-        print(f"| Compile counters:\n{counter_lines}", end="")
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
@@ -247,19 +237,6 @@ def benchmark_imagegen_torch_xla(
         custom_measurements.append(
             {"measurement_name": "warm_e2e_latency_s", "value": warm_e2e_latency}
         )
-    for name, c in counters.items():
-        if not isinstance(c, dict):
-            continue
-        custom_measurements.append(
-            {"measurement_name": f"{name}_compile_s", "value": c.get("compile_s", 0.0)}
-        )
-        custom_measurements.append(
-            {
-                "measurement_name": f"{name}_graphs_compiled",
-                "value": c.get("graphs_compiled", 0),
-            }
-        )
-
     result = create_benchmark_result(
         full_model_name=full_model_name,
         model_type=model_type,
