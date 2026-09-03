@@ -7,19 +7,29 @@
 Mirrors the structure of ``vision_benchmark.py``: the per-model configuration
 lives in ``test_imagegen.py`` and this module owns the reusable measurement
 logic. Diffusion pipelines don't fit the single-forward vision harness — each
-generation is a multi-step denoising loop — so this harness uses a two-pass
-scheme:
+generation is a multi-step denoising loop — so this harness offers two schemes,
+selected per model by ``staged_residency``:
 
-  - Pass 1 (warmup): a single-step ``generate()`` call — enough to trigger
-    the first-forward compile of every component.
-  - Pass 2 (steady-state): a full ``generate(num_inference_steps)`` call;
-    every forward is a cache hit. This is the pass whose image is saved and
-    whose latency drives the reported throughput.
+  - ``staged_residency=False`` (default, resident pipelines): the classic
+    two-pass scheme. Pass 1 is a single-step ``generate()`` that triggers the
+    first-forward compile of every component; pass 2 is a full
+    ``generate(num_inference_steps)`` in which every forward is a cache hit,
+    because the components stay on device between the two calls. Pass 2's image
+    is saved and its latency drives the reported throughput.
+
+  - ``staged_residency=True``: ONE ``generate()`` call, no outer warmup. A staged
+    pipeline loads, runs and frees each component in turn, and eviction discards
+    that component's compiled graph along with its weights — the executable pins
+    the weight buffers, so weights cannot be freed while the graph is kept. A
+    second ``generate()`` therefore recompiles everything, and timing it would
+    report cold cycles as warm. Warm cost for these models comes from repeating
+    each forward INSIDE its own residency, which the pipeline measures itself and
+    reports through ``_perf["cold"]`` / ``_perf["warm"]``.
 
 Per-model wiring provides a ``build_pipeline_fn`` that returns
 ``(pipeline, generate_fn)``; this module sets the XLA compile options,
-builds the pipeline (which compiles the heavy net for TT), runs the two passes
-and emits a standardized benchmark result.
+builds the pipeline (which compiles the heavy net for TT), runs the measured
+pass(es) and emits a standardized benchmark result.
 """
 
 import socket
@@ -53,6 +63,7 @@ def benchmark_imagegen_torch_xla(
     ttnn_perf_metrics_output_file,
     display_name=None,
     output_image_path=None,
+    staged_residency=False,
 ):
     """Benchmark a text-to-image diffusion pipeline on the TT backend.
 
@@ -71,6 +82,10 @@ def benchmark_imagegen_torch_xla(
         ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
         display_name: Display name used for export naming / dashboard.
         output_image_path: If set, the steady-state image is saved here.
+        staged_residency: True for pipelines that free each component (and its
+            compiled graph) before placing the next. Skips the outer warmup pass,
+            which for these models would measure recompilation rather than warm
+            performance. See the module docstring.
 
     Returns:
         Standardized benchmark result dict (see ``create_benchmark_result``).
@@ -97,15 +112,21 @@ def benchmark_imagegen_torch_xla(
     # the first forward, i.e. during the warmup pass below).
     pipeline, generate_fn = build_pipeline_fn(options)
 
-    # Pass 1 (warmup): 1 step is enough to trigger the first-forward compile
-    # of every component.
-    print("Starting warmup pass (includes compile)...")
-    warmup_start = time.perf_counter()
-    generate_fn(prompt, 1)
-    warmup_time = time.perf_counter() - warmup_start
-    print(f"Warmup pass: {warmup_time:.3f}s")
+    if staged_residency:
+        # No outer warmup: every component is evicted with its graph, so a second
+        # generate() would recompile from scratch. Warm cost is measured per
+        # component inside its residency by the pipeline itself.
+        print("Staged residency: single measured pass (no outer warmup)...")
+    else:
+        # Pass 1 (warmup): 1 step is enough to trigger the first-forward compile
+        # of every component, which stay resident for pass 2.
+        print("Starting warmup pass (includes compile)...")
+        warmup_start = time.perf_counter()
+        generate_fn(prompt, 1)
+        warmup_time = time.perf_counter() - warmup_start
+        print(f"Warmup pass: {warmup_time:.3f}s")
 
-    # Pass 2 (steady-state): steady-state generation; this image is the saved one.
+    # The measured pass; this image is the saved one.
     print("Starting steady-state pass...")
     steady_state_start = time.perf_counter()
     steady_state_image = generate_fn(prompt, num_inference_steps)
@@ -120,22 +141,32 @@ def benchmark_imagegen_torch_xla(
     total_samples = 1
     samples_per_sec = total_samples / steady_state_time
 
-    # Per-component forward+sync times from the pipeline's own instrumentation
-    # (steady-state pass). The schema is model-agnostic so the same harness
-    # serves every image-gen pipeline:
-    #   _perf = {
-    #       "components": {<name>: seconds, ...},   # scalar per-stage times
-    #       "steps": [seconds, ...],                # per heavy-net-step times
-    #       "step_metric_name": "unet_step" | "transformer_step",
-    #       "total": seconds,                       # full generate() wall time
-    #   }
+    # Model-agnostic schema from the pipeline's own instrumentation:
+    #   components {name: s}, steps [s], step_metric_name, total s
     perf = pipeline._perf
     components = perf["components"]
     steps = perf["steps"]
+    # Staged pipelines also publish per-component cold/warm splits and per-stage
+    # compile counters; absent for resident pipelines.
+    cold = perf.get("cold") or {}
+    warm = perf.get("warm") or {}
+    counters = perf.get("counters") or {}
     step_metric_name = perf["step_metric_name"]
     step_mean_s = sum(steps) / len(steps) if steps else 0.0
     tt_components_total = sum(components.values()) + sum(steps)
     cpu_overhead = max(0.0, perf["total"] - tt_components_total)
+
+    # The measured pass recomposed with each component's warm figure: what a
+    # resident pipeline gets from its second call, which staged residency cannot
+    # run. Emitted only by pipelines publishing warm; e2e_latency is unchanged.
+    warm_e2e_latency = None
+    if warm:
+        warm_step_s = warm.get(step_metric_name, step_mean_s)
+        warm_e2e_latency = (
+            sum(warm.get(name, value) for name, value in components.items())
+            + warm_step_s * len(steps)
+            + cpu_overhead
+        )
 
     metadata = get_benchmark_metadata()
     full_model_name = model_info_name
@@ -161,6 +192,17 @@ def benchmark_imagegen_torch_xla(
     component_lines = "".join(
         f"|   {name} (s):  {value:.3f}\n" for name, value in components.items()
     )
+    warm_lines = "".join(
+        f"|   {name} warm (s):  {value:.3f}"
+        + (f"   (cold {cold[name]:.3f})\n" if name in cold else "\n")
+        for name, value in warm.items()
+    )
+    counter_lines = "".join(
+        f"|   {name}: compile {c.get('compile_s', 0.0):.3f}s, "
+        f"{c.get('graphs_compiled', 0)} graph(s), wall {c.get('wall_s', 0.0):.3f}s\n"
+        for name, c in counters.items()
+        if isinstance(c, dict)
+    )
     print(
         f"| Num inference steps: {num_inference_steps}\n"
         f"| Steady-state:\n"
@@ -168,6 +210,12 @@ def benchmark_imagegen_torch_xla(
         f"|   {step_metric_name} mean (s):  {step_mean_s:.3f}\n"
         f"|   CPU overhead (s):    {cpu_overhead:.3f}"
     )
+    if warm_lines:
+        print(f"| Warm (measured inside residency):\n{warm_lines}", end="")
+    if warm_e2e_latency is not None:
+        print(f"|   warm-equivalent e2e (s):  {warm_e2e_latency:.3f}")
+    if counter_lines:
+        print(f"| Compile counters:\n{counter_lines}", end="")
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
@@ -178,6 +226,32 @@ def benchmark_imagegen_torch_xla(
     # One measurement per scalar component (e.g. text_encoder_1_s, vae_s).
     for name, value in components.items():
         custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
+    # Warm/cold splits and compile cost, so a regression in recompilation is
+    # visible on the dashboard instead of hiding inside the component total.
+    for name, value in warm.items():
+        custom_measurements.append(
+            {"measurement_name": f"{name}_warm_s", "value": value}
+        )
+    for name, value in cold.items():
+        custom_measurements.append(
+            {"measurement_name": f"{name}_cold_s", "value": value}
+        )
+    if warm_e2e_latency is not None:
+        custom_measurements.append(
+            {"measurement_name": "warm_e2e_latency_s", "value": warm_e2e_latency}
+        )
+    for name, c in counters.items():
+        if not isinstance(c, dict):
+            continue
+        custom_measurements.append(
+            {"measurement_name": f"{name}_compile_s", "value": c.get("compile_s", 0.0)}
+        )
+        custom_measurements.append(
+            {
+                "measurement_name": f"{name}_graphs_compiled",
+                "value": c.get("graphs_compiled", 0),
+            }
+        )
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
