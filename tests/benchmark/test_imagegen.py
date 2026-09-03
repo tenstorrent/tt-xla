@@ -578,8 +578,7 @@ def test_glm_image(output_file, request):
 
     Unlike the single-chip SD models above, GLM-Image's DiT transformer runs
     tensor-parallel across a multi-chip mesh (the AR vision-language encoder, T5
-    glyph encoder, FlowMatchEuler scheduler and VAE decode stay on CPU). The
-    matrix pins this entry to an llmbox (n300-llmbox) runner so the mesh is available.
+    glyph encoder, FlowMatchEuler scheduler and VAE decode stay on CPU).
     """
     from benchmarks.glm_image_pipeline import (
         HEIGHT,
@@ -719,4 +718,51 @@ def test_hunyuan_image_2_1(output_file, request):
         width=width,
         optimization_level=0,
         output_image_path="test_hunyuan_image_2_1_output.png",
+    )
+
+
+def test_omnigen(output_file, request):
+    """OmniGen diffusion text-to-image benchmark (DiT tensor-parallel).
+
+    Unlike the single-chip SD models above, OmniGen's DiT transformer runs
+    tensor-parallel across a multi-chip mesh (Megatron-1D); the diffusion
+    sampling loop, scheduler and VAE decode stay on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    """
+    from benchmarks.omnigen_pipeline import (
+        HEIGHT,
+        PROMPT,
+        WIDTH,
+        OmniGenConfig,
+        OmniGenPipeline,
+    )
+
+    prompt = PROMPT
+    num_inference_steps = 50
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # DiT on TT (tensor-parallel sharded across the mesh); scheduler / VAE on
+        # CPU. compile_options are already applied globally by the harness.
+        pipeline = OmniGenPipeline(config=OmniGenConfig())
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                seed=DEFAULT_SEED,
+                num_inference_steps=steps,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="omnigen",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        output_image_path="test_omnigen_output.png",
     )

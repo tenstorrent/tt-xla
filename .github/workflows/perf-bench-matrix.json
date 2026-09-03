@@ -695,6 +695,14 @@
           "qb2-blackhole"
         ],
         "group": "experimental"
+      },
+      {
+        "name": "omnigen",
+        "pytest": "tests/benchmark/test_imagegen.py::test_omnigen",
+        "runs-on": [
+          "qb2-blackhole"
+        ],
+        "group": "experimental"
       }
     ]
   }
