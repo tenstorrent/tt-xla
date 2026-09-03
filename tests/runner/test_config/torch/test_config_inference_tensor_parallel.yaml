@@ -570,3 +570,38 @@ test_config:
   seed_oss/pytorch-Seed-OSS-36B-Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+
+  nvidia/nemotron/pytorch-Nvidia_Nemotron_3_5_Lightning_30B_A3B_BF16-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.95
+
+  deepseek/deepseek_moe_16b/pytorch-DEEPSEEK_MOE_16B_CHAT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  qwen_3_vl/multimodal/pytorch-32b_instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.91
+
+  qwen_3_6/causal_lm/pytorch-35B_A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+
+  qwen_3_6/multimodal/pytorch-Qwen/Qwen3.6-35B-A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.85
+
+  qwen_3_8/causal_lm/pytorch-27B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  qwen_3_8/multimodal/pytorch-Qwen/Qwen3.8-27B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.87
