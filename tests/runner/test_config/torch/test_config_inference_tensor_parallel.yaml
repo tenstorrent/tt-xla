@@ -570,3 +570,13 @@ test_config:
   seed_oss/pytorch-Seed-OSS-36B-Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
+  
+  kat_coder/causal_lm/pytorch-KAT-Coder-V2.5-Dev-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    inject_custom_moe: true
+    status: EXPECTED_PASSING
+
+  qwen_3_6/causal_lm/pytorch-35B_A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
