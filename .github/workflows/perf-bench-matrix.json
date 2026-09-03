@@ -80,6 +80,11 @@
         "group": "experimental"
       },
       {
+        "name": "fibo",
+        "pytest": "tests/benchmark/test_imagegen.py::test_fibo",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "janus_pro_1b",
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro",
         "group": "experimental"
