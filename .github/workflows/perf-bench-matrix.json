@@ -121,7 +121,8 @@
       {
         "name": "diffusiongemma_26b_a4b_it",
         "pytest": "tests/benchmark/test_diffusiongemma.py::test_diffusiongemma_26b",
-        "runs-on": "n300-llmbox"
+        "runs-on": "n300-llmbox",
+        "group": "experimental"
       },
       {
         "name": "test_gpt_oss_20b_tp_galaxy_batch_size_64",
