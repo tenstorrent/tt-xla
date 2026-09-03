@@ -592,13 +592,60 @@ class XLAExecutor:
         self.compiled_graph = None
         self.lazy_execution = lazy_execution
 
+    def _isolate_user_inputs(self, full_args):
+        """Trace-time only: replace USER_INPUT tensors with private device copies.
+
+        torch-xla's dynamo bridge matches HLO inputs to arguments by the tensor
+        id on the device buffer, which its pre-trace clone shares. An argument
+        shared by two dynamo graphs is thus unmatched in the second graph and
+        frozen as a trace-time constant, so later calls read the first call's
+        value. Private copies share nothing. Weights are untouched; calls use
+        the caller's tensors; a copy whose sharding spec differs is not used.
+        https://github.com/tenstorrent/tt-xla/issues/6019#issuecomment-5514921811
+        """
+        n_user = sum(
+            spec.kind is InputKind.USER_INPUT for spec in self.signature.input_specs
+        )
+        if n_user == 0:
+            return full_args
+        head, tail = full_args[:-n_user], full_args[-n_user:]
+        copies = []
+        for arg in tail:
+            if isinstance(arg, torch.Tensor) and arg.device.type == "xla":
+                # Host round trip: a fresh device buffer with no device op, so
+                # nothing extra is compiled (an XLA clone would share the buffer).
+                # Keep the FunctionalTensorWrapper the original carries: without
+                # it a view op with no XLA kernel (e.g. view_as_complex) cannot
+                # take the functionalization/CPU-fallback path in the bridge's
+                # partitioner and fails to trace.
+                with torch.no_grad():
+                    copy = arg.cpu().to(arg.device)
+                if torch._is_functional_tensor(arg) and not torch._is_functional_tensor(
+                    copy
+                ):
+                    copy = torch._to_functional_tensor(copy)
+                arg = copy
+            copies.append(arg)
+        if xr.is_spmd():
+            from torch_xla.distributed.spmd.xla_sharding import get_xla_sharding_specs
+
+            for i, (orig, copy) in enumerate(zip(tail, copies)):
+                if isinstance(orig, torch.Tensor) and get_xla_sharding_specs(
+                    [orig]
+                ) != get_xla_sharding_specs([copy]):
+                    copies[i] = orig
+        return tuple(head) + tuple(copies)
+
     def _call_experimental_compile(self, full_args):
         if self.compiled_graph is None:
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
-            # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
+            # without any tracing. Traced against isolated user inputs, see
+            # _isolate_user_inputs.
+            self.compiled_graph = bridge.extract_compiled_graph(
+                self.module, self._isolate_user_inputs(full_args)
+            )
 
         return self.compiled_graph(*full_args)
 
