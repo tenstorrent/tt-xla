@@ -1,0 +1,3 @@
+[
+  { "include": ["model-test-extended.json", "latest-forge-models-changed.json"] }
+]
