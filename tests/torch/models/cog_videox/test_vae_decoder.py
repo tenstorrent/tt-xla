@@ -15,8 +15,11 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from third_party.tt_forge_models.cog_videox.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.xfail(
-    reason="error: 'ttnn.group_norm' op flattened height must be tile-aligned - https://github.com/tenstorrent/tt-xla/issues/5479"
+# VAE decoder hangs (240-min job timeout, no result); skipped so it can't hang the
+# whole job. skip (not xfail) because xfail only applies after the test runs, which
+# cannot prevent a hang. See https://github.com/tenstorrent/tt-xla/issues/5678
+@pytest.mark.skip(
+    reason="VAE decoder hangs (240-min job timeout). https://github.com/tenstorrent/tt-xla/issues/5678"
 )
 @pytest.mark.nightly
 @pytest.mark.llmbox
