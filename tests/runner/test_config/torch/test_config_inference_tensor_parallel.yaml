@@ -44,6 +44,28 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.92 # measured pcc=0.9249; floor set below to absorb run-to-run noise. audio+text multimodal path runs end-to-end but the audio tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
 
+  gemma4/pytorch-26B-A4B-it-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
+  gemma4/pytorch-26B-A4B-it-image-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.7615589062671618. Required: pcc=0.99."
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
+  gemma4/pytorch-26B-A4B-it-video-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: INCORRECT_RESULT
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.7598864327187422. Required: pcc=0.99."
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+
   gemma4/pytorch-12B-video-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
