@@ -689,6 +689,20 @@
         "group": "experimental"
       },
       {
+        "name": "longcat_image_text_encoder",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_text_encoder",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "longcat_image_transformer",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_transformer",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "longcat_image_vae_decoder",
+        "pytest": "tests/benchmark/test_longcat_image.py::test_longcat_vae_decoder"
+      },
+      {
         "name": "mochi_1_preview",
         "pytest": "tests/benchmark/test_video_gen.py::test_mochi_1_preview",
         "runs-on": [
