@@ -10,8 +10,9 @@ permissions:
   pull-requests: write
 
 on:
-  schedule:
-    - cron: '0 3 * * *'  # Runs at 03:00 UTC every day
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 3 * * *'  # Runs at 03:00 UTC every day
   workflow_dispatch:  # Manual trigger
     inputs:
       force-overwrite:

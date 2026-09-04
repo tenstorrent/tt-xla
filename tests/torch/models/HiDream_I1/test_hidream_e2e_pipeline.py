@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """HiDream-I1-Full — nightly e2e pipeline test, every TT component PCC-gated
-against a CPU twin in the same dtype. Only the Sparse-MoE MM-DiT transformer
-runs bf16 on TT (tensor-parallel sharded); the CLIP-L/CLIP-G/T5/Llama text
-encoders, the scheduler and the VAE stay on CPU. The transformer is checked once
-per denoising step.
+against a CPU twin in the same dtype. The CLIP-L and CLIP-G text encoders, the
+Sparse-MoE MM-DiT transformer (tensor-parallel sharded) and the VAE decoder run
+bf16 on TT; the T5 and Llama encoders and the scheduler stay on CPU. Each CLIP
+encoder is checked once per prompt — twice under CFG, positive and negative — the
+transformer once per denoising step, and the VAE once.
 
 The pipeline itself lives in ``tt_forge_models`` and is shared with the runnable
-demo and the benchmark; this test only wraps the TT component's forward.
+demo and the benchmark; this test only wraps the TT components' forwards.
 """
 
 import pytest
@@ -82,9 +83,23 @@ def _attach_pcc_checks(pipeline: HiDreamI1Pipeline) -> None:
 
         module.forward = wrapped_forward
 
+    attach(
+        pipeline.text_encoder,
+        "text_encoder (CLIP-L)",
+        lambda: _twin(ModelVariant.TEXT_ENCODER),
+    )
+    attach(
+        pipeline.text_encoder_2,
+        "text_encoder_2 (CLIP-G)",
+        lambda: _twin(ModelVariant.TEXT_ENCODER_2),
+    )
+    # text_encoder_3 (T5) and text_encoder_4 (Llama) run on CPU, so there is
+    # nothing to gate: https://github.com/tenstorrent/tt-xla/issues/6018 and
+    # https://github.com/tenstorrent/tt-xla/issues/6019
     # The twin is the stock diffusers MoE — enable_sparse_mlp is applied to the
     # device copy only, so the golden exercises the unswapped expert path.
     attach(pipeline.transformer, "transformer", lambda: _twin(ModelVariant.TRANSFORMER))
+    attach(pipeline.vae, "vae", lambda: _twin(ModelVariant.VAE))
 
 
 @pytest.mark.nightly
