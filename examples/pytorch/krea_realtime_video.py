@@ -7,9 +7,9 @@
 The pipeline implementation lives in ``tt_forge_models``; this is a thin runnable
 demo that calls it.
 
-The UMT5 text encoder (run once, then freed) and the CausalWan DiT (the heavy net)
-run on the Tenstorrent backend — the DiT tensor-parallel sharded across the device
-mesh; the VAE runs on CPU.
+The UMT5 text encoder (run once, then freed), the CausalWan DiT (the heavy net)
+and the VAE decoder run on the Tenstorrent backend — the DiT tensor-parallel
+sharded across the device mesh, the VAE decoder replicated.
 
 Run (multichip blackhole, qb2):
     python examples/pytorch/krea_realtime_video.py
