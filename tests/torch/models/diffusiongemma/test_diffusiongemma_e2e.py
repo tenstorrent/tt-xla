@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """DiffusionGemma 26B -- e2e PCC: CPU-driven block-diffusion pipeline, TT-verified (no decode).
 
+Parametrized over the checkpoint's two input modalities: text, and image+text (one image ->
+up to 280 soft tokens through the encoder's vision tower). The vision tower is replicated
+(out of the shard map), so the image path carries its own PCC floor.
+
 A single host-side driver runs generation, reusing the model's own helpers (sampler,
 stopping, cache, RNG) so it is bit-identical to generate(). Only the two NN components run
 on TT, each PCC-checked against CPU on the same on-trajectory inputs:
@@ -55,7 +59,10 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
 
 MAX_NEW_TOKENS = 256
 SEED = 0
-PCC_THRESHOLD = 0.96
+# Per-modality floors. The image path is held at the standard 0.99 target rather
+# than lowered to what it currently measures (encoder pcc=0.886719), so the gap
+# stays visible instead of being absorbed by the floor.
+PCC_THRESHOLDS = {"text": 0.96, "image": 0.99}
 
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
@@ -66,7 +73,7 @@ def _pcc(device_out, golden_out) -> float:
     return float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
 
 
-def _make_staged_forwards(cpu_model, mesh, pcc_records):
+def _make_staged_forwards(cpu_model, mesh, pcc_records, pcc_threshold):
     """Staged both-on-TT: only ONE component resident on device at a time. encoder_forward loads
     the ENCODER variant (independent), prefills + PCC, frees it, then loads the decoder for the
     decode loop; the KV cache round-trips through host across the swap.
@@ -108,19 +115,23 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
         enc_tt = torch.compile(_TTEncoder(enc_model), backend="tt")
         cpu_out = cpu_model.model.encoder(**kw)
         pkv = DynamicCache()
+        # The vision tensors are None on the text path and carry the image on the
+        # vision path; the CPU golden above already got them via **kw.
         tt_lhs = enc_tt(
             _to_device(kw["input_ids"], xla),
             _to_device(kw["attention_mask"], xla),
             _to_device(kw["position_ids"], xla),
             pkv,
             _to_device(kw.get("mm_token_type_ids"), xla),
+            _to_device(kw.get("pixel_values"), xla),
+            _to_device(kw.get("image_position_ids"), xla),
         )
         pcc = _pcc(_to_device(tt_lhs, "cpu"), cpu_out.last_hidden_state)
         pcc_records.append(("encoder", ctr["block"], 0, pcc))
         logger.info("[PCC] block={} encoder: pcc={:.6f}", ctr["block"], pcc)
         assert (
-            pcc >= PCC_THRESHOLD
-        ), f"encoder(block {ctr['block']}) PCC {pcc:.6f} < {PCC_THRESHOLD}"
+            pcc >= pcc_threshold
+        ), f"encoder(block {ctr['block']}) PCC {pcc:.6f} < {pcc_threshold}"
         # Cache to host + FREE the encoder. The decoder is loaded lazily in decoder_forward,
         # so only one model is ever resident on device.
         xm.mark_step()
@@ -165,25 +176,35 @@ def _make_staged_forwards(cpu_model, mesh, pcc_records):
             "[PCC] block={} step={} decoder: pcc={:.6f}", ctr["block"], ctr["step"], pcc
         )
         assert (
-            pcc >= PCC_THRESHOLD
-        ), f"decoder(block {ctr['block']} step {ctr['step']}) PCC {pcc:.6f} < {PCC_THRESHOLD}"
+            pcc >= pcc_threshold
+        ), f"decoder(block {ctr['block']} step {ctr['step']}) PCC {pcc:.6f} < {pcc_threshold}"
         return cpu_out
 
     return encoder_forward, decoder_forward
+
+
+def _record_properties(model_name):
+    return pytest.mark.record_test_properties(
+        category=Category.MODEL_TEST,
+        model_name=model_name,
+        model_group=ModelGroup.GENERALITY,
+        run_mode=RunMode.INFERENCE,
+        bringup_status=BringupStatus.PASSED,
+    )
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.large
 @pytest.mark.llmbox
-@pytest.mark.record_test_properties(
-    category=Category.MODEL_TEST,
-    model_name="DiffusionGemma_e2e",
-    model_group=ModelGroup.GENERALITY,
-    run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.PASSED,
+@pytest.mark.parametrize(
+    "modality",
+    [
+        pytest.param("text", marks=_record_properties("DiffusionGemma_e2e")),
+        pytest.param("image", marks=_record_properties("DiffusionGemma_e2e_image")),
+    ],
 )
-def test_diffusiongemma_e2e():
+def test_diffusiongemma_e2e(modality):
     """CPU-driven block-diffusion pipeline; every NN component verified against TT (no decode)."""
     # transformers>=5.11 is required for DiffusionGemma; install it from the loader's
     # requirements.txt for this test only, roll back on exit (env stays clean for others).
@@ -202,7 +223,14 @@ def test_diffusiongemma_e2e():
         cpu_model.config._experts_implementation = (
             TT_MOE_BACKEND_NAME  # matches runner's inject_custom_moe
         )
-        inputs = cpu_loader.load_inputs(dtype_override=torch.bfloat16)
+        # Text vs image+text: same model, same shard spec -- only the inputs differ.
+        # The image path adds pixel_values + image_position_ids, which reach both the
+        # CPU golden and the TT encoder as extra kwargs.
+        inputs = (
+            cpu_loader.load_image_inputs(dtype_override=torch.bfloat16)
+            if modality == "image"
+            else cpu_loader.load_text_inputs(dtype_override=torch.bfloat16)
+        )
         # generate()'s extra inputs (e.g. mm_token_type_ids), minus decoder_input_ids (loop inits its canvas).
         extra_kwargs = {
             k: v
@@ -218,8 +246,9 @@ def test_diffusiongemma_e2e():
         # Staged both-on-TT: the encoder (ENCODER variant, independent) runs + is freed, then the
         # decoder is loaded -- only one component resident on device at a time (see loader variants).
         pcc_records = []
+        pcc_threshold = PCC_THRESHOLDS[modality]
         encoder_forward, decoder_forward = _make_staged_forwards(
-            cpu_model, mesh, pcc_records
+            cpu_model, mesh, pcc_records, pcc_threshold
         )
         torch.manual_seed(SEED)
         manual_generate(
@@ -237,6 +266,9 @@ def test_diffusiongemma_e2e():
         assert pcc_records, "no PCC checks ran: encoder/decoder forwards never fired"
         worst = min(p for *_, p in pcc_records)
         logger.info(
-            "per-iteration PCC: {} checks, worst={:.6f}", len(pcc_records), worst
+            "[{}] per-iteration PCC: {} checks, worst={:.6f}",
+            modality,
+            len(pcc_records),
+            worst,
         )
-        assert worst >= PCC_THRESHOLD
+        assert worst >= pcc_threshold

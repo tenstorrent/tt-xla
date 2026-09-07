@@ -1,0 +1,263 @@
+================================================================================
+DiffusionGemma-26B-A4B-it : vision (image) bring-up  -- SESSION NOTES
+Date        : Sep 07, 2026
+Branches    : tt-xla            akannan/diffusiongemma_vision  (off akannan/diffusion_gemma, PR #5989)
+              tt_forge_models   akannan/diffusiongemma_vision
+Hardware    : n300-llmbox, 8 devices, 11.97 GiB DRAM/device
+Checkpoint  : google/diffusiongemma-26B-A4B-it @ f7f5b7f5fa82ffc52addd066915886d497f5517b
+transformers: 5.12.0 (from the loader's requirements.txt)
+Status      : NOT COMMITTED. Working-tree changes only.
+================================================================================
+
+1. OBJECTIVE
+--------------------------------------------------------------------------------
+Confirm which input modalities the checkpoint really supports, then bring up the
+supported non-text ones across the PCC test, demo and benchmark.
+
+
+2. MODALITY FINDINGS  (evidence, not the model card's word)
+--------------------------------------------------------------------------------
+SUPPORTED : text, image, text+image.
+NOT SUPPORTED : audio, video.
+
+  Image  -> config.json has vision_config (gemma4_vision, 27 layers, hidden 1152,
+            patch 16, vision_soft_tokens_per_image 280), image_token_id 258880,
+            boi 255999, eoi 258882.
+            modeling_diffusion_gemma.py@v5.12.0 L994 vision_tower, L1002
+            get_image_features, L1055/L1061 pixel_values + image_position_ids.
+  Audio  -> no audio_config, no audio_token_id, no audio tower. grep audio in
+            config.json = 0 hits.
+  Video  -> modeling_diffusion_gemma.py@v5.12.0 L975 states verbatim:
+            "it doesn't support audio or video inputs". No pixel_values_videos.
+            grep video in config.json = 0 hits.
+
+  *** TRAP (important) ***
+  Audio LOOKS supported at three layers above the model:
+    - tokenizer_config.json DOES define audio_token <|audio|>, boa <|audio>, eoa <audio|>
+    - processor_config.json DOES carry a full Gemma4AudioFeatureExtractor
+      (16 kHz mel, audio_seq_length 750, 40 ms/token)
+    - chat_template.jinja DOES render <|audio|> and <|video|> parts
+  Gemma4Processor's guard (processing_gemma4.py L147) only fires when the
+  TOKENIZER lacks an audio token -- and this tokenizer has one. So audio inputs
+  would be BUILT WITHOUT ERROR, embedded as ordinary text tokens with no features
+  scattered in, and the model would emit plausible garbage.
+  => Audio fails SILENTLY. Always take config.json + modeling source as the
+     authority, never the processor/tokenizer/template stack.
+
+  The HF and Google model cards claim frames-based VIDEO support. That
+  CONTRADICTS modeling L975. Code was followed over the card.
+
+  Sources:
+    https://huggingface.co/google/diffusiongemma-26B-A4B-it
+    .../blob/f7f5b7f5fa82ffc52addd066915886d497f5517b/config.json
+    .../blob/f7f5b7f5fa82ffc52addd066915886d497f5517b/processor_config.json
+    .../blob/f7f5b7f5fa82ffc52addd066915886d497f5517b/tokenizer_config.json
+    .../blob/f7f5b7f5fa82ffc52addd066915886d497f5517b/chat_template.jinja
+    https://github.com/huggingface/transformers/blob/v5.12.0/src/transformers/models/diffusion_gemma/modeling_diffusion_gemma.py#L975
+    https://github.com/huggingface/transformers/blob/v5.12.0/src/transformers/models/gemma4/image_processing_gemma4.py#L150
+    https://ai.google.dev/gemma/docs/diffusiongemma/model_card
+
+
+3. INPUT SHAPES (measured on host, transformers 5.12.0)
+--------------------------------------------------------------------------------
+  mode                     total tok   image tok   text                              pixels
+  text-only                       15           0   "Why is the sky blue?"            no
+  image+text                     284         266   "What animal is on the candy?"    yes
+  image-only (prompt="")         277         266   -                                 yes
+  image+custom text              283         266   "Describe this picture in detail." yes
+
+  pixel_values       (1, 2520, 768) bf16 -- RAW 16x16 RGB patches (768=16*16*3),
+                     zero-padded to the 280-soft-token max (280 * 3^2 = 2520).
+                     The 3x3 pooling to soft tokens happens INSIDE the tower.
+  image_position_ids (1, 2520, 2) int64, (-1,-1) marks padding.
+  mm_token_type_ids  gains value 1 over the vision span. REQUIRED: text_config
+                     .use_bidirectional_attention == "vision", so that span also
+                     drives get_block_sequence_ids_for_mask.
+
+  Soft-token count is ASPECT-RATIO DEPENDENT (266 here, max 280). A different
+  image changes sequence length and therefore forces a recompile.
+
+  Image used is the model card's own candy.JPG at native 4032x3024, unresized;
+  prompt is the card's verbatim "What animal is on the candy?". Nothing smaller
+  or larger was substituted.
+
+
+4. MEMORY ANALYSIS (from the actual safetensors headers, not estimates)
+--------------------------------------------------------------------------------
+  Checkpoint: 25,823,781,228 params, 48.10 GiB, all bf16, 11 shards.
+
+  text: moe experts        42.539 GiB   sharded
+  text: attention           2.068 GiB   REPLICATED
+  embed/lm_head (tied)      1.375 GiB   REPLICATED (was never in the shard spec)
+  vision_tower              1.061 GiB   REPLICATED
+  text: dense mlp           0.997 GiB   sharded
+  self_conditioning         0.033 GiB   REPLICATED
+  router / norms / embed_vision ~0.027 GiB
+
+  Per-device on 8 devices, current spec:
+    sharded/8   5.44 GiB
+    replicated  4.56 GiB
+    WEIGHTS    10.01 GiB  ->  only 1.96 GiB headroom for activations + KV
+
+  Observed at the image OOM: 11.69 GiB allocated, 0.28 GiB free
+    => activations+KV = 1.68 GiB, then tilizing the replicated 1.375 GiB lm_head
+       needs 13.06 GiB vs 11.97 available -- over by 1.09 GiB.
+
+  Alternative shard specs vs that same workload:
+    + vision tower   weights 9.07 + act 1.68 + lm tilize 1.38 = 12.13  STILL OOM
+    + attention      weights 8.20 + act 1.68 + lm tilize 1.38 = 11.25  fits
+    + lm_head        weights 8.80 + act 1.68 + lm tilize 0.17 = 10.65  fits  <== chosen
+
+  Attention sharding is blocked, confirmed against the weights:
+    sliding_attention x25 : q [4096,2816] 16 heads, kv [2048,2816] 8 heads  -> shardable
+    full_attention    x5  : q [8192,2816] 16 heads, k [1024,2816] 2 heads,
+                            v_proj ABSENT           -> 2 KV heads cannot shard 8 ways
+  This matches the loader's pre-existing comment.
+
+  => qb2 / Blackhole migration is NOT required. The image path fits on the
+     existing WH llmbox with 3.16 GiB headroom.
+
+
+4b. PER-COMPONENT PCC -- IMAGE-ONLY PATH  (via runner YAML, floors held at 0.99)
+--------------------------------------------------------------------------------
+  component            variant                 input        PCC
+  vision tower alone   vision-tower            image        >= 0.99   PASS
+  encoder              encoder                 text         0.9756266115561364
+  encoder              encoder-image-only      image-only   0.8687509833287677
+  full model           26B-A4B-it              text         ~0.949 (see sec 5)
+  full model           26B-A4B-it-image-only   image-only   RuntimeError
+                                                            Bad StatusOr access:
+                                                            INTERNAL: Error code: 13
+
+  READ:
+  * The vision tower is NOT the cause. It clears 0.99 standalone, replicated,
+    with the real candy.JPG patches -- the same config it runs in inside the
+    encoder. This RULES OUT the gemma4 issue #5277 explanation ("embedder towers
+    replicated -> PCC loss") for DiffusionGemma. Do not cite #5277 here.
+  * Same encoder component: text 0.9756 -> image-only 0.8688 = -0.107.
+    The loss is IMAGE-SPECIFIC and sits between the tower and the text layers.
+    Two candidates, both untouched by the text path:
+      (a) the masked_scatter merge of soft-token features into inputs_embeds
+          (data-dependent boolean indexing, EncoderModel.forward ~L1083-1096)
+      (b) the bidirectional vision attention mask -- text_config
+          .use_bidirectional_attention == "vision" routes mm_token_type_ids
+          through get_block_sequence_ids_for_mask (torch.roll/cumsum/where) into
+          create_masks_for_generate. Never exercised on the text path.
+    NOT yet discriminated between (a) and (b).
+  * The full-model runtime failure is SEPARATE from the accuracy gap. Both halves
+    work in isolation; only the combined encoder+decoder+lm_head graph fails, and
+    it reproduces at 277 tokens (image-only) as well as 284 (image+text) -- so
+    sequence length is NOT the trigger, and the lm_head shard did not fix it.
+    Consistent with the staged-residency rationale (#5538) that this model cannot
+    run as one monolithic graph.
+    NOT AN OOM -- verified by grepping the full 10,961-line log: zero hits for
+    "Out of Memory", "bank_manager", "largest free block", "bank size", TT_FATAL.
+    The earlier genuine OOM (runner_image2.log) printed the full allocator report
+    plus TT_FATAL @ bank_manager.cpp:462, so this backend reports DRAM exhaustion
+    loudly and did not here. The lm_head shard fixed the memory problem for good.
+    The resource-limit theory is therefore CONTRADICTED, not just unproven.
+    "Error code: 13" arrives with no diagnostic at all, i.e. not through the normal
+    tt-metal assert path. Next step to chase it: re-run with TTXLA_LOGGER_LEVEL=DEBUG
+    (or VERBOSE) to capture what the runtime reports before the StatusOr unwrap.
+
+
+5. TEST RESULTS
+--------------------------------------------------------------------------------
+  Host loader checks .............. PASS (all 4 input modes, correct tensors/dtypes)
+  pytest collection ............... PASS (e2e [text]/[image]; both benchmarks)
+  validate_test_config.py ......... PASS (all 3 runner ids resolve)
+
+  e2e image (staged encoder on TT) . encoder PCC 0.886719 vs CPU golden
+                                     -> vision path IS numerically correct on device
+                                     -> decoder-step PCCs NOT yet measured (test
+                                        asserted at the encoder and stopped)
+
+  runner image TP entry ............ run1 setup error (local env, see sec 7)
+                                     run2 OOM on lm_head (led to the shard fix)
+                                     run3 RuntimeError: Bad StatusOr access:
+                                          INTERNAL: Error code: 13, after the
+                                          torch.roll graph break in the vision mask.
+                                          NOT re-run since the conditional fix.
+
+  text TP entry -- FOUR runs:
+      control (unmodified code)      PASSED  (>=0.95)
+      control (unmodified code)      0.9488710719300694
+      mine, unconditional lm_head    0.9486958697976304
+      mine, conditional (text same)  0.9499045183722286
+    Unmodified 0.94887 vs mine 0.94870 = 0.00017 apart, and the SAME unmodified
+    code both passed and failed.
+    => This work does NOT regress the text path.
+    => PRE-EXISTING: the text TP entry is nondeterministic and straddles its 0.95
+       floor on the current build. The YAML's 0.9604 baseline is stale (older
+       toolchain). It will flake in CI regardless of this work. Suspected source
+       is the MoE path (128 experts, top-8, cross-device reduction order) but that
+       is UNCONFIRMED. Issue #5642 is closed, so this needs a fresh one.
+
+
+6. WHAT WAS BUILT
+--------------------------------------------------------------------------------
+  tt_forge_models/diffusiongemma/pytorch/loader.py
+    - variants 26B-A4B-it-image (image+text) and 26B-A4B-it-image-only
+      NOTE: "-image" means IMAGE+TEXT, following gemma4's naming. Not vision-alone.
+    - load_text_inputs / load_image_inputs / load_inputs variant dispatch
+      (the runner passes only dtype_override+batch_size, so variant is the only
+       channel to request images). prompt="" gives the image-only path.
+    - shared _apply_chat_template + _finalize_inputs (drops unused_input_names,
+      batches, casts; cast_input_to_type is category-safe so only pixel_values
+      follows dtype_override and the id/position tensors stay integer)
+    - load_shard_spec vocab-shards lm_head FOR IMAGE VARIANTS ONLY, so the text
+      variant's spec stays byte-identical
+
+  tt_forge_models/diffusiongemma/pytorch/pipeline.py
+    - TTEncoder + encoder_forward thread pixel_values / image_position_ids
+    - manual_generate pops VISION_INPUT_KEYS after prefill (image is in the KV
+      cache by then; it must not follow into the denoising steps)
+    - DiffusionGemmaConfig(image=, image_url=), generate(image=, image_url=)
+    - decoder residency keeps its own manual lm_head mark_sharding (unchanged)
+
+  tt-xla
+    - test_diffusiongemma_e2e parametrized [text]/[image], per-modality
+      PCC_THRESHOLDS, per-param record_test_properties
+    - examples/pytorch/diffusiongemma.py runs both modalities off one setup()
+    - tests/benchmark/test_diffusiongemma.py split into _26b / _26b_image
+      (separate functions, NOT params: the node name becomes the display name and
+       the IR export filename, so brackets would leak into both)
+    - perf-bench-matrix.json + 2 runner YAML entries
+
+
+7. GOTCHAS WORTH REMEMBERING
+--------------------------------------------------------------------------------
+  - This venv's Python lacks os.memfd_create, so pytest here MUST run WITHOUT -s.
+    With -s, conftest's TeeCapture path errors at setup. Pre-existing, local only.
+  - RequirementsManager swaps transformers globally under an exclusive flock.
+    Do NOT run a second RequirementsManager-wrapped script while a test is
+    running -- its rollback will yank 5.12.0 out from under the live test.
+  - Running black across the whole loader dir reformats unrelated files
+    (__init__.py picked up a blank line). Format only the files you touched.
+  - SUBMODULE PIN MISMATCH: the PR branch pins tt_forge_models at 17fceb73e4 but
+    the working tree is on 5b6fc6a3fa. Every number above was measured on
+    5b6fc6a3fa. Resolve before putting any measured PCC into the YAML.
+
+
+8. PENDING / NEXT
+--------------------------------------------------------------------------------
+  [ ] Re-run the image TP runner entry with the conditional shard -- does it clear
+      "INTERNAL: Error code: 13", or is that a real capacity wall for the
+      monolithic encoder+decoder forward? (staged residency exists to avoid that
+      exact shape). If it is a wall -> KNOWN_FAILURE_XFAIL with the verbatim error.
+  [ ] Full e2e image run for the WORST-CASE PCC across decoder steps. The 0.88
+      floor currently in PCC_THRESHOLDS is provisional -- encoder-only.
+  [ ] Decide whether encoder PCC 0.8867 is acceptable. It is a wider gap than the
+      replicated-vision-tower story explains (gemma4 image 0.9675, this model's
+      text 0.9604). Same class as OPEN issue
+      https://github.com/tenstorrent/tt-xla/issues/5277 -- cite it, or file a
+      DiffusionGemma-specific one.
+  [ ] Never run on hardware: image-only variant, the demo, the image benchmark.
+  [ ] Replace the two "required_pcc: 0.95 # PLACEHOLDER" values in
+      test_config_inference_tensor_parallel.yaml with measured numbers.
+  [ ] Separately: the stale/flaky text floor (sec 5).
+  [ ] Not built: multi-image interleaved input. The model supports it
+      (get_block_sequence_ids_for_mask computes vision_group_ids via cumsum
+      precisely to separate multiple image spans) but each extra image costs up to
+      280 tokens against headroom that is already tight.
+================================================================================
