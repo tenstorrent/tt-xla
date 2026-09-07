@@ -1,0 +1,22 @@
+**Date:** Sep 07, 2026
+
+
+**Updates:**
+
+- CONFIRMED modality scope for google/diffusiongemma-26B-A4B-it: text + image only. config.json has vision_config but no audio tower / audio / video keys, and transformers 5.12.0 states the encoder "doesn't support audio or video inputs". TRAP: the tokenizer, processor and chat template all accept audio, so audio inputs build without error and fail SILENTLY - config.json + modeling source are the only authority.
+- Brought up image+text and image-only: loader variants 26B-A4B-it-image / -image-only, vision tensors threaded through TTEncoder, VISION_INPUT_KEYS dropped after prefill. Plus per-component variants (vision-tower, embed-vision, encoder-image, encoder-image-only) so each pipeline stage gets its own runner YAML entry. All floors held at 0.99, not lowered to measured values.
+- PER-COMPONENT PCC (n300-llmbox, 8 dev): vision-tower >=0.99 PASS | encoder text 0.9756 | encoder image-only 0.8688 | encoder image+text 0.8767 | full model image-only and image+text both RuntimeError "Bad StatusOr access: INTERNAL: Error code: 13". Loss is image-proportional, not length-proportional, and the vision tower is NOT the cause - this rules out the #5277 "replicated embedder tower" explanation for this model.
+- ROOT CAUSE (image OOM, fixed): lm_head.weight (262144x2816 bf16 = 1476395008 B, the exact allocator request) was never in the loader's shard spec - pipeline and e2e each vocab-sharded it by hand, so the runner ran it replicated per device. Made the shard image-variant-only; measured from safetensors headers that this leaves 8.80 GiB weights vs 11.97 GiB/device. qb2/Blackhole migration NOT needed.
+- Error code 13 is NOT an OOM: zero hits for "Out of Memory"/bank_manager/TT_FATAL across the full logs, whereas the genuine earlier OOM printed a full allocator report. Retracted my earlier resource-limit theory - it is contradicted, not merely unproven.
+- PRE-EXISTING FLAKE (not caused by this work): the text TP entry is nondeterministic around its 0.95 floor - unmodified code gave PASS and 0.94887, modified gave 0.94870 and 0.94990 (0.00017 spread). The YAML's 0.9604 baseline is stale. I wrongly blamed my own change for this earlier; the control run disproved it.
+
+
+**Next Steps:**
+
+- Run embed-vision (the 4th component, never executed - my chaining script's pgrep guard matched its own command line and hung); it decides whether the -0.10 belongs to a module or to inline code (masked_scatter / bidirectional vision mask), which no component test can isolate.
+- Decide status for the full-model image entries (cannot pass today) and file fresh issues - #5277 does not apply. Resolve the submodule pin mismatch (branch pins 17fceb73e4, tree is on 5b6fc6a3fa) before any measured value goes into YAML.
+
+
+**Challenges / Blockers:**
+
+- None

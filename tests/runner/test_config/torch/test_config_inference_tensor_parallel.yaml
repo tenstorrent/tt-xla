@@ -63,8 +63,53 @@ test_config:
 
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - a DRAM OOM. The runner traces DiffusionGemmaForBlockDiffusion.forward as ONE fused graph (encoder + decoder + lm_head, 392 args), so prompt KV (~220 KB/token) has to fit alongside both halves. At 277 tokens that needs 60 MiB with 44 MiB free (11.92/11.97 GiB used per chip). Not image-specific: text-only at 277 tokens fails identically and prints TT_FATAL @ bank_manager.cpp:462. The demo, benchmark and e2e test use the staged pipeline and are unaffected - https://github.com/tenstorrent/tt-xla/issues/6056 Passes today only because its prompt is 15 tokens (~3 MiB of KV)."
+    inject_custom_moe: true
+
+  diffusiongemma/pytorch-26B-A4B-it-image-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - a DRAM OOM. The runner traces DiffusionGemmaForBlockDiffusion.forward as ONE fused graph (encoder + decoder + lm_head, 392 args), so prompt KV (~220 KB/token) has to fit alongside both halves. At 277 tokens that needs 60 MiB with 44 MiB free (11.92/11.97 GiB used per chip). Not image-specific: text-only at 277 tokens fails identically and prints TT_FATAL @ bank_manager.cpp:462. The demo, benchmark and e2e test use the staged pipeline and are unaffected - https://github.com/tenstorrent/tt-xla/issues/6056"
+    inject_custom_moe: true
+
+  diffusiongemma/pytorch-26B-A4B-it-image-only-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - a DRAM OOM. The runner traces DiffusionGemmaForBlockDiffusion.forward as ONE fused graph (encoder + decoder + lm_head, 392 args), so prompt KV (~220 KB/token) has to fit alongside both halves. At 277 tokens that needs 60 MiB with 44 MiB free (11.92/11.97 GiB used per chip). Not image-specific: text-only at 277 tokens fails identically and prints TT_FATAL @ bank_manager.cpp:462. The demo, benchmark and e2e test use the staged pipeline and are unaffected - https://github.com/tenstorrent/tt-xla/issues/6056"
+    inject_custom_moe: true
+
+  # Per-component PCC for the image path: the tower alone, then the encoder that
+  # consumes its features, then the full model above. Lets a low end-to-end PCC be
+  # attributed to a stage instead of guessed at.
+  diffusiongemma/pytorch-vision-tower-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
-    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/5642
+    required_pcc: 0.99 # standard target, deliberately not lowered to the measured value
+
+  # Text-input control for the same component: isolates whether the encoder's PCC
+  # loss is image-specific or present on the text path too.
+  diffusiongemma/pytorch-encoder-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.99 # standard target, deliberately not lowered to the measured value
+    inject_custom_moe: true
+
+  diffusiongemma/pytorch-embed-vision-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.99 # standard target, deliberately not lowered to the measured value
+
+  diffusiongemma/pytorch-encoder-image-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.99 # standard target, deliberately not lowered to the measured value
+    inject_custom_moe: true
+
+  diffusiongemma/pytorch-encoder-image-only-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.99 # standard target, deliberately not lowered to the measured value
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:

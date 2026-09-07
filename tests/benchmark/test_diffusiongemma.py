@@ -43,23 +43,27 @@ MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 MODULE_EXPORT_PATH = "modules"
 
 
-@pytest.mark.nightly
-@pytest.mark.llmbox
-def test_diffusiongemma_26b(
+def _run_diffusiongemma_benchmark(
     output_file,
     request,
-    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
-    data_format=DEFAULT_DATA_FORMAT,
-    batch_size=DEFAULT_BATCH_SIZE,
+    image,
+    fallback_display_name,
+    warm_encoder_iters,
+    data_format,
+    batch_size,
 ):
-    """End-to-end text generation plus per-component warm timings on 8 chips."""
+    """End-to-end generation plus per-component warm timings on 8 chips.
+
+    ``image`` selects image+text inputs; the model, shard spec and staged residency
+    are identical either way, so only the inputs and the reported model type differ.
+    """
     from third_party.tt_forge_models.diffusiongemma.pytorch import (
         loader as diffgemma_loader,
     )
 
     xr.set_device_type("TT")
     resolved_display_name = resolve_display_name(
-        request=request, fallback="diffusiongemma_26b_a4b_it"
+        request=request, fallback=fallback_display_name
     )
 
     # The shared benchmarks/ harnesses own this block; this benchmark measures
@@ -92,17 +96,26 @@ def test_diffusiongemma_26b(
                 max_new_tokens=MAX_NEW_TOKENS,
                 seed=SEED,
                 warm_iters=warm_encoder_iters,
+                image=image,
             )
         )
         setup_start = time.perf_counter()
         pipeline.setup()
         setup_time = time.perf_counter() - setup_start
 
-        prompt_len = pipeline.loader.load_inputs(
-            dtype_override=torch.bfloat16, prompt=PROMPT
-        )["input_ids"].shape[-1]
+        prompt_inputs = (
+            pipeline.loader.load_image_inputs(dtype_override=torch.bfloat16)
+            if image
+            else pipeline.loader.load_text_inputs(
+                dtype_override=torch.bfloat16, prompt=PROMPT
+            )
+        )
+        prompt_len = prompt_inputs["input_ids"].shape[-1]
 
         pipeline.generate()
+
+    model_type = "image-text-to-text" if image else "text-generation"
+    model_title = "DiffusionGemma 26B-A4B-it" + (" (image+text)" if image else "")
 
     perf = pipeline._perf
     total_time = perf["total"]
@@ -137,9 +150,9 @@ def test_diffusiongemma_26b(
     device_count = xr.global_runtime_device_count()
 
     print_benchmark_results(
-        model_title="DiffusionGemma 26B-A4B-it",
+        model_title=model_title,
         full_model_name=MODEL_INFO_NAME,
-        model_type="text-generation",
+        model_type=model_type,
         dataset_name="na",
         date=metadata["date"],
         machine_name=metadata["machine_name"],
@@ -155,7 +168,7 @@ def test_diffusiongemma_26b(
 
     results = create_benchmark_result(
         full_model_name=MODEL_INFO_NAME,
-        model_type="text-generation",
+        model_type=model_type,
         dataset_name="na",
         num_layers=-1,
         batch_size=batch_size,
@@ -180,7 +193,7 @@ def test_diffusiongemma_26b(
         ],
         display_name=resolved_display_name,
         arch=arch,
-        input_is_image=False,
+        input_is_image=image,
         input_sequence_length=prompt_len,
         device_count=device_count,
         mesh_shape=(1, device_count),
@@ -191,3 +204,45 @@ def test_diffusiongemma_26b(
         results["model_rawname"] = MODEL_INFO_NAME
         with open(output_file, "w") as file:
             json.dump(results, file, indent=2)
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Text-only block-diffusion generation."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        image=False,
+        fallback_display_name="diffusiongemma_26b_a4b_it",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b_image(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Image+text block-diffusion generation: the prompt carries one image."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        image=True,
+        fallback_display_name="diffusiongemma_26b_a4b_it_image",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )

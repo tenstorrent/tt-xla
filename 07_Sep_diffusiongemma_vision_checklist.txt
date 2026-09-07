@@ -1,0 +1,76 @@
+================================================================================
+TASK: DiffusionGemma-26B-A4B-it -- vision (image) input bring-up on TT
+================================================================================
+Model already up on the text-only path (PR #5989). Confirm which input modalities
+the checkpoint really supports, then bring up the supported non-text ones and
+prove each pipeline stage numerically.
+
+Branch: akannan/diffusiongemma_vision  (tt-xla + tt_forge_models submodule)
+HW:     n300-llmbox, 8 devices, 11.97 GiB DRAM/device
+
+
+SUBTASKS
+--------------------------------------------------------------------------------
+[x] 1. Confirm modalities from source of truth, not the model card
+       [x] config.json / modeling / processor / tokenizer / chat template
+       [x] result: text + image ONLY. audio and video NOT supported.
+
+[x] 2. Loader: image input support
+       [x] variants 26B-A4B-it-image (image+text), -image-only
+       [x] load_image_inputs + variant dispatch in load_inputs
+       [x] verified on host: 5 tensors, correct shapes/dtypes/token counts
+
+[x] 3. Pipeline: thread vision tensors to device
+       [x] TTEncoder + encoder_forward take pixel_values / image_position_ids
+       [x] VISION_INPUT_KEYS dropped after prefill (image lives in the KV cache)
+
+[x] 4. Fix the image OOM
+       [x] root-caused to lm_head.weight replicated (1476395008 B exactly)
+       [x] vocab-shard it, image variants only (text spec left byte-identical)
+       [x] proved from safetensors headers that no other spec fits
+
+[x] 5. Per-component PCC via runner YAML (floors held at 0.99)
+       [x] vision-tower ............ >= 0.99  PASS
+       [x] encoder / text .......... 0.9756
+       [x] encoder / image-only .... 0.8688
+       [x] encoder / image+text .... 0.8767
+       [x] full model / image-only . Error code 13
+       [x] full model / image+text . Error code 13
+       [ ] embed-vision ............ NEVER RAN (chaining script hung on a
+                                     self-matching pgrep; wrapper killed)
+
+[x] 6. Prove the drops/failures are real, not harness bugs
+       [x] TT vs CPU get identical inputs, so a loader bug cannot create a PCC
+           gap - it would cancel on both sides
+       [x] reproduced across two independent harnesses (runner + e2e)
+       [x] Error 13 confirmed NOT an OOM (zero allocator/TT_FATAL markers)
+
+[ ] 7. e2e PCC / demo / benchmark   -- GATED, deliberately not run until the
+       component set passes. Code written, none executed on HW.
+
+
+SUCCESS CRITERIA
+--------------------------------------------------------------------------------
+[x] Supported modalities established from code, with sources
+[x] Image inputs constructed correctly (model card's own candy.JPG, unresized)
+[x] Image path executes on device (encoder runs the full vision path)
+[x] OOM eliminated, and text path provably unaffected
+[x] Every runnable pipeline stage has its own PCC number
+[ ] All component PCCs >= 0.99            <-- NOT MET (encoder image ~0.87)
+[ ] Full model runs on the image path     <-- NOT MET (Error code 13)
+[ ] e2e / demo / benchmark green          <-- BLOCKED on the two above
+
+
+OPEN, NOT ROOT-CAUSED
+--------------------------------------------------------------------------------
+1. Encoder image PCC ~0.87 vs 0.9756 text. Tower is clean, so the -0.10 is in
+   embed_vision, the masked_scatter merge, or the bidirectional vision mask.
+   NOTE: the last two are inline code, not modules -- no component test can
+   isolate them; that needs a targeted experiment.
+2. "INTERNAL: Error code: 13" on the full model, both image modalities, 277 and
+   284 tokens. Not an OOM, no diagnostic emitted. Next step: re-run with
+   TTXLA_LOGGER_LEVEL=DEBUG.
+3. Pre-existing: text TP entry flakes around its 0.95 floor (stale 0.9604
+   baseline). Unrelated to this work; #5642 is closed so needs a fresh issue.
+4. Submodule pin mismatch: branch pins 17fceb73e4, tree is on 5b6fc6a3fa. All
+   numbers were measured on 5b6fc6a3fa. Resolve before trusting them in YAML.

@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Runnable DiffusionGemma 26B (26B-A4B-it) text-to-text example on Tenstorrent.
+"""Runnable DiffusionGemma 26B (26B-A4B-it) example on Tenstorrent: text, then image+text.
+
+The checkpoint takes text and images (no audio; its encoder does not take video), and emits
+text either way. This runs both input paths back to back -- the second prepends an image,
+which the encoder's vision tower turns into up to 280 soft tokens inside the prompt.
 
 The pipeline implementation lives in ``tt_forge_models``; this is a thin runnable demo that
 calls it. Both the encoder (prefill) and the decoder (denoising loop) run on the Tenstorrent
@@ -44,9 +48,14 @@ def main():
             config=DiffusionGemmaConfig(max_new_tokens=MAX_NEW_TOKENS, seed=SEED)
         )
         pipeline.setup()
-        text = pipeline.generate(prompt=PROMPT)
+        # setup() is the expensive part (weights + mesh); both modalities reuse it.
+        text_out = pipeline.generate(prompt=PROMPT)
+        # prompt=None takes the loader's sample image question; pass prompt="" for
+        # the image-only path (no text part in the message).
+        image_out = pipeline.generate(image=True)
 
-    logger.info("DiffusionGemma output:\n{}", text)
+    logger.info("DiffusionGemma text-only output:\n{}", text_out)
+    logger.info("DiffusionGemma image+text output:\n{}", image_out)
 
 
 if __name__ == "__main__":
