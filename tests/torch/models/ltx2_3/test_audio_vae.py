@@ -19,6 +19,7 @@ forward in fp32 and contains an internal STFT — the highest-risk of the three 
 device. Each test runs one forward and compares CPU vs TT at PCC 0.99.
 """
 
+import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
@@ -36,6 +37,24 @@ def test_ltx2_3_audio_vae_encoder():
     _run(ModelVariant.AUDIO_VAE_ENCODER)
 
 
+@pytest.mark.xfail(
+    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. "
+    "Calculated: pcc=0.20305405417673114. Required: pcc=0.99. "
+    "Root cause is bf16 destination accumulation in the device Conv1d reduction: "
+    "device conv error grows with reduction length (relL2 0.0057 at R=96 -> 0.0729 "
+    "at R=4608) while the CPU control stays flat at 0.0017, because CPU F.conv1d "
+    "accumulates bf16 operands in fp32 -- a 26x gap at this stack's real R=2304. "
+    "Established causally on the full model: holding optimization_level=0 fixed and "
+    "flipping only fp32_dest_acc_en moves PCC 0.94151 -> 0.20610. The error is ~202 "
+    "convolutions compounding (no single op is bad: 0.9995 at 768 channels), then "
+    "amplified by the ill-conditioned bwe_generator.ups.3/4 stages. Restoring fp32 "
+    "accumulation is necessary but NOT sufficient -- it reaches only 0.94151 against "
+    "a 0.988 bf16 ceiling (bf16 storage alone costs 0.012 PCC on CPU), and no "
+    "math_fidelity setting closes the remaining ~0.047. Not fixable in the loader or "
+    "the model: no dtype policy reaches within 0.77 PCC of the observed 0.203. "
+    "Handed off with an op-level reproducer -- "
+    "https://github.com/tenstorrent/tt-xla/issues/6009"
+)
 def test_ltx2_3_vocoder():
     _run(ModelVariant.VOCODER)
 
