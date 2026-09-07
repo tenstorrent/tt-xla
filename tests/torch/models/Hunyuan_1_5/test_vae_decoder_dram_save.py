@@ -27,4 +27,10 @@ def test_vae_decoder():
         model,
         inputs,
         framework=Framework.TORCH,
+        # Decoder pixel-shuffle permutes end in a dim of size 2, which pads 16x
+        # in TILE layout (up_blocks[2]: 0.82 GB -> 13.95 GB DRAM). This pass
+        # (tt-mlir #7729 / #8568) runs those permutes in row-major instead.
+        compiler_config=CompilerConfig(
+            experimental_enable_dram_space_saving_optimization=True
+        ),
     )
