@@ -20,6 +20,7 @@ Per-model wiring provides ``build_pipeline_fn(compile_options) ->
 pipeline, runs the two passes, and emits a standardized benchmark result.
 """
 
+import copy
 import socket
 import time
 
@@ -28,10 +29,13 @@ import torch_xla.runtime as xr
 from utils import (
     build_xla_export_name,
     create_benchmark_result,
+    create_measurement,
+    format_staged_perf_summary,
     get_benchmark_metadata,
     get_xla_device_arch,
     print_benchmark_results,
     save_video,
+    staged_perf_measurements,
 )
 
 xr.set_device_type("TT")
@@ -107,6 +111,9 @@ def benchmark_video_gen_pipeline_torch_xla(
     warmup_start = time.perf_counter()
     generate_fn(prompt, warmup_steps)
     warmup_time = time.perf_counter() - warmup_start
+    # Supplies the cold numbers. Deep-copied because a pipeline may clear _perf
+    # in place rather than rebuilding it.
+    warmup_perf = copy.deepcopy(pipeline._perf)
     print(f"Warmup pass: {warmup_time:.3f}s")
 
     # Pass 2 (steady-state): the saved video and reported latency come from here.
@@ -120,26 +127,21 @@ def benchmark_video_gen_pipeline_torch_xla(
         save_video(steady_state_video, output_video_path, fps=fps)
         print(f"Saved output video to {output_video_path}")
 
+    perf = pipeline._perf
+    step_metric_name = perf["step_metric_name"]
+    derived = staged_perf_measurements(
+        perf,
+        step_metric=step_metric_name,
+        step_name=model_info_name,
+        warmup_perf=warmup_perf,
+        staged_residency=False,
+    )
+
     # Throughput reported as generated frames per second (num_frames / e2e).
     # Named "generated_..." to distinguish generation speed from the playback
     # fps the mp4 is saved at (they are unrelated).
     total_samples = num_frames
     generated_frames_per_second = total_samples / steady_state_time
-
-    # Per-stage/per-step times from the pipeline's own instrumentation:
-    #   _perf = {
-    #       "components": {<name>: seconds, ...},   # scalar per-stage times
-    #       "steps": [seconds, ...],                # per heavy-net-step times
-    #       "step_metric_name": "transformer_step",
-    #       "total": seconds,                       # full generate() wall time
-    #   }
-    perf = pipeline._perf
-    components = perf["components"]
-    steps = perf["steps"]
-    step_metric_name = perf["step_metric_name"]
-    step_mean_s = sum(steps) / len(steps) if steps else 0.0
-    tt_components_total = sum(components.values()) + sum(steps)
-    cpu_overhead = max(0.0, perf["total"] - tt_components_total)
 
     metadata = get_benchmark_metadata()
     full_model_name = model_info_name
@@ -162,31 +164,23 @@ def benchmark_video_gen_pipeline_torch_xla(
         data_format="bfloat16",
         input_size=input_size,
     )
-    component_lines = "".join(
-        f"|   {name} (s):  {value:.3f}\n" for name, value in components.items()
-    )
     print(
         f"| Num inference steps: {num_inference_steps}\n"
         f"| Num frames: {num_frames}\n"
-        f"| Steady-state:\n"
-        f"{component_lines}"
-        f"|   {step_metric_name} mean (s):  {step_mean_s:.3f}\n"
-        f"|   CPU overhead (s):    {cpu_overhead:.3f}"
+        f"| Per component, warm (cold in brackets):\n"
+        f"{format_staged_perf_summary(derived, step_metric_name)}"
     )
 
     custom_measurements = [
-        {
-            "measurement_name": "generated_frames_per_second",
-            "value": generated_frames_per_second,
-        },
-        {"measurement_name": "e2e_latency", "value": steady_state_time},
-        {"measurement_name": f"{step_metric_name}_mean_s", "value": step_mean_s},
-        {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
-        {"measurement_name": "num_frames", "value": num_frames},
+        create_measurement(
+            "generated_frames_per_second", generated_frames_per_second, full_model_name
+        ),
+        # Measured wall clock of the steady pass; the comparable pair is
+        # e2e_warm_s / e2e_cold_s.
+        create_measurement("e2e_latency", steady_state_time, full_model_name),
+        create_measurement("num_frames", num_frames, full_model_name),
     ]
-    # One measurement per scalar component (e.g. text_encode_s, vae_s).
-    for name, value in components.items():
-        custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
+    custom_measurements.extend(derived["measurements"])
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
