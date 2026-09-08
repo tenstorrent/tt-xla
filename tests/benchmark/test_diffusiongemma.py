@@ -156,15 +156,13 @@ def test_diffusiongemma_26b(
         "cold": {"encoder": encoder_times[0] if encoder_times else 0.0},
         "warm": {"encoder": _mean(encoder_times[1:])},
         "synthetic": sum(encoder_times[1:]),
-        # free_tt_graphs() is not timed, so weight movement is not separated out
-        # here and remains inside cpu_overhead_s for this model.
-        "staging": 0.0,
+        "staging": pipeline.staging_s,
     }
     derived = staged_perf_measurements(
         perf,
         step_metric="decode_step",
         step_name=MODEL_INFO_NAME,
-        staged_residency=True,
+        staged_residency=getattr(pipeline, "benchmark_staged_residency", False),
     )
     cold_encoder_s = perf["cold"]["encoder"]
     warm_encoder_s = perf["warm"]["encoder"]
