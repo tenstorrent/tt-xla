@@ -1,0 +1,130 @@
+2026-09-08 12:02:46.736 | WARNING  | torch_plugin_tt:__init__:43 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting transformers==5.12.0 (from -r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1))
+  Using cached transformers-5.12.0-py3-none-any.whl.metadata (33 kB)
+Requirement already satisfied: huggingface-hub<2.0,>=1.5.0 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (1.29.0)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (2.1.2)
+Requirement already satisfied: packaging>=20.0 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (26.3)
+Requirement already satisfied: pyyaml>=5.1 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (6.0.1)
+Requirement already satisfied: regex>=2025.10.22 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (2026.9.3)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.22.2)
+Requirement already satisfied: typer in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.25.1)
+Requirement already satisfied: safetensors>=0.4.3 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.8.0)
+Requirement already satisfied: tqdm>=4.60 in ./venv/lib/python3.12/site-packages (from transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (4.70.0)
+Requirement already satisfied: click<9.0.0,>=8.4.2 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (8.5.0)
+Requirement already satisfied: filelock>=3.10.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (3.32.5)
+Requirement already satisfied: fsspec>=2023.5.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (2025.10.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.5.2 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (1.6.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.28.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (4.16.0)
+Requirement already satisfied: anyio in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (4.14.2)
+Requirement already satisfied: certifi in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (2026.7.22)
+Requirement already satisfied: httpcore==1.* in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (1.0.9)
+Requirement already satisfied: idna in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (3.19)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.16.0)
+Requirement already satisfied: shellingham>=1.3.0 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (1.5.4)
+Requirement already satisfied: rich>=13.8.0 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (15.0.0)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.0.5)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (4.2.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (2.21.0)
+Requirement already satisfied: mdurl~=0.1 in ./venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich>=13.8.0->typer->transformers==5.12.0->-r /proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/third_party/tt_forge_models/diffusiongemma/pytorch/requirements.txt (line 1)) (0.1.2)
+Using cached transformers-5.12.0-py3-none-any.whl (11.2 MB)
+Installing collected packages: transformers
+  Attempting uninstall: transformers
+    Found existing installation: transformers 5.5.1
+    Uninstalling transformers-5.5.1:
+      Successfully uninstalled transformers-5.5.1
+Successfully installed transformers-5.12.0
+variant: encoder  image=False
+[1/3] loading CPU golden encoder ...
+Fetching 11 files:   0%|          | 0/11 [00:00<?, ?it/s]Fetching 11 files: 100%|██████████| 11/11 [00:00<00:00, 2062.00it/s]
+Loading weights:   0%|          | 0/1047 [00:00<?, ?it/s]Loading weights: 100%|██████████| 1047/1047 [00:00<00:00, 11359.65it/s]
+      length-controlled TEXT prompt: 277 tokens (target 277)
+      golden tensors: 31 (embeds + 30 layers)
+      [0] (1, 277, 2816) torch.bfloat16
+      [1] (1, 277, 2816) torch.bfloat16
+      [2] (1, 277, 2816) torch.bfloat16
+[2/3] loading + sharding TT encoder ...
+Fetching 11 files:   0%|          | 0/11 [00:00<?, ?it/s]Fetching 11 files: 100%|██████████| 11/11 [00:00<00:00, 1859.63it/s]
+Loading weights:   0%|          | 0/1047 [00:00<?, ?it/s]Loading weights: 100%|██████████| 1047/1047 [00:00<00:00, 12016.55it/s]
+/tmp/claude-1211405773/-proj-sw-user-dev-ctr-akannan-2-sep-yyz-tt-xla/19126358-c90f-4863-b8a5-d358df92c901/scratchpad/probe_len.py:115: DeprecationWarning: Use torch_xla.device instead
+  xla = xm.xla_device()
+2026-09-08 12:05:23.768525: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+/proj_sw/user_dev/ctr-akannan/2_sep_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/functional.py:2954: UserWarning: Mismatch dtype between input and weight: input dtype = c10::BFloat16, weight dtype = float, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:344.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+/tmp/claude-1211405773/-proj-sw-user-dev-ctr-akannan-2-sep-yyz-tt-xla/19126358-c90f-4863-b8a5-d358df92c901/scratchpad/probe_len.py:125: DeprecationWarning: Use torch_xla.sync instead
+  xm.mark_step()
+Created device mesh: (1, 8) with 8 devices.
+[3/3] per-stage PCC (execution order)
+
+                   stage         pcc   delta
+      embeds(post-merge)    1.000000   
+           text layer 00    1.000010   +0.00001
+           text layer 01    1.000049   +0.00004
+           text layer 02    1.000100   +0.00005
+           text layer 03    1.000059   -0.00004
+           text layer 04    0.999973   -0.00009
+           text layer 05    0.999949   -0.00002
+           text layer 06    0.999751   -0.00020
+           text layer 07    0.999225   -0.00053
+           text layer 08    0.998222   -0.00100
+           text layer 09    0.996926   -0.00130
+           text layer 10    0.992731   -0.00419
+           text layer 11    0.991033   -0.00170
+           text layer 12    0.988198   -0.00284
+           text layer 13    0.982037   -0.00616
+           text layer 14    0.970543   -0.01149
+           text layer 15    0.968810   -0.00173
+           text layer 16    0.962735   -0.00607
+           text layer 17    0.934447   -0.02829
+           text layer 18    0.876240   -0.05821
+           text layer 19    0.940524   +0.06428
+           text layer 20    0.929832   -0.01069
+           text layer 21    0.913231   -0.01660
+           text layer 22    0.904903   -0.00833
+           text layer 23    0.869668   -0.03523
+           text layer 24    0.831820   -0.03785
+           text layer 25    0.830419   -0.00140
+           text layer 26    0.764651   -0.06577
+           text layer 27    0.752383   -0.01227
+           text layer 28    0.817944   +0.06556
+           text layer 29    0.908314   +0.09037
+Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting transformers==5.5.1 (from -r /tmp/tt_xla_restore_w6jp6qei.txt (line 1))
+  Using cached transformers-5.5.1-py3-none-any.whl.metadata (32 kB)
+Requirement already satisfied: huggingface-hub<2.0,>=1.5.0 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (1.29.0)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (2.1.2)
+Requirement already satisfied: packaging>=20.0 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (26.3)
+Requirement already satisfied: pyyaml>=5.1 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (6.0.1)
+Requirement already satisfied: regex>=2025.10.22 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (2026.9.3)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.22.2)
+Requirement already satisfied: typer in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.25.1)
+Requirement already satisfied: safetensors>=0.4.3 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.8.0)
+Requirement already satisfied: tqdm>=4.27 in ./venv/lib/python3.12/site-packages (from transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (4.70.0)
+Requirement already satisfied: click<9.0.0,>=8.4.2 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (8.5.0)
+Requirement already satisfied: filelock>=3.10.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (3.32.5)
+Requirement already satisfied: fsspec>=2023.5.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (2025.10.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.5.2 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (1.6.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.28.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (4.16.0)
+Requirement already satisfied: anyio in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (4.14.2)
+Requirement already satisfied: certifi in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (2026.7.22)
+Requirement already satisfied: httpcore==1.* in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (1.0.9)
+Requirement already satisfied: idna in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (3.19)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface-hub<2.0,>=1.5.0->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.16.0)
+Requirement already satisfied: shellingham>=1.3.0 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (1.5.4)
+Requirement already satisfied: rich>=13.8.0 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (15.0.0)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./venv/lib/python3.12/site-packages (from typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.0.5)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (4.2.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (2.21.0)
+Requirement already satisfied: mdurl~=0.1 in ./venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich>=13.8.0->typer->transformers==5.5.1->-r /tmp/tt_xla_restore_w6jp6qei.txt (line 1)) (0.1.2)
+Using cached transformers-5.5.1-py3-none-any.whl (10.2 MB)
+Installing collected packages: transformers
+  Attempting uninstall: transformers
+    Found existing installation: transformers 5.12.0
+    Uninstalling transformers-5.12.0:
+      Successfully uninstalled transformers-5.12.0
+Successfully installed transformers-5.5.1
+
+  final: 0.908314
+  largest single-stage drop: text layer 26 (-0.06577)
