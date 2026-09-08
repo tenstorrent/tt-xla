@@ -66,6 +66,7 @@ class PccSDXLLightningPipeline(SDXLLightningTTPipeline):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._cpu_twins = {}
+        self.checked = []
 
     def _cpu_twin(self, variant: ModelVariant):
         if variant not in self._cpu_twins:
@@ -87,6 +88,7 @@ class PccSDXLLightningPipeline(SDXLLightningTTPipeline):
             pcc = _pcc(device_out, golden_out)
             label = f"{name}[{i}]" if len(pairs) > 1 else name
             logger.info(f"[PCC] {label}: pcc={pcc:.6f}")
+            self.checked.append(label)
             assert (
                 pcc >= PCC_THRESHOLD
             ), f"{label} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
@@ -114,3 +116,7 @@ def test_sdxl_lightning_pipeline():
         num_inference_steps=NUM_INFERENCE_STEPS,
         seed=SEED,
     )
+
+    # Without this the test would pass having verified nothing if the pipeline
+    # ever stopped calling _check.
+    assert pipeline.checked, "no PCC checks ran: the _check seam never fired"

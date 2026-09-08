@@ -78,9 +78,13 @@ _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=Fal
 _PCC_CONFIG = PccConfig()
 
 
+_CHECKED = []
+
+
 def _assert_pcc(stage: str, device_out, golden_out, threshold: float) -> float:
     pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
     logger.info(f"[PCC] {stage}: pcc={pcc:.6f} (threshold {threshold})")
+    _CHECKED.append(stage)
     assert pcc >= threshold, f"{stage} PCC {pcc:.6f} below threshold {threshold}"
     return pcc
 
@@ -234,6 +238,10 @@ def test_flux_pipeline():
     from third_party.tt_forge_models.flux.pytorch.pipeline import save_image
 
     save_image(pixels, output_path)
+
+    # Without this the test would pass having verified nothing if the
+    # checking wrappers ever stopped being installed.
+    assert _CHECKED, "no PCC checks ran: the checking wrappers never fired"
 
     assert output_file.exists(), f"Output image {output_path} was not created"
     with Image.open(output_path) as img:
