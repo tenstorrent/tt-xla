@@ -28,6 +28,7 @@ from utils import (
     get_xla_device_arch,
     print_benchmark_results,
     resolve_display_name,
+    staged_perf_measurements,
 )
 
 from tests.runner.requirements import RequirementsManager
@@ -144,11 +145,31 @@ def test_diffusiongemma_26b(
     def _mean(values):
         return sum(values) / len(values) if values else 0.0
 
-    # Drop the first of each: it carries the build.
-    warm_encoder_s = _mean(encoder_times[1:])
-    warm_decode_step_s = _mean(decode_step_times[1:])
-    cold_encoder_s = encoder_times[0] if encoder_times else 0.0
-    cold_decode_step_s = decode_step_times[0] if decode_step_times else 0.0
+    # Same schema and translation the image-gen harness uses, so this model's
+    # keys match every other benchmark. Staged: the encoder is freed after its
+    # residency, and its extra in-residency passes are discarded (synthetic).
+    perf = {
+        "components": {"encoder": encoder_times[0] if encoder_times else 0.0},
+        "steps": list(decode_step_times),
+        "step_metric_name": "decode_step",
+        "total": total_time,
+        "cold": {"encoder": encoder_times[0] if encoder_times else 0.0},
+        "warm": {"encoder": _mean(encoder_times[1:])},
+        "synthetic": sum(encoder_times[1:]),
+        # free_tt_graphs() is not timed, so weight movement is not separated out
+        # here and remains inside cpu_overhead_s for this model.
+        "staging": 0.0,
+    }
+    derived = staged_perf_measurements(
+        perf,
+        step_metric="decode_step",
+        step_name=MODEL_INFO_NAME,
+        staged_residency=True,
+    )
+    cold_encoder_s = perf["cold"]["encoder"]
+    warm_encoder_s = perf["warm"]["encoder"]
+    cold_decode_step_s = derived["cold"].get("decode_step", 0.0)
+    warm_decode_step_s = derived["warm"].get("decode_step", 0.0)
 
     logger.info(
         "[PERF] encoder cold={:.2f}s warm={:.2f}s | decode step cold={:.2f}s warm={:.2f}s ({} warm steps)",
@@ -195,18 +216,13 @@ def test_diffusiongemma_26b(
             create_measurement("tokens_per_sec", tokens_per_sec, MODEL_INFO_NAME),
             create_measurement("setup_time", setup_time, MODEL_INFO_NAME),
             create_measurement("max_new_tokens", MAX_NEW_TOKENS, MODEL_INFO_NAME),
-            # Measured while that component is resident.
-            create_measurement("warm_encoder_s", warm_encoder_s, MODEL_INFO_NAME),
-            create_measurement("cold_encoder_s", cold_encoder_s, MODEL_INFO_NAME),
-            create_measurement(
-                "warm_decode_step_s", warm_decode_step_s, MODEL_INFO_NAME
-            ),
-            create_measurement(
-                "cold_decode_step_s", cold_decode_step_s, MODEL_INFO_NAME
-            ),
             create_measurement(
                 "warm_decode_steps", max(0, len(decode_step_times) - 1), MODEL_INFO_NAME
             ),
+            # encoder_cold_s / encoder_warm_s / decode_step_* / cpu_overhead_s /
+            # staging_overhead_s / synthetic_s / e2e_warm_s / e2e_cold_s -- the
+            # same names every other benchmark publishes.
+            *derived["measurements"],
         ],
         display_name=resolved_display_name,
         arch=arch,
