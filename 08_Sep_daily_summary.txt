@@ -1,0 +1,22 @@
+**Date:** Sep 08, 2026
+
+
+**Updates:**
+
+- ROOT CAUSE FOUND for the image PCC drop - it is **sequence length**, not the image path. Layer-wise CPU-vs-TT probes: text 15 tok 0.985059 | text 277 tok **0.908314** | image 277 tok with CPU embeds injected 0.937430 | image 277 tok real 0.873028. Discovered on the image path, then reproduced on text alone.
+- Decomposes into two effects: sequence length 15->277 costs **-0.077** (primary, text-only, seed held at 1.0), vision front-end seed error costs **-0.064** (secondary). At matched length and seed the image path is +0.029 *better* than text, so there is no image-content penalty at all.
+- Seed error explained: text embeddings are an exact table lookup (PCC 1.000000) while image embeddings are computed (27 vision-tower layers + embed_vision) and arrive at 0.994693, then compound through 30 layers. Both components PASS >=0.99 individually - a passing component score is not a good enough seed for a 30-layer amplifier, so the per-component floors gave a false all-clear.
+- embed-vision (the 4th component, never run yesterday) PASSES >=0.99, which exhausted component testing: every isolatable module on the image path is clean. Ruled out op-level fault (no cliff, curves rebound), the masked_scatter merge (0.994693 out vs 0.994494 in), and #5277.
+- THREE RETRACTIONS from evidence, not reconsideration: (a) Error code 13 is not an OOM - contradicted by zero allocator/TT_FATAL hits; (b) "layers decay ~4x faster on image" - refuted by the seed-injection run; (c) "the remaining gap is image-specific" - refuted by the length-controlled run, where 277-token text is *worse* than image mid-stack.
+- Committed and pushed both repos to `akannan/diffusiongemma_vision` (tt-xla ad4f7dd87 / tt_forge_models 0b118f9fa8) - deliberately NOT into the tracked PR #5989 branch. Filed #6054 (PCC, retitled to "Encoder PCC decays with sequence length"), #6055 (OOM, fixed), #6056 (Error code 13, open).
+
+
+**Next Steps:**
+
+- Chase #6056 with TTXLA_LOGGER_LEVEL=DEBUG - Error code 13 arrives with no diagnostic at all, so the runtime is swallowing the real error.
+- Decide YAML status for the two full-model image entries (cannot pass today) and resolve the submodule pin mismatch (PR pins 17fceb73e4, tree on 5b6fc6a3fa) before any measured value goes into YAML.
+
+
+**Challenges / Blockers:**
+
+- None

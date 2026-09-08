@@ -6,7 +6,8 @@ Branches    : tt-xla            akannan/diffusiongemma_vision  (off akannan/diff
 Hardware    : n300-llmbox, 8 devices, 11.97 GiB DRAM/device
 Checkpoint  : google/diffusiongemma-26B-A4B-it @ f7f5b7f5fa82ffc52addd066915886d497f5517b
 transformers: 5.12.0 (from the loader's requirements.txt)
-Status      : NOT COMMITTED. Working-tree changes only.
+Status      : COMMITTED + PUSHED. tt-xla ad4f7dd87 / tt_forge_models 0b118f9fa8,
+              both on branch akannan/diffusiongemma_vision.
 ================================================================================
 
 1. OBJECTIVE
