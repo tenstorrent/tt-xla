@@ -151,8 +151,8 @@ def test_qwen_image_pipeline():
     xr.set_device_type("TT")
     torch.manual_seed(SEED)
 
-    # warm_iters=1: this test gates correctness, so there is no reason to pay for
-    # the extra warm repeats the benchmark uses to measure steady-state cost.
-    pipeline = PccQwenImagePipeline(config=QwenImageConfig(warm_iters=1))
+    # warm_iters defaults to 0: this test gates correctness, so it does not pay
+    # for the in-residency repeats the benchmark uses.
+    pipeline = PccQwenImagePipeline(config=QwenImageConfig())
     pipeline.setup()
     pipeline.generate(PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, seed=SEED)
