@@ -48,9 +48,13 @@ _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=Fal
 _PCC_CONFIG = PccConfig()
 
 
+_CHECKED = []
+
+
 def _assert_pcc(name: str, device_out, golden_out) -> None:
     pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
     logger.info(f"[PCC] {name}: pcc={pcc:.6f}")
+    _CHECKED.append(name)
     assert pcc >= PCC_THRESHOLD, f"{name} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
 
 
@@ -156,3 +160,7 @@ def test_qwen_image_pipeline():
     pipeline = PccQwenImagePipeline(config=QwenImageConfig())
     pipeline.setup()
     pipeline.generate(PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, seed=SEED)
+
+    # Without this the test would pass having verified nothing if the wrappers
+    # ever stopped being swapped in.
+    assert _CHECKED, "no PCC checks ran: the checking wrappers never fired"
