@@ -631,10 +631,11 @@ def test_hidream_i1(output_file, request):
         HiDreamI1Pipeline,
     )
 
-    # HiDream-I1-Full: 1024x1024, CFG guidance 5.0 (model card). Only the ~17B
-    # Sparse-MoE MM-DiT runs on TT (tensor-parallel sharded across the mesh's
-    # model axis); the CLIP-L/CLIP-G/T5/Llama text encoders, scheduler and VAE
-    # run on CPU. Multichip — wired to the 4-chip blackhole (qb2).
+    # HiDream-I1-Full: 1024x1024, CFG guidance 5.0 (model card). The CLIP-L/CLIP-G
+    # text encoders, the ~17B Sparse-MoE MM-DiT (tensor-parallel sharded across the
+    # mesh's model axis) and the VAE decoder run on TT in bf16; the T5/Llama
+    # encoders and the scheduler run on CPU. Multichip — wired to the 4-chip
+    # blackhole (qb2).
     prompt = PROMPT
     # 10 for now, will be bumped to 50 once the rest of the components are
     # enabled on TT.
@@ -642,7 +643,11 @@ def test_hidream_i1(output_file, request):
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
-        pipeline = HiDreamI1Pipeline(config=HiDreamI1Config())
+        # compile_options forwarded into Config so the VAE-only opt_level switch
+        # can merge instead of clobbering.
+        pipeline = HiDreamI1Pipeline(
+            config=HiDreamI1Config(compile_options=compile_options)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
