@@ -8,7 +8,10 @@ throughput is generated-tokens / wall-clock.
 
 Encoder and decoder cannot be co-resident, so one is evicted before the other loads -- and
 eviction discards the compiled graph. Warm numbers are therefore per component while it is
-resident; the encoder repeat lives in ``_staged_forwards``, which frees it on return.
+resident, taken before the eviction.
+
+The pipeline times itself into ``_perf``; this file only calls the shipped ``generate()``
+and translates, so it cannot drift from the code the demo and the PCC test run.
 """
 
 import inspect
@@ -34,8 +37,7 @@ from utils import (
 from tests.runner.requirements import RequirementsManager
 
 DEFAULT_DATA_FORMAT = "bfloat16"
-DEFAULT_LOOP_COUNT = 1
-DEFAULT_WARM_ENCODER_ITERS = 3
+DEFAULT_WARM_ENCODER_ITERS = 2  # EXTRA in-residency prefills, as flux2/qwen_image
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 MODULE_EXPORT_PATH = "modules"
@@ -46,7 +48,6 @@ MODULE_EXPORT_PATH = "modules"
 def test_diffusiongemma_26b(
     output_file,
     request,
-    loop_count=DEFAULT_LOOP_COUNT,
     warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
     data_format=DEFAULT_DATA_FORMAT,
     batch_size=DEFAULT_BATCH_SIZE,
@@ -84,88 +85,41 @@ def test_diffusiongemma_26b(
             SEED,
             DiffusionGemmaConfig,
             DiffusionGemmaPipeline,
-            manual_generate,
         )
 
         pipeline = DiffusionGemmaPipeline(
-            config=DiffusionGemmaConfig(max_new_tokens=MAX_NEW_TOKENS, seed=SEED)
+            config=DiffusionGemmaConfig(
+                max_new_tokens=MAX_NEW_TOKENS,
+                seed=SEED,
+                warm_iters=warm_encoder_iters,
+            )
         )
         setup_start = time.perf_counter()
         pipeline.setup()
         setup_time = time.perf_counter() - setup_start
 
-        inputs = pipeline.loader.load_inputs(
+        prompt_len = pipeline.loader.load_inputs(
             dtype_override=torch.bfloat16, prompt=PROMPT
-        )
-        extra_kwargs = {
-            k: v
-            for k, v in inputs.items()
-            if k not in ("input_ids", "attention_mask", "decoder_input_ids")
-        }
-        prompt_len = inputs["input_ids"].shape[-1]
-        vocab_size = pipeline.cpu_model.config.text_config.vocab_size
+        )["input_ids"].shape[-1]
 
-        encoder_times = []
-        decode_step_times = []
-        total_time = 0.0
-        total_new_tokens = 0
+        pipeline.generate()
 
-        for _ in range(loop_count):
-            encoder_forward, decoder_forward = pipeline._staged_forwards(
-                vocab_size,
-                encoder_iters=max(1, warm_encoder_iters),
-                encoder_times=encoder_times,
-            )
-
-            # Step 1 builds the graph; 2..N reuse it while resident.
-            def timed_decoder_forward(
-                _inner=decoder_forward, _acc=decode_step_times, **kw
-            ):
-                step_start = time.perf_counter()
-                out = _inner(**kw)
-                _acc.append(time.perf_counter() - step_start)
-                return out
-
-            torch.manual_seed(SEED)
-            start = time.perf_counter()
-            output = manual_generate(
-                pipeline.cpu_model,
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                max_new_tokens=MAX_NEW_TOKENS,
-                encoder_forward=encoder_forward,
-                decoder_forward=timed_decoder_forward,
-                **extra_kwargs,
-            )
-            total_time += time.perf_counter() - start
-            total_new_tokens += int(output.shape[-1] - prompt_len)
-
+    perf = pipeline._perf
+    total_time = perf["total"]
+    total_new_tokens = pipeline.last_new_tokens
+    decode_step_times = perf["steps"]
     tokens_per_sec = total_new_tokens / total_time if total_time else 0.0
 
-    def _mean(values):
-        return sum(values) / len(values) if values else 0.0
-
-    # Same schema and translation the image-gen harness uses, so this model's
-    # keys match every other benchmark. Staged: the encoder is freed after its
-    # residency, and its extra in-residency passes are discarded (synthetic).
-    perf = {
-        "components": {"encoder": encoder_times[0] if encoder_times else 0.0},
-        "steps": list(decode_step_times),
-        "step_metric_name": "decode_step",
-        "total": total_time,
-        "cold": {"encoder": encoder_times[0] if encoder_times else 0.0},
-        "warm": {"encoder": _mean(encoder_times[1:])},
-        "synthetic": sum(encoder_times[1:]),
-        "staging": pipeline.staging_s,
-    }
+    # Same schema and translation the image-gen harness uses, so this model's keys
+    # match every other benchmark.
     derived = staged_perf_measurements(
         perf,
         step_metric="decode_step",
         step_name=MODEL_INFO_NAME,
         staged_residency=getattr(pipeline, "benchmark_staged_residency", False),
     )
-    cold_encoder_s = perf["cold"]["encoder"]
-    warm_encoder_s = perf["warm"]["encoder"]
+    cold_encoder_s = perf["cold"].get("encoder", 0.0)
+    warm_encoder_s = perf["warm"].get("encoder", 0.0)
     cold_decode_step_s = derived["cold"].get("decode_step", 0.0)
     warm_decode_step_s = derived["warm"].get("decode_step", 0.0)
 
@@ -206,7 +160,7 @@ def test_diffusiongemma_26b(
         num_layers=-1,
         batch_size=batch_size,
         input_size=(batch_size, prompt_len),
-        loop_count=loop_count,
+        loop_count=1,
         data_format=data_format,
         total_time=total_time,
         total_samples=total_new_tokens,
