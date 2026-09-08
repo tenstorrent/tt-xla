@@ -288,7 +288,7 @@ def test_qwen_image(output_file, request):
 
     def build_pipeline_fn(compile_options):
         pipeline = QwenImagePipeline(
-            config=QwenImageConfig(compile_options=compile_options)
+            config=QwenImageConfig(compile_options=compile_options, warm_iters=1)
         )
         pipeline.setup()
 
