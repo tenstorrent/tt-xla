@@ -166,6 +166,8 @@ def test_diffusiongemma_26b(
         total_samples=total_new_tokens,
         custom_measurements=[
             create_measurement("tokens_per_sec", tokens_per_sec, MODEL_INFO_NAME),
+            # The measured wall clock, as the image-gen harnesses publish it.
+            create_measurement("e2e_latency", total_time, MODEL_INFO_NAME),
             create_measurement("setup_time", setup_time, MODEL_INFO_NAME),
             create_measurement("max_new_tokens", MAX_NEW_TOKENS, MODEL_INFO_NAME),
             create_measurement(
