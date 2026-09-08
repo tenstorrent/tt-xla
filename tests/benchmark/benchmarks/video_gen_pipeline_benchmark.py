@@ -134,7 +134,9 @@ def benchmark_video_gen_pipeline_torch_xla(
         step_metric=step_metric_name,
         step_name=model_info_name,
         warmup_perf=warmup_perf,
-        staged_residency=False,
+        # Every video pipeline is resident today; read it rather than assume, so
+        # a staged one cannot be reported as warm by default.
+        staged_residency=getattr(pipeline, "benchmark_staged_residency", False),
     )
 
     # Throughput reported as generated frames per second (num_frames / e2e).

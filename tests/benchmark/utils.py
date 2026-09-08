@@ -425,13 +425,21 @@ def staged_perf_measurements(
             "Timed regions overlap -- the per-stage numbers are over-counted."
         )
 
-    # Warm stage cost. For a resident pipeline components[] is already it, and
-    # must be used as-is: a stage may run more than once per call (Z-Image
-    # encodes two prompts) while perf["warm"] holds ONE forward, not the stage.
+    # Warm stage cost -- the whole stage, warm, in both shapes. A resident
+    # pipeline's components[] is measured on the warm pass, so it already is
+    # that. A staged pipeline's is cold, and a stage may run more than one
+    # forward per call (Z-Image and Qwen-Image encode two prompts), so swap its
+    # cold forward for a warm one instead of substituting a single forward --
+    # that would report one encode where a warm generation pays for two.
     reported_warm = perf.get("warm") or {}
+    reported_cold = perf.get("cold") or {}
     warm = dict(components)
     if staged_residency:
-        warm.update({k: v for k, v in reported_warm.items() if k in components})
+        for name, stage_total in components.items():
+            if name in reported_warm and name in reported_cold:
+                warm[name] = stage_total - reported_cold[name] + reported_warm[name]
+            elif name in reported_warm:
+                warm[name] = reported_warm[name]
 
     # Per-forward warm sample. A resident pipeline reporting no split ran its
     # stage once, so the stage total IS the forward; a staged one's components[]
@@ -470,9 +478,7 @@ def staged_perf_measurements(
     # Reconstructed end-to-end, one formula for both shapes.
     warm_step = warm.get(step_metric, 0.0)
     e2e_warm = (
-        sum(warm.get(name, value) for name, value in components.items())
-        + warm_step * len(steps)
-        + cpu_overhead
+        sum(warm[name] for name in components) + warm_step * len(steps) + cpu_overhead
     )
     e2e_cold = None
     if cold:
