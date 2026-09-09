@@ -85,10 +85,10 @@ def _run_video_gen(
 
 
 def test_hunyuan_video_1_5(output_file, request):
-    """HunyuanVideo 1.5 (480p t2v base): DiT and text encoders on TT,
-    scheduler/guider combine/VAE on CPU. Config matches the nightly pipeline
-    test. Guidance is real CFG, so each step is two DiT forwards and one
-    `transformer_step` entry covers both."""
+    """HunyuanVideo 1.5 (480p t2v base): DiT, text encoders and tiled VAE
+    decoder on TT, scheduler/guider combine on CPU. Config matches the nightly
+    pipeline test. Guidance is real CFG, so each step is two DiT forwards and
+    one `transformer_step` entry covers both."""
     from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
         HunyuanVideo15Config,
         HunyuanVideo15Pipeline,
