@@ -2,33 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""FLUX.2-dev — nightly PCC-gated text-to-image e2e test on Tenstorrent.
+"""FLUX.2-dev -- nightly PCC-gated text-to-image e2e test on Tenstorrent.
 
-The pipeline implementation is the shared one in ``tt_forge_models``, the same
-code the demo (``examples/pytorch/flux2.py``) and the benchmark
-(``tests/benchmark/test_imagegen.py::test_flux2``) run. This module only adds the
-PCC gating, via the pipeline's substitution seams:
+Runs the shared ``tt_forge_models`` pipeline, the same code the demo and the
+benchmark use; this module only adds PCC gating through the pipeline's seams
+(``DENOISER_CLS``/``VAE_CLS`` swap in checking wrappers, ``_pre_place`` computes
+each encoder's golden on host, ``_intercept`` compares the device result).
 
-  - ``DENOISER_CLS`` / ``VAE_CLS`` swap in checking subclasses of the shared
-    plain-callable wrappers,
-  - ``_pre_place`` computes the text encoder's golden while the module is still
-    on host, and ``_intercept`` compares the device result against it.
-
-Nothing about staging, eviction or the compiled graphs is duplicated here, so
-the test exercises the shipped pipeline rather than a copy that can drift from
-it.
-
-Every stage is gated on PCC against a CPU twin fed the same inputs the device
-saw: the prompt embeds once, the noise prediction on the first
-``PCC_CHECK_STEPS`` denoise steps, and the decoded pixels once. The trajectory is
-always advanced with the *device* output (deployment behavior), so a PCC drop
-anywhere shows up as a test failure rather than a silently degraded image.
-
-Memory strategy (peak ≈ max(component) rather than the sum) is preserved: the
-~24B encoder's golden runs on the host copy *before* placement so it costs no
-second copy, the transformer's twin is loaded lazily at the first checked step
-and dropped once the checked steps finish, and the VAE's golden runs before its
-lazy placement.
+The trajectory is advanced with the *device* output, so a PCC drop fails the
+test rather than silently degrading the image. Goldens cost no second device
+copy: each is built on the host copy and dropped after the comparison.
 """
 
 import gc
@@ -147,11 +130,8 @@ class _PccDenoiser(_DeviceDenoiser):
 
 
 class _PccVAEDecoder(_DeviceVAEDecoder):
-    """Shared VAE decode, PCC-checked on its first decode.
-
-    The golden runs on the host copy before the shared decode places it, so the
-    check costs no second copy.
-    """
+    """Shared VAE decode, PCC-checked on its first decode; the golden runs on the
+    host copy before placement, so it costs no second device copy."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -171,10 +151,7 @@ class _PccVAEDecoder(_DeviceVAEDecoder):
 
 
 class PccFlux2TTPipeline(Flux2TTPipeline):
-    """The shipped pipeline with PCC checks on every stage.
-
-    generate(), the staging and the warm machinery are all inherited.
-    """
+    """The shipped pipeline with PCC checks on every stage."""
 
     DENOISER_CLS = _PccDenoiser
     VAE_CLS = _PccVAEDecoder

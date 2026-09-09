@@ -2,16 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Qwen-Image — nightly e2e text-to-image pipeline with per-component PCC checks.
+"""Qwen-Image -- nightly PCC-gated text-to-image e2e test on Tenstorrent.
 
-The pipeline implementation is the shared one in ``tt_forge_models``, the same
-code the demo (``examples/pytorch/qwen_image.py``) and the benchmark
-(``tests/benchmark/test_imagegen.py``) run. This module only adds the PCC
-gating: each device wrapper is subclassed to run the component's first TT
-forward through a CPU twin and assert PCC against ``PCC_THRESHOLD``, and the
-pipeline is subclassed to swap those wrappers in. Nothing about staging,
-eviction or the compiled graphs is duplicated here, so the test exercises the
-shipped pipeline rather than a copy that can drift from it.
+Runs the shared ``tt_forge_models`` pipeline, the same code the demo and the
+benchmark use. PCC gating is added by subclassing each device wrapper to check
+its first TT forward against a CPU twin, and the pipeline to swap those in.
 """
 
 import gc
@@ -105,12 +100,8 @@ class _PccDenoiser(_DeviceDenoiser):
 
 
 class _PccVAEDecoder(_DeviceVAEDecoder):
-    """Shared VAE decode, PCC-checked on its first decode.
-
-    The shipped decode slices the singleton temporal dim in-graph, so the device
-    result is 4D ``(B, 3, H, W)``; the CPU twin's 5D output is sliced the same way
-    before comparing.
-    """
+    """Shared VAE decode, PCC-checked on its first decode. The shipped decode slices
+    the singleton temporal dim in-graph, so the twin's 5D output is sliced to match."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

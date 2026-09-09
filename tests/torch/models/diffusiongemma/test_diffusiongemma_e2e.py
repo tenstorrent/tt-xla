@@ -3,19 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """DiffusionGemma 26B -- nightly PCC-gated block-diffusion e2e test on Tenstorrent.
 
-The pipeline implementation is the shared one in ``tt_forge_models``, the same code the
-demo (``examples/pytorch/diffusiongemma.py``) and the benchmark
-(``tests/benchmark/test_diffusiongemma.py``) run. This module only adds the PCC gating,
-through the pipeline's ``_check`` seam: after each component's TT forward the same host
-tensors are fed to the CPU twin and PCC is asserted.
+Runs the shared ``tt_forge_models`` pipeline, the same code the demo and the
+benchmark use; this module only adds PCC gating through the pipeline's ``_check``
+seam. Two components are gated: the encoder prefill, once per canvas block, and
+the decoder forward, once per step.
 
-Nothing about the staged residency is duplicated here, so the test exercises the shipped
-pipeline rather than a copy that can drift from it. Two components are gated:
-  * encoder prefill (``model.model.encoder``), once per canvas block
-  * decoder forward (``model.forward``, input_ids=None -> decoder + lm_head), once per step
-
-The trajectory is advanced with the *device* output (deployment behavior), so a PCC drop
-anywhere fails the test rather than degrading the text silently.
+The trajectory is advanced with the *device* output, so a PCC drop fails the test
+rather than silently degrading the text.
 """
 
 import inspect
@@ -69,11 +63,7 @@ def test_diffusiongemma_e2e():
         )
 
         class PccDiffusionGemmaPipeline(DiffusionGemmaPipeline):
-            """The shipped pipeline with a PCC check on every component forward.
-
-            generate() and the staged residency are inherited -- this class only
-            overrides the ``_check`` hook.
-            """
+            """The shipped pipeline with a PCC check on every component forward."""
 
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)

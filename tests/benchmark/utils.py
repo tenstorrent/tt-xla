@@ -425,12 +425,9 @@ def staged_perf_measurements(
             "Timed regions overlap -- the per-stage numbers are over-counted."
         )
 
-    # Warm stage cost -- the whole stage, warm, in both shapes. A resident
-    # pipeline's components[] is measured on the warm pass, so it already is
-    # that. A staged pipeline's is cold, and a stage may run more than one
-    # forward per call (Z-Image and Qwen-Image encode two prompts), so swap its
-    # cold forward for a warm one instead of substituting a single forward --
-    # that would report one encode where a warm generation pays for two.
+    # Warm stage cost. components[] is already warm when measured on the warm
+    # pass; when it is cold, swap its cold forward for a warm one -- a stage may
+    # run several forwards per call, so substituting one would under-count.
     reported_warm = perf.get("warm") or {}
     reported_cold = perf.get("cold") or {}
     warm = dict(components)
@@ -482,9 +479,8 @@ def staged_perf_measurements(
     )
     e2e_cold = None
     if cold:
-        # Stage totals, not the single cold forwards: a stage may run more than
-        # one functional forward per call (Z-Image and Qwen-Image encode two
-        # prompts), and a cold generation pays for all of them.
+        # Stage totals, not single cold forwards: a stage may run several
+        # forwards per call and a cold generation pays for all of them.
         e2e_cold = (
             sum(components.values())
             + cold.get(step_metric, warm_step)
