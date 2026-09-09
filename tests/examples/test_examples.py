@@ -88,6 +88,7 @@ XFAIL_FILES: dict[str, str] = {
     "jax/codegen/python/emitpy_execute.py": "Broken by a change in EmitPy, fix tracked at https://github.com/tenstorrent/tt-mlir/issues/8325",
     "pytorch/olmo3_1025_7b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
     "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
+    "pytorch/compiler_options.py": "Example fails on n300 - https://github.com/tenstorrent/tt-xla/issues/6064",
 }
 
 
