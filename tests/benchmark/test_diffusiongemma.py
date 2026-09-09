@@ -37,7 +37,7 @@ from utils import (
 from tests.runner.requirements import RequirementsManager
 
 DEFAULT_DATA_FORMAT = "bfloat16"
-DEFAULT_WARM_ENCODER_ITERS = 2  # EXTRA in-residency prefills, as flux2/qwen_image
+DEFAULT_WARM_ENCODER_ITERS = 2  # extra in-residency prefills
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 MODULE_EXPORT_PATH = "modules"

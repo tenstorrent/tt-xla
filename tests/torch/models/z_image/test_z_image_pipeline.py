@@ -2,22 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Z-Image — nightly e2e text-to-image pipeline with per-component PCC checks.
+"""Z-Image -- nightly PCC-gated text-to-image e2e test on Tenstorrent.
 
-The pipeline implementation is the shared one in ``tt_forge_models``, the same
-code the demo (``examples/pytorch/z_image.py``) and the benchmark
-(``tests/benchmark/test_imagegen.py::test_zimage``) run. This module only adds
-the PCC gating: each device wrapper is subclassed to run the component's first
-TT forward through a CPU twin and assert PCC against ``PCC_THRESHOLD``, and the
-pipeline is subclassed to swap those wrappers in via its ``*_CLS`` seams.
+Runs the shared ``tt_forge_models`` pipeline, the same code the demo and the
+benchmark use. PCC gating is added via the pipeline's ``*_CLS`` seams, checking
+each component's first TT forward against a CPU twin.
 
-Nothing about device residency or the compiled graphs is duplicated here, so
-the test exercises the shipped pipeline rather than a copy that can drift from
-it.
-
-Memory: Z-Image is DRAM-tight on a single chip (issue #4756), so each CPU twin is
-loaded only for the one forward it checks and dropped immediately. The twins are
-fp32/bf16 host copies and never reach the device.
+DRAM-tight on a single chip (issue #4756), so each twin is loaded for the one
+forward it checks and dropped immediately; twins never reach the device.
 """
 
 from __future__ import annotations
@@ -74,16 +66,10 @@ def _assert_pcc(name: str, device_out, golden_out) -> None:
 class _PccCheck:
     """Wraps a component's COMPILED callable and PCC-checks its FIRST forward.
 
-    Deliberately NOT a subclass of the wrapper modules: Z-Image compiles the whole
-    wrapper (``torch.compile(TextEncoderWrapper(...))``), so a check inside the
-    module's ``forward`` runs within the traced graph and dies with "Cannot copy
-    out of meta tensor" as soon as it touches a CPU twin. Wrapping the compiled
-    callable keeps the comparison outside the graph.
-
-    Only the first forward is checked. The twin is a second full-size model on the
-    host, and Z-Image runs 50 steps x 2 (CFG), so checking every forward would be
-    slow and memory-hostile on a DRAM-tight single chip (issue #4756). The twin is
-    built lazily and dropped immediately after the comparison.
+    Wrapping the compiled callable, rather than subclassing the wrapper module,
+    keeps the comparison outside the traced graph -- inside it, touching a CPU twin
+    dies with "Cannot copy out of meta tensor". Only the first forward is checked:
+    the twin is a second full-size host model and this runs 50 steps x 2 (CFG).
     """
 
     def __init__(self, name, compiled, build_twin, compare_as=None):
@@ -115,9 +101,8 @@ class _PccCheck:
 
 
 def _trim_to_valid_tokens(hidden, args):
-    """The text encoder's output is padded to MAX_SEQUENCE_LENGTH, and _encode
-    keeps only ``hidden[0][mask]``. Comparing the padded positions measures
-    garbage that never reaches the transformer -- it cost ~0.002 PCC here."""
+    """_encode keeps only ``hidden[0][mask]``; comparing the padded positions
+    measures garbage that never reaches the transformer (~0.002 PCC)."""
     mask = args[1][0].bool()
     return hidden[0][mask]
 
@@ -144,11 +129,7 @@ _COMPARE_AS = {"text_encoder": _trim_to_valid_tokens}
 
 
 class PccZImagePipeline(ZImageTTPipeline):
-    """The shipped pipeline with a PCC check on each component's first forward.
-
-    generate() and the residency handling are inherited -- this class only
-    overrides the ``_intercept`` hook.
-    """
+    """The shipped pipeline with a PCC check on each component's first forward."""
 
     def _intercept(self, name, compiled):
         return _PccCheck(name, compiled, _TWINS[name], _COMPARE_AS.get(name))
@@ -167,11 +148,8 @@ class PccZImagePipeline(ZImageTTPipeline):
     pcc=PCC_THRESHOLD,
 )
 def test_z_image_pipeline():
-    """Full Z-Image text-to-image e2e on a single Blackhole chip, PCC-gated.
-
-    optimization_level=1 keeps GroupNorm as native ttnn.group_norm so the VAE
-    decode at 1280x720 does not OOM (issue #4755).
-    """
+    """Full Z-Image e2e on a single Blackhole chip, PCC-gated. optimization_level=1
+    keeps GroupNorm native so the 1280x720 VAE decode does not OOM (issue #4755)."""
     xr.set_device_type("TT")
     # The ~6.2B transformer + Qwen3 encoder + VAE fit a single Blackhole but OOM
     # on a single Wormhole (n150), so this e2e is Blackhole-only (issue #4756).
