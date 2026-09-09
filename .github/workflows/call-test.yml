@@ -444,6 +444,18 @@ jobs:
         path: ${{ steps.strings.outputs.test_report_path }}
         if-no-files-found: ignore
 
+    # Media (video/images) produced by examples and model tests. Most jobs generate
+    # none, hence if-no-files-found: ignore.
+    - name: Upload Generated Media
+      uses: actions/upload-artifact@v6
+      if: success() || failure()
+      with:
+        name: generated-media-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
+        path: |
+          examples/**/generated/**
+          tests/**/generated/**
+        if-no-files-found: ignore
+
     # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
     - name: Upload Benchmark Report
       uses: actions/upload-artifact@v6
