@@ -30,6 +30,7 @@
       {
         "name": "playground_v2_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5",
+        "runs-on": "p150-perf",
         "group": "experimental"
       },
       {
@@ -47,6 +48,7 @@
       {
         "name": "sdxl_lightning",
         "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning",
+        "runs-on": "p150-perf",
         "group": "experimental"
       },
       {
