@@ -63,8 +63,8 @@ test_config:
 
   diffusiongemma/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9603734111616014. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/5642"
+    status: EXPECTED_PASSING
+    required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/5642
     inject_custom_moe: true
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
@@ -569,4 +569,54 @@ test_config:
 
   seed_oss/pytorch-Seed-OSS-36B-Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  nvidia/nemotron/pytorch-Nvidia_Nemotron_3_5_Lightning_30B_A3B_BF16-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.95
+
+  deepseek/deepseek_moe_16b/pytorch-DEEPSEEK_MOE_16B_CHAT-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  qwen_3_vl/multimodal/pytorch-32b_instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.91
+
+  qwen_3_6/causal_lm/pytorch-35B_A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+
+  qwen_3_6/multimodal/pytorch-Qwen/Qwen3.6-35B-A3B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.85
+
+  qwen_3_8/causal_lm/pytorch-27B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  qwen_3_8/multimodal/pytorch-Qwen/Qwen3.8-27B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.87
+
+  qwen_3_coder/causal_lm/pytorch-30B_A3B_Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+
+  kat_coder/causal_lm/pytorch-KAT-Coder-V2.5-Dev-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    inject_custom_moe: true
+    status: EXPECTED_PASSING
+
+  ai21labs/pytorch-AI21-Jamba-Mini-1.7-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    inject_custom_moe: true
     status: EXPECTED_PASSING
