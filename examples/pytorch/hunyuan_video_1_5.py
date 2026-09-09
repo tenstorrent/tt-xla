@@ -6,8 +6,8 @@
 
 Pipeline implementation lives in ``tt_forge_models``; this is a thin demo. The
 DiT (the heavy net) and the Qwen2.5-VL text encoder run tensor-parallel sharded
-on the Tenstorrent backend, with the ByT5 glyph encoder replicated there; the
-scheduler and the VAE run on CPU.
+on the Tenstorrent backend, with the ByT5 glyph encoder and the tiled VAE
+decoder replicated there; the scheduler runs on CPU.
 """
 
 from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (

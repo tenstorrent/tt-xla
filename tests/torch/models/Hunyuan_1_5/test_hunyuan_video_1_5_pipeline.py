@@ -4,7 +4,8 @@
 
 """HunyuanVideo 1.5 (480p t2v base) — nightly e2e pipeline test, every TT
 component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
-ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU.
+ByT5 encoders, the DiT and the tiled VAE decoder run bf16 on TT; scheduler and
+guider stay on CPU.
 
 Guidance is real CFG, so Qwen is checked twice (cond + uncond) and the DiT twice
 per denoising step; ByT5 once, since the negative prompt's glyph stream is zeros.
@@ -104,6 +105,11 @@ def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
         pick=lambda out: out[0],
     )
     attach(pipeline.transformer, "transformer", lambda: _twin(ModelVariant.TRANSFORMER))
+    attach(
+        pipeline.vae_decoder,
+        "vae_decoder (tiled)",
+        lambda: _twin(ModelVariant.VAE_TILED),
+    )
 
 
 @pytest.mark.nightly
