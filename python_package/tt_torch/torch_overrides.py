@@ -42,6 +42,26 @@ def _to_pair(value: int | tuple[int, int] | list[int]) -> tuple[int, int]:
     return (value, value) if isinstance(value, int) else tuple(value)
 
 
+def _cast_int_indices_to_long(key):
+    """Cast non-int64 integer index tensors to int64. torch_xla concatenates
+    index tensors when lowering advanced indexing, and XLA's concatenate
+    rejects mixed int32/int64 (e.g. FlexAttention's create_block_mask)."""
+
+    def cast(item):
+        if (
+            isinstance(item, torch.Tensor)
+            and not item.dtype.is_floating_point
+            and item.dtype not in (torch.bool, torch.int64)
+        ):
+            return item.long(), True
+        return item, False
+
+    if isinstance(key, (tuple, list)):
+        items, changes = zip(*(cast(item) for item in key)) if key else ((), ())
+        return type(key)(items), any(changes)
+    return cast(key)
+
+
 def _unfold_via_gather(
     inp: torch.Tensor,
     kernel_size,
@@ -106,6 +126,17 @@ class TorchFunctionOverride(TorchFunctionMode):
             and args[0].device.type == "xla"
         ):
             new_key, changed = clamp_neg_slice_key(args[0].shape, args[1])
+            if changed:
+                args = (args[0], new_key, *args[2:])
+
+        if (
+            func.__name__ in ("__setitem__", "__getitem__", "index_put", "index_put_")
+            and not torch.compiler.is_compiling()
+            and len(args) >= 2
+            and isinstance(args[0], torch.Tensor)
+            and args[0].device.type == "xla"
+        ):
+            new_key, changed = _cast_int_indices_to_long(args[1])
             if changed:
                 args = (args[0], new_key, *args[2:])
 

@@ -36,7 +36,7 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch.src.model_utils imp
     load_transformer,
 )
 
-NUM_BLOCKS = 1  # >1 pending investigation (S64/S32 dtype mismatch in flex_attention's create_block_mask): https://github.com/tenstorrent/tt-xla/issues/5837
+NUM_BLOCKS = 1  # TODO: >1 needs ttnn::sort stable=True support (flex_attention's create_block_mask): https://github.com/tenstorrent/tt-xla/issues/6041
 PCC_THRESHOLD = 0.95
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
