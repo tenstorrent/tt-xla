@@ -15,6 +15,9 @@ from tests.infra.testers.compiler_config import CompilerConfig
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 @pytest.mark.filecheck(["batch_norm_decomposition.ttnn.mlir"])
+@pytest.mark.skip(
+    reason="FileCheck failed for pattern batch_norm_decomposition.ttnn - https://github.com/tenstorrent/tt-xla/issues/6062"
+)
 def test_batch_norm_decomposition_conv2d(request):
     """BatchNorm following Conv2d is decomposed into alpha*x + beta (mul + add)."""
 

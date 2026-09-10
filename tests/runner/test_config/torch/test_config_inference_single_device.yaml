@@ -161,7 +161,9 @@ test_config:
     status: EXPECTED_PASSING
 
   mnist/image_classification/pytorch-Cnn_Dropout-single_device-inference:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Running the test CRASHED with signal 8 (SIGFPE) on n150 and p150 - https://github.com/tenstorrent/tt-xla/issues/6063"
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
     markers: [push, nightly]

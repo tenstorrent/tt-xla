@@ -75,9 +75,10 @@ jobs:
       # NOTE: these filters intentionally exclude perf benchmarks that hang/fail on PR
       # while keeping them live in the nightly matrix (see perf-bench-matrix.json):
       #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
+      #   - llama_3_1_8b_instruct (n150-perf): TT_FATAL set_borrowed_memory_base_addr() not called before serialization (#6065)
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150-perf", "filter": ["resnet","llama_3_1_8b"] },
+        { "runs-on": "n150-perf", "filter": ["resnet"] },
         { "runs-on": "qb2-blackhole", "filter": ["llama_3_1_70b_tp_qb2"] } ]'
       sh-runner: false
       skip-device-perf: true
