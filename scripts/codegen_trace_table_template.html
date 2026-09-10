@@ -1,0 +1,30 @@
+<!doctype html><meta charset=utf-8>
+<title>Compute trace</title>
+<style>
+ body{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;margin:1rem;color:#111;background:#fff}
+ h1{font-size:16px} .meta{color:#555;margin-bottom:.6rem}
+ input{font:inherit;padding:4px 6px;width:280px;margin-bottom:.6rem}
+ table{border-collapse:collapse;width:100%}
+ th,td{border:1px solid #ddd;padding:3px 6px;text-align:left;vertical-align:top}
+ th{position:sticky;top:0;background:#f4f4f4;cursor:default}
+ tbody tr:nth-child(even){background:#fafafa}
+ td.num{color:#999;text-align:right}
+ .op{font-weight:600}
+ .in{color:#06c} .free{color:#c00} .out{background:#fff6d5}
+ .argname{font-style:italic}
+ .k-parameter{color:#a0740a} .k-kv_cache{color:#8a2be2} .k-constant{color:#0a8a8a}
+ .k-input{color:#c0392b}
+ .shape{color:#093;white-space:nowrap} .stype{color:#787} .noshape{color:#bbb}
+ .t-matmul{color:#0a7} .t-rms_norm{color:#a60} .t-slice,.t-reshape{color:#777}
+</style>
+<h1>Computation trace</h1>
+<div class=meta><!--__META__--></div>
+<input id=f placeholder="filter rows (op name, var…)" oninput="var q=this.value.toLowerCase();for(var r of document.querySelectorAll('tbody tr'))r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'">
+<table>
+<thead><tr>
+<th>#</th><th>inputs</th><th>op</th><th>layout</th><th>output</th>
+<th>dims</th><th>type</th>
+<th>dtype</th><th>mem</th><th>frees</th>
+</tr></thead>
+<tbody><!--__ROWS__--></tbody>
+</table>
