@@ -47,3 +47,11 @@ def pytest_addoption(parser):
         default=None,
         help="Folder path to save MLIR modules of failed operations (default: None, no saving)",
     )
+    parser.addoption(
+        "--fail-on-op-failure",
+        action="store_true",
+        default=False,
+        help="Fail the test if any individual op fails on device. Off by default: "
+        "this is a data-collection run, so per-op failures are the result, not a "
+        "test failure. Useful when running a curated op set as a gate.",
+    )
