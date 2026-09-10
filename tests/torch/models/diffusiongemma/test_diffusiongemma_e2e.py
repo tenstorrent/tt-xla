@@ -56,6 +56,11 @@ def _record_properties(model_name):
 # of asserting, so a run can be used to verify staging/OOM without the floor
 # aborting it at the encoder. The committed floor itself is not lowered.
 _PCC_SOFT = os.environ.get("DIFFGEMMA_PCC_SOFT") == "1"
+# DIFFGEMMA_PCC_OFF skips the golden ENTIRELY. PCC_SOFT still runs golden_fn()
+# -- a CPU forward of the 26B model on every denoising step -- so it is useless
+# for questions that are not about numerics (e.g. proving the staged residency
+# no longer OOMs). OFF exercises the real TT pipeline and nothing else.
+_PCC_OFF = os.environ.get("DIFFGEMMA_PCC_OFF") == "1"
 
 
 @pytest.mark.nightly
@@ -67,6 +72,10 @@ _PCC_SOFT = os.environ.get("DIFFGEMMA_PCC_SOFT") == "1"
     [
         pytest.param("text", marks=_record_properties("DiffusionGemma_e2e")),
         pytest.param("image", marks=_record_properties("DiffusionGemma_e2e_image")),
+        pytest.param(
+            "image_only",
+            marks=_record_properties("DiffusionGemma_e2e_image_only"),
+        ),
     ],
 )
 def test_diffusiongemma_e2e(modality):
@@ -89,6 +98,9 @@ def test_diffusiongemma_e2e(modality):
                 self._step = 0
 
             def _check(self, name, tt_out, golden_fn):
+                if _PCC_OFF:
+                    self.records.append((name, self._step, 1.0))
+                    return
                 golden = golden_fn()
                 if name == "encoder":
                     reference = golden.last_hidden_state
@@ -101,7 +113,7 @@ def test_diffusiongemma_e2e(modality):
                 pcc = _pcc(tt_out, reference)
                 self.records.append((name, self._step, pcc))
                 logger.info("[PCC] {}: pcc={:.6f}", label, pcc)
-                if not _PCC_SOFT:
+                if not (_PCC_SOFT or _PCC_OFF):
                     assert (
                         pcc >= PCC_THRESHOLD
                     ), f"{label} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
@@ -113,11 +125,14 @@ def test_diffusiongemma_e2e(modality):
             config=DiffusionGemmaConfig(
                 max_new_tokens=MAX_NEW_TOKENS,
                 seed=SEED,
-                image=(modality == "image"),
+                image=(modality != "text"),
             )
         )
         pipeline.setup()
-        text_out = pipeline.generate()
+        # image_only drops the text turn: the image is the whole prompt.
+        text_out = pipeline.generate(
+            prompt="" if modality == "image_only" else None
+        )
         logger.info("[{}] generated:\n{}", modality, text_out)
 
         # Guard against a vacuous pass: with no records `worst` would fall back to its
@@ -132,5 +147,5 @@ def test_diffusiongemma_e2e(modality):
             len(pipeline.records),
             worst,
         )
-        if not _PCC_SOFT:
+        if not (_PCC_SOFT or _PCC_OFF):
             assert worst >= PCC_THRESHOLD
