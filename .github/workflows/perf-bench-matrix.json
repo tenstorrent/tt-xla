@@ -103,6 +103,12 @@
         "group": "experimental"
       },
       {
+        "name": "lumina_image_2",
+        "pytest": "tests/benchmark/test_imagegen.py::test_lumina_image",
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
+      },
+      {
         "name": "xtts_v2",
         "pytest": "tests/benchmark/test_tts.py::test_xtts_v2",
         "group": "experimental"
