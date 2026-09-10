@@ -36,7 +36,7 @@ from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
 PROMPT = 'A girl holding a paper with words "Hello, world!"'
 SEED = 42
 NUM_INFERENCE_STEPS = 10
-NUM_FRAMES = 25
+NUM_FRAMES = 121
 PCC_THRESHOLD = 0.90
 
 VARIANT_NAME = ModelVariant.TRANSFORMER
