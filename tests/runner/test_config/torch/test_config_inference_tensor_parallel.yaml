@@ -620,3 +620,29 @@ test_config:
     supported_archs: [qb2-blackhole]
     inject_custom_moe: true
     status: EXPECTED_PASSING
+
+  qwen_3/causal_lm/moe/pytorch-Qwen3-Next-80B-A3B-Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    inject_custom_moe: true
+    enable_weight_bfp8_conversion: true
+    status: EXPECTED_PASSING
+
+  llama_3_2/causal_lm/pytorch-Llama-3.2-90B-Vision-Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    enable_weight_bfp8_conversion: true
+    status: EXPECTED_PASSING
+
+  gemma3/multimodal/pytorch-google/medgemma-27b-it-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.87
+
+  opengvlab_internvl3/pytorch-OpenGVLab-InternVL3_5-38B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.97
+
+  voxtral/pytorch-Voxtral-Small-24B-2507-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
