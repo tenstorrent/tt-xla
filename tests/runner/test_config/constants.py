@@ -14,6 +14,7 @@ ALLOWED_ARCHES = {
     "galaxy-bh",
     "qb2-blackhole",
     "lb-blackhole",
+    "p300",
 }
 
 # Allowed fields in test_config YAML entries
