@@ -97,6 +97,38 @@ jobs:
       dumped_irs_run_id: ${{ github.run_id }}
       target_time_min: 180
 
+  # EmitPy verification: re-run passing torch inference models via the codegen_py
+  # backend and compare against the flatbuffer result.
+  test_forge_models_emitpy:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: model-test-emitpy.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
+      dump_irs: ${{ github.event.schedule == '0 0 * * 0' }}
+
+  # EmitPy known failures: models that pass normally but fail EmitPy verification.
+  # Marked via emitpy_overrides as xfails so they are tracked separately.
+  test_forge_models_emitpy_xfail:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: model-test-emitpy-xfail.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
+      dump_irs: ${{ github.event.schedule == '0 0 * * 0' }}
+
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     needs: [ build-image, build-ttxla ]

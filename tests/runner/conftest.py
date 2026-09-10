@@ -168,6 +168,7 @@ def pytest_collection_modifyitems(config, items):
     Also deselect tests explicitly marked with EXCLUDE_MODEL so they do not run.
     """
     arch = config.getoption("--arch")
+    emitpy = config.getoption("--emitpy")
 
     # Merge torch and jax test configs once outside the loop
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
@@ -181,7 +182,12 @@ def pytest_collection_modifyitems(config, items):
         if "[" in nodeid:
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
 
-        meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
+        # --emitpy runs prefix the id. Strip it so the
+        # config lookup matches the mode-agnostic YAML keys. emitpy=True then lets
+        # ModelTestConfig apply any emitpy_overrides on top of the base entry.
+        nodeid = nodeid.removeprefix("emitpy-")
+
+        meta = ModelTestConfig(combined_test_config.get(nodeid), arch, emitpy=emitpy)
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.
@@ -215,6 +221,16 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.not_supported_skip)
         elif meta.status == ModelTestStatus.UNSPECIFIED:
             item.add_marker(pytest.mark.unspecified)
+
+        # Tests flipped to xfail specifically by emitpy_overrides get an extra
+        # 'emitpy_xfail' marker, so an emitpy run can select just these
+        # (via `-m emitpy_xfail`) rather than every known_failure_xfail test.
+        if (
+            emitpy
+            and meta.data.get("emitpy_overrides", {}).get("status")
+            == ModelTestStatus.KNOWN_FAILURE_XFAIL
+        ):
+            item.add_marker(pytest.mark.emitpy_xfail)
 
         # Apply any custom/extra markers from config (e.g., "push", "nightly", "weekly")
         config_markers = getattr(meta, "markers", []) or []
