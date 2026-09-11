@@ -57,6 +57,16 @@ HARDWARE_MARKS: dict[str, list[str]] = {
         "nightly",
         "bh_single",
     ],  # single Blackhole chip (p150); weights exceed single-Wormhole DRAM
+    "pytorch/sdxl_lightning.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); the four resident components are 8.14 GiB,
+    # which does not fit a Wormhole part's 11.97 GiB once the VAE asks for its
+    # 1 GiB activation buffer
+    "pytorch/playground_v2_5.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); same resident footprint as SDXL-Lightning
     "pytorch/diffusiongemma.py": [
         "nightly",
         "llmbox",
