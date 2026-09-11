@@ -47,7 +47,6 @@ def test_imagegen(
     optimization_level=DEFAULT_OPTIMIZATION_LEVEL,
     trace_enabled=DEFAULT_TRACE_ENABLED,
     output_image_path=None,
-    staged_residency=False,
 ):
     """Run a text-to-image benchmark with the given configuration.
 
@@ -62,10 +61,6 @@ def test_imagegen(
         optimization_level: Optimization level (0, 1, or 2).
         trace_enabled: Enable trace.
         output_image_path: If set, the steady-state image is saved here.
-        staged_residency: True for pipelines that evict each component (and its
-            compiled graph) before placing the next; skips the outer warmup pass,
-            which such a pipeline would spend recompiling. See
-            ``benchmarks/imagegen_benchmark.py``.
     """
     resolved_display_name = resolve_display_name(
         request=request, fallback=model_info_name
@@ -97,7 +92,6 @@ def test_imagegen(
         trace_enabled=trace_enabled,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         output_image_path=output_image_path,
-        staged_residency=staged_residency,
     )
 
     if output_file:
@@ -111,19 +105,22 @@ def test_imagegen(
 
 
 def test_playground_v2_5(output_file, request):
-    from benchmarks.playground_v2_5_pipeline import (
+    from third_party.tt_forge_models.playground_v2_5.pytorch.pipeline import (
+        GUIDANCE_SCALE,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
         PlaygroundV25Config,
-        PlaygroundV25Pipeline,
+        PlaygroundV25TTPipeline,
     )
 
-    prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
-    num_inference_steps = 50
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
         # All 4 components on TT. compile_options forwarded into Config so the
         # VAE-only opt_level switch can merge instead of clobbering.
-        pipeline = PlaygroundV25Pipeline(
+        pipeline = PlaygroundV25TTPipeline(
             config=PlaygroundV25Config(compile_options=compile_options)
         )
         pipeline.setup()
@@ -132,7 +129,7 @@ def test_playground_v2_5(output_file, request):
             return pipeline.generate(
                 prompt=prompt,
                 negative_prompt=None,
-                cfg_scale=3.0,
+                cfg_scale=GUIDANCE_SCALE,
                 num_inference_steps=steps,
                 seed=DEFAULT_SEED,
             )
@@ -228,20 +225,22 @@ def test_stable_diffusion_3(output_file, request):
 
 
 def test_sdxl_lightning(output_file, request):
-    from benchmarks.sdxl_lightning_pipeline import (
+    from third_party.tt_forge_models.sdxl_lightning.pytorch.pipeline import (
+        NUM_INFERENCE_STEPS,
+        PROMPT,
         SDXLLightningConfig,
-        SDXLLightningPipeline,
+        SDXLLightningTTPipeline,
     )
 
     # SDXL-Lightning: distilled 4-step model, guidance_scale=0 (no CFG).
-    prompt = "A girl smiling"
-    num_inference_steps = 4
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = width = 1024
 
     def build_pipeline_fn(compile_options):
         # All 4 components on TT. compile_options forwarded into Config so the
         # VAE-only opt_level switch can merge instead of clobbering.
-        pipeline = SDXLLightningPipeline(
+        pipeline = SDXLLightningTTPipeline(
             config=SDXLLightningConfig(compile_options=compile_options)
         )
         pipeline.setup()
@@ -289,7 +288,7 @@ def test_qwen_image(output_file, request):
 
     def build_pipeline_fn(compile_options):
         pipeline = QwenImagePipeline(
-            config=QwenImageConfig(compile_options=compile_options)
+            config=QwenImageConfig(compile_options=compile_options, warm_iters=1)
         )
         pipeline.setup()
 
@@ -316,7 +315,6 @@ def test_qwen_image(output_file, request):
         # Encoder, transformer and VAE are each freed with their compiled graph
         # before the next is placed, so a second generate() would recompile
         # everything instead of running warm.
-        staged_residency=True,
     )
 
 
@@ -341,7 +339,9 @@ def test_flux2(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = Flux2TTPipeline(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2TTPipeline(
+            config=Flux2Config(compile_options=compile_options, warm_iters=1)
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
