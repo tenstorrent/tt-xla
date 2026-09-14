@@ -11,7 +11,11 @@ Registers two ``ExpertsInterface`` backends selectable via
   - ``tt_dense`` — dense bmm across all experts, single-device-friendly.
 
 Works with any ``@use_experts_implementation`` Experts module that exposes
-``gate_up_proj``, ``down_proj``, and ``_apply_gate``.
+one of:
+
+  - fused ``gate_up_proj`` + ``down_proj`` (+ ``_apply_gate``)
+  - separate ``gate_proj`` / ``up_proj`` / ``down_proj``
+  - non-gated ``up_proj`` / ``down_proj`` (+ ``act_fn``), e.g. NemotronH
 """
 
 from __future__ import annotations
@@ -92,6 +96,11 @@ class _ExpertAdapter:
     def has_fused_gate_up(self) -> bool:
         return False
 
+    @property
+    def is_gated(self) -> bool:
+        """True when experts use SwiGLU-style gate * up; False for up-only MLP."""
+        return True
+
     def gate_up_weight(self) -> torch.Tensor:
         raise RuntimeError("Adapter does not expose fused gate/up weights")
 
@@ -122,6 +131,12 @@ class _ExpertAdapter:
         if up is None:
             raise RuntimeError("Separate gate/up adapter requires an up tensor")
         return F.silu(gate_or_gate_up) * up
+
+    def apply_activation(self, up: torch.Tensor) -> torch.Tensor:
+        act_fn = getattr(self.module, "act_fn", None)
+        if act_fn is not None:
+            return act_fn(up)
+        return F.silu(up)
 
 
 class _FusedGateUpAdapter(_ExpertAdapter):
@@ -184,6 +199,32 @@ class _SeparateGateUpAdapter(_ExpertAdapter):
         return super().apply_gate(gate_or_gate_up, up)
 
 
+class _UpDownAdapter(_ExpertAdapter):
+    """Non-gated MLP experts: ``down_proj(act_fn(up_proj(x)))`` (e.g. NemotronH)."""
+
+    @property
+    def is_gated(self) -> bool:
+        return False
+
+    def _weight(self, name: str) -> torch.Tensor:
+        return _as_sparse_matmul_weight(
+            getattr(self.module, name),
+            bool(getattr(self.module, "is_transposed", False)),
+        )
+
+    def up_weight(self) -> torch.Tensor:
+        return self._weight("up_proj")
+
+    def down_weight(self) -> torch.Tensor:
+        return self._weight("down_proj")
+
+    def up_bias(self) -> Optional[torch.Tensor]:
+        return getattr(self.module, "up_proj_bias", None)
+
+    def down_bias(self) -> Optional[torch.Tensor]:
+        return getattr(self.module, "down_proj_bias", None)
+
+
 def _get_expert_adapter(module: nn.Module) -> _ExpertAdapter:
     if hasattr(module, "gate_up_proj") and hasattr(module, "down_proj"):
         return _FusedGateUpAdapter(module)
@@ -193,9 +234,11 @@ def _get_expert_adapter(module: nn.Module) -> _ExpertAdapter:
         and hasattr(module, "down_proj")
     ):
         return _SeparateGateUpAdapter(module)
+    if hasattr(module, "up_proj") and hasattr(module, "down_proj"):
+        return _UpDownAdapter(module)
     raise RuntimeError(
         f"tt_moe backend could not adapt Experts module {type(module).__name__}. "
-        "Expected fused gate_up/down or separate gate/up/down experts."
+        "Expected fused gate_up/down, separate gate/up/down, or up/down experts."
     )
 
 
@@ -348,7 +391,7 @@ def _tt_experts_forward_ep(
         if gate_up_bias is not None:
             gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
         activated = experts.apply_gate(gate_up_out)
-    else:
+    elif experts.is_gated:
         gate_out = torch.ops.tt.sparse_matmul(
             dispatched,
             experts.gate_weight(),
@@ -372,6 +415,20 @@ def _tt_experts_forward_ep(
         if up_bias is not None:
             up_out = up_out + up_bias.view(1, 1, E, 1, -1)
         activated = experts.apply_gate(gate_out, up_out)
+    else:
+        # Non-gated MLP experts: activated = act_fn(up_proj(x))
+        up_out = torch.ops.tt.sparse_matmul(
+            dispatched,
+            experts.up_weight(),
+            sparsity,
+            nnz=0,
+            is_input_a_sparse=False,
+            is_input_b_sparse=True,
+        )
+        up_bias = experts.up_bias()
+        if up_bias is not None:
+            up_out = up_out + up_bias.view(1, 1, E, 1, -1)
+        activated = experts.apply_activation(up_out)
 
     A, B, _, M_tile, I_dim = activated.shape  # 5D [A, B, E, M, N]
     activated = activated.reshape(A * B, E, M_tile, I_dim)
@@ -553,10 +610,13 @@ def get_tt_moe_shard_specs(
         return shard_specs
 
     for layer in layers:
-        mlp = getattr(layer, "mlp", None)
-        if mlp is None:
+        # Standard MoE uses layer.mlp; hybrid models (e.g. NemotronH) use layer.mixer.
+        moe_block = getattr(layer, "mlp", None)
+        if moe_block is None:
+            moe_block = getattr(layer, "mixer", None)
+        if moe_block is None:
             continue
-        experts = getattr(mlp, "experts", None)
+        experts = getattr(moe_block, "experts", None)
         if experts is None:
             continue
 
@@ -574,6 +634,12 @@ def get_tt_moe_shard_specs(
             gate_bias = getattr(experts, "gate_proj_bias", None)
             if gate_bias is not None:
                 shard_specs[gate_bias] = (expert_axis, None)
+            up_bias = getattr(experts, "up_proj_bias", None)
+            if up_bias is not None:
+                shard_specs[up_bias] = (expert_axis, None)
+        elif hasattr(experts, "up_proj") and hasattr(experts, "down_proj"):
+            # Non-gated experts (e.g. NemotronHExperts).
+            shard_specs[experts.up_proj] = (expert_axis, None, None)
             up_bias = getattr(experts, "up_proj_bias", None)
             if up_bias is not None:
                 shard_specs[up_bias] = (expert_axis, None)

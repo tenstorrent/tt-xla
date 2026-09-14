@@ -10,8 +10,8 @@ components (a compiled wrapper + input tensors); this harness drives a full
 multi-step generation pipeline and reads its per-stage/per-step instrumentation.
 
 Two-pass scheme:
-  - Pass 1 (warmup): a single-step ``generate()`` — triggers the first-forward
-    compile of the model's TT components.
+  - Pass 1 (warmup): a short ``generate()`` (``warmup_steps``, 1 by default) —
+    triggers the first-forward compile of the model's TT components.
   - Pass 2 (steady-state): a full ``generate(num_inference_steps)`` — every
     forward is a cache hit; this pass's video is saved and drives the report.
 
@@ -53,6 +53,7 @@ def benchmark_video_gen_pipeline_torch_xla(
     ttnn_perf_metrics_output_file,
     display_name=None,
     output_video_path=None,
+    warmup_steps=1,
 ):
     """Benchmark a text-to-video diffusion pipeline on the TT backend.
 
@@ -72,6 +73,10 @@ def benchmark_video_gen_pipeline_torch_xla(
         ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
         display_name: Display name used for export naming / dashboard.
         output_video_path: If set, the steady-state video is saved here.
+        warmup_steps: Denoising steps for the warmup pass. 1 is enough to trigger
+            the compile; raise it only for models whose sigma schedule cannot be
+            built at 1 step (e.g. Mochi-1 divides by zero,
+            https://github.com/tenstorrent/tt-xla/issues/5999).
 
     Returns:
         Standardized benchmark result dict (see ``create_benchmark_result``).
@@ -100,7 +105,7 @@ def benchmark_video_gen_pipeline_torch_xla(
     # Pass 1 (warmup): 1 step is enough to trigger the first-forward compile.
     print("Starting warmup pass (includes compile)...")
     warmup_start = time.perf_counter()
-    generate_fn(prompt, 1)
+    generate_fn(prompt, warmup_steps)
     warmup_time = time.perf_counter() - warmup_start
     print(f"Warmup pass: {warmup_time:.3f}s")
 

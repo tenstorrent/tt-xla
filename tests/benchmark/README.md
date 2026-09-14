@@ -45,6 +45,7 @@ tests/benchmark/
 ├── test_llms.py             # LLM test definitions
 ├── test_vision.py           # Vision model test definitions
 ├── test_encoders.py         # Encoder model test definitions
+├── test_tts.py              # Text-to-speech test definitions
 ├── benchmarks/              # Core benchmark implementations
 ├── llm_utils/               # LLM-specific utilities
 ```
@@ -129,6 +130,22 @@ def test_new_model(
 ```
 
 Vision and encoder tests follow the same pattern — import the existing `ModelLoader`, pick a variant, and call `test_vision()` or `test_encoder()`.
+
+### Adding a text-to-speech model
+
+`benchmarks/tts_benchmark.py` is model-agnostic: a new TTS model needs a
+`build_pipeline_fn` and a pipeline that fills in a `_perf` dict (`components`,
+`steps`, `step_metric_name`, `total`, `audio_samples`), plus a `test_<model>` entry
+in `test_tts.py`. See `benchmarks/xtts_v2_pipeline.py` for a worked example.
+
+Two things differ from the other families:
+
+- **Headline metric.** `samples_per_sec` is the *real-time factor* — generated audio
+  seconds per wall-clock second — so `total_samples` is the audio duration, not a
+  count of items.
+- **Fixed work per run.** The generated token count is pinned, so an RTF change is a
+  pure wall-clock change and a graph compiling inside a timed region is a hard
+  failure (`assert_no_recompiles`) rather than a warning.
 
 ### Adding the test to CI
 

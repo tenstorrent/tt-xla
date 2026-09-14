@@ -37,19 +37,43 @@ XFAIL_DIRS: dict[str, str] = {
 # in pytest.ini) so a matching CI job runs them on the right runner and the
 # default Wormhole examples job skips them.
 HARDWARE_MARKS: dict[str, list[str]] = {
+    "pytorch/flux1.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/flux2.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/hunyuan_image_2_1.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
-    "pytorch/diffusiongemma.py": [
+    "pytorch/hidream_i1.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/z_image.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); weights exceed single-Wormhole DRAM
+    "pytorch/diffusiongemma.py": [
+        "nightly",
+        "llmbox",
+    ],  # 8-chip Wormhole (n300-llmbox)
     "pytorch/hunyuan_video_1_5.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
     "pytorch/krea_realtime_video.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/mochi_1_preview.py": [
+        "nightly",
+        "bhqb",
+    ],  # 4-chip Blackhole (qb2-blackhole)
+    "pytorch/qwen_image.py": [
         "nightly",
         "bhqb",
     ],  # 4-chip Blackhole (qb2-blackhole)
@@ -64,6 +88,7 @@ XFAIL_FILES: dict[str, str] = {
     "jax/codegen/python/emitpy_execute.py": "Broken by a change in EmitPy, fix tracked at https://github.com/tenstorrent/tt-mlir/issues/8325",
     "pytorch/olmo3_1025_7b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
     "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
+    "pytorch/compiler_options.py": "Example fails on n300 - https://github.com/tenstorrent/tt-xla/issues/6064",
 }
 
 

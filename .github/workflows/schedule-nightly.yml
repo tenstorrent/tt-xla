@@ -1,9 +1,11 @@
 name: On nightly
 
 on:
-  schedule:
-    - cron: '0 0 * * 1-6'
-    - cron: '0 0 * * 0' # on Sundays, run with dump_irs=true
+  workflow_dispatch:  # Manual trigger
+  # Scheduled trigger disabled.
+  # schedule:
+  #   - cron: '0 0 * * 1-6'
+  #   - cron: '0 0 * * 0' # on Sundays, run with dump_irs=true
 
 permissions:
   contents: write

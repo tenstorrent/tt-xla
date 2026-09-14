@@ -2,12 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HunyuanVideo 1.5 (480p t2v base) — nightly e2e pipeline test, every TT
-component PCC-gated against a CPU twin in the same dtype. The Qwen2.5-VL and
-ByT5 encoders and the DiT run bf16 on TT; scheduler and VAE stay on CPU.
+"""HiDream-I1-Full — nightly e2e pipeline test, every TT component PCC-gated
+against a CPU twin in the same dtype. The CLIP-L and CLIP-G text encoders, the
+Sparse-MoE MM-DiT transformer (tensor-parallel sharded) and the VAE decoder run
+bf16 on TT; the T5 and Llama encoders and the scheduler stay on CPU. Each CLIP
+encoder is checked once per prompt — twice under CFG, positive and negative — the
+transformer once per denoising step, and the VAE once.
 
-Guidance is real CFG, so Qwen is checked twice (cond + uncond) and the DiT twice
-per denoising step; ByT5 once, since the negative prompt's glyph stream is zeros.
+The pipeline itself lives in ``tt_forge_models`` and is shared with the runnable
+demo and the benchmark; this test only wraps the TT components' forwards.
 """
 
 import pytest
@@ -17,30 +20,23 @@ from infra import RunMode
 from infra.evaluators import PccConfig, TorchComparisonEvaluator
 from infra.evaluators.evaluation_config import ComparisonConfig
 from loguru import logger
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, ModelGroup
 
 from third_party.tt_forge_models.config import Parallelism
-from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
-from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.model_utils import (
-    QwenPromptEmbedsWrapper,
-)
-from third_party.tt_forge_models.hunyuan_1_5.pytorch.src.pipeline import (
-    HIDDEN_STATE_SKIP_LAYER,
-    PROMPT_TEMPLATE_ENCODE_START_IDX,
-    HunyuanVideo15Config,
-    HunyuanVideo15Pipeline,
+from third_party.tt_forge_models.hidream_i1.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.hidream_i1.pytorch.pipeline import (
+    GUIDANCE_SCALE,
+    NEGATIVE_PROMPT,
+    PROMPT,
+    SEED,
+    TT_DTYPE,
+    HiDreamI1Config,
+    HiDreamI1Pipeline,
 )
 
-# The double-quoted span is what routes text through text_encoder_2 (the ByT5
-# glyph encoder); without it the pipeline feeds the DiT zero glyph embeds.
-PROMPT = 'A girl holding a paper with words "Hello, world!"'
-SEED = 42
+# 10 for now, will be bumped to 50 once the rest of the components are enabled on TT.
 NUM_INFERENCE_STEPS = 10
-NUM_FRAMES = 25
-PCC_THRESHOLD = 0.90
-
-VARIANT_NAME = ModelVariant.TRANSFORMER
-MODEL_INFO = ModelLoader._get_model_info(VARIANT_NAME)
+PCC_THRESHOLD = 0.99
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
 _PCC_CONFIG = PccConfig()
@@ -52,13 +48,12 @@ def _pcc(device_out, golden_out) -> float:
 
 def _twin(variant: ModelVariant):
     """Load the CPU golden for a component, in the dtype it runs on TT."""
-    return ModelLoader(variant).load_model(dtype_override=torch.bfloat16)
+    return ModelLoader(variant).load_model(dtype_override=TT_DTYPE)
 
 
-def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
+def _attach_pcc_checks(pipeline: HiDreamI1Pipeline) -> None:
     """Wrap every TT component's forward with a CPU-twin PCC check, asserted per
-    forward so a diverging step fails fast. The pipeline keeps using the real TT
-    output."""
+    forward. The pipeline keeps using the real TT output."""
 
     def attach(module, name, build_twin, pick=lambda out: out):
         orig_forward = module.forward
@@ -67,7 +62,7 @@ def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
 
         def _cpu_twin():
             if twin["model"] is None:
-                logger.info("[PCC] loading bf16 CPU twin: {}", name)
+                logger.info("[PCC] loading CPU twin: {}", name)
                 twin["model"] = build_twin()
             return twin["model"]
 
@@ -90,44 +85,49 @@ def _attach_pcc_checks(pipeline: HunyuanVideo15Pipeline) -> None:
 
     attach(
         pipeline.text_encoder,
-        "text_encoder (Qwen)",
-        lambda: QwenPromptEmbedsWrapper(
-            _twin(ModelVariant.TEXT_ENCODER),
-            HIDDEN_STATE_SKIP_LAYER,
-            PROMPT_TEMPLATE_ENCODE_START_IDX,
-        ),
+        "text_encoder (CLIP-L)",
+        lambda: _twin(ModelVariant.TEXT_ENCODER),
     )
     attach(
         pipeline.text_encoder_2,
-        "text_encoder_2 (ByT5)",
+        "text_encoder_2 (CLIP-G)",
         lambda: _twin(ModelVariant.TEXT_ENCODER_2),
-        pick=lambda out: out[0],
     )
+    # text_encoder_3 (T5) and text_encoder_4 (Llama) run on CPU, so there is
+    # nothing to gate: https://github.com/tenstorrent/tt-xla/issues/6018 and
+    # https://github.com/tenstorrent/tt-xla/issues/6019
+    # The twin is the stock diffusers MoE — enable_sparse_mlp is applied to the
+    # device copy only, so the golden exercises the unswapped expert path.
     attach(pipeline.transformer, "transformer", lambda: _twin(ModelVariant.TRANSFORMER))
+    attach(pipeline.vae, "vae", lambda: _twin(ModelVariant.VAE))
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.large
 @pytest.mark.qb2_blackhole
 @pytest.mark.tensor_parallel
-@pytest.mark.large
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
-    model_info=MODEL_INFO,
+    model_name="HiDreamI1Full_Pipeline",
+    model_group=ModelGroup.RED,
     parallelism=Parallelism.TENSOR_PARALLEL,
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.PASSED,
 )
-def test_pipeline():
-    """Run the HunyuanVideo15 pipeline with per-component PCC vs CPU twins."""
+def test_hidream_e2e_pipeline():
+    """Run the HiDream-I1-Full pipeline with per-component PCC vs CPU twins."""
     xr.set_device_type("TT")
+    torch.manual_seed(SEED)
 
-    pipeline = HunyuanVideo15Pipeline(
-        config=HunyuanVideo15Config(
-            num_inference_steps=NUM_INFERENCE_STEPS, num_frames=NUM_FRAMES
-        )
-    )
+    pipeline = HiDreamI1Pipeline(config=HiDreamI1Config())
     pipeline.setup()
     _attach_pcc_checks(pipeline)
 
-    pipeline.generate(prompt=PROMPT, seed=SEED)
+    pipeline.generate(
+        prompt=PROMPT,
+        negative_prompt=NEGATIVE_PROMPT,
+        guidance_scale=GUIDANCE_SCALE,
+        num_inference_steps=NUM_INFERENCE_STEPS,
+        seed=SEED,
+    )

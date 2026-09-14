@@ -47,6 +47,7 @@ def test_imagegen(
     optimization_level=DEFAULT_OPTIMIZATION_LEVEL,
     trace_enabled=DEFAULT_TRACE_ENABLED,
     output_image_path=None,
+    staged_residency=False,
 ):
     """Run a text-to-image benchmark with the given configuration.
 
@@ -61,6 +62,10 @@ def test_imagegen(
         optimization_level: Optimization level (0, 1, or 2).
         trace_enabled: Enable trace.
         output_image_path: If set, the steady-state image is saved here.
+        staged_residency: True for pipelines that evict each component (and its
+            compiled graph) before placing the next; skips the outer warmup pass,
+            which such a pipeline would spend recompiling. See
+            ``benchmarks/imagegen_benchmark.py``.
     """
     resolved_display_name = resolve_display_name(
         request=request, fallback=model_info_name
@@ -92,6 +97,7 @@ def test_imagegen(
         trace_enabled=trace_enabled,
         ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
         output_image_path=output_image_path,
+        staged_residency=staged_residency,
     )
 
     if output_file:
@@ -263,9 +269,63 @@ def test_sdxl_lightning(output_file, request):
     )
 
 
-def test_flux2(output_file, request):
-    from benchmarks.flux2_pipeline import Flux2Config, Flux2Pipeline_TT
+def test_qwen_image(output_file, request):
+    from third_party.tt_forge_models.qwen_image.pytorch.pipeline import (
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+        QwenImageConfig,
+        QwenImagePipeline,
+    )
 
+    # Qwen-Image: ~7B Qwen2.5-VL text encoder and the ~20B QwenImage MMDiT
+    # transformer both tensor-parallel sharded across the mesh's model axis, plus
+    # a replicated VAE. Multichip — wired to the 4-chip blackhole (qb2).
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = QwenImagePipeline(
+            config=QwenImageConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="qwen-image",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_qwen_image_output.png",
+        # Encoder, transformer and VAE are each freed with their compiled graph
+        # before the next is placed, so a second generate() would recompile
+        # everything instead of running warm.
+        staged_residency=True,
+    )
+
+
+def test_flux2(output_file, request):
+    from third_party.tt_forge_models.flux2.pytorch.pipeline import (
+        NUM_INFERENCE_STEPS,
+        Flux2Config,
+        Flux2TTPipeline,
+    )
     from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
         HEIGHT,
         PROMPT,
@@ -276,12 +336,12 @@ def test_flux2(output_file, request):
     # tensor-parallel sharded across the mesh's model axis) + replicated VAE.
     # Multichip — wired to the 4-chip blackhole (qb2) in perf-bench-matrix.json.
     prompt = PROMPT
-    num_inference_steps = 50
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = HEIGHT
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = Flux2Pipeline_TT(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2TTPipeline(config=Flux2Config(compile_options=compile_options))
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -308,8 +368,11 @@ def test_flux2(output_file, request):
 
 
 def test_flux(output_file, request):
-    from benchmarks.flux_pipeline import FluxConfig, FluxPipeline_TT
-
+    from third_party.tt_forge_models.flux.pytorch.pipeline import (
+        NUM_INFERENCE_STEPS,
+        FluxConfig,
+        FluxTTPipeline,
+    )
     from third_party.tt_forge_models.flux.pytorch.src.model_utils import (
         HEIGHT,
         PROMPT,
@@ -322,12 +385,12 @@ def test_flux(output_file, request):
     # model axis. Multichip — wired to the 4-chip blackhole in
     # perf-bench-matrix.json.
     prompt = PROMPT
-    num_inference_steps = 50
+    num_inference_steps = NUM_INFERENCE_STEPS
     height = HEIGHT
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = FluxPipeline_TT(config=FluxConfig(compile_options=compile_options))
+        pipeline = FluxTTPipeline(config=FluxConfig(compile_options=compile_options))
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -354,10 +417,11 @@ def test_flux(output_file, request):
 
 
 def test_zimage(output_file, request):
-    from benchmarks.zimage_pipeline import ZImageConfig, ZImagePipeline_TT
-
+    from third_party.tt_forge_models.z_image.pytorch.pipeline import (
+        ZImageConfig,
+        ZImageTTPipeline,
+    )
     from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
-        GUIDANCE_SCALE,
         HEIGHT,
         NUM_INFERENCE_STEPS,
         PROMPT,
@@ -365,7 +429,7 @@ def test_zimage(output_file, request):
     )
 
     # Z-Image: ~6.2B ZImageTransformer2DModel + Qwen3 text encoder + VAE, all on
-    # one Blackhole chip (OOMs on single Wormhole). CFG runs as two batch=1
+    # one Blackhole chip (weights exceed single-Wormhole DRAM). CFG runs as two batch=1
     # passes. Blackhole-only — wired to p150-perf in perf-bench-matrix.json.
     prompt = PROMPT
     num_inference_steps = NUM_INFERENCE_STEPS
@@ -373,7 +437,7 @@ def test_zimage(output_file, request):
     width = WIDTH
 
     def build_pipeline_fn(compile_options):
-        pipeline = ZImagePipeline_TT(
+        pipeline = ZImageTTPipeline(
             config=ZImageConfig(compile_options=compile_options)
         )
         pipeline.setup()
@@ -554,6 +618,60 @@ def test_glm_image(output_file, request):
         height=height,
         width=width,
         output_image_path="test_glm_image_output.png",
+    )
+
+
+def test_hidream_i1(output_file, request):
+    from third_party.tt_forge_models.hidream_i1.pytorch.pipeline import (
+        GUIDANCE_SCALE,
+        NEGATIVE_PROMPT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        HiDreamI1Config,
+        HiDreamI1Pipeline,
+    )
+
+    # HiDream-I1-Full: 1024x1024, CFG guidance 5.0 (model card). The CLIP-L/CLIP-G
+    # text encoders, the ~17B Sparse-MoE MM-DiT (tensor-parallel sharded across the
+    # mesh's model axis) and the VAE decoder run on TT in bf16; the T5/Llama
+    # encoders and the scheduler run on CPU. Multichip — wired to the 4-chip
+    # blackhole (qb2).
+    prompt = PROMPT
+    # 10 for now, will be bumped to 50 once the rest of the components are
+    # enabled on TT.
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        # compile_options forwarded into Config so the VAE-only opt_level switch
+        # can merge instead of clobbering.
+        pipeline = HiDreamI1Pipeline(
+            config=HiDreamI1Config(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                negative_prompt=NEGATIVE_PROMPT,
+                guidance_scale=GUIDANCE_SCALE,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="hidream-i1-full",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_hidream_i1_output.png",
     )
 
 

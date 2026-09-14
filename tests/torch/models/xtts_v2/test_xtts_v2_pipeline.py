@@ -33,7 +33,6 @@ import third_party.tt_forge_models.xtts_v2.pytorch.loader as xtts_loader
 # samples @ 24 kHz); the property under test is that the chain runs end-to-end
 # and emits a valid waveform, not audio length.
 MAX_AUDIO_TOKENS = 64
-OUTPUT_SAMPLE_RATE = 24000
 
 # Per-step correlation floor between the TT decode logits and the CPU replay.
 PCC_THRESHOLD = 0.99
@@ -76,6 +75,7 @@ def _make_pcc_pipeline_cls():
             super().__init__(config)
             self.step_pccs = []
             self.compile_curve = []
+            self._replay_inputs = None
 
         def _generate_codes_tt(self, gpt_cond_latent, text_tokens):
             tt_logits = []
@@ -100,12 +100,20 @@ def _make_pcc_pipeline_cls():
             finally:
                 hook.remove()
 
-            # The parent moves decode_step back to CPU before returning, so the
-            # replay below runs on CPU weights.
-            self.step_pccs = self._replay_on_cpu(
-                gpt_cond_latent, text_tokens, codes, tt_logits
-            )
+            # Replay after run() finishes, not here -- see run() below.
+            self._replay_inputs = (gpt_cond_latent, text_tokens, codes, tt_logits)
             return codes
+
+        def run(self):
+            """Run the pipeline, then take the CPU golden.
+
+            Modules stay on device for the pipeline's lifetime, so a wrapper built
+            mid-run would share *device* weights and the "CPU" golden would silently
+            run on TT. After ``run()`` those weights are free to move to the host.
+            """
+            wav = super().run()
+            self.step_pccs = self._replay_on_cpu(*self._replay_inputs)
+            return wav
 
         def _replay_on_cpu(self, gpt_cond_latent, text_tokens, codes, tt_logits):
             """Re-run TT's own token sequence on CPU, returning per-step PCC.
@@ -114,6 +122,9 @@ def _make_pcc_pipeline_cls():
             the pipeline (no second model in memory) but has no ``tt`` backend
             attached, so it really executes on CPU.
             """
+            # gpt_latents wraps all of xtts.gpt, so one move brings it to the host.
+            self.gpt_latents = self.gpt_latents.to("cpu")
+
             gpt = self.xtts.gpt
             cpu_step = GptCachedStep(self.xtts).eval()
 
