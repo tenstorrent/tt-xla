@@ -2,16 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Qwen-Image — nightly e2e text-to-image pipeline with per-component PCC checks.
+"""Qwen-Image -- nightly PCC-gated text-to-image e2e test on Tenstorrent.
 
-The pipeline implementation is the shared one in ``tt_forge_models``, the same
-code the demo (``examples/pytorch/qwen_image.py``) and the benchmark
-(``tests/benchmark/test_imagegen.py``) run. This module only adds the PCC
-gating: each device wrapper is subclassed to run the component's first TT
-forward through a CPU twin and assert PCC against ``PCC_THRESHOLD``, and the
-pipeline is subclassed to swap those wrappers in. Nothing about staging,
-eviction or the compiled graphs is duplicated here, so the test exercises the
-shipped pipeline rather than a copy that can drift from it.
+Runs the shared ``tt_forge_models`` pipeline, the same code the demo and the
+benchmark use. PCC gating is added by subclassing each device wrapper to check
+its first TT forward against a CPU twin, and the pipeline to swap those in.
 """
 
 import gc
@@ -48,9 +43,13 @@ _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=Fal
 _PCC_CONFIG = PccConfig()
 
 
+_CHECKED = []
+
+
 def _assert_pcc(name: str, device_out, golden_out) -> None:
     pcc = float(_PCC_EVALUATOR._compare_pcc(device_out, golden_out, _PCC_CONFIG))
     logger.info(f"[PCC] {name}: pcc={pcc:.6f}")
+    _CHECKED.append(name)
     assert pcc >= PCC_THRESHOLD, f"{name} PCC {pcc:.6f} below threshold {PCC_THRESHOLD}"
 
 
@@ -101,12 +100,8 @@ class _PccDenoiser(_DeviceDenoiser):
 
 
 class _PccVAEDecoder(_DeviceVAEDecoder):
-    """Shared VAE decode, PCC-checked on its first decode.
-
-    The shipped decode slices the singleton temporal dim in-graph, so the device
-    result is 4D ``(B, 3, H, W)``; the CPU twin's 5D output is sliced the same way
-    before comparing.
-    """
+    """Shared VAE decode, PCC-checked on its first decode. The shipped decode slices
+    the singleton temporal dim in-graph, so the twin's 5D output is sliced to match."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -151,8 +146,12 @@ def test_qwen_image_pipeline():
     xr.set_device_type("TT")
     torch.manual_seed(SEED)
 
-    # warm_iters=1: this test gates correctness, so there is no reason to pay for
-    # the extra warm repeats the benchmark uses to measure steady-state cost.
-    pipeline = PccQwenImagePipeline(config=QwenImageConfig(warm_iters=1))
+    # warm_iters defaults to 0: this test gates correctness, so it does not pay
+    # for the in-residency repeats the benchmark uses.
+    pipeline = PccQwenImagePipeline(config=QwenImageConfig())
     pipeline.setup()
     pipeline.generate(PROMPT, num_inference_steps=NUM_INFERENCE_STEPS, seed=SEED)
+
+    # Without this the test would pass having verified nothing if the wrappers
+    # ever stopped being swapped in.
+    assert _CHECKED, "no PCC checks ran: the checking wrappers never fired"
