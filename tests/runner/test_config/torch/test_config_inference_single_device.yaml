@@ -2772,6 +2772,12 @@ test_config:
 
   xtts_v2/pytorch-conditioning-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 1
+    filechecks:
+      - group_norm_fused.ttnn.mlir
+    assert_atol: true
+    # Fused kernel measures 0.6775 max abs error; PCC alone cannot gate this.
+    required_atol: 0.95
 
   xtts_v2/pytorch-gpt_prefill-single_device-inference:
     status: EXPECTED_PASSING
