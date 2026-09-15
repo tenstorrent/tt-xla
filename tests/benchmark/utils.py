@@ -372,6 +372,190 @@ def create_measurement(
     }
 
 
+def staged_perf_measurements(
+    perf: Dict[str, Any],
+    step_metric: str,
+    step_name: str,
+    warmup_perf: Optional[Dict[str, Any]] = None,
+    staged_residency: bool = False,
+) -> Dict[str, Any]:
+    """Translate a pipeline's ``_perf`` into comparable cold/warm measurements.
+
+    Both shapes yield the same two observations -- a forward that carried the
+    build and one that did not -- just harvested differently:
+
+      - RESIDENT: warm from the measured pass, cold from ``warmup_perf``. That
+        pass is the only place a resident pipeline compiles.
+      - STAGED: components are freed inside the call, so its functional forwards
+        are the cold ones and the pipeline repeats each while still resident.
+
+    ``step_metric`` names the per-step metric (``transformer_step``); ``step_name``
+    is the schema's grouping field, i.e. the model name. Optional ``cold``,
+    ``warm``, ``staging`` and ``synthetic`` default to empty/zero.
+    """
+    components = perf.get("components") or {}
+    steps = perf.get("steps") or []
+    staging = float(perf.get("staging") or 0.0)
+    synthetic = float(perf.get("synthetic") or 0.0)
+    if perf.get("total") is None:
+        raise ValueError(
+            f"{step_name}: pipeline._perf has no 'total'. Publishing would turn a "
+            "failed or half-instrumented generate() into zeros."
+        )
+
+    def _overhead(p: Dict[str, Any]) -> float:
+        """Host bookkeeping: time outside a timed forward, less weight movement
+        and the discarded warm repeats.
+
+        Not clamped at zero: negative means the timers double-count, and clamping
+        would hide that by shrinking the reconstructions below.
+        """
+        accounted = (
+            sum((p.get("components") or {}).values())
+            + sum(p.get("steps") or [])
+            + float(p.get("staging") or 0.0)
+            + float(p.get("synthetic") or 0.0)
+        )
+        return float(p.get("total") or 0.0) - accounted
+
+    cpu_overhead = _overhead(perf)
+    if cpu_overhead < 0:
+        print(
+            f"WARNING: {step_name} host overhead is negative ({cpu_overhead:.3f}s). "
+            "Timed regions overlap -- the per-stage numbers are over-counted."
+        )
+
+    # Warm stage cost. components[] is already warm when measured on the warm
+    # pass; when it is cold, swap its cold forward for a warm one -- a stage may
+    # run several forwards per call, so substituting one would under-count.
+    reported_warm = perf.get("warm") or {}
+    reported_cold = perf.get("cold") or {}
+    warm = dict(components)
+    if staged_residency:
+        for name, stage_total in components.items():
+            if name in reported_warm and name in reported_cold:
+                warm[name] = stage_total - reported_cold[name] + reported_warm[name]
+            elif name in reported_warm:
+                warm[name] = reported_warm[name]
+
+    # Per-forward warm sample. A resident pipeline reporting no split ran its
+    # stage once, so the stage total IS the forward; a staged one's components[]
+    # is cold, so there is no fallback.
+    warm_forward = {} if staged_residency else dict(components)
+    warm_forward.update(reported_warm)
+    if len(steps) > 1:
+        warm[step_metric] = sum(steps[1:]) / (len(steps) - 1)
+        warm_forward[step_metric] = warm[step_metric]
+    elif steps:
+        # One step only: reported as the mean for continuity, but not as a warm
+        # sample -- it carried the build.
+        warm[step_metric] = steps[0]
+
+    cold: Dict[str, float] = {}
+    cold_overhead, cold_staging = cpu_overhead, staging
+    if staged_residency:
+        cold.update(components)
+        cold.update(perf.get("cold") or {})
+        if steps:
+            cold[step_metric] = steps[0]
+    elif warmup_perf is not None:
+        warmup_cold = warmup_perf.get("cold") or {}
+        for name, value in (warmup_perf.get("components") or {}).items():
+            # Prefer the pipeline's own split: summing a twice-called stage
+            # would overstate the cold forward.
+            cold[name] = warmup_cold.get(name, value)
+        warmup_steps = warmup_perf.get("steps") or []
+        if warmup_steps:
+            cold[step_metric] = warmup_steps[0]
+        # The cold pass's own overhead and staging -- that is where a resident
+        # pipeline loads and uploads its weights.
+        cold_overhead = _overhead(warmup_perf)
+        cold_staging = float(warmup_perf.get("staging") or 0.0)
+
+    # Reconstructed end-to-end, one formula for both shapes.
+    warm_step = warm.get(step_metric, 0.0)
+    e2e_warm = (
+        sum(warm[name] for name in components) + warm_step * len(steps) + cpu_overhead
+    )
+    e2e_cold = None
+    if cold:
+        # Stage totals, not single cold forwards: a stage may run several
+        # forwards per call and a cold generation pays for all of them.
+        e2e_cold = (
+            sum(components.values())
+            + cold.get(step_metric, warm_step)
+            + warm_step * max(0, len(steps) - 1)
+            + cold_overhead
+            + cold_staging
+        )
+
+    measurements = [
+        create_measurement("cpu_overhead_s", cpu_overhead, step_name),
+        create_measurement("staging_overhead_s", staging, step_name),
+        create_measurement("synthetic_s", synthetic, step_name),
+        create_measurement(
+            f"{step_metric}_mean_s",
+            warm_step,
+            step_name,
+            step_warm_up_num_iterations=1 if len(steps) > 1 else 0,
+        ),
+        create_measurement(
+            "e2e_warm_s", e2e_warm, step_name, step_warm_up_num_iterations=1
+        ),
+    ]
+    # <name>_s is the stage's warm cost.
+    for name in components:
+        measurements.append(
+            create_measurement(
+                f"{name}_s", warm[name], step_name, step_warm_up_num_iterations=1
+            )
+        )
+    for name, value in warm_forward.items():
+        measurements.append(
+            create_measurement(
+                f"{name}_warm_s", value, step_name, step_warm_up_num_iterations=1
+            )
+        )
+    for name, value in cold.items():
+        measurements.append(create_measurement(f"{name}_cold_s", value, step_name))
+    if e2e_cold is not None:
+        measurements.append(create_measurement("e2e_cold_s", e2e_cold, step_name))
+
+    return {
+        "components": components,
+        "warm": warm,
+        "cold": cold,
+        "cpu_overhead": cpu_overhead,
+        "staging": staging,
+        "synthetic": synthetic,
+        "e2e_warm": e2e_warm,
+        "e2e_cold": e2e_cold,
+        "measurements": measurements,
+    }
+
+
+def format_staged_perf_summary(derived: Dict[str, Any], step_metric: str) -> str:
+    """Human-readable block for the benchmark's stdout summary."""
+    cold, warm = derived["cold"], derived["warm"]
+    lines = []
+    for name in list(derived["components"]) + [step_metric]:
+        if name not in warm:
+            continue
+        line = f"|   {name} (s):  {warm[name]:.3f}"
+        if name in cold:
+            line += f"   (cold {cold[name]:.3f})"
+        lines.append(line)
+    lines.append(f"|   CPU overhead (s):    {derived['cpu_overhead']:.3f}")
+    if derived["staging"]:
+        lines.append(f"|   Staging (s):         {derived['staging']:.3f}")
+    if derived["synthetic"]:
+        lines.append(f"|   Warm repeats (s):    {derived['synthetic']:.3f}")
+    lines.append(f"|   e2e warm (s):        {derived['e2e_warm']:.3f}")
+    if derived["e2e_cold"] is not None:
+        lines.append(f"|   e2e cold (s):        {derived['e2e_cold']:.3f}")
+    return "\n".join(lines)
+
+
 def create_benchmark_result(
     full_model_name: str,
     model_type: str,

@@ -57,6 +57,16 @@ HARDWARE_MARKS: dict[str, list[str]] = {
         "nightly",
         "bh_single",
     ],  # single Blackhole chip (p150); weights exceed single-Wormhole DRAM
+    "pytorch/sdxl_lightning.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); the four resident components are 8.14 GiB,
+    # which does not fit a Wormhole part's 11.97 GiB once the VAE asks for its
+    # 1 GiB activation buffer
+    "pytorch/playground_v2_5.py": [
+        "nightly",
+        "bh_single",
+    ],  # single Blackhole chip (p150); same resident footprint as SDXL-Lightning
     "pytorch/diffusiongemma.py": [
         "nightly",
         "llmbox",
@@ -88,6 +98,7 @@ XFAIL_FILES: dict[str, str] = {
     "jax/codegen/python/emitpy_execute.py": "Broken by a change in EmitPy, fix tracked at https://github.com/tenstorrent/tt-mlir/issues/8325",
     "pytorch/olmo3_1025_7b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
     "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
+    "pytorch/compiler_options.py": "Example fails on n300 - https://github.com/tenstorrent/tt-xla/issues/6064",
 }
 
 
