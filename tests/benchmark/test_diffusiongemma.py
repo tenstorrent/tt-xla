@@ -35,7 +35,6 @@ from utils import (
 )
 
 from tests.runner.requirements import RequirementsManager
-from tests.torch.models.diffusiongemma._length_prompt import build_prompt
 
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_WARM_ENCODER_ITERS = 2  # extra in-residency prefills
@@ -109,7 +108,7 @@ def _run_diffusiongemma_benchmark(
         if modality == "image_only":
             prompt = ""
         elif modality == "text_long":
-            prompt, _ = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
+            prompt, _ = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
         else:
             prompt = None if image else PROMPT
 

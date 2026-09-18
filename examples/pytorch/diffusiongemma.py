@@ -30,7 +30,6 @@ import torch_xla.runtime as xr
 from loguru import logger
 
 from tests.runner.requirements import RequirementsManager
-from tests.torch.models.diffusiongemma._length_prompt import build_prompt
 from third_party.tt_forge_models.diffusiongemma.pytorch import (
     loader as diffgemma_loader,
 )
@@ -61,7 +60,7 @@ def main():
         outs["text"] = pipeline.generate(prompt=PROMPT)
 
         # Same path at the image cases' length, so the two are comparable.
-        long_prompt, n = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
+        long_prompt, n = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
         logger.info("long text prompt is {} tokens", n)
         outs["text (long)"] = pipeline.generate(prompt=long_prompt)
 

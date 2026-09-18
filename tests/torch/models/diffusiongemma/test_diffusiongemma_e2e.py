@@ -155,9 +155,7 @@ def test_diffusiongemma_e2e(modality):
         if modality == "image_only":
             prompt = ""
         elif modality == "text_long":
-            from tests.torch.models.diffusiongemma._length_prompt import build_prompt
-
-            prompt, n = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
+            prompt, n = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
             logger.info("[text_long] prompt is {} tokens", n)
         else:
             prompt = os.environ.get("DIFFGEMMA_TEXT_PROMPT") or None
