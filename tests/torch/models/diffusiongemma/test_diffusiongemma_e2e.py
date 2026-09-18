@@ -13,7 +13,6 @@ rather than silently degrading the text.
 """
 
 import inspect
-import os
 
 import pytest
 import torch
@@ -56,16 +55,7 @@ def _record_properties(model_name):
     )
 
 
-# Log PCC instead of asserting it, so a run can verify staging/OOM without a
-# floor aborting it at the encoder.
-_PCC_SOFT = os.environ.get("DIFFGEMMA_PCC_SOFT") == "1"
-# Skip the golden entirely: PCC_SOFT still runs a CPU forward of the 26B model
-# on every step, which dominates a run that is not about numerics.
-_PCC_OFF = os.environ.get("DIFFGEMMA_PCC_OFF") == "1"
-# Denoise steps that get a CPU twin: one 26B CPU forward dominates each step.
-PCC_CHECK_STEPS = int(os.environ.get("DIFFGEMMA_PCC_CHECK_STEPS", "10"))
-# Token count for the text_long case -- matches the image cases (277-284).
-TEXT_LONG_TOKENS = int(os.environ.get("DIFFGEMMA_TEXT_LONG_TOKENS", "277"))
+TEXT_LONG_TOKENS = 277  # matches the image cases
 
 
 @pytest.mark.nightly
@@ -112,15 +102,6 @@ def test_diffusiongemma_e2e(modality):
                 else:
                     self._step += 1
                     label = f"{name} step={self._step}"
-                if _PCC_OFF:
-                    self.records.append((name, self._step, 1.0))
-                    return
-                # The golden is a CPU forward of the 26B twin and dominates the
-                # step time, so gate the leading denoise steps -- where a
-                # numerical break shows up first -- instead of every step. Same
-                # approach as tests/torch/models/flux (PCC_CHECK_STEPS there).
-                if name != "encoder" and self._step > PCC_CHECK_STEPS:
-                    return
                 golden = golden_fn()
                 reference = (
                     golden.last_hidden_state if name == "encoder" else golden.logits
@@ -133,10 +114,7 @@ def test_diffusiongemma_e2e(modality):
                     if name == "encoder"
                     else DECODER_PCC_THRESHOLD
                 )
-                if not (_PCC_SOFT or _PCC_OFF):
-                    assert (
-                        pcc >= floor
-                    ), f"{label} PCC {pcc:.6f} below threshold {floor}"
+                assert pcc >= floor, f"{label} PCC {pcc:.6f} below threshold {floor}"
 
         xr.set_device_type("TT")
         torch.manual_seed(SEED)
@@ -150,15 +128,15 @@ def test_diffusiongemma_e2e(modality):
         )
         pipeline.setup()
         # image_only drops the text turn: the image is the whole prompt. text_long
-        # runs the text path at the image cases' token count so the two are
-        # comparable like for like (the short text case is only 15 tokens).
+        # runs the text path at the image cases' token count, so the two are
+        # comparable (the short text case is only 15 tokens).
         if modality == "image_only":
             prompt = ""
         elif modality == "text_long":
             prompt, n = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
             logger.info("[text_long] prompt is {} tokens", n)
         else:
-            prompt = os.environ.get("DIFFGEMMA_TEXT_PROMPT") or None
+            prompt = None
         text_out = pipeline.generate(prompt=prompt)
         logger.info("[{}] generated:\n{}", modality, text_out)
 
@@ -180,7 +158,6 @@ def test_diffusiongemma_e2e(modality):
             worst_enc,
             worst_dec,
         )
-        if not (_PCC_SOFT or _PCC_OFF):
-            # separate floors: the encoder is accumulation-limited, the decoder is not
-            assert worst_enc >= ENCODER_PCC_THRESHOLD
-            assert worst_dec >= DECODER_PCC_THRESHOLD
+        # separate floors: the encoder is accumulation-limited, the decoder is not
+        assert worst_enc >= ENCODER_PCC_THRESHOLD
+        assert worst_dec >= DECODER_PCC_THRESHOLD
