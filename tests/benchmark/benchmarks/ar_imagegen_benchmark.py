@@ -13,20 +13,19 @@ reports decode *tokens/second* as the headline throughput.
 
 Two-pass scheme (same idea as the diffusion harness):
 
-  - Pass 1 (warmup): a full ``generate()`` — for an AR model the graph compiles
-    happen lazily inside the loop (prefill graph on step 0, decode graph on
-    step 1, vision-decode graph at the end); a full pass is the simplest way to
-    compile every graph at the exact shapes the steady-state pass reuses.
-  - Pass 2 (steady-state): a full ``generate()`` where every forward is a cache
-    hit; this is the pass whose image is saved and whose timing is reported.
+  - Pass 1 (warmup): a full ``generate()``, compiling every graph. Supplies the
+    cold numbers.
+  - Pass 2 (steady-state): every forward is a cache hit, which holds only because
+    the components stay resident. Its image is saved and its timing is
+    ``e2e_latency``.
 
-Per-model wiring provides a ``build_pipeline_fn`` that returns
-``(pipeline, generate_fn)``; this module sets the XLA compile options, builds
-the pipeline, runs the two passes and emits a standardized benchmark result.
-The pipeline must populate ``pipeline._perf`` each ``generate()`` call with the
-keys ``prefill``, ``decode_steps`` (list), ``vision_decode`` and ``total``.
+Per-model wiring provides ``build_pipeline_fn -> (pipeline, generate_fn)``. The
+pipeline populates ``_perf`` on the schema ``utils.staged_perf_measurements``
+consumes, so this harness publishes the same metric names as the diffusion and
+video ones.
 """
 
+import copy
 import socket
 import time
 
@@ -35,10 +34,13 @@ import torch_xla.runtime as xr
 from utils import (
     build_xla_export_name,
     create_benchmark_result,
+    create_measurement,
+    format_staged_perf_summary,
     get_benchmark_metadata,
     get_xla_device_arch,
     print_benchmark_results,
     save_image,
+    staged_perf_measurements,
 )
 
 xr.set_device_type("TT")
@@ -106,6 +108,8 @@ def benchmark_ar_imagegen_torch_xla(
     warmup_start = time.perf_counter()
     generate_fn(prompt, num_image_tokens)
     warmup_time = time.perf_counter() - warmup_start
+    # Deep-copied because a pipeline may clear _perf in place.
+    warmup_perf = copy.deepcopy(pipeline._perf)
     print(f"Warmup pass: {warmup_time:.3f}s")
 
     # Pass 2 (steady-state): every forward is a cache hit; this image is saved.
@@ -125,17 +129,17 @@ def benchmark_ar_imagegen_torch_xla(
 
     # Per-stage times from the pipeline's own instrumentation (steady-state pass).
     perf = pipeline._perf
-    prefill_s = perf["prefill"]
-    decode_steps = perf["decode_steps"]
-    vision_decode_s = perf["vision_decode"]
-    decode_step_mean_s = sum(decode_steps) / len(decode_steps) if decode_steps else 0.0
-    decode_total_s = sum(decode_steps)
-    # Headline AR throughput: image tokens emitted by the decode loop per second.
-    decode_tokens_per_second = (
-        len(decode_steps) / decode_total_s if decode_total_s > 0 else 0.0
+    step_metric_name = perf["step_metric_name"]
+    derived = staged_perf_measurements(
+        perf,
+        step_metric=step_metric_name,
+        step_name=model_info_name,
+        warmup_perf=warmup_perf,
+        staged_residency=getattr(pipeline, "benchmark_staged_residency", False),
     )
-    tt_stages_total = prefill_s + decode_total_s + vision_decode_s
-    cpu_overhead = max(0.0, perf["total"] - tt_stages_total)
+    # On the warm step, so the build-carrying first step does not drag it down.
+    warm_step_s = derived["warm"].get(step_metric_name, 0.0)
+    decode_tokens_per_second = 1.0 / warm_step_s if warm_step_s > 0 else 0.0
 
     metadata = get_benchmark_metadata()
     full_model_name = model_info_name
@@ -160,26 +164,24 @@ def benchmark_ar_imagegen_torch_xla(
     )
     print(
         f"| Num image tokens: {num_image_tokens}\n"
-        f"| Steady-state:\n"
-        f"|   Prefill (s):             {prefill_s:.3f}\n"
-        f"|   Decode step mean (s):    {decode_step_mean_s:.4f}\n"
-        f"|   Decode tokens/s:         {decode_tokens_per_second:.2f}\n"
-        f"|   Vision decode (s):       {vision_decode_s:.3f}\n"
-        f"|   CPU overhead (s):        {cpu_overhead:.3f}"
+        f"| Per component, warm (cold in brackets):\n"
+        f"{format_staged_perf_summary(derived, step_metric_name)}\n"
+        f"|   Decode tokens/s:     {decode_tokens_per_second:.2f}"
     )
 
     custom_measurements = [
-        {"measurement_name": "images_per_second", "value": samples_per_sec},
-        {"measurement_name": "e2e_latency", "value": steady_state_time},
-        {"measurement_name": "prefill_s", "value": prefill_s},
-        {"measurement_name": "decode_step_mean_s", "value": decode_step_mean_s},
-        {
-            "measurement_name": "decode_tokens_per_second",
-            "value": decode_tokens_per_second,
-        },
-        {"measurement_name": "vision_decode_s", "value": vision_decode_s},
-        {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
+        create_measurement("images_per_second", samples_per_sec, full_model_name),
+        # Measured wall clock of the steady pass; the comparable pair is
+        # e2e_warm_s / e2e_cold_s.
+        create_measurement("e2e_latency", steady_state_time, full_model_name),
+        create_measurement(
+            "decode_tokens_per_second",
+            decode_tokens_per_second,
+            full_model_name,
+            step_warm_up_num_iterations=1,
+        ),
     ]
+    custom_measurements.extend(derived["measurements"])
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
