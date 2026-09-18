@@ -131,12 +131,15 @@ def _run_diffusiongemma_benchmark(
         pipeline.generate(prompt=prompt)
 
     model_type = "image-text-to-text" if image else "text-generation"
-    model_title = "DiffusionGemma 26B-A4B-it" + {
-        "text": "",
-        "text_long": f" (text, {TEXT_LONG_TOKENS} tok)",
-        "image": " (image+text)",
-        "image_only": " (image only)",
-    }[modality]
+    model_title = (
+        "DiffusionGemma 26B-A4B-it"
+        + {
+            "text": "",
+            "text_long": f" (text, {TEXT_LONG_TOKENS} tok)",
+            "image": " (image+text)",
+            "image_only": " (image only)",
+        }[modality]
+    )
 
     perf = pipeline._perf
     total_time = perf["total"]
