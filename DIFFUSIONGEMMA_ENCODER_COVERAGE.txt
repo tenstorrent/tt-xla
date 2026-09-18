@@ -1,0 +1,103 @@
+DiffusionGemma-26B-A4B-it -- ENCODER COVERAGE, all 4 input cases
+n300-llmbox, 8x WH | Sep 15-17 2026 | tt-xla 7b44c2d24 + build-chisel
+================================================================================
+
+QUESTION
+  Is the encoder's PCC drop caused by any individual op, or is it accumulation?
+  Answered uniformly across 4 cases, with three independent checks each.
+
+--------------------------------------------------------------------------------
+RESULTS
+--------------------------------------------------------------------------------
+case          tok   embeds     final     loss   worst layer   MoE block   set match   bad wt   worst op   ops  verdict
+text           15   1.000000   0.982231  0.018  L29 -0.0164   0.9983930   0.866667    0.1006   0.999287    32  PASS
+text          277   1.000000   0.910602  0.089  L26 -0.0663   0.9989169   0.862816    0.0521   0.999247    32  PASS
+image_only    277   0.994693   0.873975  0.121  L29 -0.0347   0.9981637   0.859206    0.0528   0.999243    41  PASS
+image+text    284   0.994826   0.884360  0.111  L29 -0.0359   0.9985126   0.862676    0.0588   0.999249    41  PASS
+
+  embeds     = post-merge input embeddings (stage 1, layer 0 input)
+  final      = last text-layer hidden state (NOT last_hidden_state; that is
+               post-final-RMSNorm, which is what the e2e test reports -- the two
+               are different tensors and not interchangeable)
+  loss       = embeds - final
+  worst op   = worst isolated per-op PCC, artifact set excluded
+  ops        = ops validly checked by Chisel against the 0.99 floor
+
+--------------------------------------------------------------------------------
+CONCLUSION
+--------------------------------------------------------------------------------
+1. NO OP IS AT FAULT. Worst isolated op is 0.99924-0.99929 in every case
+   (always ttnn.softmax). 32-41 ops checked per case, 268k+ records total.
+
+2. NO BLOCK IS AT FAULT. MoE block >= 0.9982 everywhere. Routing diverges on
+   ~14% of tokens but those experts carry <= 10% of the routing weight, and the
+   divergence is FLAT across cases -- so it is not the length mechanism.
+
+3. NO LAYER IS AT FAULT. Largest single step is -0.066 against total losses of
+   0.018-0.121, and it lands on a different layer per case.
+
+4. SEQUENCE LENGTH SETS THE RATE. text 15 -> 277 tokens takes the loss from
+   0.018 to 0.089 (5x) through identical weights and ops. Image content adds
+   ~1.4x on top at matched length (0.089 -> 0.121) plus ~0.005 at the merge.
+
+   The sharpest evidence: per-op quality is FLAT with length while accumulated
+   loss is not -- case (b) has 5x case (a)'s loss with a BETTER worst matmul
+   (0.99997 vs 0.99970).
+
+   This RESTORES the framing of issue #6054 ("Encoder PCC decays with sequence
+   length"). That had been retracted earlier, but the retraction was about
+   DECODER step PCC, not the encoder.
+
+--------------------------------------------------------------------------------
+WHY THREE STAGES (they are not redundant)
+--------------------------------------------------------------------------------
+stage 3  Chisel isolation -- per-op arithmetic. Computes each op's golden from
+         that op's ACTUAL DEVICE INPUTS, so a corrupted upstream value is
+         inherited and the op still PASSES. 8,604 mid-graph golden promotions in
+         the image run. Validates arithmetic GIVEN inputs, never the inputs.
+stage 2  MoE block -- the 5 ops Chisel cannot validly measure (see below).
+stage 1  Per-layer cumulative curve -- the ONLY check with an independently
+         loaded CPU reference, so the only one that can catch corrupted
+         weights/constants. LOAD-BEARING, not corroborating.
+
+OPS CHISEL CANNOT VALIDLY MEASURE, and how each is covered
+  ttnn.sparse_matmul          golden does a DENSE matmul by design    } MoE
+  ttnn.all_to_all_combine     golden assumes a 32-token pad, not 256  } block
+  ttnn.all_to_all_dispatch    permutation-dependent layout            } test
+  ttnn.moe_expert_token_remap golden uint16 vs device bf16 -> PCC 0   } (stage 2)
+  ttnn.topk                   PCC over categorical indices            }
+  ttnn.full                   one NaN sentinel; metrics.py:61 returns 0.0
+  deallocate/get_device/func.call/load_cached/constant -- non-arithmetic
+
+--------------------------------------------------------------------------------
+CHISEL BUGS FOUND (worked around in chisel_fixups.py; worth filing upstream)
+--------------------------------------------------------------------------------
+1. chisel_ttnn_to_layout reads op.attributes["layout"], absent from our IR
+   (0 of 816 to_layout ops in the decoder; 1,765 across all graphs). The golden
+   never uses it. Every one would KeyError -> no golden -> device tensor
+   promoted as truth, silently re-seeding accumulation.
+2. chisel_ttnn_sparse_matmul / chisel_ttnn_all_to_all_combine call
+   sparse_matmul_golden / all_to_all_combine_golden, which DO NOT EXIST (the
+   real names are ttir_*), and with the wrong kwargs. 90 chisel_bug records and
+   zero coverage of the ops doing the MoE math, in all 30 layers.
+
+--------------------------------------------------------------------------------
+METHOD NOTES
+--------------------------------------------------------------------------------
+* Inputs are bit-identical between CPU and TT: built once, then .to(xla).
+* CPU golden uses the CHECKPOINT'S OWN expert loop. It previously used tt_moe ->
+  HF batched_mm (PCC 0.9999923 vs stock at real dims); fixed before this sweep,
+  so case (d) re-measures at 0.884360 rather than the earlier 0.885725.
+* Never use Chisel accumulation mode at this scale: throughput decays
+  13,603 -> 525 -> 38 records/100s as its host golden pool grows. Isolation holds
+  a flat ~793/100s. Every both-modes run had to be killed; every isolation run
+  finished.
+
+ARTIFACTS
+  sweep_logs/{a_text15,b_text277,c_imageonly,d_imagetext}_{layers,moe,chisel,verdict}
+  chisel_results_archive/*_isolation.jsonl   (268k+ records)
+  analyze_chisel.py <jsonl>                  -> PASS/FAIL verdict
+  run_encoder_sweep.sh                       -> reproduces the whole sweep
+
+OPEN
+  Decoder self-conditioning +-Inf (tt-xla #6075). Not an encoder issue.

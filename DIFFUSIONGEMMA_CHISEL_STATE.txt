@@ -1,0 +1,227 @@
+DiffusionGemma / Chisel investigation -- resume notes
+=====================================================
+Scope: image path (284 tok) only, until a conclusion is reached.
+
+DONE
+----
+* Chisel built and working: build-chisel/ (-DTTXLA_ENABLE_EXPLORER=ON).
+  `import chisel` OK. The venv now points at this build (wheel reinstalled).
+  The original build/ is untouched and still has the verified OOM fix.
+* Smoke-tested at 8 devices (tests/torch/test_torch_xla_basic.py::test_spmd_sharding):
+  per-shard PCC for device_id 0..7, both modes, ~4 s.
+* Golden coverage CONFIRMED from the real compiled IR (ir_dump/irs/ttnn_*.mlir):
+  51 distinct ops / 32,009 instances across vision tower + encoder text + decoder.
+  Only 3 lack a golden and NONE does arithmetic:
+    get_device (not a tensor), constant (4x), mesh_partition (1x, shards a func arg).
+  rope is decomposed (sin/cos/neg/concat/multiply), MoE stays explicit
+  (topk/all_to_all_dispatch/moe_expert_token_remap/sparse_matmul/all_to_all_combine),
+  norms are plain rms_norm. None of the feared fused ops appear.
+* CHISEL BUG FOUND AND WORKED AROUND (chisel_fixups.py, pytest plugin):
+  chisel_ttnn_to_layout reads op.attributes["layout"], which our IR never carries
+  (0 of 816 to_layout ops in the decoder; 1,765 across all graphs). The golden never
+  uses it -- the body is just clone().to(dtype). Every to_layout would KeyError ->
+  no golden -> device tensor promoted into the golden pool -> accumulation silently
+  re-seeds from hardware. Worth an upstream issue.
+  The plugin also sets modes: CHISEL_MODES=iso|acc|both (default iso).
+* embed_vision component: CLEAN. 3 ops.
+    to_layout  iso 1.00000000  acc 1.00000000
+    rms_norm   iso 0.99999939  acc 0.99999939
+    matmul     iso 0.99999950  acc 0.99999829   <- compounding visible but ~1.7e-6
+* vision_tower (partial, both modes, 21,448 records archived): clean.
+    iso worst: softmax 0.99990857, rms_norm 0.99999756, matmul 0.99999898
+    acc worst: matmul 0.99968784, rms_norm 0.99985342
+
+KEY COST FINDING
+----------------
+Accumulation mode keeps a host golden pool of every live SSA until deallocate, so
+throughput decays monotonically: 13603 -> 525 -> 38 records/100s on the same model
+(~18 h for the vision tower alone). Isolation holds a flat ~793 records/100s.
+=> Split the two questions:
+     isolation Chisel  -> "is any single op broken?"   (per op)
+     probe_layers2.py  -> "does error compound?"       (per layer, cumulative)
+Promotions do NOT affect isolation validity: isolated goldens are computed from
+each op's own device inputs, never from the pool.
+
+RUNNING (queued, run_chisel_queue.sh, log chisel_queue.log)
+-----------------------------------------------------------
+run1: Chisel isolation-only, full ENCODER_IMAGE
+      log chisel_encoder_iso.log, results chisel_results/*encoder_image.jsonl
+      ~68,000 records expected; archived to
+      chisel_results_archive/encoder_image_isolation.jsonl on completion
+run2: auto-starts after run1 -- per-layer cumulative PCC probe
+      PROBE_VARIANT=ENCODER_IMAGE probe_layers2.py
+      log probe_layers_encoder_image.log
+
+RESULT SO FAR (the actual finding)
+----------------------------------
+No single op is broken. Every arithmetic op is >= 0.9999 isolated, across the
+vision tower, embed_vision and (so far) the encoder text stack. Yet the composed
+encoder output measures 0.8867 on the image path (0.9844 on text). So the drop is
+NOT one bad op -- it is accumulation across ~8,500 ops, and/or the composition
+steps that exist only in the fused graph (the masked_scatter merge of soft tokens
+into text embeddings, and each component inheriting the previous one's error).
+Run 2 is what quantifies the per-layer compounding.
+
+The only "failure" Chisel reports is an artifact, not a defect:
+  ttnn.full with fill_value=0x7FC00000 (NaN), 2520x1, in main_const_eval_207.
+  metrics.py:61 returns hard 0.0 when one side is all-NaN and the other is not.
+  1 op instance. PCC is meaningless for a NaN sentinel either way.
+
+NEXT AFTER THESE TWO RUNS
+-------------------------
+1. Read run2's per-layer curve: flat => per-op error dominates; sloping => the
+   error compounds, and the slope says where.
+2. Then the same two-run treatment on the decoder, then the whole model.
+3. Deferred pipeline fixes (NOT needed for Chisel, see the plan file):
+   A1 pipeline.py:498 config-less DynamicCache (latent, >=1024-token prompts)
+   A2 pipeline.py:445 CPU twin runs batched_mm not the checkpoint's expert loop
+      (PCC 0.9999923 vs stock; also ~30x slower -- a 16 GB gather per layer)
+   A3 KV cache never PCC-checked; A4 .bool() mask + seed placement
+   A5 prove manual_generate == stock generate() on CPU (token-id identical)
+
+FILES
+-----
+tests/torch/models/diffusiongemma/test_diffusiongemma_chisel.py  per-component tests
+chisel_fixups.py                    to_layout golden fix + CHISEL_MODES
+run_chisel_queue.sh                 run1 -> run2 chain
+ir_dump/irs/ttnn_*.mlir             compiled IR for all three graphs
+diffusiongemma_vision_logs/inputs/  cached real inputs per component
+chisel_results_archive/             archived jsonl from each run
+
+================================================================================
+RESUME POINT -- Sep 15, encoder sweep + the +-Inf gate
+================================================================================
+
+RUNNING UNATTENDED
+  run_encoder_sweep.sh (PID parent=1, flock /tmp/.diffgemma_sweep.lock)
+  log sweep.log, per-run logs sweep_logs/, results chisel_results_archive/
+  Only stage3 case (c) image_only remains (~1 h). Script is resumable: each stage
+  skips work already on disk.
+
+DISARMED ON PURPOSE
+  run_inf_gate.sh -- the +-Inf gate (I1 IR dump + I2 anchor A/B). Killed so it does
+  NOT auto-start after the sweep. Re-arm with:
+      setsid nohup ./run_inf_gate.sh > gate.log 2>&1 < /dev/null &
+  or just run the two scripts directly once the device is free:
+      python repro_ir_dump.py      # I1: dump IR, read the all_reduce region
+      python repro_anchor_test.py  # I2: sharded / sharded+anchor / replicated
+
+ENCODER SWEEP RESULTS SO FAR
+  stage 1 -- per-layer cumulative curve (independent CPU reference)
+    case              tokens  embeds     final      loss   worst layer
+    text                  15  1.000000   0.982231   0.018  L29 (-0.0164)
+    text                 277  1.000000   0.910602   0.089  L26 (-0.0663)
+    image_only           277  0.994693   0.873975   0.121  L29 (-0.0347)
+    image+text           284  0.994826   0.884360   0.111  L29 (-0.0359)
+    => sequence length is the dominant driver (15->277 tok: 5x more loss).
+       Image content adds ~1.4x on top at matched length, plus ~0.005 at the merge.
+
+  stage 2 -- MoE block + routing (covers the 5 ops Chisel cannot measure)
+    case            worst block PCC  worst set match  max bad wt mass
+    text 15              0.99839296         0.866667         0.100574
+    text 277             0.99891685         0.862816         0.052131
+    image_only 277       0.99816374         0.859206         0.052826
+    image+text 284       0.99851257         0.862676         0.058821
+    => MoE sound everywhere; routing diverges on ~14% of tokens but those experts
+       carry <=10% of the weight. FLAT across cases => not the length mechanism.
+
+  stage 3 -- per-op Chisel isolation (analyze_chisel.py, floor 0.99)
+    text 15     59,379 recs  32 ops  worst softmax 0.99928743  PASS
+    text 277    59,379 recs  32 ops  worst softmax 0.99924654  PASS
+    image+text  89,494 recs  41 ops  worst softmax 0.99924949  PASS
+    image_only  running
+    => per-op quality is FLAT with length while accumulated loss is not: case (b)
+       has 5x the loss of (a) with a BETTER worst matmul (0.99997 vs 0.99970).
+
+CONCLUSION (3 of 4 cases in, 4th pending)
+  No op, no block, no layer is at fault in the encoder. The drop is accumulation,
+  and its RATE is set by sequence length. NOTE this restores the framing of issue
+  #6054 ("Encoder PCC decays with sequence length"), which had been retracted --
+  that retraction was about DECODER step PCC, not the encoder.
+
+COVERAGE ARGUMENT (why the 3 stages are not redundant)
+  Chisel isolation computes each op's golden from that op's ACTUAL DEVICE INPUTS,
+  so a corrupted upstream value is inherited and the op still PASSES. There are
+  8,604 mid-graph golden promotions in the image run. Isolation validates
+  arithmetic GIVEN inputs, never the inputs themselves. Only the per-layer probe
+  (independent CPU reference) covers that, so it is load-bearing, not corroborating.
+
+NEXT (plan file: ~/.claude/plans/diffusion-gemma-model-was-warm-sky.md)
+  I1/I2 +-Inf gate -> then D1 decoder coverage, D2 outputs CPU vs TT x4,
+  D3 fix/re-measure loop.
+  Suspect for #6075: ShardyCCLToStableHLOCCLPatterns.cpp:310-314 hardcodes an AddOp
+  body for EVERY sdy.all_reduce (verified in source). A stable softmax over a
+  sharded axis needs all_reduce(MAX); summing the 8 per-device maxima overshoots
+  the shift ~8x, exp() flushes to 0, denominator 0, exp/0 -> +-Inf. Explains every
+  repro fact incl. "fp32 does not help". UNPROVEN -- I1 is the decisive test.
+
+================================================================================
+RESUME POINT -- Sep 17: +-Inf FIXED, gate live, demos clean. Next: benchmark + PR
+================================================================================
+
+ROOT CAUSE FOUND AND FIXED (tt-xla #6075)
+  softmax over an axis that is also the SHARDED CONTRACTING DIM of a following
+  matmul returns +-Inf. Confirmed in the compiled IR: the softmax decomposes to
+  max -> sub -> exp -> sum -> div, and the cross-device combine of the per-shard
+  MAX is emitted as stablehlo.add instead of stablehlo.maximum. Shift becomes
+  max0+..+max7 (~298) instead of max(max0..max7) (~37), exp() underflows to 0,
+  denominator 0, 0/0 -> +-Inf.
+  Source: ShardyCCLToStableHLOCCLPatterns.cpp:310-314 hardcodes AddOp for EVERY
+  sdy.all_reduce ("shardy does not have support for custom reduction types").
+  Isolation: softmax alone clean; sharded matmul alone clean (0.999993);
+  replicated weight clean (0.999808); sharded NON-contracting dim clean
+  (0.999814); sharded CONTRACTING dim -> 308,128 inf. Not about device count.
+  Issue updated with root cause + suggested fix. Repro:
+  repro_softmax_sharded_matmul_inf.py (30 lines, random data, no model).
+
+SHIPPED FIXES (in the generic pipeline, so e2e + demo + benchmark all get them)
+  third_party/tt_forge_models/diffusiongemma/pytorch/pipeline.py
+   1. patch_selfcond_anchor(mesh), called from setup(): pins the vocab-wide
+      softmax output replicated via sharding_constraint_tensor. Guarded on
+      device.type == "xla" so the CPU golden (same forward) is untouched.
+      embed_tokens STAYS sharded -> OOM fix intact. Transient all-gather 0.125 GiB.
+      NOTE anchoring the INPUT logits does NOT work (embeds stays 0.359807);
+      Shardy propagates the shard backwards, so it must sit on the probabilities.
+   2. Removed cpu_model._experts_implementation = TT_MOE_BACKEND_NAME -- the CPU
+      twin now runs the checkpoint's own expert loop instead of HF batched_mm
+      (correct reference, and ~30x faster: batched_mm materialises a ~16 GB
+      gather per layer, so goldens went ~86s -> ~20s).
+
+RESULTS -- gated e2e, 4 passed in 1:00:29 (thresholds LIVE, not soft)
+  case            encoder(>=0.88)  worst decoder(>=0.94)  steps  output
+  text 15            0.984375           0.949989            18   correct
+  text_long 277      0.914062           0.958854            15   correct
+  image 284          0.882812           0.957105             3   correct
+  image_only 277     0.882812           0.967754            15   correct
+  Values reproduce the soft run bit-for-bit -> deterministic, not near-floor.
+
+  BEFORE -> AFTER (worst overall): text 0.8384->0.9500 | image 0.6902->0.8828
+  | image_only 0.8906->0.8828 (now encoder-limited). Steps 48->15-18 everywhere
+  (none hit the 48 limit); image 12->3. image_only went from garbage to a correct
+  per-item image description. PCC no longer ranks inverse to quality.
+
+THRESHOLDS (test_diffusiongemma_e2e.py, with issue refs in the comments)
+  ENCODER_PCC_THRESHOLD = 0.88   # accumulation-limited, #6054; min measured 0.882812
+  DECODER_PCC_THRESHOLD = 0.94   # per-step isolated;       min measured 0.949989
+  Asserted separately (encoder vs decoder worst), not one combined `worst`.
+
+DEMOS -- all 4 paths clean, exit 0, no OOM, 4 generations in ONE process
+  examples/pytorch/diffusiongemma.py extended from 2 -> 4 paths (added
+  text-long via _length_prompt, and image-only via prompt=""). ~14 min per case.
+
+UNCOMMITTED (the changes to ship)
+  third_party/tt_forge_models: diffusiongemma/pytorch/pipeline.py   <- both fixes
+  tests/torch/models/diffusiongemma/test_diffusiongemma_e2e.py      <- thresholds
+                                                                       + text_long case
+  tests/torch/models/diffusiongemma/_length_prompt.py               <- new helper
+  examples/pytorch/diffusiongemma.py                                <- 4 paths
+  07_Sep_diffusiongemma_vision_checklist.txt
+
+NEXT
+  1. Benchmark for the 4 cases (tests/benchmark/test_diffusiongemma.py).
+  2. PR on both branches (tt-xla + tt-forge-models). No Claude co-author trailer.
+  3. Known and deliberately deferred: _pcc runs float32 and reported up to 1.0148
+     in these runs (bypasses the float64 promotion in evaluate()). Does not affect
+     the chosen floors; flag it on the PR rather than leaving it silent.
+  4. Not needed any more: decoder Chisel coverage (D1) -- the +-Inf was the defect
+     and it is fixed; outputs and gate both confirm it.
