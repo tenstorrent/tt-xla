@@ -12,13 +12,13 @@ _SEED = (
 )
 
 
-def build_prompt(loader, target_tokens, dtype_override=torch.bfloat16):
+def build_prompt(loader, target_tokens):
     """Return ``(prompt, n_tokens)``. Deterministic, and runs no model forward."""
     if not target_tokens:
         raise ValueError("target_tokens must be non-zero; caller should skip instead")
 
     def n_tokens(p):
-        return loader.load_text_inputs(dtype_override=dtype_override, prompt=p)[
+        return loader.load_text_inputs(dtype_override=torch.bfloat16, prompt=p)[
             "input_ids"
         ].shape[-1]
 
