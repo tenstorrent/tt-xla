@@ -25,7 +25,9 @@ Run: python examples/pytorch/diffusiongemma.py
 """
 
 import inspect
+from contextlib import contextmanager
 
+import pytest
 import torch_xla.runtime as xr
 from loguru import logger
 
@@ -42,34 +44,55 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
 )
 
 TEXT_LONG_TOKENS = 277  # matches the image cases
+CASES = ("text", "text_long", "image", "image_only")
+
+
+@contextmanager
+def _pipeline():
+    """Set up once; setup() is the expensive part and every case reuses it."""
+    xr.set_device_type("TT")
+    # transformers>=5.11 is required for DiffusionGemma; install the loader's pinned
+    # version for this run only and roll back on exit.
+    loader_path = inspect.getsourcefile(diffgemma_loader)
+    with RequirementsManager.for_loader(loader_path, framework="torch"):
+        p = DiffusionGemmaPipeline(
+            config=DiffusionGemmaConfig(max_new_tokens=MAX_NEW_TOKENS, seed=SEED)
+        )
+        p.setup()
+        yield p
+
+
+def _generate(pipeline, case):
+    if case == "text":
+        return pipeline.generate(prompt=PROMPT)
+    if case == "text_long":
+        prompt, n = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
+        logger.info("long text prompt is {} tokens", n)
+        return pipeline.generate(prompt=prompt)
+    if case == "image":
+        return pipeline.generate(image=True)
+    return pipeline.generate(image=True, prompt="")  # image_only
+
+
+@pytest.fixture(scope="module")
+def pipeline():
+    with _pipeline() as p:
+        yield p
+
+
+@pytest.mark.parametrize("case", CASES)
+def test_diffusiongemma(pipeline, case):
+    """One case per test, so a failure names the path that broke."""
+    out = _generate(pipeline, case)
+    assert out.strip(), f"{case} produced no output"
+    logger.info("DiffusionGemma [{}] output:\n{}", case, out)
 
 
 def main():
-    xr.set_device_type("TT")
-
-    # transformers>=5.11 is required for DiffusionGemma; install the loader's pinned version for
-    # this run only and roll back on exit (env stays clean for others).
-    loader_path = inspect.getsourcefile(diffgemma_loader)
-    with RequirementsManager.for_loader(loader_path, framework="torch"):
-        pipeline = DiffusionGemmaPipeline(
-            config=DiffusionGemmaConfig(max_new_tokens=MAX_NEW_TOKENS, seed=SEED)
-        )
-        pipeline.setup()
-        # setup() is the expensive part (weights + mesh); every path reuses it.
-        outs = {}
-        outs["text"] = pipeline.generate(prompt=PROMPT)
-
-        # Same path at the image cases' length, so the two are comparable.
-        long_prompt, n = pipeline.loader.build_prompt(TEXT_LONG_TOKENS)
-        logger.info("long text prompt is {} tokens", n)
-        outs["text (long)"] = pipeline.generate(prompt=long_prompt)
-
-        # prompt="" gives the image-only path.
-        outs["image + text"] = pipeline.generate(image=True)
-        outs["image only"] = pipeline.generate(image=True, prompt="")
-
-    for name, out in outs.items():
-        logger.info("DiffusionGemma [{}] output:\n{}", name, out)
+    with _pipeline() as p:
+        outs = {case: _generate(p, case) for case in CASES}
+    for case, out in outs.items():
+        logger.info("DiffusionGemma [{}] output:\n{}", case, out)
 
 
 if __name__ == "__main__":
