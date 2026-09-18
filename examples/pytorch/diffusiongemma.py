@@ -84,7 +84,10 @@ def pipeline():
 def test_diffusiongemma(pipeline, case):
     """One case per test, so a failure names the path that broke."""
     out = _generate(pipeline, case)
+    # The decode includes the prompt, so a non-empty string proves nothing on its
+    # own; last_new_tokens is what the denoising loop actually produced.
     assert out.strip(), f"{case} produced no output"
+    assert pipeline.last_new_tokens > 0, f"{case} generated no new tokens"
     logger.info("DiffusionGemma [{}] output:\n{}", case, out)
 
 
