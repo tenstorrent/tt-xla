@@ -35,31 +35,41 @@ from utils import (
 )
 
 from tests.runner.requirements import RequirementsManager
+from tests.torch.models.diffusiongemma._length_prompt import build_prompt
 
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_WARM_ENCODER_ITERS = 2  # extra in-residency prefills
+# Matches the image cases (277-284 tok) so the two text runs bracket the comparison.
+TEXT_LONG_TOKENS = 277
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 MODULE_EXPORT_PATH = "modules"
 
 
-@pytest.mark.nightly
-@pytest.mark.llmbox
-def test_diffusiongemma_26b(
+def _run_diffusiongemma_benchmark(
     output_file,
     request,
-    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
-    data_format=DEFAULT_DATA_FORMAT,
-    batch_size=DEFAULT_BATCH_SIZE,
+    modality,
+    fallback_display_name,
+    warm_encoder_iters,
+    data_format,
+    batch_size,
 ):
-    """End-to-end text generation plus per-component warm timings on 8 chips."""
+    """End-to-end generation plus per-component warm timings on 8 chips.
+
+    ``modality`` is one of text / text_long / image / image_only. The model, shard
+    spec and staged residency are identical for all four, so only the inputs and the
+    reported model type differ. text_long runs the text path at the image cases'
+    token count so the two are comparable; image_only passes prompt="" so the image
+    is the whole message.
+    """
     from third_party.tt_forge_models.diffusiongemma.pytorch import (
         loader as diffgemma_loader,
     )
 
     xr.set_device_type("TT")
     resolved_display_name = resolve_display_name(
-        request=request, fallback="diffusiongemma_26b_a4b_it"
+        request=request, fallback=fallback_display_name
     )
 
     # The shared benchmarks/ harnesses own this block; this benchmark measures
@@ -87,22 +97,46 @@ def test_diffusiongemma_26b(
             DiffusionGemmaPipeline,
         )
 
+        image = modality in ("image", "image_only")
         pipeline = DiffusionGemmaPipeline(
             config=DiffusionGemmaConfig(
                 max_new_tokens=MAX_NEW_TOKENS,
                 seed=SEED,
                 warm_iters=warm_encoder_iters,
+                image=image,
             )
         )
         setup_start = time.perf_counter()
         pipeline.setup()
         setup_time = time.perf_counter() - setup_start
 
-        prompt_len = pipeline.loader.load_inputs(
-            dtype_override=torch.bfloat16, prompt=PROMPT
-        )["input_ids"].shape[-1]
+        if modality == "image_only":
+            prompt = ""
+        elif modality == "text_long":
+            prompt, _ = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
+        else:
+            prompt = None if image else PROMPT
 
-        pipeline.generate()
+        prompt_inputs = (
+            pipeline.loader.load_image_inputs(
+                dtype_override=torch.bfloat16, prompt=prompt
+            )
+            if image
+            else pipeline.loader.load_text_inputs(
+                dtype_override=torch.bfloat16, prompt=prompt or PROMPT
+            )
+        )
+        prompt_len = prompt_inputs["input_ids"].shape[-1]
+
+        pipeline.generate(prompt=prompt)
+
+    model_type = "image-text-to-text" if image else "text-generation"
+    model_title = "DiffusionGemma 26B-A4B-it" + {
+        "text": "",
+        "text_long": f" (text, {TEXT_LONG_TOKENS} tok)",
+        "image": " (image+text)",
+        "image_only": " (image only)",
+    }[modality]
 
     perf = pipeline._perf
     total_time = perf["total"]
@@ -137,9 +171,9 @@ def test_diffusiongemma_26b(
     device_count = xr.global_runtime_device_count()
 
     print_benchmark_results(
-        model_title="DiffusionGemma 26B-A4B-it",
+        model_title=model_title,
         full_model_name=MODEL_INFO_NAME,
-        model_type="text-generation",
+        model_type=model_type,
         dataset_name="na",
         date=metadata["date"],
         machine_name=metadata["machine_name"],
@@ -155,7 +189,7 @@ def test_diffusiongemma_26b(
 
     results = create_benchmark_result(
         full_model_name=MODEL_INFO_NAME,
-        model_type="text-generation",
+        model_type=model_type,
         dataset_name="na",
         num_layers=-1,
         batch_size=batch_size,
@@ -180,6 +214,10 @@ def test_diffusiongemma_26b(
         ],
         display_name=resolved_display_name,
         arch=arch,
+        # NOT (channels, height, width): this model's input_size is a TOKEN sequence
+        # (batch, prompt_len) on every path, image included -- it is image-text-to-text.
+        # Passing input_is_image=True made utils.py:657 index input_size[2] on a 2-tuple
+        # and raise IndexError, so both image benchmarks had never run.
         input_is_image=False,
         input_sequence_length=prompt_len,
         device_count=device_count,
@@ -191,3 +229,87 @@ def test_diffusiongemma_26b(
         results["model_rawname"] = MODEL_INFO_NAME
         with open(output_file, "w") as file:
             json.dump(results, file, indent=2)
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Text-only block-diffusion generation."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        modality="text",
+        fallback_display_name="diffusiongemma_26b_a4b_it",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b_image(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Image+text block-diffusion generation: the prompt carries one image."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        modality="image",
+        fallback_display_name="diffusiongemma_26b_a4b_it_image",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b_text_long(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Text-only generation at the image cases' prompt length."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        modality="text_long",
+        fallback_display_name="diffusiongemma_26b_a4b_it_text_long",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+def test_diffusiongemma_26b_image_only(
+    output_file,
+    request,
+    warm_encoder_iters=DEFAULT_WARM_ENCODER_ITERS,
+    data_format=DEFAULT_DATA_FORMAT,
+    batch_size=DEFAULT_BATCH_SIZE,
+):
+    """Image-only generation: the image is the entire prompt."""
+    _run_diffusiongemma_benchmark(
+        output_file,
+        request,
+        modality="image_only",
+        fallback_display_name="diffusiongemma_26b_a4b_it_image_only",
+        warm_encoder_iters=warm_encoder_iters,
+        data_format=data_format,
+        batch_size=batch_size,
+    )

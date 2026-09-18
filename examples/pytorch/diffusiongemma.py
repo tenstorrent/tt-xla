@@ -1,7 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Runnable DiffusionGemma 26B (26B-A4B-it) text-to-text example on Tenstorrent.
+"""Runnable DiffusionGemma 26B (26B-A4B-it) example on Tenstorrent: all four input paths.
+
+The checkpoint takes text and images (no audio; its encoder does not take video), and emits
+text either way. This runs every input path back to back:
+
+  text            a short prompt (15 tokens)
+  text (long)     the same path at the image cases' token count, for comparison
+  image + text    an image prepended to the question -- the encoder's vision tower turns
+                  it into up to 280 soft tokens inside the prompt
+  image only      prompt="", so the image is the entire message
 
 The pipeline implementation lives in ``tt_forge_models``; this is a thin runnable demo that
 calls it. Both the encoder (prefill) and the decoder (denoising loop) run on the Tenstorrent
@@ -21,6 +30,7 @@ import torch_xla.runtime as xr
 from loguru import logger
 
 from tests.runner.requirements import RequirementsManager
+from tests.torch.models.diffusiongemma._length_prompt import build_prompt
 from third_party.tt_forge_models.diffusiongemma.pytorch import (
     loader as diffgemma_loader,
 )
@@ -31,6 +41,9 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
     DiffusionGemmaConfig,
     DiffusionGemmaPipeline,
 )
+
+# Matches the image cases (277-284 tokens) so the two text runs bracket the comparison.
+TEXT_LONG_TOKENS = 277
 
 
 def main():
@@ -44,9 +57,22 @@ def main():
             config=DiffusionGemmaConfig(max_new_tokens=MAX_NEW_TOKENS, seed=SEED)
         )
         pipeline.setup()
-        text = pipeline.generate(prompt=PROMPT)
+        # setup() is the expensive part (weights + mesh); every path reuses it.
+        outs = {}
+        outs["text"] = pipeline.generate(prompt=PROMPT)
 
-    logger.info("DiffusionGemma output:\n{}", text)
+        # Same text path at the image cases' length, so the two are comparable.
+        long_prompt, n = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
+        logger.info("long text prompt is {} tokens", n)
+        outs["text (long)"] = pipeline.generate(prompt=long_prompt)
+
+        # prompt=None takes the loader's sample image question; prompt="" gives the
+        # image-only path (no text part in the message).
+        outs["image + text"] = pipeline.generate(image=True)
+        outs["image only"] = pipeline.generate(image=True, prompt="")
+
+    for name, out in outs.items():
+        logger.info("DiffusionGemma [{}] output:\n{}", name, out)
 
 
 if __name__ == "__main__":
