@@ -42,8 +42,7 @@ from third_party.tt_forge_models.diffusiongemma.pytorch.pipeline import (
     DiffusionGemmaPipeline,
 )
 
-# Matches the image cases (277-284 tokens) so the two text runs bracket the comparison.
-TEXT_LONG_TOKENS = 277
+TEXT_LONG_TOKENS = 277  # matches the image cases
 
 
 def main():
@@ -61,13 +60,12 @@ def main():
         outs = {}
         outs["text"] = pipeline.generate(prompt=PROMPT)
 
-        # Same text path at the image cases' length, so the two are comparable.
+        # Same path at the image cases' length, so the two are comparable.
         long_prompt, n = build_prompt(pipeline.loader, TEXT_LONG_TOKENS)
         logger.info("long text prompt is {} tokens", n)
         outs["text (long)"] = pipeline.generate(prompt=long_prompt)
 
-        # prompt=None takes the loader's sample image question; prompt="" gives the
-        # image-only path (no text part in the message).
+        # prompt="" gives the image-only path.
         outs["image + text"] = pipeline.generate(image=True)
         outs["image only"] = pipeline.generate(image=True, prompt="")
 

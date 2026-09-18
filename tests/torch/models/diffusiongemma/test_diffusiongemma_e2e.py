@@ -31,23 +31,11 @@ from third_party.tt_forge_models.diffusiongemma.pytorch import (
 
 MAX_NEW_TOKENS = 256
 SEED = 0
-# Per-component floors, taken from the measured worst case across all four input
-# cases (text 15 / text 277 / image 284 / image-only 277) and rounded down.
-#
-# ENCODER is the lower of the two because its error is pure ACCUMULATION over the
-# 27-layer vision tower + 30-layer text stack, and its rate is set by sequence
-# length -- see tenstorrent/tt-xla#6054. Measured per-op with Chisel across all
-# four cases: no op below 0.9992, MoE block >= 0.9982, no per-layer cliff, so
-# there is no defect to fix here; the floor reflects bf16 depth accumulation.
-#   text 15 0.9844 | text 277 0.9141 | image 284 0.8828 | image-only 277 0.8828
+# Measured worst case across the four input cases, rounded down. The encoder floor
+# is the lower of the two because its error is accumulation over 57 layers, at a
+# rate set by sequence length -- tenstorrent/tt-xla#6054. Decoder steps are
+# measured in isolation, so theirs is per-step error, not cumulative.
 ENCODER_PCC_THRESHOLD = 0.88
-#
-# DECODER steps are measured in isolation (the golden receives the same inputs TT
-# consumed), so this is per-step error, not cumulative. Worst step across cases:
-#   text 15 0.9500 | text 277 0.9589 | image 284 0.9571 | image-only 277 0.9678
-# Before the self-conditioning fix (tenstorrent/tt-xla#6075) the image case fell
-# to 0.6902 mid-loop; that +-Inf is fixed in the pipeline, see
-# patch_selfcond_anchor().
 DECODER_PCC_THRESHOLD = 0.94
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
@@ -68,19 +56,13 @@ def _record_properties(model_name):
     )
 
 
-# The image path currently measures ~0.87 (sequence-length decay plus the vision
-# front-end's seed error, tt-xla#6054). Set DIFFGEMMA_PCC_SOFT=1 to log PCC instead
-# of asserting, so a run can be used to verify staging/OOM without the floor
-# aborting it at the encoder. The committed floor itself is not lowered.
+# Log PCC instead of asserting it, so a run can verify staging/OOM without a
+# floor aborting it at the encoder.
 _PCC_SOFT = os.environ.get("DIFFGEMMA_PCC_SOFT") == "1"
-# DIFFGEMMA_PCC_OFF skips the golden ENTIRELY. PCC_SOFT still runs golden_fn()
-# -- a CPU forward of the 26B model on every denoising step -- so it is useless
-# for questions that are not about numerics (e.g. proving the staged residency
-# no longer OOMs). OFF exercises the real TT pipeline and nothing else.
+# Skip the golden entirely: PCC_SOFT still runs a CPU forward of the 26B model
+# on every step, which dominates a run that is not about numerics.
 _PCC_OFF = os.environ.get("DIFFGEMMA_PCC_OFF") == "1"
-# Denoise steps that get a CPU twin + PCC check. The canvas is denoised over many
-# steps and one 26B CPU forward dominates each, so checking all of them costs
-# hours for information the leading steps already carry.
+# Denoise steps that get a CPU twin: one 26B CPU forward dominates each step.
 PCC_CHECK_STEPS = int(os.environ.get("DIFFGEMMA_PCC_CHECK_STEPS", "10"))
 # Token count for the text_long case -- matches the image cases (277-284).
 TEXT_LONG_TOKENS = int(os.environ.get("DIFFGEMMA_TEXT_LONG_TOKENS", "277"))

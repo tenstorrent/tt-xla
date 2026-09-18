@@ -39,8 +39,7 @@ from tests.torch.models.diffusiongemma._length_prompt import build_prompt
 
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_WARM_ENCODER_ITERS = 2  # extra in-residency prefills
-# Matches the image cases (277-284 tok) so the two text runs bracket the comparison.
-TEXT_LONG_TOKENS = 277
+TEXT_LONG_TOKENS = 277  # matches the image cases
 DEFAULT_BATCH_SIZE = 1
 MODEL_INFO_NAME = "google/diffusiongemma-26B-A4B-it"
 MODULE_EXPORT_PATH = "modules"
@@ -57,11 +56,8 @@ def _run_diffusiongemma_benchmark(
 ):
     """End-to-end generation plus per-component warm timings on 8 chips.
 
-    ``modality`` is one of text / text_long / image / image_only. The model, shard
-    spec and staged residency are identical for all four, so only the inputs and the
-    reported model type differ. text_long runs the text path at the image cases'
-    token count so the two are comparable; image_only passes prompt="" so the image
-    is the whole message.
+    ``modality`` is text / text_long / image / image_only. The model, shard spec and
+    staged residency are identical for all four; only the inputs differ.
     """
     from third_party.tt_forge_models.diffusiongemma.pytorch import (
         loader as diffgemma_loader,
@@ -217,10 +213,8 @@ def _run_diffusiongemma_benchmark(
         ],
         display_name=resolved_display_name,
         arch=arch,
-        # NOT (channels, height, width): this model's input_size is a TOKEN sequence
-        # (batch, prompt_len) on every path, image included -- it is image-text-to-text.
-        # Passing input_is_image=True made utils.py:657 index input_size[2] on a 2-tuple
-        # and raise IndexError, so both image benchmarks had never run.
+        # input_size is a token sequence here, not (C, H, W) -- passing True made
+        # utils.py index input_size[2] on a 2-tuple and raise.
         input_is_image=False,
         input_sequence_length=prompt_len,
         device_count=device_count,
