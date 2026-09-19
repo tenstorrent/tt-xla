@@ -48,6 +48,7 @@ from .passes import (
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
     cast_bool_cumsum_to_int32,
+    cast_index_tensors_to_long,
     clamp_neg_getitem_bounds,
     clamp_neg_slice_bounds,
     fold_view_bmm_view_to_einsum,
@@ -524,6 +525,10 @@ def torch_pass_pipeline(
     # bool cumsum inputs to int32. Runs for both the AOTAutograd and torch.export
     # paths (common point after the branch). Refs: whisper find_packed_sequence_indices.
     cast_bool_cumsum_to_int32(compiled_graph)
+
+    # Widen mixed integer index dtypes to int64: torch_xla concatenates index
+    # tensors when lowering advanced indexing, and XLA rejects mixed types.
+    cast_index_tensors_to_long(compiled_graph)
 
     compiled_graph = insert_argument_type_markers(
         compiled_graph, graph_signature, flat_name_to_original_fqn
