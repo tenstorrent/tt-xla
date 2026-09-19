@@ -174,9 +174,10 @@ class ModelTestStatus(Enum):
 
 
 class ModelTestConfig:
-    def __init__(self, data, arch=None):
+    def __init__(self, data, arch=None, emitpy=False):
         self.data = data or {}
         self.arch = arch
+        self.emitpy = emitpy
 
         # For marking tests as expected passing, known failures, etc
         self.status = self._resolve("status", default=ModelTestStatus.UNSPECIFIED)
@@ -252,9 +253,15 @@ class ModelTestConfig:
         self.emitpy_assert_exact = self._resolve("emitpy_assert_exact", default=True)
 
     def _resolve(self, key, default=None):
-        overrides = self.data.get("arch_overrides", {})
-        if self.arch in overrides and key in overrides[self.arch]:
-            return overrides[self.arch][key]
+        # EmitPy runs may override the bring-up status (via emitpy_overrides,
+        # restricted to status/reason), so a model can be EXPECTED_PASSING on the
+        # normal path but xfail under --emitpy.
+        emitpy_overrides = self.data.get("emitpy_overrides", {})
+        if self.emitpy and key in emitpy_overrides:
+            return emitpy_overrides[key]
+        arch_overrides = self.data.get("arch_overrides", {})
+        if self.arch in arch_overrides and key in arch_overrides[self.arch]:
+            return arch_overrides[self.arch][key]
         return self.data.get(key, default)
 
     def to_comparison_config(self) -> ComparisonConfig:
