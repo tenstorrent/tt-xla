@@ -42,13 +42,22 @@ Either may arrive as its own `.mlir` file or as a section inside an execution lo
    - Is it a standalone `.mlir`, or a log with embedded IR (locate the `module { ... }` block)?
    - Does it contain TTIR (`ttir.*` ops) or TTNN (`ttnn.*` ops)? The dialect prefix is the tell.
 2. **Fetch the TTNN op reference**: https://docs.tenstorrent.com/tt-metal/latest/ttnn/_sources/ttnn/api.rst.txt — this is the source of truth for what fused ops exist.
-3. **Scan for direct fusions**: walk the IR for op sequences that match a fused TTNN op (e.g., separate `mean → sub → mul → rsqrt → add` collapsing to `ttnn.layer_norm`). Scan TTIR for the same patterns at the higher level.
-4. **Scan for theoretical fusions**: identify patterns that map to single kernels in torch/triton/cuda (e.g., `matmul → softmax → matmul` → `scaled_dot_product_attention`).
-5. **Cross-reference TTIR ↔ TTNN** when both are available: line up matching `loc(#locNNNN)` references so each `instance` in the report can carry both representations.
-6. **Fan out subagents** for parallel scans across large IR dumps — split by line ranges or by op family. Each subagent returns a partial list of `missed_fusions` entries which you merge.
-7. **Decide**:
-   - Nothing found → return without writing a file. Do nothing.
-   - Found candidates → write `fusion_todo.yml` in the schema below.
+3. **Load the tt-mlir fusing catalog**: read [`references/ttmlir-fusing-catalog.md`](references/ttmlir-fusing-catalog.md). It enumerates every fusion tt-mlir **already implements** at the MLIR level (`ttir-fusing` / `ttnn-fusing`), the op each collapses to, the owning pass, and any gating flag. This is what lets you classify each candidate (see step 7) and avoid reporting fusions the compiler already does.
+4. **Scan for direct fusions**: walk the IR for op sequences that match a fused TTNN op (e.g., separate `mean → sub → mul → rsqrt → add` collapsing to `ttnn.layer_norm`). Scan TTIR for the same patterns at the higher level.
+5. **Scan for theoretical fusions**: identify patterns that map to single kernels in torch/triton/cuda (e.g., `matmul → softmax → matmul` → `scaled_dot_product_attention`).
+6. **Cross-reference TTIR ↔ TTNN** when both are available: line up matching `loc(#locNNNN)` references so each `instance` in the report can carry both representations.
+7. **Classify each candidate against the catalog** to populate the actionability fields (`dialect_level`, `pass_status`, `owning_pass`, `existing_pattern`):
+   - Decide `dialect_level` (`ttir` vs `ttnn`) per the catalog's rule of thumb — framework-shape fusions at TTIR, hardware-op fusions at TTNN.
+   - Match the candidate's `component_ops` / motif against the catalog. Set `pass_status` to:
+     - `no_pass` — no catalog pattern targets this `fused_op` → a new MLIR pattern is needed.
+     - `pass_exists_not_fired` — a catalog pattern targets this `fused_op` and the IR shape looks eligible, yet the ops are still separate → an existing-pattern gap/bug.
+     - `gated_off` — a catalog pattern exists but is behind a disabled flag/build (e.g. the op-model-gated TTNN patterns, or `conv2dWithMultiplyEnabled` / `permuteMatmulEnabled` / `enableRoPEFusion`).
+   - When `pass_status != no_pass`, record `owning_pass` (`ttir-fusing` / `ttnn-fusing`) and `existing_pattern` (the catalog pattern class name).
+8. **Fan out subagents** for parallel scans across large IR dumps — split by line ranges or by op family. Each subagent returns a partial list of `missed_fusions` entries which you merge.
+9. **Prioritize**: sort `missed_fusions` by number of `instances` (descending) so the highest-impact gaps appear first. The count drives whether a fusion is worth implementing.
+10. **Decide**:
+    - Nothing found → return without writing a file. Do nothing.
+    - Found candidates → write `fusion_todo.yml` in the schema below.
 
 ## Output Schema: `fusion_todo.yml`
 
@@ -62,6 +71,10 @@ input:
 missed_fusions:
   - fused_op: ttnn.linear
     source: ttnn                    # one of: ttnn | torch | triton | cuda
+    dialect_level: ttir             # ttir | ttnn — where the fusion should be implemented
+    pass_status: pass_exists_not_fired  # no_pass | pass_exists_not_fired | gated_off
+    owning_pass: ttir-fusing        # required when pass_status != no_pass
+    existing_pattern: MatmulWithBiasFusionPattern  # catalog pattern class; required when pass_status != no_pass
     component_ops:
       - ttnn.matmul
       - ttnn.add
@@ -81,6 +94,9 @@ missed_fusions:
 
   - fused_op: ttnn.layer_norm        # with weight/bias operands
     source: ttnn
+    dialect_level: ttir
+    pass_status: no_pass             # no ttir-fusing pattern for affine adaLN; handled via composite path
+    # owning_pass / existing_pattern omitted because pass_status == no_pass
     component_ops:
       - ttnn.layer_norm              # currently called with operandSegmentSizes = [1, 0, 0]
       - ttnn.add
@@ -107,6 +123,10 @@ missed_fusions:
 
   - fused_op: torch.scaled_dot_product_attention
     source: torch
+    dialect_level: ttnn
+    pass_status: gated_off           # ttnn-fusing SDPAFusing exists but needs TTMLIR_ENABLE_OPMODEL + enableOpConstraints
+    owning_pass: ttnn-fusing
+    existing_pattern: SDPAFusing
     component_ops:
       - ttnn.matmul
       - ttnn.multiply
@@ -140,6 +160,10 @@ missed_fusions:
 | `missed_fusions` | yes | Top-level list of fusion candidates |
 | `fused_op` | yes | Fully qualified target op (e.g., `ttnn.layer_norm`, `torch.scaled_dot_product_attention`) |
 | `source` | yes | `ttnn` (direct fusion) or `torch` / `triton` / `cuda` (theoretical) |
+| `dialect_level` | yes | `ttir` or `ttnn` — the dialect level where this fusion should be implemented. Drives which tt-mlir pass the enable skill extends. Use the catalog's rule of thumb. |
+| `pass_status` | yes | `no_pass` (no tt-mlir pattern exists), `pass_exists_not_fired` (a catalog pattern targets this `fused_op` but didn't fire), or `gated_off` (pattern exists but is behind a disabled build/flag). Set by cross-referencing `references/ttmlir-fusing-catalog.md`. |
+| `owning_pass` | when `pass_status != no_pass` | The catalog pass that owns/should own this fusion: `ttir-fusing` or `ttnn-fusing`. |
+| `existing_pattern` | when `pass_status != no_pass` | The catalog pattern class name (e.g. `SDPAFusing`, `MatmulWithBiasFusionPattern`) that already targets this `fused_op`. |
 | `component_ops` | yes | Ops that should collapse into `fused_op` |
 | `instances` | yes | Every concrete site the pattern was found — count drives prioritization |
 | `instances[].ir_loc` | optional | The MLIR `#loc...` ref(s) covering the segment, comma-separated. Use these to align TTIR ↔ TTNN. |
@@ -150,7 +174,8 @@ missed_fusions:
 ## Common Mistakes
 
 - **Reporting when nothing is missed.** Silence is the success signal. Do not produce an empty `missed_fusions: []` file — produce nothing.
-- **Including fusions the compiler already does.** Verify the IR really shows separate ops, not a fused op printed as its components. For example, a `ttnn.layer_norm` with `operandSegmentSizes = [1, 1, 1]` *already* has weight and bias fused — don't flag it.
+- **Including fusions the compiler already does.** Verify the IR really shows separate ops, not a fused op printed as its components. For example, a `ttnn.layer_norm` with `operandSegmentSizes = [1, 1, 1]` *already* has weight and bias fused — don't flag it. Also cross-check `references/ttmlir-fusing-catalog.md`: if a candidate appears already collapsed via a catalog pattern or the composite path (`tenstorrent.*`), don't report it.
+- **Skipping the catalog classification.** Every entry must carry `dialect_level` and `pass_status`. An entry without these is not actionable by the enable skill. Don't guess — look the `fused_op` up in the catalog.
 - **Skipping the theoretical class.** Even when no TTNN fused op exists, surfacing torch/triton/cuda equivalents prioritizes kernel work.
 - **Free-form output.** No `- start yaml` markers, no prose-only values, no markdown headings inside the file. The YAML must `yaml.safe_load`.
 - **Reporting only one occurrence per pattern.** List *every* instance — the count is what tells the reader whether it's worth fixing.
