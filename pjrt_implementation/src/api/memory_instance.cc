@@ -25,6 +25,34 @@ namespace tt::pjrt {
 const std::string MemoryInstance::c_host_memory_kind_name = "pinned_host";
 const std::string MemoryInstance::c_device_memory_kind_name = "device";
 
+namespace {
+
+// Backs the PJRT_Memory vtable `get_user_data` slot: forwards to the owning
+// MemoryInstance.
+void *memoryGetUserData(PJRT_Memory *memory, const void *key) {
+  return MemoryInstance::unwrap(memory)->getUserData(key);
+}
+
+// Backs the PJRT_Memory vtable `set_user_data` slot: forwards to the owning
+// MemoryInstance.
+void memorySetUserData(PJRT_Memory *memory, const void *key, void *data,
+                       void (*dtor)(void *)) {
+  MemoryInstance::unwrap(memory)->setUserData(key, data, dtor);
+}
+
+// The single PJRT_Memory vtable shared by every MemoryInstance. It only exposes
+// the user-data accessors the framework needs to associate its own per-memory
+// state with our PJRT_Memory objects.
+const PJRT_Memory_FunctionTable kMemoryFunctionTable = {
+    /*struct_size=*/PJRT_Memory_FunctionTable_STRUCT_SIZE,
+    /*extension_start=*/nullptr,
+    /*instance_struct_size=*/PJRT_Memory_STRUCT_SIZE,
+    /*get_user_data=*/memoryGetUserData,
+    /*set_user_data=*/memorySetUserData,
+};
+
+} // namespace
+
 std::unique_ptr<MemoryInstance> MemoryInstance::createInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
     bool is_host_memory) {
@@ -50,10 +78,52 @@ void MemoryInstance::bindApi(PJRT_Api *api) {
 MemoryInstance::MemoryInstance(
     std::vector<DeviceInstance *> &addressable_by_devices, size_t id,
     bool is_host_memory)
-    : m_addressable_by_devices(addressable_by_devices), m_id(id),
-      m_is_host_memory(is_host_memory) {
+    : m_vtable(&kMemoryFunctionTable),
+      m_addressable_by_devices(addressable_by_devices),
+      m_is_host_memory(is_host_memory), m_id(id) {
   m_debug_string =
       "MemoryInstance: " + std::to_string(id) + " (" + getMemoryKind() + ")";
+}
+
+MemoryInstance::~MemoryInstance() {
+  std::lock_guard<std::mutex> lock(m_user_data_mutex);
+  for (auto &[key, value] : m_user_data) {
+    auto &[data, dtor] = value;
+    if (dtor != nullptr) {
+      dtor(data);
+    }
+  }
+}
+
+void *MemoryInstance::getUserData(const void *key) {
+  std::lock_guard<std::mutex> lock(m_user_data_mutex);
+  auto it = m_user_data.find(key);
+  return it == m_user_data.end() ? nullptr : it->second.first;
+}
+
+void MemoryInstance::setUserData(const void *key, void *data,
+                                 void (*dtor)(void *)) {
+  std::lock_guard<std::mutex> lock(m_user_data_mutex);
+  auto it = m_user_data.find(key);
+  if (it != m_user_data.end() && it->second.second != nullptr &&
+      it->second.first != nullptr) {
+    // Destroy the previous value before overwriting or erasing it.
+    it->second.second(it->second.first);
+  }
+
+  if (data == nullptr) {
+    // A null value clears the entry, matching the framework's convention.
+    if (it != m_user_data.end()) {
+      m_user_data.erase(it);
+    }
+    return;
+  }
+
+  if (it != m_user_data.end()) {
+    it->second = {data, dtor};
+  } else {
+    m_user_data.emplace(key, std::make_pair(data, dtor));
+  }
 }
 
 DeviceInstance *MemoryInstance::getDevice() {
