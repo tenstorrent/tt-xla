@@ -94,6 +94,7 @@ def benchmark_video_gen_torch_xla(
     warmup_steps=WARMUP_STEPS,
     data_format="bfloat16",
     required_pcc=0.97,
+    model_type=None,
 ):
     """Benchmark a single video-generation model component with torch-xla.
 
@@ -125,6 +126,10 @@ def benchmark_video_gen_torch_xla(
         data_format: Precision string for reporting ("bfloat16" / "float32").
         required_pcc: Minimum PCC threshold (asserted). If None, the CPU golden
             and PCC check are skipped entirely (perf-only run).
+        model_type: Reported model-type label. Defaults to the video-generation
+            string; pass an explicit value when this harness is reused for a
+            component that is not video generation (it is the only harness that
+            supports SPMD sharding, so non-video models land here too).
 
     Returns:
         Standardized benchmark result dictionary.
@@ -218,21 +223,21 @@ def benchmark_video_gen_torch_xla(
         for i, ms in enumerate(per_forward_ms)
     ]
 
-    # Validate correctness (asserts internally on PCC < required_pcc) and record
-    # the measured PCC as the evaluation score, matching the encoder harness.
-    # When the golden was skipped (required_pcc is None) there is nothing to
-    # check and no score is recorded.
+    # Validate correctness and record the measured PCC as the evaluation score,
+    # matching the encoder harness. When the golden was skipped (required_pcc is
+    # None) there is nothing to check and no score is recorded.
     evaluation_score = None
     if required_pcc is not None:
-        evaluation_score = compute_pcc(
-            last_output, golden_output, required_pcc=required_pcc
-        )
+        evaluation_score = compute_pcc(golden_output, last_output)
+        assert (
+            evaluation_score >= required_pcc
+        ), f"PCC comparison failed. PCC={evaluation_score:.6f}, Required={required_pcc}"
         print(f"PCC verification passed with PCC={evaluation_score:.6f}")
     else:
         print("PCC check skipped (required_pcc=None).")
 
     metadata = get_benchmark_metadata()
-    model_type = "Video Generation, Random Input Data"
+    model_type = model_type or "Video Generation, Random Input Data"
     dataset_name = "Random Data"
     num_layers = -1
 
