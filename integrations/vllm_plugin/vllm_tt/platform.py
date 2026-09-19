@@ -655,14 +655,19 @@ class TTPlatform(Platform):
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
 
+        # Only models with multimodal-bidirectional attention need whole items:
+        # the placeholder span attends to itself, so it cannot be split across
+        # chunks. Everything else re-slices the cached encoder output per chunk
+        # (tt-xla #5824). Mirrors vllm/platforms/cuda.py.
         if (
-            scheduler_config.is_multimodal_model
+            model_config is not None
+            and model_config.is_mm_prefix_lm
+            and scheduler_config.is_multimodal_model
             and not scheduler_config.disable_chunked_mm_input
         ):
             logger.warning(
-                "TT does not support running Multimodal models"
-                " without setting `--disable_chunked_mm_input`. "
-                "Forcing --disable_chunked_mm_input."
+                "Forcing --disable_chunked_mm_input for models with "
+                "multimodal-bidirectional attention."
             )
             scheduler_config.disable_chunked_mm_input = True
 
