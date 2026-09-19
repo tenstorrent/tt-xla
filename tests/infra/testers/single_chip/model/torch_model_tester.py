@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
+import gc
 import os
 import shutil
 import tempfile
@@ -360,6 +361,27 @@ class TorchModelTester(ModelTester):
         # and only want to report on the backward result
         return backward_result, forward_result
 
+    def _release_device_weights(self) -> None:
+        """Drop the model's on-device weights so the runtime's const-eval cache drains.
+
+        The runtime keeps preprocessed weights in a process-global const-eval
+        cache. An entry is evicted only when one of the input tensors that
+        produced it is destroyed (``GlobalTensorCache::store`` registers an
+        on-destroy callback on each input for exactly that purpose). Moving the
+        model off device destroys those tensors, so the cache drains through its
+        intended mechanism.
+
+        Safe to call before a subsequent device run: ``DeviceRunner.run_on_device``
+        re-places the workload on device on every invocation.
+        """
+        model = getattr(self._workload, "model", None)
+        if model is None or not hasattr(model, "to"):
+            return
+        model.to("cpu")
+        # Parameters are freed once the device tensors are unreferenced. Collect
+        # so that happens here rather than at an arbitrary later point.
+        gc.collect()
+
     def verify_emitpy(
         self,
         fb_reference,
@@ -406,6 +428,13 @@ class TorchModelTester(ModelTester):
             self._compile_for_tt_device(
                 self._workload, options={"tt_legacy_compile": True}
             )
+
+            # Release the flatbuffer run's on-device weights before the EmitPy run
+            # so its retained const-eval results are evicted. Otherwise both runs'
+            # weights are co-resident and peak DRAM roughly doubles, which OOMs on
+            # devices with smaller DRAM (n150), while those with larger DRAM
+            # (p150) mask it.
+            self._release_device_weights()
 
             emitpy_result = self._run_on_tt_device(self._workload)
 
