@@ -24,6 +24,7 @@ def run_pooling_test(
     use_2d_mesh: bool = False,
     mesh_shape: list[int] | None = None,
     shard_weights_on_batch_axis: bool = True,
+    flat_model_io: bool = False,
 ):
     path = os.path.join(os.path.dirname(__file__), baseline_path)
     loaded_data = torch.load(path)
@@ -52,6 +53,7 @@ def run_pooling_test(
             "use_2d_mesh": use_2d_mesh,
             "mesh_shape": mesh_shape,
             "shard_weights_on_batch_axis": shard_weights_on_batch_axis,
+            "flat_model_io": flat_model_io,
         },
     }
     model = vllm.LLM(**llm_args)
