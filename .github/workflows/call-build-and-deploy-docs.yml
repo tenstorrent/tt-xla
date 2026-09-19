@@ -69,7 +69,9 @@ jobs:
     - name: Index docs into OpenSearch
       if: ${{ env.DOCS_SEARCH_INGEST_API_KEY != '' }}
       continue-on-error: true
-      run: python scripts/index_remote_search.py
+      # The docs build runs in the project container, which ships `python3` but
+      # not an unversioned `python` — the latter fails with exit 127.
+      run: python3 scripts/index_remote_search.py
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@57f0e8492b437b7818227931fef2faa1a379839b # v4 + upload-artifact@v7 update
