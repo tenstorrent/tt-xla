@@ -3,14 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Mochi-1 preview — nightly e2e pipeline test, every TT component PCC-gated
-against a CPU twin in the same dtype. The T5-XXL text encoder (fp32) and the DiT
-(bf16) both run tensor-parallel on TT; scheduler and VAE stay on CPU. The encoder
-is checked on each of its two forwards (cond + uncond), the DiT once per
-denoising step.
+against a CPU twin in the same dtype. The T5-XXL text encoder (fp32), the DiT
+(bf16) and the VAE decoder (bf16) all run tensor-parallel on TT; the scheduler
+stays on CPU. The encoder is checked on each of its two forwards (cond +
+uncond), the DiT once per denoising step, the decoder on its single forward.
 
 CFG is on (guidance_scale=4.5), so every DiT forward — and every twin forward —
 sees a batch-2 cat([uncond, cond]) input.
+
+The generated clip is written out as an MP4 and its dimensions asserted, the
+same way the image-gen pipeline tests check their saved PNG.
 """
+
+from pathlib import Path
 
 import pytest
 import torch
@@ -24,9 +29,14 @@ from utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
 from third_party.tt_forge_models.mochi.pytorch import ModelLoader, ModelVariant
 from third_party.tt_forge_models.mochi.pytorch.src.pipeline import (
+    FPS,
+    HEIGHT,
     TEXT_ENCODER_DTYPE,
+    VAE_TEMPORAL_SCALE_FACTOR,
+    WIDTH,
     Mochi1Config,
     Mochi1Pipeline,
+    save_video,
 )
 
 PROMPT = (
@@ -36,9 +46,10 @@ PROMPT = (
 SEED = 0
 NUM_INFERENCE_STEPS = 10
 NUM_FRAMES = 24
+OUTPUT_PATH = "mochi_1_pipeline_output.mp4"
 # Set by the text encoder, which tops out ~0.95 even in fp32 (0.9494 cond /
-# 0.9518 uncond); the DiT runs ~1.0. See
-# https://github.com/tenstorrent/tt-xla/issues/5995
+# 0.9518 uncond); the DiT runs ~1.0, and the VAE decoder clears 0.99 in its
+# component test. See https://github.com/tenstorrent/tt-xla/issues/5995
 PCC_THRESHOLD = 0.94
 
 VARIANT_NAME = ModelVariant.MOCHI
@@ -61,7 +72,14 @@ def _attach_pcc_checks(pipeline: Mochi1Pipeline) -> None:
     asserted per forward so a diverging step fails fast; the pipeline continues
     using the real TT output regardless."""
 
-    def attach(module, name, subfolder, dtype, pick=lambda out: out):
+    def attach(
+        module,
+        name,
+        subfolder,
+        dtype,
+        pick=lambda out: out,
+        twin_pick=lambda loaded: loaded,
+    ):
         orig_forward = module.forward
         twin = {"model": None}
         step = {"n": 0}
@@ -69,9 +87,14 @@ def _attach_pcc_checks(pipeline: Mochi1Pipeline) -> None:
         def _cpu_twin():
             if twin["model"] is None:
                 logger.info("[PCC] loading {} CPU twin: {}", dtype, name)
-                twin["model"] = ModelLoader(
-                    VARIANT_NAME, subfolder=subfolder
-                ).load_model(dtype_override=dtype)
+                # twin_pick selects the submodule under test when the loader
+                # returns a larger container (the "vae" subfolder gives the
+                # whole autoencoder, but only its decoder runs on TT).
+                twin["model"] = twin_pick(
+                    ModelLoader(VARIANT_NAME, subfolder=subfolder).load_model(
+                        dtype_override=dtype
+                    )
+                )
             return twin["model"]
 
         # The twin sees the same args, positional or keyword, moved to host.
@@ -110,6 +133,19 @@ def _attach_pcc_checks(pipeline: Mochi1Pipeline) -> None:
         torch.bfloat16,
         pick=lambda out: out[0] if isinstance(out, (tuple, list)) else out,
     )
+    if pipeline.config.vae_on_tt:
+        # MochiDecoder3D.forward returns (sample, conv_cache). The twin runs the
+        # same math as the device path: patch_vae_decoder_ops() rebinds the two
+        # rewritten decoder ops process-wide, and pipeline.setup() has already
+        # called it by the time this twin is loaded.
+        attach(
+            pipeline.vae.decoder,
+            "vae_decoder",
+            "vae",
+            torch.bfloat16,
+            pick=lambda out: out[0] if isinstance(out, (tuple, list)) else out,
+            twin_pick=lambda vae: vae.decoder.eval(),
+        )
 
 
 @pytest.mark.nightly
@@ -130,10 +166,32 @@ def test_pipeline():
 
     pipeline = Mochi1Pipeline(
         config=Mochi1Config(
-            num_inference_steps=NUM_INFERENCE_STEPS, num_frames=NUM_FRAMES
+            num_inference_steps=NUM_INFERENCE_STEPS,
+            num_frames=NUM_FRAMES,
         )
     )
     pipeline.setup()
     _attach_pcc_checks(pipeline)
 
-    pipeline.generate(prompt=PROMPT, seed=SEED)
+    # ``generate`` post-processes via the diffusers video processor and returns a
+    # list of PIL frames (output_type="pil").
+    frames = pipeline.generate(prompt=PROMPT, seed=SEED)
+
+    save_video(frames, OUTPUT_PATH, fps=FPS)
+
+    output = Path(OUTPUT_PATH)
+    assert output.exists(), f"Output video {OUTPUT_PATH} was not created"
+    assert output.stat().st_size > 0, f"Output video {OUTPUT_PATH} is empty"
+
+    # The decoder upsamples temporally, so the frame count is not NUM_FRAMES:
+    # the requested frames map onto ceil(NUM_FRAMES / 6) latent frames, which
+    # decode back to (latent - 1) * 6 + 1 -- 19 for the 24 asked for here.
+    latent_frames = (NUM_FRAMES - 1) // VAE_TEMPORAL_SCALE_FACTOR + 1
+    expected_frames = (latent_frames - 1) * VAE_TEMPORAL_SCALE_FACTOR + 1
+    assert (
+        len(frames) == expected_frames
+    ), f"Expected {expected_frames} frames, got {len(frames)}"
+
+    width, height = frames[0].size
+    assert width == WIDTH, f"Expected width {WIDTH}, got {width}"
+    assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
