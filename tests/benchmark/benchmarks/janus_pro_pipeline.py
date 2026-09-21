@@ -2,19 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Janus-Pro-1B — benchmark-side pipeline for the AR image-gen harness.
+"""Janus-Pro — benchmark-side pipeline for the AR image-gen harness.
 
 Self-contained (no import from ``examples/`` or the nightly test): the
-language_model.model + gen_head step, gen_img_embed and gen_vision_decode each
-move to Tenstorrent via ``model.compile(backend="tt") + model.to(xla_device())``
-and are evicted back to CPU after use. The autoregressive step uses a
-``StaticCache`` pre-allocated to ``prompt_len + num_image_tokens`` so prefill and
-decode compile once and the rest of the loop are cache hits.
+language_model.model + gen_head step, gen_img_embed and gen_vision_decode move to
+Tenstorrent via ``model.compile(backend="tt") + model.to(xla_device())`` in
+``setup()`` and stay resident. The autoregressive step uses a ``StaticCache``
+pre-allocated to ``prompt_len + num_image_tokens`` so prefill and decode compile
+once and the rest of the loop are cache hits.
 
-Per-stage forward+sync times are collected into ``self._perf`` for the harness:
-``prefill`` (s), ``decode_steps`` (list of per-step s), ``vision_decode`` (s),
-``total`` (s). A ``.to("cpu")`` after each forward forces the XLA sync so the
-timers bracket real device work.
+All three are 2.90 GiB for the 1B and 12.41 GiB for the 7B, so both fit a
+Blackhole part and the 1B also fits a Wormhole part; evicting them between calls
+rebuilt every graph.
+
+Per-stage times go into ``self._perf`` on the schema
+``utils.staged_perf_measurements`` consumes. A ``.to("cpu")`` on each output
+forces the XLA sync so the timers bracket real device work.
 """
 
 import time
@@ -114,6 +117,16 @@ class JanusProPipeline:
         if self.config.gen_vision_decode_on_tt:
             self.gen_vision_decode.compile(backend="tt")
 
+        # Resident, so later calls reuse the compiled graphs. .to() is lazy;
+        # the upload lands on the first forward.
+        device = xm.xla_device()
+        if self.config.image_token_on_tt:
+            self.step = self.step.to(device)
+        if self.config.gen_img_embed_on_tt:
+            self.gen_img_embed = self.gen_img_embed.to(device)
+        if self.config.gen_vision_decode_on_tt:
+            self.gen_vision_decode = self.gen_vision_decode.to(device)
+
     def _make_static_cache(self, max_cache_len: int, device):
         cfg = self.mmgpt.language_model.config
         cache = StaticCache(
@@ -164,30 +177,28 @@ class JanusProPipeline:
         embed_on_tt = cfg.gen_img_embed_on_tt
 
         self._perf = {
-            "prefill": None,
-            "decode_steps": [],
-            "vision_decode": None,
+            "components": {},
+            "steps": [],
+            "step_metric_name": "decode_step",
             "total": None,
         }
         t_total = time.perf_counter()
 
         with torch.no_grad():
             full_prompt = model_utils.build_prompt(self.processor, prompt)
+            # step wraps mmgpt, so residency leaves the input embedding on
+            # device and the prompt lookup has to run there too.
             prefill_embeds = model_utils.prepare_cfg_inputs_embeds(
                 self.mmgpt,
                 self.processor,
                 full_prompt,
                 parallel_size=PARALLEL_SIZE,
-                device="cpu",
+                device=device if step_on_tt else "cpu",
             ).to(DTYPE)
             prompt_len = prefill_embeds.shape[1]
             max_cache_len = prompt_len + num_image_tokens
 
             logger.info("[STAGE] Image-token AR loop: start")
-            if step_on_tt:
-                self.step = self.step.to(device)
-            if embed_on_tt:
-                self.gen_img_embed = self.gen_img_embed.to(device)
             cache = self._make_static_cache(
                 max_cache_len, device if step_on_tt else "cpu"
             )
@@ -213,7 +224,7 @@ class JanusProPipeline:
             # Prefill (compiles the prefill graph once).
             t0 = time.perf_counter()
             logits = run_step(prefill_embeds, prompt_len, torch.arange(0, prompt_len))
-            self._perf["prefill"] = time.perf_counter() - t0
+            self._perf["components"]["prefill"] = time.perf_counter() - t0
             next_token = self._sample(logits)
             generated[:, 0] = next_token.squeeze(-1)
             cfg_token = torch.cat([next_token, next_token], dim=1).view(-1)
@@ -227,27 +238,21 @@ class JanusProPipeline:
                 if embed_on_tt and not step_on_tt:
                     img_embeds = cpu_cast(img_embeds)
                 logits = run_step(img_embeds, cur + 1, torch.tensor([cur]))
-                self._perf["decode_steps"].append(time.perf_counter() - t0)
+                self._perf["steps"].append(time.perf_counter() - t0)
                 next_token = self._sample(logits)
                 generated[:, i] = next_token.squeeze(-1)
                 cfg_token = torch.cat([next_token, next_token], dim=1).view(-1)
                 cur += 1
 
-            if step_on_tt:
-                self.step = self.step.to("cpu")
-            if embed_on_tt:
-                self.gen_img_embed = self.gen_img_embed.to("cpu")
             logger.info("[STAGE] Image-token AR loop: done")
 
             logger.info("[STAGE] Vision decode: start")
             t0 = time.perf_counter()
             if cfg.gen_vision_decode_on_tt:
-                self.gen_vision_decode = self.gen_vision_decode.to(device)
                 image = cpu_cast(self.gen_vision_decode(tt_cast(generated)))
-                self.gen_vision_decode = self.gen_vision_decode.to("cpu")
             else:
                 image = self.gen_vision_decode(generated)
-            self._perf["vision_decode"] = time.perf_counter() - t0
+            self._perf["components"]["vision_decode"] = time.perf_counter() - t0
             logger.info("[STAGE] Vision decode: done")
 
             self._perf["total"] = time.perf_counter() - t_total
