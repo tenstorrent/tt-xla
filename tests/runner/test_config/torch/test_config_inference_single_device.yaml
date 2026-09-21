@@ -2786,3 +2786,46 @@ test_config:
     arch_overrides:
       n150:
         required_pcc: 0.97
+
+  # ── LTX-2.3 (https://github.com/tenstorrent/tt-xla/issues/4542) ────────────
+  # The five VAE / vocoder components are excluded from auto-discovery because
+  # they have hand-written component tests under tests/torch/models/ltx2_3/
+  # that the auto-discovered node cannot replicate. Those tests gate on the 22B
+  # checkpoint (LTX2_3_CHECKPOINT) and record a weights_loaded flag on every
+  # metric row; the auto-discovered node has neither. With the checkpoint absent
+  # the components fall back to random weights and PASS, which reads as a
+  # real-weight result. The vocoder is the clearest case: the node passed here
+  # in 174.01s on 2026-09-21, while the real-weight vocoder needs PCC gated down
+  # to 0.94 under https://github.com/tenstorrent/tt-xla/issues/6009.
+  # Re-evaluate once a checkpoint is restored on the CI hosts.
+  ltx2_3/pytorch-VideoVaeDecoder-single_device-inference:
+    status: EXCLUDE_MODEL # hand-written: tests/torch/models/ltx2_3/test_video_vae.py
+  ltx2_3/pytorch-VideoVaeEncoder-single_device-inference:
+    status: EXCLUDE_MODEL # hand-written: tests/torch/models/ltx2_3/test_video_vae.py
+  ltx2_3/pytorch-AudioVaeDecoder-single_device-inference:
+    status: EXCLUDE_MODEL # hand-written: tests/torch/models/ltx2_3/test_audio_vae.py
+  ltx2_3/pytorch-AudioVaeEncoder-single_device-inference:
+    status: EXCLUDE_MODEL # hand-written: tests/torch/models/ltx2_3/test_audio_vae.py
+  ltx2_3/pytorch-Vocoder-single_device-inference:
+    status: EXCLUDE_MODEL # hand-written: tests/torch/models/ltx2_3/test_audio_vae.py
+
+  # The two transformer tiers share one architecture (~19B params, 48 layers)
+  # and differ only in checkpoint, and the loader builds both with random
+  # weights, so the checkpoint question above does not apply to them. Both are
+  # weight-bound on a single chip; the multichip tensor-parallel path is the
+  # follow-up bringup.
+  # Both tiers were measured separately rather than one being inferred from the
+  # other, and they fail with a byte-identical allocation request.
+  # notimeout: a KNOWN_FAILURE_XFAIL entry does NOT short-circuit — the runner
+  # records properties and calls pytest.xfail in a finally block, so the model
+  # runs to completion first. These two take ~35 min each to reach the fatal.
+  ltx2_3/pytorch-Fast-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    markers: [notimeout]
+    reason: "TT_FATAL @ tt_metal/impl/allocator/bank_manager.cpp:462: false — Out of Memory: Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11190272 B, but bank size is 1070773184 B (allocated: 1064541888 B, free: 6231296 B, largest free block: 6231296 B). Measured 2026-09-17, 2080.57s to the fatal."
+  ltx2_3/pytorch-Pro-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    markers: [notimeout]
+    reason: "TT_FATAL @ tt_metal/impl/allocator/bank_manager.cpp:462: false — Out of Memory: Not enough space to allocate 134217728 B DRAM buffer across 12 banks, where each bank needs to store 11190272 B, but bank size is 1070773184 B (allocated: 1064541888 B, free: 6231296 B, largest free block: 6231296 B). Measured 2026-09-21, 2162.74s to the fatal."
