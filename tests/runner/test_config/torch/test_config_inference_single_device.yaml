@@ -22,7 +22,42 @@ test_config:
   gpt_neo/causal_lm/pytorch-2_7B-single_device-inference:
     status: EXPECTED_PASSING
 
+  # VibeVoice ships seven variants and the runner collects a node per variant,
+  # so all seven are registered here. "1.5B" is the whole model with random
+  # weights (a clean logits-only forward for the generic harness); the other six
+  # are single components of the *pretrained* pipeline, each wrapped to a
+  # tensors-only forward. They share one checkpoint - the loader builds the full
+  # model and takes the component out of it - so each node pays a full
+  # checkpoint load, about 2 min per node on n150.
+  #
+  # The component variants also have dedicated tests under
+  # tests/torch/models/vibevoice/ that assert per-component PCC against CPU;
+  # these entries are the registry-harness coverage, not a replacement for them.
   vibevoice/pytorch-1.5B-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-AcousticEncoder-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-AcousticDecoder-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-SemanticEncoder-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-Connectors-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-DiffusionHead-single_device-inference:
+    supported_archs: ["n150"]
+    status: EXPECTED_PASSING
+
+  vibevoice/pytorch-LmPrefill-single_device-inference:
     supported_archs: ["n150"]
     status: EXPECTED_PASSING
 
