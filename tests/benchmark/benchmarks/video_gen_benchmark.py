@@ -3,8 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Benchmark harness for video-generation model components (Wan 2.2 TI2V-5B and
-A14B: UMT5 text encoder, 3D Causal VAE encoder/decoder, WanDiT transformer).
+Benchmark harness for generative-model components, one component per run.
+Originally written for video generation (Wan 2.2 TI2V-5B and A14B: UMT5 text
+encoder, 3D Causal VAE encoder/decoder, WanDiT transformer) and also used by
+image-generation pipelines whose components are brought up individually
+(LongCat-Image: Qwen2.5-VL text encoder, MMDiT transformer, VAE decoder). Pass
+``model_type`` to label the run for the dashboard.
 
 Unlike the vision/encoder harnesses these components:
   - take a *list* of input tensors (the DiT takes 3, UMT5 takes 2),
@@ -94,6 +98,7 @@ def benchmark_video_gen_torch_xla(
     warmup_steps=WARMUP_STEPS,
     data_format="bfloat16",
     required_pcc=0.97,
+    model_type="Video Generation, Random Input Data",
 ):
     """Benchmark a single video-generation model component with torch-xla.
 
@@ -125,6 +130,8 @@ def benchmark_video_gen_torch_xla(
         data_format: Precision string for reporting ("bfloat16" / "float32").
         required_pcc: Minimum PCC threshold (asserted). If None, the CPU golden
             and PCC check are skipped entirely (perf-only run).
+        model_type: Dashboard label for the model category, e.g.
+            "Image Generation, Text-to-Image" for image-gen components.
 
     Returns:
         Standardized benchmark result dictionary.
@@ -218,21 +225,20 @@ def benchmark_video_gen_torch_xla(
         for i, ms in enumerate(per_forward_ms)
     ]
 
-    # Validate correctness (asserts internally on PCC < required_pcc) and record
-    # the measured PCC as the evaluation score, matching the encoder harness.
-    # When the golden was skipped (required_pcc is None) there is nothing to
-    # check and no score is recorded.
+    # Validate correctness and record the measured PCC as the evaluation score,
+    # matching the encoder harness. When the golden was skipped (required_pcc is
+    # None) there is nothing to check and no score is recorded.
     evaluation_score = None
     if required_pcc is not None:
-        evaluation_score = compute_pcc(
-            last_output, golden_output, required_pcc=required_pcc
-        )
+        evaluation_score = compute_pcc(golden_output, last_output)
+        assert (
+            evaluation_score >= required_pcc
+        ), f"PCC verification failed: {evaluation_score:.6f} < {required_pcc}"
         print(f"PCC verification passed with PCC={evaluation_score:.6f}")
     else:
         print("PCC check skipped (required_pcc=None).")
 
     metadata = get_benchmark_metadata()
-    model_type = "Video Generation, Random Input Data"
     dataset_name = "Random Data"
     num_layers = -1
 
