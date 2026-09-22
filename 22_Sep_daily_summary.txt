@@ -1,0 +1,22 @@
+**Date:** Sep 22, 2026
+
+
+**Updates:**
+
+- REGRESSION: Krea e2e OOMs on current main at NUM_BLOCKS=1 — 383385600 B DRAM buffer needs 47923200 B/bank vs 47376768 B largest free block (short 0.52 MB), failing at the RoPE butterfly's ttnn::subtract.
+- NOT THE PRs: clean-main control (only PCC_THRESHOLD 0.95→0.94, VAE on CPU) reproduces byte-identical allocation and `Bad StatusOr … Error code: 13` — #920, #6046 and the review edits all cleared.
+- NOT PER-OP: standalone sharded transformer forward PASSES in 5:35 on the same 4 chips, so the 383 MB buffer places fine on a clean pool; failure is fragmentation from https://github.com/tenstorrent/tt-xla/issues/6047 (27.5 GB/chip resident vs ~9.25 GB expected, zero executables destroyed).
+- SUSPECT: one tt-mlir uplift sits between the PRs being green (Sep 4-5) and today — tt-xla 8d49e80df (#6058), e2b21a72..c282803f, prime candidate tt-mlir #9248 (BH worker grid 10x11) plus four nested tt-metal uplifts; unconfirmed.
+- ALSO ON MAIN: b0_step1 PCC measured 0.945312, below main's own 0.95 gate, so the nightly is red independent of the OOM — supports #6046's drop to 0.94, though headroom is only ~0.005.
+- #920 REBASED + REVIEWED onto f59c43d7 (clean, 11 commits): decoder upload moved out of setup() to after the transformer release and gated to num_blocks==1, avoiding OOM at block 0 and a CPU/XLA feat-cache mix — https://github.com/tenstorrent/tt-forge-models/pull/920
+
+
+**Next Steps:**
+
+- Build both tt-mlir pins on the same box to confirm the uplift is the regression, then fix it.
+- Then push the three ready PRs (#920, #6046, #6040), then ttnn::sort stable=True (#6041) for multi-block, then the benchmark.
+
+
+**Challenges / Blockers:**
+
+- All runs were on an 8-chip BH loudbox partitioned to 4 via TT_VISIBLE_DEVICES, leaving dangling eth links; a real qb2 repro is outstanding before the regression is called confirmed.

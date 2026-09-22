@@ -1,0 +1,22 @@
+**Date:** Sep 17, 2026
+
+
+**Updates:**
+
+- Refreshed benchmark numbers, CI/job links and dependency chains in 7 imagegen bringup tickets from PR #6024's perf run 34872120927 (#4691, #4692, #4696, #4705, #4706, #4707).
+- SDXL-Lightning (#4691) 93.29s -> 15.77s e2e and Playground v2.5 (#4692) 259.91s -> 149.41s; both driven by resident text encoders (12.2s/38.6s -> ~0.2s/0.1s) and CPU overhead dropping ~8-10x. Stale p150/p100 blocks removed and demo relabelled bh_single per commit ad9b52d.
+- FLUX.1 (#4706) 448.26s -> 409.96s (+9.3% img/s, graphs 5->4) and Z-Image (#4707) 1528.76s -> 1431.39s (+6.8% img/s, graphs 18->14, ops 41730->21063).
+- REGRESSION (#4705): FLUX.2 headline drops 0.0013618 -> 0.0010552 img/s (734.33s -> 947.67s) because Total time now absorbs 78.8s of staging; e2e warm alone improves to 693.26s. Needs a call on which metric the nightly regression check reads.
+- Qwen-Image (#4696) had no numbers at all; added its first benchmark entry (1594.79s, 0.000627 img/s) and flagged three harness oddities - text_encoder warm 49.9s slower than cold 34.4s, "Warm repeats" duplicating "vae", and Total time 1594.8s vs e2e warm 1289.1s.
+- CORRECTION: TTNN graph/op counts come from config.ttnn_num_graphs / ttnn_total_ops in perf_report_*.json - verified to reproduce all three prior comments exactly (5/31052, 9/24321, 18/41730). An earlier hand-count put a wrong 10531 in #4705; fixed to 20634.
+
+
+**Next Steps:**
+
+- Decide how FLUX.2's staging time should be reported so the nightly regression check does not read a 22.5% false regression.
+- Confirm perf-bench-matrix.json's p150-perf pin for sdxl_lightning is still valid if p150 runners are being retired.
+
+
+**Challenges / Blockers:**
+
+- None

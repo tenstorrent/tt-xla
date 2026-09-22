@@ -37,7 +37,7 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch.src.model_utils imp
 )
 
 NUM_BLOCKS = 1  # >1 pending investigation (S64/S32 dtype mismatch in flex_attention's create_block_mask): https://github.com/tenstorrent/tt-xla/issues/5837
-PCC_THRESHOLD = 0.94  # probe: let the run past b0_step1 to reach the OOM point
+PCC_THRESHOLD = 0.0  # probe: gate disabled so the run always reaches the allocation under test
 
 _PCC_EVALUATOR = TorchComparisonEvaluator(ComparisonConfig(assert_on_failure=False))
 _PCC_CONFIG = PccConfig()

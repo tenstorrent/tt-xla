@@ -1,0 +1,555 @@
+================================================================================
+KREA REALTIME 14B - MODEL BRINGUP STATUS REPORT
+Author / Owner : Kamal Raj Kannan  (github: kamalrajkannan78)
+Repos          : tenstorrent/tt-xla, tenstorrent/tt-forge-models, tenstorrent/tt-mlir
+Tracking issue : https://github.com/tenstorrent/tt-xla/issues/4462  (OPEN)
+Bringup window : 2026-04-29  ->  ongoing
+Report date    : 2026-09-21
+================================================================================
+
+--------------------------------------------------------------------------------
+1. WHAT THE MODEL IS / WHAT IT DOES
+--------------------------------------------------------------------------------
+Krea Realtime 14B is a 14-billion-parameter AUTOREGRESSIVE REAL-TIME TEXT-TO-VIDEO
+model. Unlike a normal diffusion video model that denoises the whole clip at once,
+it generates the video BLOCK BY BLOCK (a "block" = one autoregressive chunk of
+frames). Each new block is conditioned on the KV-cache / context of the blocks
+already generated, which is what makes streaming / real-time generation possible.
+
+Sources:
+  - https://www.krea.ai/blog/krea-realtime-14b
+  - https://huggingface.co/krea/krea-realtime-video
+  - https://github.com/krea-ai/realtime-video
+
+Pipeline components (loaded independently via from_pretrained(subfolder=...),
+no full upstream pipeline is ever instantiated):
+
+  Component        | Class               | Source repo                        | Params
+  -----------------|---------------------|------------------------------------|--------
+  Text encoder     | UMT5EncoderModel    | Wan-AI/Wan2.1-T2V-14B-Diffusers    | 6.73 B
+  Transformer (DiT)| CausalWanModel      | krea/krea-realtime-video           | 14.29 B
+                   | (trust_remote_code) |                                    |
+  VAE (3D causal)  | AutoencoderKLWan    | Wan-AI/Wan2.1-T2V-14B-Diffusers    | 0.13 B
+
+Inference configuration currently used on TT (qb2-blackhole, 4 chips, mesh 1x4):
+  - dtype                bfloat16
+  - resolution           480 x 832   (latent 60 x 104, VAE scale factor 8)
+  - inference steps      6
+  - frames per block     3   -> 9 output frames per block after VAE temporal upsample
+  - NUM_BLOCKS           1   (multi-block still blocked, see section 5)
+  - text token length    512
+  - sequence length      32760 ; frame seq length 1560 ; KV cache size 9360
+  - local attention size 6 (KV_CACHE_NUM_FRAMES 3 + NUM_FRAMES_PER_BLOCK 3)
+  - mesh                 2D (batch, model) SPMD; supports 1/2/4/8/32 devices
+                         MESH_SHAPES = {32:(8,4), 8:(2,4), 4:(1,4), 2:(1,2), 1:(1,1)}
+  - demo prompt          "a cat sitting on a boat", 24 fps, mp4 output
+
+--------------------------------------------------------------------------------
+2. WHERE THE WORK STANDS TODAY (SUMMARY)
+--------------------------------------------------------------------------------
+ON MAIN (merged and running):
+  * Full end-to-end Krea Realtime pipeline runs on Tenstorrent at NUM_BLOCKS=1.
+  * UMT5 text encoder runs on TT (once, then freed).
+  * CausalWan 14B DiT runs on TT, tensor-parallel sharded across the mesh.
+  * VAE decoder still on CPU on main.
+  * PCC-gated nightly test: tests/torch/models/krea_realtime/
+        test_krea_realtime_e2e_pipeline.py
+    marks: nightly, model_test, llmbox, large
+    properties: model_name=KreaRealtimeVideo_Pipeline, model_group=RED,
+                run_mode=INFERENCE, bringup_status=PASSED
+    PCC_THRESHOLD currently 0.95 (worst observed forward 0.957).
+  * Runnable demo: examples/pytorch/krea_realtime_video.py (saves an mp4),
+    marked bhqb/nightly so the Wormhole examples job skips it.
+  * Shared reusable pipeline lives in tt-forge-models:
+        third_party/tt_forge_models/krea_realtime_video/pytorch/
+            loader.py, pipeline.py, src/model_utils.py, src/modified_model.py
+
+IN FLIGHT (open, not merged):
+  * Moving the VAE decoder onto TT (tt-xla#6046 + tt-forge-models#920).
+  * Mixed int32/int64 advanced-indexing fix needed for multi-block (tt-xla#6040).
+
+NOT YET DONE:
+  * NUM_BLOCKS > 1 (real-length video) - blocked by two device-side gaps.
+  * Benchmark/perf test for Krea (was deferred until the shared video-gen
+    benchmark harness landed; still not added).
+  * No perf/throughput numbers published for this model yet.
+
+--------------------------------------------------------------------------------
+3. MERGED PRs  (with what each one did)
+--------------------------------------------------------------------------------
+
+--- MODEL / PIPELINE PRs ---
+
+[M1] tt-forge-models #633  - MERGED 2026-05-05
+     "Add krea realtime video 14B component loaders (text_encoder, transformer, vae)"
+     Created the krea_realtime_video/pytorch package: ForgeModel loader with three
+     variants (TextEncoder / Transformer / Vae), plus CausalWanWrapper (collapses the
+     8-arg forward to (x,t,context), rebuilds KV/cross-attn caches, monkey-patches the
+     CUDA-hardcoded sinusoidal embedding to be device-agnostic) and VAEDecoderWrapper.
+     https://github.com/tenstorrent/tt-forge-models/pull/633
+
+[M2] tt-xla #4513  - MERGED 2026-05-06   (closes issue #4463)
+     "[Krea Realtime 14B] Add initial tests for each part of the pipeline"
+     First component tests on Wormhole: text encoder (sharded, 2 chips, passing),
+     transformer (sharded, 4 chips, xfail at the time), VAE decoder (xfail).
+     All model loading/sharding moved into tt_forge_models so the test file is thin.
+     https://github.com/tenstorrent/tt-xla/pull/4513
+
+[M3] tt-forge-models #844  - MERGED 2026-08-13   (for issue tt-xla#5696)
+     "[Krea Realtime 14B] Add e2e pipeline (Encoder & DiT on TT)"
+     Added pipeline.py: full e2e orchestration - UMT5 encoder on TT (run once then
+     freed) + CausalWan DiT tensor-parallel on TT, VAE on CPU, with an optional
+     on_forward hook so tests can PCC-check each TT forward without the pipeline
+     depending on test code. Also added apply_krea_static_patches (modified_model.py)
+     which pins the KV-cache counters and kills the per-layer recompile storm that
+     was fragmenting DRAM into an OOM (root cause in tt-xla#5835).
+     https://github.com/tenstorrent/tt-forge-models/pull/844
+
+[M4] tt-xla #5838  - MERGED 2026-08-17   (closes issue #5696)
+     "[Krea Realtime 14B] Add PCC gated nightly test and demo"
+     Wired the shared pipeline into CI: PCC-gated nightly e2e test (per-forward PCC
+     vs a CPU twin, worst 0.957) tagged nightly/bhqb, plus a runnable demo that
+     writes an mp4. Dropped the standalone transformer component test since real-input
+     PCC is now tracked by the nightly. Benchmark deferred.
+     https://github.com/tenstorrent/tt-xla/pull/5838
+
+[M5] tt-forge-models #916  - MERGED 2026-09-02   (fixes issue tt-xla#6038)
+     "[Krea Realtime 14B] Explicitly fetch encoders.py in pipeline setup"
+     4-line fix: setup() now explicitly downloads encoders.py (needed for prompt_clean)
+     via get_cached_module_file, because trust_remote_code=True only fetches the
+     auto_map import closure. Without it the pipeline died on any fresh HF cache.
+     https://github.com/tenstorrent/tt-forge-models/pull/916
+
+--- COMPILER / RUNTIME FIXES DRIVEN BY KREA (general, but unblocked this model) ---
+
+[M6] tt-xla #4556  - MERGED 2026-05-07   (fixes issue #4464)
+     "Handle ComplexType in simplifyMainFuncOp zero-attr creation"
+     simplifyMainFuncOp crashed (TT_FATAL "Failed to create zero attribute") on any
+     sharded module whose main returns a complex<T> tensor - hit by Krea's torch.polar
+     in RoPE. Now builds the zero splat from std::complex<APFloat>(0,0).
+     https://github.com/tenstorrent/tt-xla/pull/4556
+
+[M7] tt-mlir #8492  - MERGED 2026-06-02   (closes tt-xla#4767 and tt-xla#3643)
+     "[StableHLO] Fix sharded reshape compilation failure"
+     New insert-reshards-for-unpropagated-ops pass. Shardy could not place an output
+     sharding when a stablehlo.reshape split a sharded flat dim into (N,D) with N not
+     divisible by the shard count, producing "92160 vs 23040" element-count errors on
+     the Krea transformer's flatten. The pass inserts sdy.reshard (lowers to all_gather)
+     so operands arrive replicated and per-shard shapes match.
+     https://github.com/tenstorrent/tt-mlir/pull/8492
+
+[M8] tt-xla #5531  - MERGED 2026-07-10   (fixes issues #5551 and #5360, relands #5366)
+     "Reland: fix device-count mismatch for no-input graphs (gate on num_partitions)"
+     A const-folded no-input graph (e.g. torch.arange in RoPE) was stamped with a 1x1
+     mesh, reshaping the device mesh [1,N] -> [1,1] and breaking live sharded buffers
+     ("Device count mismatch: 8 vs 1"). Now a no-input graph adopts the full mesh when
+     num_partitions > 1; using num_partitions (not device-assignment size) is what
+     avoids the single-chip-on-multichip regression that got #5366 reverted.
+     https://github.com/tenstorrent/tt-xla/pull/5531
+
+[M9] tt-xla #5640  - MERGED 2026-07-17   (fixes issue #4465)
+     "Clamp OOB negative slices on eager + exported paths"
+     NOTE: authored by ashokkumarkannan1, but it closes Kamal's Krea VAE ticket #4465.
+     The Krea VAE decoder slices x[:, :, -CACHE_T:, ...] with CACHE_T=2 on a size-1
+     temporal dim; CPU clamps silently, strict aten.slice on XLA rejects it. Because
+     diffusers' AutoencoderKLWan._decode graph-breaks, the slice never reaches the
+     exported graph, so the earlier FX pass could not see it. Added a shared
+     clamp_neg_slice_key helper used from both the eager __torch_function__ path and a
+     pre-AOTAutograd FX pass; un-xfail'ed test_vae_decoder.
+     https://github.com/tenstorrent/tt-xla/pull/5640
+
+[M10] tt-xla #5211  - MERGED 2026-06-16   (fixes issue #5199)
+     "Clamp out-of-range negative aten.slice starts to -dim_size"
+     Same class of bug, fixed first for DiffusionGemma as the clamp_neg_slice_bounds
+     FX pass. Explicitly documented in the PR that it does NOT fix the Krea VAE case
+     (different path, via __torch_function__ after a Dynamo graph break) - that was
+     handled separately by #5640 above.
+     https://github.com/tenstorrent/tt-xla/pull/5211
+
+--- CI HYGIENE (by others, about the Krea test) ---
+
+[M11] tt-xla #5782  - MERGED 2026-07-29   (author ctr-pmuruganTT, for issue #5704)
+     "Skip krea_realtime & z_image VAE decoders (240-min job-timeout hangs)"
+     pytest.mark.skip on the standalone Krea VAE decoder test because it was hanging
+     the whole n150 nightly run_torch job (and masking every z_image test after it).
+     https://github.com/tenstorrent/tt-xla/pull/5782
+
+--------------------------------------------------------------------------------
+4. ISSUES SOLVED / CLOSED  (with root cause + how they were fixed)
+--------------------------------------------------------------------------------
+
+[S1] tt-xla #4463  - CLOSED 2026-05-06
+     "[Krea Realtime 14B] Bringup Initial tests for each part of the pipeline"
+     Task ticket for the first component tests. Closed by PR #4513 + tt-forge-models#633.
+
+[S2] tt-xla #4464  - CLOSED 2026-05-07
+     "[Krea 14B] transformer - Failed to create zero attribute for element type"
+     Root cause: torch.polar in the transformer's RoPE returns complex; the sharded
+     compile path's simplifyMainFuncOp could not build a zero attribute for ComplexType.
+     Fixed by PR #4556.
+
+[S3] tt-mlir #8291  - CLOSED 2026-05-19   (assigned to ddilbazTT)
+     "failed to legalize unresolved materialization tensor<0x2xf64> -> tensor<0xcomplex<f64>>"
+     Root cause: stablehlo->ttir decomposes complex<T> into real pairs on op results but
+     does not rewrite the enclosing func.func result types / return operands, leaving an
+     unfoldable unrealized_conversion_cast. Raised by Kamal from the Krea sharded RoPE
+     (torch.polar); ddilbazTT took it over and fixed it in tt-mlir#8324.
+     https://github.com/tenstorrent/tt-mlir/issues/8291
+
+[S4] tt-xla #4551  - CLOSED 2026-05-14
+     "OOM in krea's VAE decoder"
+     Closed as moot: the OOM was only reachable if PR #4552 (the FX-pass approach to the
+     slice clamp) had landed; that PR was closed in favour of the #5211 / #5640 design,
+     so this ticket was closed too.
+
+[S5] tt-xla #4465  - CLOSED 2026-07-17
+     "[Krea Realtime 14B] VAE decoder: RuntimeError: Value out of range
+      (expected to be in range of [-1, 0], but got -2)"
+     Root cause: AutoencoderKLWan slices x[:, :, -CACHE_T:, :, :] (CACHE_T=2) on a size-1
+     temporal dim. CPU's __getitem__ clamps out-of-range negative bounds; XLA's strict
+     aten.slice.Tensor rejects them. Complicated by the fact that the diffusers per-frame
+     decode loop graph-breaks, so the slice bypasses the exported FX graph entirely.
+     Fixed by PR #5640 (eager __torch_function__ clamp + pre-AOTAutograd FX pass).
+
+[S6] tt-xla #4767  - CLOSED 2026-06-02
+     "[Krea Realtime 14B] Transformer - number of output elements (92160)
+      doesn't match expected number of elements (23040)"
+     Root cause: sharded reshape / flatten in causal_model.py that Shardy left
+     unannotated, so UpdateGlobalToLocalShapes produced mismatched global vs per-shard
+     shapes. Fixed by tt-mlir PR #8492.
+
+[S7] tt-xla #5551  - CLOSED 2026-07-10
+     "[Krea Realtime 14B] transformer - Device count mismatch: 8 vs 1"
+     Root cause: no-input const-folded graph (torch.arange in RoPE) stamped with a 1x1
+     mesh, collapsing the real device mesh. Fixed by PR #5531.
+
+[S8] tt-xla #5624  - CLOSED 2026-09-03
+     "[Krea Realtime 14B] OOM in transformer"
+     Symptom: "Out of Memory: Not enough space to allocate 383385600 B DRAM buffer".
+     Root cause identified as RoPE sub-tile padding: Krea expresses RoPE as
+     view_as_complex(x)*freqs -> view_as_real().flatten(), which after complex
+     decomposition becomes a butterfly of ops on (..., D/2, 1) tensors; a trailing dim
+     of 1 pads to a full 32x32 tile, so each buffer is ~32x its logical size (a
+     4680x10x64x1 f32 tensor becomes a 383 MB DRAM buffer; six of them -> ~2.67 GB peak).
+     The fix attempt (tt-mlir#9024) was closed - see section 6. Ticket was ultimately
+     closed because on current main the transformer runs without OOM at NUM_BLOCKS=1
+     (the target hardware moved to qb2-blackhole, where the transformer already passes).
+
+[S9] tt-xla #5696  - CLOSED 2026-08-17
+     "[Krea Realtime 14B] Add PCC gated nightly test & demo for E2E pipeline in QB2 blackhole"
+     Task ticket. Closed by PR #5838 + tt-forge-models#844.
+
+[S10] tt-xla #5835  - CLOSED 2026-09-03   (best-documented root cause of the set)
+     "[Krea Realtime 14B] OOM in PCC-gated nightly test"
+     Symptom: the component test passed with 0 recompiles, but the e2e pipeline died on
+     the SECOND forward (b0_step1) with a fragmented DRAM OOM (DRAM 94.7% full; 225 MB
+     free per bank but largest contiguous block 44.1 MB vs 47.9 MB needed).
+     Root cause: stock self-attention derives its KV-cache write position from mutable
+     Python-int counters kv_cache["global_end_index"] / ["local_end_index"], which flip
+     0 -> 4680 between denoising steps. torch.compile captures those as GUARDS, not
+     tensors, so the 2nd forward fails the guard and recompiles. Because tt_torch sets
+     inline_inbuilt_nn_modules=False the recompile is per-layer: one counter flip caused
+     136 recompiles / 7548 check_obj_id guards across 40 layers, each recompiled graph
+     allocating fresh DRAM until the pool was fragmented past use.
+     Fix: under local_attn_size == -1 (the shipped default) the counters cancel out in
+     the write-position arithmetic, so they can be pinned to 0 before the stock forward.
+     Implemented as apply_krea_static_patches in tt-forge-models#844.
+
+[S11] tt-xla #6038  - CLOSED 2026-09-02
+     "[Krea Realtime 14B] e2e pipeline fails on fresh HF cache - encoders.py never
+      fetched (ModuleNotFoundError)"
+     Root cause: the pipeline imports encoders.py for prompt_clean, but
+     trust_remote_code=True only downloads the auto_map closure (causal_model.py,
+     attention.py, model.py). The dev machine already had encoders.py cached from earlier
+     CPU-parity runs, which masked it; the first clean-cache run exposed it.
+     Fixed by tt-forge-models#916.
+
+--------------------------------------------------------------------------------
+5. OPEN / UNSOLVED ISSUES
+--------------------------------------------------------------------------------
+
+[O1] tt-xla #4462  - OPEN (tracking ticket, assignee kamalrajkannan78)
+     "Model Bringup: Krea Realtime 14B"
+     Umbrella ticket. Stays open until the model is fully brought up (multi-block +
+     VAE on device + benchmark).
+     https://github.com/tenstorrent/tt-xla/issues/4462
+
+[O2] tt-xla #5837  - OPEN (since 2026-07-30)  ** MAIN BLOCKER FOR REAL-LENGTH VIDEO **
+     "[Krea Realtime 14B] Multi-block blocked by S64/S32 concat in flex_attention
+      create_block_mask (TT)"
+     Block 0 runs e2e on TT (NUM_BLOCKS=1 passes, per-forward PCC >= 0.90) because it only
+     uses the standard SDPA denoise loop. Every block index >= 1 first runs a KV-cache
+     recompute / teacher-forcing pass that builds a blockwise causal mask via
+     flex_attention / create_block_mask (causal_model.py:152 and :810), which fails to
+     lower: "RuntimeError: Cannot concatenate arrays with different element types:
+     S64 vs S32." Impact: only single-block generation runs on TT.
+     STATUS: a fix is up for review - PR tt-xla#6040 (see section 7). With that fix the
+     model gets past block-mask construction and hits [O3] next.
+     https://github.com/tenstorrent/tt-xla/issues/5837
+
+[O3] tt-xla #6041  - OPEN (since 2026-09-02)  ** NEXT BLOCKER AFTER [O2] **
+     "[Krea Realtime 14B] ttnn::sort stable=True not implemented - FlexAttention
+      create_block_mask fails on device"
+     After the #6040 fix, num_blocks=2 fails with:
+       TT_FATAL @ ttnn/cpp/ttnn/operations/data_movement/sort/sort.cpp:247: !stable
+       info: ttnn::sort: stable=True is not yet implemented.
+     This is a missing tt-metal kernel capability, not a tt-xla bug. Needs either a
+     stable ttnn::sort implementation upstream or a workaround in the lowering.
+     https://github.com/tenstorrent/tt-xla/issues/6041
+
+[O4] tt-xla #6047  - OPEN (since 2026-09-05)  ** BLOCKS VAE-ON-TT FOR MULTI-BLOCK **
+     "[Krea Realtime 14B] Resident transformer memory blocks VAE decoder on TT"
+     The VAE decoder works standalone on TT but OOMs inside the e2e pipeline, purely
+     because of what the transformer leaves resident.
+     Measurements (per chip, 8 banks x 4074 MB per bank):
+        resident after step 5 (before decode) : 27.5 GB   (3440 MB / bank)
+        expected sharded weights              : ~7.15 GB  (~894 MB / bank)
+        expected KV + cross-attn caches       : ~2.1 GB   (~263 MB / bank)
+        free before decode                    : 5.1 GB    (634 MB / bank)
+        largest contiguous free               : 2.7 GB    (341 MB / bank)
+        decoder peak demand                   : 1428 MB (frame 2), single buffers ~660 MB
+        OOM point                             : PermuteOp in frame 1, 153 MB/bank request
+     Root cause: memory growth is linear in newly compiled programs - 263 -> 3240 MB over
+     the 217 programs compiled in step 0 (~116 MB/chip each, roughly one layer's sharded
+     weights), +200 MB over 27 recompiles in step 1, then flat. ZERO executables are ever
+     destroyed. So ~18 GB/chip is the transformer weights held in multiple per-program
+     copies. Weights themselves are correctly sharded; text encoder is correctly freed.
+     Current workaround (in PR tt-forge-models#920): for num_blocks == 1 the pipeline
+     drops the transformer, its caches and the dynamo graphs before _decode.
+     NOT viable for num_blocks > 1, because the transformer runs again after each decode
+     and from block 2 on it consumes decoded frames through the VAE encoder.
+     The real fix is executable/program memory reclamation in the runtime.
+     https://github.com/tenstorrent/tt-xla/issues/6047
+
+[O5] tt-xla #6049  - OPEN (task, since 2026-09-05)
+     "[Krea Realtime 14B] Enable VAE decoder on TT"
+     Task ticket for moving the decoder onto device. Work is done and posted
+     (PRs #6046 + #920) but not merged, so the ticket is still open.
+     https://github.com/tenstorrent/tt-xla/issues/6049
+
+[O6] tt-xla #5704  - OPEN (filed by sgligorijevicTT, since 2026-07-20) - CI issue
+     "[nightly] krea_realtime VAE decoder hangs on n150 - times out both run_torch
+      jobs (240 min)"
+     tests/torch/models/krea_realtime/test_vae_decoder.py::test_vae_decoder hit the
+     240-minute GHA limit in nightly, timing out BOTH the nightly_tests and
+     test_full_model n150 torch jobs, and masking every z_image test (alphabetical order).
+     Investigation: it does NOT reproduce standalone (passes in ~8.5-10 min on N300 on
+     both old and current tt-mlir pins), so it is not a dependency regression - it points
+     at session-state / DRAM-L1 accumulation across the full nightly run, or a
+     runner-specific condition. Mitigated (not fixed) by the skip in PR #5782; the test
+     is still marked skip on main today. Root cause still unknown.
+     https://github.com/tenstorrent/tt-xla/issues/5704
+
+[O7] tt-metal #46507 - OPEN (feature request, since 2026-06-09)
+     "[Feature request] interleaved-pair rotary_embedding kernel"
+     Filed by Kamal. All 4 existing TT RoPE kernels implement rotate-half; interleaved-pair
+     rotation (adjacent indices (x[2i], x[2i+1]) as pairs) has a different cache layout and
+     cannot reuse them. Primarily filed for HiDream-I1 but it is the same op family that
+     caused the Krea RoPE padding blowup. Still open.
+     https://github.com/tenstorrent/tt-metal/issues/46507
+
+--------------------------------------------------------------------------------
+6. CLOSED-WITHOUT-MERGE PRs (abandoned / superseded - work not lost, redirected)
+--------------------------------------------------------------------------------
+
+[C1] tt-xla #4466  - CLOSED 2026-05-04 (not merged)
+     "[Krea Realtime 14B] Add initial tests for each part of the pipeline"
+     First version of the component tests, with all loaders/wrappers/shard specs living
+     inside tt-xla. Superseded by #4513, which moved that code into tt-forge-models#633.
+
+[C2] tt-xla #4552  - CLOSED 2026-05-09 (not merged, CHANGES_REQUESTED)
+     "Clamp OOB negative slices via FX pass in tt_torch (#4465)"
+     First attempt at the Krea VAE slice clamp, as an FX pass in
+     tt_torch/backend/passes.py. Reviewer (jameszianxuTT) asked for a different
+     placement; the approach became #5211 (exported-graph pass, DiffusionGemma) and then
+     #5640 (eager + pre-AOTAutograd, which actually reached the Krea case).
+
+[C3] tt-mlir #9024 - CLOSED 2026-07-15 (not merged, CHANGES_REQUESTED)
+     "[TTIR] Add complex-interleaved RoPE fusion pattern"
+     New RoPEComplexInterleavedFusingPattern matching Krea's butterfly
+     (real = a*c - b*d, imag = b*c + a*d) and rewriting it to rotate-half over the full D
+     dim, reusing the existing rotary_embedding composite. Measured impact was real:
+     per-buffer footprint 383 MB -> ~12 MB, peak RoPE DRAM ~2.67 GB -> ~0.77 GB (3.5x),
+     RoPE OOM eliminated (model then hit a separate downstream OOM in the unfused SDPA
+     score matrix).
+     Why closed: ddilbazTT asked whether it belonged in StableHLOFusing instead of
+     TTIRFusing. After an offline sync Kamal agreed to close it and reimplement the
+     complex-domain approach in a fresh PR. Explicitly noted as NOT blocking, because the
+     fix targeted a Wormhole 4-chip OOM and the target hardware is qb2-blackhole, where
+     the Krea transformer already passes. "Will take a look later."
+     -> This is genuine LEFT-OVER work: no replacement PR has been opened.
+
+--------------------------------------------------------------------------------
+7. PRs IN PROGRESS / OPEN RIGHT NOW
+--------------------------------------------------------------------------------
+
+[P1] tt-xla #6040  - OPEN (created 2026-09-02, last touched 2026-09-19)
+     "Cast mixed integer index dtypes to int64 for XLA advanced indexing"
+     Fixes issue #5837 (the multi-block blocker). Advanced indexing with mixed
+     int32/int64 index tensors is legal PyTorch and runs on CPU/CUDA, but torch_xla
+     lowers multi-tensor advanced indexing by CONCATENATING the index tensors into one
+     coordinate tensor, and XLA's concatenate requires uniform element types -> S64 vs S32.
+     Hit by FlexAttention's create_block_mask (int32 arange indices meeting torch.vmap's
+     int64 batch index).
+     Fix: widen non-int64 integer index tensors to int64 before torch_xla lowers them,
+     at BOTH entry points - _cast_int_indices_to_long in torch_overrides.py (eager,
+     __setitem__/__getitem__/index_put) and a cast_index_tensors_to_long FX pass in
+     backend/passes.py (compiled, wired into torch_pass_pipeline).
+     New test: tests/torch/ops/test_index_put_mixed_dtype.py (eager + compiled, red
+     before / green after, CPU-golden compared).
+     CI: 60 SUCCESS / 5 skipped, no failures. Mergeable, but state is BLOCKED -
+     i.e. WAITING ON REVIEW APPROVAL. Still unreviewed since 2026-09-02.
+     https://github.com/tenstorrent/tt-xla/pull/6040
+
+[P2] tt-forge-models #920  - OPEN (created 2026-09-04, last touched 2026-09-05)
+     "[Krea Realtime] Run VAE decoder on TT"     (for issue #6049)
+     Uploads the decoder half of AutoencoderKLWan (decoder + post_quant_conv) to TT in
+     bf16 and compiles it through VAEDecoderWrapper with backend="tt". No shard spec, so
+     SPMD replicates it. The ENCODER half stays on CPU (needed for the block >= 2 context
+     re-encode). _decode now emits a vae_decode on_forward hook so the nightly test can
+     PCC-gate it. Also releases the transformer + KV/cross-attn caches + dynamo graphs
+     before the last block's decode, which is the workaround for #6047.
+     CI: 6/6 SUCCESS. Mergeable but BEHIND main (needs a rebase). Awaiting review.
+     https://github.com/tenstorrent/tt-forge-models/pull/920
+
+[P3] tt-xla #6046  - OPEN (created 2026-09-04, last touched 2026-09-19)
+     "[Krea Realtime] Run VAE decoder on TT"     (for issue #6047)
+     The tt-xla half of [P2]. Extends the nightly e2e PCC test to gate the decoder
+     against a bf16 CPU twin via the new vae_decode hook; removes the now-redundant
+     standalone text-encoder and VAE-decoder component tests (both components run in the
+     pipeline now); updates the demo docstring.
+     Measured PCC at the gate: b0_vae_decode = 0.996094, worst forward b0_step1 = 0.941406.
+     PCC_THRESHOLD lowered to 0.94 to cover b0_step1; every other forward is >= 0.98.
+     BLOCKED ON: (a) tt-forge-models#920 landing + auto-uplift, then a rebase;
+                 (b) the PR is currently in CONFLICTING / DIRTY merge state;
+                 (c) one failing check: "TT-XLA Custom".
+     https://github.com/tenstorrent/tt-xla/pull/6046
+
+[P4] tt-xla #5712  - OPEN (created 2026-07-20, author sgligorijevicTT) - stale
+     "skip krea_realtime VAE decoder hang on n150 (#5704)"
+     Superseded in practice by #5782 (which merged the same skip). Still open/stale.
+     https://github.com/tenstorrent/tt-xla/pull/5712
+
+--------------------------------------------------------------------------------
+8. EXECUTION ORDER / TO DO  (dependency-ordered)
+--------------------------------------------------------------------------------
+
+REAL DEPENDENCY GRAPH (everything else floats):
+    #6040  ->  #6041 (stable sort)  ->  multi-block denoise
+    #6047                           ->  multi-block WITH VAE on TT
+    #920   ->  auto-uplift          ->  #6046
+
+--- CORRECTIONS TO COMMON ASSUMPTIONS ABOUT THIS PLAN ---
+
+N1. blocks=1 is NOT blocked today. The e2e nightly is already green on main at
+    NUM_BLOCKS=1 with the VAE on CPU. PRs #920/#6046 do not unblock blocks=1 -
+    they move the decoder onto TT at blocks=1. It is an improvement, not an unblock.
+
+N2. #6040 does NOT depend on the decoder PRs. It is a torch_xla index-dtype fix
+    (torch_overrides.py + an FX pass in backend/passes.py) with its own standalone
+    test, unrelated to the VAE. It is green and unreviewed right now. The only
+    overlap with #6046 is a one-line comment in the e2e test file. Do not wait for
+    the decoder pair to land to "confirm the error" - the error is already
+    confirmed and documented in #5837.
+
+N3. #6041 is ALREADY FILED as a tt-xla issue (open since 2026-09-02). What does
+    not exist is the upstream tt-metal ticket. ttnn::sort stable=True is an
+    unimplemented kernel in tt-metal - it cannot be "pushed" as a PR from here.
+    Either the metal side implements stable sort, or the lowering has to avoid it.
+    This is an open-ended dependency on another team, so file it FIRST, not in turn.
+
+N4. The benchmark does not need to wait for multi-block. #5746 has landed, so the
+    shared video-gen harness exists, and blocks=1 is the config that ships today.
+
+N5. Do not assume stable sort is the last gap. Multi-block has never run to
+    completion on TT, and every fix so far has surfaced the next one - #6040's own
+    PR body notes that the e2e "now surfaces the next pre-existing gap". Treat
+    "after #6041, num_blocks>1 works" as optimistic.
+
+N6. #6047 gates multi-block WITH THE VAE ON TT specifically. #6040 + stable sort
+    may yield multi-block denoise with the VAE back on CPU - that is a legitimate
+    intermediate milestone and should be tracked separately.
+
+--- TRACK A: START ALL THREE ON DAY ONE (parallel, mostly waiting on others) ---
+
+A1. Chase review on tt-xla #6040.
+    Zero work left: CI 60/60 green, unreviewed since 2026-09-02. Nothing on the
+    multi-block path moves until it lands. Push it in parallel with A3, not after.
+
+A2. File the tt-metal ticket for ttnn::sort stable=True (for tt-xla#6041).
+    ~30 min of writing, then it sits in someone else's queue - which is exactly why
+    it goes first. Longest lead time of anything in this plan and not in your control.
+    Reference: TT_FATAL @ ttnn/cpp/ttnn/operations/data_movement/sort/sort.cpp:247.
+
+A3. Rebase tt-forge-models #920 (currently BEHIND main) and get it merged.
+    Then wait for auto-uplift, rebase tt-xla #6046 onto the new submodule pointer,
+    and clear its CONFLICTING/DIRTY state plus the failing "TT-XLA Custom" check.
+    Closes #6049.
+    IMPORTANT: say in the PR that this is not the permanent design. The approach
+    drops the transformer and its caches before _decode, which only holds at
+    num_blocks == 1; from block 2 on the transformer runs again after each decode
+    and re-encodes the decoded frames through the VAE encoder. You will be back in
+    this code once multi-block works (see #6047).
+
+--- TRACK B: FOCUSED WORK WHILE TRACK A SITS IN OTHER PEOPLE'S QUEUES ---
+
+B1. Add the Krea benchmark / perf test.
+    Fully unblocked (#5746 merged). This is the gap that makes the model look
+    unfinished from outside - there are still NO published perf numbers for Krea.
+
+B2. Start the #6047 investigation (resident transformer memory).
+    The runtime holds one copy of the transformer weights per compiled program and
+    destroys zero executables: 27.5 GB/chip resident vs ~7.15 GB expected, ~18 GB
+    wasted. Growth is linear in newly compiled programs (263 -> 3240 MB over the 217
+    programs of step 0). Likely not a quick fix; it is runtime work, so start early.
+
+--- TRACK C: AFTER MULTI-BLOCK UNBLOCKS ---
+
+C1. Raise NUM_BLOCKS above 1 in BOTH
+       tests/torch/models/krea_realtime/test_krea_realtime_e2e_pipeline.py
+       examples/pytorch/krea_realtime_video.py
+     (both currently hardcode 1 with a comment pointing at #5837), then re-validate
+     PCC over longer videos and re-check the PCC threshold.
+
+C2. Revisit the VAE-on-TT memory strategy for num_blocks > 1 once #6047 is fixed
+     (the drop-the-transformer workaround from A3 stops being valid).
+
+--- TRACK D: NOT BLOCKING ANYTHING (do last) ---
+
+D1. Redo the Krea complex-interleaved RoPE fusion in the complex domain, as agreed
+    when tt-mlir#9024 was closed. Measured 3.5x DRAM reduction on Wormhole, but not
+    blocking on qb2-blackhole. No replacement PR exists - this is genuinely
+    unfinished work, not abandoned work.
+
+D2. Root-cause the nightly n150 VAE decoder hang (#5704). Currently skipped on main,
+    not fixed. Only reproduces inside a full nightly session (passes standalone in
+    ~8.5-10 min), so it points at session-state / DRAM-L1 accumulation. Lowest
+    value per hour of anything on this list.
+
+--- HOUSEKEEPING ---
+
+H1. Close the stale tt-xla#5712 (superseded by the merged #5782).
+H2. Close the #4462 tracking ticket once multi-block + VAE-on-TT + benchmark are done.
+H3. The skipped component tests (test_text_encoder.py, test_vae_decoder.py) are
+    removed by #6046 - confirm they are gone after that lands.
+
+--------------------------------------------------------------------------------
+9. QUICK INDEX
+--------------------------------------------------------------------------------
+MERGED  : ttfm#633, ttxla#4513, ttfm#844, ttxla#5838, ttfm#916,
+          ttxla#4556, ttmlir#8492, ttxla#5531, ttxla#5640*, ttxla#5211, ttxla#5782*
+          (* = merged by someone else, closes Kamal's Krea ticket)
+OPEN PR : ttxla#6040, ttfm#920, ttxla#6046, (stale) ttxla#5712
+CLOSED  : ttxla#4466, ttxla#4552, ttmlir#9024   (none merged)
+SOLVED  : ttxla#4463, #4464, #4465, #4551, #4767, #5551, #5624, #5696, #5835, #6038,
+          ttmlir#8291
+OPEN    : ttxla#4462 (tracking), #5837, #6041, #6047, #6049, #5704, ttmetal#46507
+
+Files on main:
+  tests/torch/models/krea_realtime/test_krea_realtime_e2e_pipeline.py   (nightly, green)
+  tests/torch/models/krea_realtime/test_text_encoder.py                 (skipped)
+  tests/torch/models/krea_realtime/test_vae_decoder.py                  (skipped, #5704)
+  examples/pytorch/krea_realtime_video.py                               (demo, mp4)
+  third_party/tt_forge_models/krea_realtime_video/pytorch/
+      loader.py, pipeline.py, src/model_utils.py, src/modified_model.py
+================================================================================

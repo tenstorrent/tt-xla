@@ -1,0 +1,40 @@
+TASK: Update imagegen model bringup tickets with PR #6024 benchmark numbers
+=============================================================================
+
+DESCRIPTION
+-----------
+PR #6024 ("[imagegen] One pipeline per model, resident where it fits, with
+comparable cold/warm metrics") changed imagegen perf. Refresh the affected model
+bringup tickets with numbers from the Performance Benchmark run
+https://github.com/tenstorrent/tt-xla/actions/runs/34872120927, and clean up
+device references that no longer apply.
+
+DEFINITION OF DONE
+------------------
+[x] Every targeted ticket carries perf numbers from run 34872120927
+[x] CI run, job, and dependency-chain links all resolve and point at that run
+[x] Stale p150 / p100 references removed where the hardware was dropped
+[x] Demo sections name the device the demo actually runs on (bh_single)
+[x] TTNN graph/op counts taken from perf_report_*.json, not hand-counted
+[x] PCC sections and output images preserved
+
+SUBTASKS
+--------
+[x] #4691 SDXL-Lightning  - benchmark numbers updated; n150+p150 blocks replaced
+                            with one block; p150 PCC link + p100 image removed
+[x] #4692 Playground v2.5 - same treatment as #4691
+[x] #4691/#4692           - demo label n150 -> bh_single (p150), per commit ad9b52d
+[x] #4696 Qwen-Image      - ticket was empty; benchmark section added
+[x] #4705 FLUX.2          - comment links/numbers/dependency chain updated
+[x] #4706 FLUX.1          - comment links/numbers/dependency chain updated
+[x] #4707 Z-Image         - comment links/numbers/dependency chain updated;
+                            device count corrected 4 -> 1
+[x] Verify all links resolve (run, job, tt-xla/tt-mlir/tt-metal commits)
+
+OPEN ITEMS (not part of this task)
+----------------------------------
+[ ] FLUX.2 headline regression: 0.0013618 -> 0.0010552 img/s (Total time now
+    includes 78.8s staging); decide which metric the regression check uses
+[ ] Qwen-Image harness oddities: text_encoder warm 49.9s > cold 34.4s;
+    "Warm repeats" equals "vae"; Total time 1594.8s vs e2e warm 1289.1s
+[ ] perf-bench-matrix.json still pins sdxl_lightning to p150-perf

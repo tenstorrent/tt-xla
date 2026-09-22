@@ -1,0 +1,53 @@
+================================================================================
+KREA REALTIME 14B - TASK DEFINITION
+Owner: Kamal Raj Kannan  |  Tracking: tt-xla#4462  |  Updated: 2026-09-22
+================================================================================
+
+TASK
+----
+- Bring Krea Realtime 14B (autoregressive real-time text-to-video) fully up on Tenstorrent: all three components on device, multi-block video, PCC-gated nightly, published perf.
+- Today: single-block runs e2e (UMT5 encoder + CausalWan DiT on TT, VAE on CPU); three PRs ready to push; a regression on main currently OOMs the e2e.
+
+DEFINITION OF DONE
+------------------
+- Encoder, DiT and VAE decoder all run on TT.
+- NUM_BLOCKS > 1 works (real-length video), in both the test and the demo.
+- Nightly PCC test green on qb2-blackhole with stable headroom.
+- Benchmark test landed with published perf numbers.
+- tt-xla#4462 closed.
+
+SUB-TASKS
+---------
+- S0  Confirm + fix the main regression  [IN PROGRESS]  Bisect tt-mlir pin e2b21a72..c282803f (tt-xla#6058); suspect tt-mlir#9248 (BH worker grid 10x11) + 4 nested tt-metal uplifts.
+- S1  Land VAE decoder on TT  [READY, UNPUSHED]  tt-forge-models#920 (rebased, reviewed) -> auto-uplift -> tt-xla#6046; closes tt-xla#6049.
+- S2  Land multi-block index fix  [READY, CI GREEN, UNREVIEWED]  tt-xla#6040; closes tt-xla#5837.
+- S3  ttnn::sort stable=True  [NOT FILED UPSTREAM]  tt-xla#6041; needs a tt-metal ticket + kernel or a lowering workaround; gates multi-block.
+- S4  Benchmark  [UNBLOCKED, NOT STARTED]  Harness landed in tt-xla#5746; no perf numbers published for Krea yet.
+- S5  Fix resident-program memory  [OPEN, UNDERLYING]  tt-xla#6047; ~18 GB/chip duplicate per-program weight copies, zero executables destroyed; why the OOM margin is 0.5 MB; also gates TT decode on non-final blocks.
+- S6  Revive RoPE fusion  [CLOSED UNMERGED, NO REPLACEMENT]  Redo tt-mlir#9024 in the complex domain (agreed with reviewer); shrinks the 383 MB buffer to ~12 MB; on WH it moved the OOM into unfused SDPA, so may be two fixes.
+- S7  Nightly n150 VAE decoder hang  [SKIPPED, NOT FIXED]  tt-xla#5704; lowest priority.
+
+CHECKLIST
+---------
+- [ ] S0  Build both tt-mlir pins on the same box; identify the offending commit.
+- [ ] S0  File the regression issue naming the range and the suspects.
+- [ ] S0  Repro once on a real qb2 (all runs so far are a 4-of-8 loudbox split).
+- [ ] S0  Fix it (revert unlikely - tt-mlir#9248 is itself a correctness fix).
+- [ ] S1  Push rebased #920; confirm the auto-uplift lands.
+- [ ] S1  Rebase #6046; clear CONFLICTING and the "TT-XLA Custom" check.
+- [ ] S1  Decide PCC_THRESHOLD - 0.94 leaves ~0.005 headroom (0.941406 and 0.945312 measured on two boxes); consider 0.93.
+- [ ] S2  Get #6040 reviewed and merged.
+- [ ] S3  File the tt-metal stable-sort ticket.
+- [ ] S3  Confirm nothing else blocks multi-block behind sort.
+- [ ] S4  Add the benchmark test and publish numbers.
+- [ ] S5  Investigate executable lifetime / weight-copy reclamation.
+- [ ] S6  Open the new complex-domain RoPE fusion PR.
+- [ ] Raise NUM_BLOCKS in the e2e test and examples/pytorch/krea_realtime_video.py once multi-block works.
+- [ ] Housekeeping: close stale tt-xla#5712; close tt-xla#4462 at the end.
+
+NOTES
+-----
+- The three PRs are NOT blocked by the regression - it reproduces on clean main without them; they just cannot carry a green e2e run until S0 lands.
+- The nightly is already red on main: at 0.95 it fails b0_step1 PCC 0.945312, at 0.94 it gets further and OOMs.
+- Local state: #920 rebased and amended in the submodule, unpushed; tt-xla working tree has PCC_THRESHOLD=0.94 and an untracked test_transformer_standalone.py.
+================================================================================
