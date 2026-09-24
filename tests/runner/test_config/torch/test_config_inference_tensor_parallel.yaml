@@ -674,3 +674,19 @@ test_config:
     inject_custom_moe: true
     enable_weight_bfp8_conversion: true
     required_pcc: 0.84
+
+  llama_3_2/multimodal/pytorch-Llama-3.2-90B-Vision-Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  qwen_3_omni/multimodal/pytorch-30B-A3B-Instruct-image-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
+    required_pcc: 0.93
+
+  qwen_3_omni/multimodal/pytorch-30B-A3B-Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
