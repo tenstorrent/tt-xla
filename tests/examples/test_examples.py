@@ -178,12 +178,19 @@ def _discover_script_examples() -> list[Path]:
     return sorted(files, key=lambda p: str(p))
 
 
+def _pytest_example_params() -> list:
+    """Parametrize pytest examples, tagging hardware-specific ones
+    (HARDWARE_MARKS) with markers so CI routes them to the matching runner."""
+    params = []
+    for p in _discover_pytest_examples():
+        rel = str(p.relative_to(EXAMPLES_DIR))
+        marks = [getattr(pytest.mark, m) for m in HARDWARE_MARKS.get(rel, [])]
+        params.append(pytest.param(p, marks=marks, id=rel))
+    return params
+
+
 @pytest.mark.push
-@pytest.mark.parametrize(
-    "script",
-    _discover_pytest_examples(),
-    ids=lambda p: str(p.relative_to(EXAMPLES_DIR)),
-)
+@pytest.mark.parametrize("script", _pytest_example_params())
 def test_pytest_examples(script: Path):
     """Run example files that contain pytest tests using pytest."""
     xfail_reason = _get_xfail_reason(script)
