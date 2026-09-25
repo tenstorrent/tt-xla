@@ -386,6 +386,53 @@ def cast_bool_cumsum_to_int32(gm: torch.fx.GraphModule) -> None:
         gm.recompile()
 
 
+def cast_index_tensors_to_long(gm: torch.fx.GraphModule) -> None:
+    """Cast non-int64 integer index tensors of aten.index / aten.index_put
+    variants to int64. torch_xla concatenates index tensors when lowering
+    advanced indexing, and XLA's concatenate rejects mixed int32/int64
+    (e.g. FlexAttention's create_block_mask)."""
+    index_targets = {
+        torch.ops.aten.index.Tensor,
+        torch.ops.aten._unsafe_index.Tensor,
+        torch.ops.aten.index_put.default,
+        torch.ops.aten.index_put_.default,
+        torch.ops.aten._unsafe_index_put.default,
+    }
+    changed = False
+    for node in list(gm.graph.nodes):
+        if node.op != "call_function" or node.target not in index_targets:
+            continue
+        indices = node.args[1]
+        if not isinstance(indices, (list, tuple)):
+            continue
+        new_indices = []
+        node_changed = False
+        for idx in indices:
+            val = idx.meta.get("val") if isinstance(idx, torch.fx.Node) else None
+            if (
+                val is None
+                or val.dtype.is_floating_point
+                or val.dtype in (torch.bool, torch.int64)
+            ):
+                new_indices.append(idx)
+                continue
+            with gm.graph.inserting_before(node):
+                cast = gm.graph.call_function(
+                    torch.ops.aten._to_copy.default,
+                    args=(idx,),
+                    kwargs={"dtype": torch.int64},
+                )
+                cast.meta["val"] = val.to(torch.int64)
+            new_indices.append(cast)
+            node_changed = True
+        if node_changed:
+            node.update_arg(1, type(indices)(new_indices))
+            changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+
+
 def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     Replaces torch ops with composite ops if we have a proper replacement.
