@@ -20,6 +20,13 @@ from tests.runner.test_utils import (
 from tests.utils import BringupStatus, Category
 
 _BRINGUP_STAGE_FILE = "._bringup_stage.txt"
+_FORCE_RUN_SKIPPED_ENV = "TT_XLA_FORCE_RUN_SKIPPED_TEST_IDS"
+
+
+def _force_run_skipped_test_ids() -> set[str]:
+    raw = os.getenv(_FORCE_RUN_SKIPPED_ENV, "")
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
 
 # Models to skip on lb-blackhole: S3-dependent models (no S3 bucket access on the runner)
 # and models that hang indefinitely during execution.
@@ -173,6 +180,7 @@ def pytest_collection_modifyitems(config, items):
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
 
     deselected = []
+    force_run_skipped_ids = _force_run_skipped_test_ids()
 
     for item in items:
 
@@ -182,6 +190,11 @@ def pytest_collection_modifyitems(config, items):
             nodeid = nodeid[nodeid.index("[") + 1 : -1]
 
         meta = ModelTestConfig(combined_test_config.get(nodeid), arch)
+        if (
+            nodeid in force_run_skipped_ids
+            and meta.status == ModelTestStatus.NOT_SUPPORTED_SKIP
+        ):
+            meta.status = ModelTestStatus.UNSPECIFIED
         item._test_meta = meta  # attach for fixture access
 
         # Uncomment this to print info for each test collected.
