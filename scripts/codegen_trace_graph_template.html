@@ -1,0 +1,102 @@
+<!doctype html><meta charset=utf-8>
+<title>Dataflow graph</title>
+<style>
+ html,body{margin:0;height:100%;font:13px ui-monospace,Menlo,Consolas,monospace;background:#fff;color:#111}
+ #bar{padding:6px 10px;border-bottom:1px solid #ddd;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+ #bar b{font-weight:600} #bar .leg{color:#666;font-size:11px}
+ input{font:inherit;padding:3px 6px;width:220px}
+ #wrap{position:absolute;top:0;left:0;right:0;bottom:0;padding-top:38px;box-sizing:border-box}
+ svg{width:100%;height:100%;cursor:grab;user-select:none;background:#fbfbfc}
+ svg.grab{cursor:grabbing}
+ .band{opacity:.85}
+ .blab{fill:#8a94a0;font-size:12px;font-weight:700;letter-spacing:.12em}
+ .edge{fill:none;stroke:#c2cad2;stroke-width:1.5}
+ .node text{pointer-events:none}
+ .nop{fill:#fff;font-weight:700}
+ .nvar{fill:#fff;opacity:.72;font-size:10px}
+ .nshape{fill:#eaf6ff;font-size:10px}
+ .edge.hi{stroke:#111;stroke-width:2.5}
+ .edge.dim,.node.dim{opacity:.1}
+ .node.hi rect{stroke:#111;stroke-width:3.5}
+</style>
+<div id=bar>
+ <b><!--__NAME__--></b>
+ <span><!--__STATS__--></span>
+ <input id=f placeholder="filter by op / var…">
+ <span id=hint style="color:#888">drag=pan · wheel=zoom · hover=edges · click=lineage · esc=reset</span>
+ <span class=leg><!--__LEGEND__--></span>
+</div>
+<div id=wrap>
+<svg id=svg viewBox="__VIEWBOX__">
+<g id=scene>
+<g id=bands pointer-events="none"><!--__BANDS__--></g>
+<g id=edges><!--__EDGES__--></g>
+<g id=nodes><!--__NODES__--></g>
+</g>
+</svg>
+</div>
+<script>
+const EDGES = /*__EDGES__*/;
+const svg = document.getElementById('svg');
+const succ = {}, pred = {};
+for (const [s,t] of EDGES) { (succ[s]=succ[s]||[]).push(t); (pred[t]=pred[t]||[]).push(s); }
+const nodeEls = [...document.querySelectorAll('.node')];
+const edgeEls = [...document.querySelectorAll('.edge')];
+const nodeById = {}; nodeEls.forEach(e => nodeById[e.dataset.id]=e);
+
+let vb = svg.getAttribute('viewBox').split(' ').map(Number);
+function setVB(){ svg.setAttribute('viewBox', vb.join(' ')); }
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect();
+  const mx = vb[0] + (e.clientX-r.left)/r.width*vb[2];
+  const my = vb[1] + (e.clientY-r.top)/r.height*vb[3];
+  const k = e.deltaY>0 ? 1.1 : 1/1.1;
+  vb[0]=mx-(mx-vb[0])*k; vb[1]=my-(my-vb[1])*k; vb[2]*=k; vb[3]*=k; setVB();
+}, {passive:false});
+let drag=null;
+svg.addEventListener('mousedown', e => { if(e.target.closest('.node'))return;
+  drag={x:e.clientX,y:e.clientY,vx:vb[0],vy:vb[1]}; svg.classList.add('grab'); });
+addEventListener('mousemove', e => { if(!drag)return;
+  const r=svg.getBoundingClientRect();
+  vb[0]=drag.vx-(e.clientX-drag.x)/r.width*vb[2];
+  vb[1]=drag.vy-(e.clientY-drag.y)/r.height*vb[3]; setVB(); });
+addEventListener('mouseup', ()=>{ drag=null; svg.classList.remove('grab'); });
+
+function clear(){ [...nodeEls,...edgeEls].forEach(e=>e.classList.remove('hi','dim')); }
+function neighbors(id){
+  clear(); const keep=new Set([id]);
+  (succ[id]||[]).forEach(t=>keep.add(t)); (pred[id]||[]).forEach(s=>keep.add(s));
+  nodeEls.forEach(e=>e.classList.toggle('dim', !keep.has(+e.dataset.id)));
+  nodeById[id].classList.add('hi');
+  edgeEls.forEach(e=>{const s=+e.dataset.s,t=+e.dataset.t;
+    e.classList.add(s===id||t===id?'hi':'dim');});
+}
+function lineage(id){
+  const up=new Set(),dn=new Set(); let st=[id];
+  while(st.length){const n=st.pop();(pred[n]||[]).forEach(p=>{if(!up.has(p)){up.add(p);st.push(p);}});}
+  st=[id]; while(st.length){const n=st.pop();(succ[n]||[]).forEach(s=>{if(!dn.has(s)){dn.add(s);st.push(s);}});}
+  const keep=new Set([id,...up,...dn]); clear();
+  nodeEls.forEach(e=>{const i=+e.dataset.id; if(!keep.has(i))e.classList.add('dim'); else if(i===id)e.classList.add('hi');});
+  edgeEls.forEach(e=>{const s=+e.dataset.s,t=+e.dataset.t;
+    e.classList.add(keep.has(s)&&keep.has(t)?'hi':'dim');});
+}
+let pinned=null;
+nodeEls.forEach(e=>{ const id=+e.dataset.id;
+  e.addEventListener('mouseenter',()=>{ if(pinned===null) neighbors(id); });
+  e.addEventListener('mouseleave',()=>{ if(pinned===null) clear(); });
+  e.addEventListener('click',ev=>{ ev.stopPropagation();
+    if(pinned===id){pinned=null;clear();} else {pinned=id;lineage(id);} });
+});
+svg.addEventListener('click',()=>{ if(pinned!==null){pinned=null;clear();} });
+addEventListener('keydown',e=>{ if(e.key==='Escape'){pinned=null;clear();} });
+
+document.getElementById('f').addEventListener('input',function(){
+  const q=this.value.toLowerCase(); pinned=null;
+  nodeEls.forEach(e=>{
+    const t=(e.querySelector('title').textContent+' '+e.textContent).toLowerCase();
+    e.classList.toggle('dim', q!=='' && !t.includes(q));
+  });
+  edgeEls.forEach(e=>e.classList.remove('hi','dim'));
+});
+</script>
