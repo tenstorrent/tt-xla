@@ -346,7 +346,15 @@ def composite_scaled_dot_product_attention(
             os.environ.get("TT_XLA_CATCH_BOOL_MASK_SDPA", "0") == "1"
             and attn_mask.dtype == torch.bool
         ):
-            attn_mask = torch.where(attn_mask, 0.0, float("-inf")).to(query.dtype)
+            # Build the branches in query dtype: with Python float scalars the
+            # where resolves to f32 and holds two full f32 copies of the mask
+            # before the cast to query dtype.
+            # See https://github.com/tenstorrent/tt-xla/issues/6071.
+            zero = torch.zeros((), dtype=query.dtype, device=attn_mask.device)
+            neg_inf = torch.full(
+                (), float("-inf"), dtype=query.dtype, device=attn_mask.device
+            )
+            attn_mask = torch.where(attn_mask, zero, neg_inf)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
