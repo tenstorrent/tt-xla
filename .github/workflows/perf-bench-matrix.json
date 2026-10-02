@@ -127,6 +127,12 @@
         "group": "experimental"
       },
       {
+        "name": "krea_realtime_video_14b",
+        "pytest": "tests/benchmark/test_krea_realtime_video.py::test_krea_realtime_video_14b",
+        "runs-on": "qb2-blackhole",
+        "group": "experimental"
+      },
+      {
         "name": "diffusiongemma_26b_a4b_it_text_long",
         "pytest": "tests/benchmark/test_diffusiongemma.py::test_diffusiongemma_26b_text_long",
         "runs-on": "n300-llmbox",
