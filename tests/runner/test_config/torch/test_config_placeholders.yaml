@@ -13,11 +13,7 @@
 # file to be run in CI, placeholder entries must be removed to prevent duplicated model reports.
 
 PLACEHOLDER_MODELS:
-  meta-llama/Llama-3.2-90B-Vision-Instruct:
-    bringup_status: NOT_STARTED
   meta-llama/Llama-4-Maverick-17B-128E-Instruct:
-    bringup_status: NOT_STARTED
-  meta-llama/Llama-3.2-90B-Vision:
     bringup_status: NOT_STARTED
   deepseek-ai/DeepSeek-R1:
     bringup_status: NOT_STARTED
