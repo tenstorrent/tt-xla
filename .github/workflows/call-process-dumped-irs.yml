@@ -124,6 +124,14 @@ jobs:
     # the dependency on build_ttxla_explorer.
     runs-on: tt-ubuntu-2204-large-stable
 
+    # Extraction cost grows superlinearly with a module's op count, so the whole
+    # dump set takes hours on one core. Without an explicit value this job
+    # inherits GitHub's 360min default, which is exactly how it died silently at
+    # 5h45m in the 2026-08-09 weekly run with nothing uploaded. Bounded here, and
+    # the step below is given a time budget that expires first so the job ends by
+    # uploading a partial op set rather than by being killed.
+    timeout-minutes: 240
+
     outputs:
       skip_ir_processing: ${{ steps.plan-unique-ops.outputs.skip_ir_processing }}
       ir_count: ${{ steps.plan-unique-ops.outputs.ir_count }}
@@ -193,13 +201,19 @@ jobs:
           echo "=== Verifying op_by_op_infra is importable ==="
           python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
 
+          echo "=== Available cores: $(nproc) ==="
+
           echo "=== Extracting unique ops across all model IRs ==="
+          # Budget expires well inside the job's 240min timeout, leaving room for
+          # the slowest in-flight IR file to finish plus the plan/upload steps.
           python3 .github/scripts/ir_process_analyzer.py extract-unique-ops \
             --root collected_irs \
             --ir-file-prefix "irs/shlo_compiler" \
             --model-filter "${{ inputs.model_filter }}" \
             --output-root unique_ir_ops \
-            --manifest unique_ops_manifest.json
+            --manifest unique_ops_manifest.json \
+            --jobs "$(nproc)" \
+            --time-budget-seconds 9000
 
       - name: Plan processing jobs over unique ops
         id: plan-unique-ops
