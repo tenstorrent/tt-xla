@@ -48,6 +48,8 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onLoadedExecutableGetExecutable;
   api->PJRT_LoadedExecutable_AddressableDevices =
       internal::onLoadedExecutableAddressableDevices;
+  api->PJRT_LoadedExecutable_AddressableDeviceLogicalIds =
+      internal::onLoadedExecutableAddressableDeviceLogicalIds;
   api->PJRT_LoadedExecutable_GetDeviceAssignment =
       internal::onLoadedExecutableGetDeviceAssignment;
   api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
@@ -57,6 +59,34 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
 
 bool LoadedExecutableInstance::isCompileOnly() const {
   return m_client_instance->isCompileOnly();
+}
+
+const std::vector<PJRT_LogicalDeviceIds> &
+LoadedExecutableInstance::getAddressableDeviceLogicalIds() {
+  if (!m_addressable_device_logical_ids.empty() ||
+      m_addressable_devices.empty()) {
+    return m_addressable_device_logical_ids;
+  }
+
+  // The device assignment is a [num_replicas][num_partitions] grid laid out in
+  // replica-major order, and `m_addressable_devices` follows that same order.
+  // Recover each addressable device's (replica, partition) from its index. This
+  // matches how XLA populates addressable_device_logical_ids for its
+  // executables.
+  size_t num_partitions = m_executable_image->getNumPartitions();
+  if (num_partitions == 0) {
+    num_partitions = 1;
+  }
+
+  m_addressable_device_logical_ids.reserve(m_addressable_devices.size());
+  for (size_t i = 0; i < m_addressable_devices.size(); ++i) {
+    PJRT_LogicalDeviceIds logical_ids;
+    logical_ids.replica = static_cast<int>(i / num_partitions);
+    logical_ids.partition = static_cast<int>(i % num_partitions);
+    m_addressable_device_logical_ids.push_back(logical_ids);
+  }
+
+  return m_addressable_device_logical_ids;
 }
 
 bool LoadedExecutableInstance::isDeleted() {
@@ -429,6 +459,27 @@ PJRT_Error *onLoadedExecutableAddressableDevices(
   return nullptr;
 }
 
+PJRT_Error *onLoadedExecutableAddressableDeviceLogicalIds(
+    PJRT_LoadedExecutable_AddressableDeviceLogicalIds_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::"
+                    "PJRT_LoadedExecutable_AddressableDeviceLogicalIds");
+
+  LoadedExecutableInstance *loaded_executable =
+      LoadedExecutableInstance::unwrap(args->executable);
+
+  const std::vector<PJRT_LogicalDeviceIds> &logical_ids =
+      loaded_executable->getAddressableDeviceLogicalIds();
+
+  // The out-field is a mutable pointer, but the framework only reads it and the
+  // storage is owned by (and lives as long as) the loaded executable.
+  args->addressable_device_logical_ids =
+      const_cast<PJRT_LogicalDeviceIds *>(logical_ids.data());
+  args->num_addressable_device_logical_ids = logical_ids.size();
+
+  return nullptr;
+}
+
 PJRT_Error *onLoadedExecutableGetDeviceAssignment(
     PJRT_LoadedExecutable_GetDeviceAssignment_Args *args) {
 
@@ -466,14 +517,19 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
 
   // We don't support the major-to-minor data layout transpose for callbacks
-  // (added in PJRT API v0.110). If a client activates it we would silently
-  // produce results with unexpected layout, leading to hard-to-debug PCC
-  // mismatches, so fail loudly instead.
+  // (added in PJRT API v0.110). The flag only affects the data layout passed to
+  // send/recv callbacks, so it is meaningless unless the execution actually has
+  // send/recv ops. Newer frameworks (jax 0.11+) set the flag unconditionally,
+  // so we only fail loudly when callbacks are actually present -- otherwise we
+  // would reject every ordinary execution. When callbacks do exist, honoring
+  // the flag wrong would silently produce results with unexpected layout and
+  // hard-to-debug PCC mismatches, so reject that case explicitly.
   if (args->options &&
       args->options->struct_size >=
           PJRT_STRUCT_SIZE(PJRT_ExecuteOptions,
                            use_major_to_minor_data_layout_for_callbacks) &&
-      args->options->use_major_to_minor_data_layout_for_callbacks) {
+      args->options->use_major_to_minor_data_layout_for_callbacks &&
+      (args->options->num_send_ops > 0 || args->options->num_recv_ops > 0)) {
     DLOG_F(ERROR,
            "PJRT_ExecuteOptions::use_major_to_minor_data_layout_for_callbacks "
            "is not supported by the tt-xla plugin.");
