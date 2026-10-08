@@ -28,6 +28,12 @@
         "group": "experimental"
       },
       {
+        "name": "bagel_model_tp",
+        "pytest": "tests/benchmark/test_bagel.py::test_bagel_model",
+        "runs-on": "n300-llmbox",
+        "group": "experimental"
+      },
+      {
         "name": "playground_v2_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5",
         "runs-on": "p150-perf",
