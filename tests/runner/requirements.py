@@ -40,6 +40,19 @@ class RequirementsManager:
     # compared against resolved import names in _purge_stale_modules.
     _JAX_PURGE_SKIP = frozenset({"flax"})
 
+    # C-extension packages that cannot be safely re-imported in the same
+    # process. Re-executing torch/overrides.py raises
+    # "RuntimeError: function '_has_torch_function' already has a docstring"
+    # because torch._C._add_docstr refuses to re-document a C function whose
+    # docstring is already set on the live module object. Purging only the
+    # Python wrappers from sys.modules does not reset the C-extension state,
+    # so the second import always fails. The same hazard applies to torch's
+    # sibling extensions (torchvision, torchaudio, etc.) and to tt_torch,
+    # which monkey-patches torch at import time (see tt_torch/torch_overrides.py).
+    _TORCH_PURGE_SKIP = frozenset(
+        {"torch", "torchvision", "torchaudio", "torch_xla", "tt_torch"}
+    )
+
     # Top-level directory names in RECORD that are not importable packages.
     _RECORD_SKIP = frozenset({"__pycache__", "bin", "share"})
 
@@ -414,6 +427,12 @@ class RequirementsManager:
         Purging it would create a mismatch between the old class objects held
         by module-level variables (e.g. ``nnx.Module``) and the freshly loaded
         ones, breaking ``isinstance`` checks.
+
+        ``torch`` and its sibling C-extension packages are also excluded: their
+        ``.py`` modules cannot be safely re-executed because they call
+        ``torch._C._add_docstr`` on C-level functions whose docstrings have
+        already been set in the live process, raising ``RuntimeError: function
+        '<name>' already has a docstring``.
         """
         affected_normalized: Set[str] = set()
         for name in self._newly_installed | set(self._changed_versions.keys()):
@@ -430,6 +449,13 @@ class RequirementsManager:
                     f"[Requirements] JAX framework: skipping purge for {sorted(skipped)}"
                 )
             affected_normalized = affected_normalized - skip
+
+        torch_skipped = affected_normalized & self._TORCH_PURGE_SKIP
+        if torch_skipped:
+            _dbg(
+                f"[Requirements] skipping purge for torch C-extensions: {sorted(torch_skipped)}"
+            )
+            affected_normalized = affected_normalized - self._TORCH_PURGE_SKIP
 
         if not affected_normalized:
             return
