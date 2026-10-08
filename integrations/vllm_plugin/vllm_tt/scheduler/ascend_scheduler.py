@@ -344,6 +344,7 @@ class AscendScheduler(Scheduler):
                 # num_new_tokens so we only schedule decoder tokens up to the
                 # point where the encoder output is available.
                 if request.has_encoder_inputs:
+                    num_new_tokens_pre_encoder = num_new_tokens
                     (
                         encoder_inputs_to_schedule,
                         num_new_tokens,
@@ -355,9 +356,23 @@ class AscendScheduler(Scheduler):
                         num_new_tokens,
                         encoder_compute_budget,
                     )
+                    # The encoder path truncates to an mm-item boundary, which is
+                    # not block-aligned. Re-align, or the next chunk starts
+                    # mid-block: paged_fill_cache writes from the start of a block
+                    # while chunked SDPA reads at chunk_start_idx == num_computed
+                    # exactly, and the two only agree on a block boundary.
+                    if (
+                        chunked_prefill
+                        and num_new_tokens < num_new_tokens_pre_encoder
+                        and num_computed_tokens + num_new_tokens < request.num_tokens
+                    ):
+                        num_new_tokens = self._block_aligned_chunk(
+                            request.num_tokens - num_computed_tokens, num_new_tokens
+                        )
                     if num_new_tokens == 0:
-                        # The encoder budget or encoder cache is exhausted, so
-                        # the request cannot be scheduled this step.
+                        # The encoder budget or encoder cache is exhausted, or the
+                        # truncated chunk is shorter than one block, so the request
+                        # cannot be scheduled this step.
                         skip_cur_request()
                         continue
 
