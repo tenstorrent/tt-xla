@@ -1,29 +1,21 @@
 name: Failure Inspector
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       workflow_run_id:
-        description: 'The On nightly workflow run ID to inspect'
+        description: 'The workflow run ID to inspect'
+        type: string
         required: true
       workflow_run_attempt:
         description: 'The workflow run attempt number to inspect'
+        type: string
         required: false
         default: '1'
-      test_filter:
-        description: 'Regex filter to apply to test names'
-        required: false
-        default: ''
-      num_runs:
-        description: 'Number of times to run each bisect'
-        required: false
-        default: '1'
-  workflow_run:
-    workflows: On nightly
-    branches:
-      - main
-    types:
-      - completed
+      docker_image:
+        description: 'Docker image to use for the inspection'
+        required: true
+        type: string
 
 permissions:
   actions: write
@@ -40,162 +32,6 @@ jobs:
       curr_wf_attempt: ${{ steps.success-failed.outputs.curr_wf_attempt }}
     runs-on: ubuntu-latest
     steps:
-
-      - name: Check if nightly failed
-        shell: bash
-        run: |
-          if [ -n "${{ github.event.workflow_run.id }}" ]; then
-            echo "Workflow run, nightly ID: ${{ github.event.workflow_run.id }}"
-            if [ "${{ github.event.workflow_run.conclusion }}" != "failure" ]; then
-              echo "Current Nightly has not failed. Exiting."
-              exit 1
-            fi
-          fi
-
-      # - name: Inspect Machine Failures
-      #   id: inspect-failures
-      #   shell: bash
-      #   env:
-      #       GH_TOKEN: ${{ github.token }}
-      #   run: |
-      #     repo="${{ github.repository }}"
-      #     test_job_names=("test ")
-      #     test_step_names=("Collect Tests")
-
-      #     curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
-      #     curr_wf_attempt="${{ github.event.workflow_run.run_attempt || inputs.workflow_run_attempt }}"
-      #     rm -f report.txt
-
-      #     found_annotations=0
-      #     if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt >_workflow_run_details.txt; then
-      #       echo "ERROR: Failed to fetch workflow run details."
-      #     else
-      #       echo "Workflow run details fetched successfully."
-      #       # Parse workflow run details for job annotations
-      #       if [ -f "_workflow_run_details.txt" ]; then
-      #         echo "Parsing workflow run details for annotations..."
-
-      #         # Find the ANNOTATIONS section
-      #         annotations_line=$(grep -n "^ANNOTATIONS$" _workflow_run_details.txt | cut -d: -f1)
-      #         if [ -n "$annotations_line" ]; then
-      #           echo "Found ANNOTATIONS section at line $annotations_line"
-      #           # Start reading from line after ANNOTATIONS
-      #           annotations_content=""
-      #           # Read lines from annotations_line+1 until empty line
-      #           while IFS= read -r line; do
-      #             if [ -z "$line" ]; then
-      #               if [ -z "$annotations_content" ]; then
-      #                 break
-      #               else
-      #                 # Check if first line begins with 'X'
-      #                 first_line=$(echo "$annotations_content" | head -n 1)
-      #                 if [[ "$first_line" == X* ]]; then
-      #                   last_line=$(echo "$annotations_content" | tail -n 2 | head -n 1)
-      #                   job=$(echo "$last_line" | rev | cut -d':' -f2- | rev)
-      #                   error=$(echo "$last_line" | rev | cut -d':' -f1 | rev)
-      #                   if [[ "$error" =~ \.github#([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -lt 10 ]; then
-      #                     echo "Github error no ${BASH_REMATCH[1]}"
-      #                     echo "<details><summary>Failure (code ${BASH_REMATCH[1]}) detected in job: $job</summary>$annotations_content</details>" >>report.txt
-      #                     found_annotations=1
-      #                   else
-      #                     echo "Annotation with error found: $first_line"
-      #                     echo "Job: $job"
-      #                     echo "Error: $error"
-      #                   fi
-      #                 fi
-      #               fi
-      #               annotations_content=""
-      #               continue
-      #             fi
-      #             annotations_content+="$line"$'\n'
-      #           done < <(tail -n +$((annotations_line + 1)) _workflow_run_details.txt)
-
-      #         fi
-      #       fi
-      #     fi
-
-      #     # no need to proceed if we found annotations
-      #     if [ "$found_annotations" -ne 0 ]; then
-      #       if ! gh run view -R "$repo" $curr_wf_id --attempt $curr_wf_attempt --json jobs >workflow_jobs.json; then
-      #         echo "ERROR: Failed to fetch workflow jobs."
-      #         exit 1
-      #       fi
-
-      #       if ! jq empty workflow_jobs.json >/dev/null 2>&1; then
-      #         echo "ERROR: workflow_jobs.json is not valid JSON:"
-      #         jq . workflow_jobs.json
-      #         exit 1
-      #       fi
-      #       # Iterate through jobs using index
-      #       job_count=$(jq '.jobs | length' workflow_jobs.json)
-      #       for ((i=0; i<job_count; i++)); do
-      #         job_name=$(jq -r ".jobs[$i].name" workflow_jobs.json)
-      #         job_conclusion=$(jq -r ".jobs[$i].conclusion" workflow_jobs.json)
-      #         if [[ "$job_conclusion" == "success" ]]; then
-      #           continue
-      #         fi
-
-      #         is_job_test=0
-      #         for test_job_name in "${test_job_names[@]}"; do
-      #           if [[ "$job_name" == *"$test_job_name"* ]]; then
-      #             is_job_test=1
-      #             break
-      #           fi
-      #         done
-      #         if [[ "$is_job_test" -eq 1 ]]; then
-      #           echo "Job $i: $job_name"
-      #           steps_count=$(jq ".jobs[$i].steps | length" workflow_jobs.json)
-      #           for ((j=0; j<steps_count; j++)); do
-      #             step_name=$(jq -r ".jobs[$i].steps[$j].name" workflow_jobs.json)
-      #             step_conclusion=$(jq -r ".jobs[$i].steps[$j].conclusion" workflow_jobs.json)
-      #             for test_step_name in "${test_step_names[@]}"; do
-      #               if [[ "$step_name" == *"$test_step_name"* ]]; then
-      #                 break 2
-      #               fi
-      #             done
-      #             if [[ "$step_conclusion" == "failure" ]]; then
-      #               job_id=$(jq -r ".jobs[$i].databaseId" workflow_jobs.json)
-      #             fi
-      #           done
-      #         fi
-      #       done
-      #     fi
-
-      #     if [ ! -s report.txt ]; then
-      #       echo "No failed tests to report."
-      #       echo "send_msg=" >>$GITHUB_OUTPUT
-      #       exit 0
-      #     else
-      #       if [[ "$curr_wf_attempt" -eq 1 ]]; then
-      #           if [ "${{ github.event_name == 'workflow_run' }}" ]; then
-      #           gh run rerun $curr_wf_id -R "$repo" --failed
-      #           msg_retry_text=":rocket: Retrying failed jobs!"
-      #           echo "> Retry of failed job issued!" >> report.txt
-      #         fi
-      #       else
-      #         echo "> No retries of failed job left ($curr_wf_attempt attempt)!" >> report.txt
-      #         msg_retry_text="No retries left, already $curr_wf_attempt attempts."
-      #       fi
-      #       echo "Report: $(cat report.txt)"
-      #       echo "## Machine failures inspection report for [Nightly](<https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt>)" >> $GITHUB_STEP_SUMMARY
-      #       cat report.txt >> $GITHUB_STEP_SUMMARY
-      #       echo "send_msg={\"text\": \"Nightly failure caused by machine failures. $msg_retry_text\", \"job_link\": \"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_attempt\", \"unfurl_links\": false, \"unfurl_media\": false }" >>$GITHUB_OUTPUT
-      #     fi
-
-      # - uses: slackapi/slack-github-action@v1.26.0 -> change to v3.0.1
-      #   if: ${{ steps.inspect-failures.outputs.send_msg && github.event_name == 'workflow_run' }}
-      #   with:
-      #     payload: ${{ steps.inspect-failures.outputs.send_msg }}
-      #     webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
-      #     webhook-type: webhook-trigger
-
-      # - name: Machine failure detected
-      #   if: ${{ steps.inspect-failures.outputs.send_msg }}
-      #   shell: bash
-      #   run: |
-      #       echo "Machine failure detected. Exiting."
-      #       exit 1
-
       - uses: actions/checkout@v6
 
       - name: Setup python
@@ -212,7 +48,7 @@ jobs:
           repo="${{ github.repository }}"
           wf_name="schedule-nightly.yml"
 
-          curr_wf_id="${{ github.event.workflow_run.id || inputs.workflow_run_id }}"
+          curr_wf_id="${{ inputs.workflow_run_id }}"
 
           # get json of the last 20 workflow runs
           gh run list --workflow $wf_name -R $repo -b main -L 20 --json attempt,conclusion,databaseId,headSha >runs.json
@@ -223,30 +59,19 @@ jobs:
 
           echo "Extracted runs: $(jq '.[:2]' runs.json)"
 
-          # check if current workflow ID is the one from workflow_run context
+          # check if current workflow ID is the one that is passed in inputs
           if [ "$(jq -r '.[0].databaseId' runs.json)" -ne "$curr_wf_id" ]; then
             echo "Current workflow ID does not match the workflow_run context ID. Exiting."
-            exit 1
+            exit 0
           fi
-
-          # check if the latest workflow run failed
-          if [ "$(jq -r '.[0].conclusion' runs.json)" == "success" ]; then
-            echo "The latest workflow run did not fail. Exiting."
-            exit 1
-          fi
-
-          # Filter runs.json to include only entries where "conclusion" is "failure" or "success"
-          # jq '[.[] | select(.conclusion == "failure" or .conclusion == "success")]' runs.json >filtered_runs.json
-          # mv filtered_runs.json runs.json
 
           # check if runs.json has at least 2 entries
           if [ "$(jq 'length' runs.json)" -lt 2 ]; then
             echo "Not enough workflow runs found (need at least 2). Exiting."
-            exit 1
+            exit 0
           fi
 
-          curr_wf_attempt="${{ inputs.workflow_run_attempt || github.event.workflow_run.run_attempt }}"
-          # curr_wf_attempt=$(jq -r '.[0].attempt' runs.json)
+          curr_wf_attempt="${{ inputs.workflow_run_attempt }}"
           curr_head_sha=$(jq -r '.[0].headSha' runs.json)
           prev_wf_id=$(jq -r '.[1].databaseId' runs.json)
           prev_head_sha=$(jq -r '.[1].headSha' runs.json)
@@ -269,7 +94,7 @@ jobs:
 
           # get list of failed tests from the last two workflow runs
           gh run download $prev_wf_id --pattern "test-reports-*" -R $repo -D log-b || true
-          gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-a
+          gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D log-a || true
 
           # find tests with PCC drops
           rm -rf pcc_results.md
@@ -281,7 +106,7 @@ jobs:
           # find newly failed tests
           rm -rf log-out
           mkdir -p log-out
-          if ! python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "${{ inputs.test_filter }}" "${{ inputs.num_runs || 1 }}"; then
+          if ! python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "" "1"; then
             echo "msg=No newly failed tests found between last 2 nightly runs" >> $GITHUB_OUTPUT
             echo "success=false" >> $GITHUB_OUTPUT
             echo "No new tests failed"
@@ -300,22 +125,15 @@ jobs:
           echo "success=true" >> $GITHUB_OUTPUT
 
       - uses: slackapi/slack-github-action@v3.0.1
-        if: ${{ steps.success-failed.outputs.success != 'true' && github.event_name == 'workflow_run' }}
+        if: ${{ steps.success-failed.outputs.success != 'true' && steps.success-failed.outputs.msg != '' }}
         with:
           webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT }}
           webhook-type: webhook-trigger
           payload: |
             text: "${{ steps.success-failed.outputs.msg }}"
 
-  build-image:
+  bisect:
     needs: inspect
-    uses: ./.github/workflows/call-build-docker.yml
-    with:
-      xla_sha_override: ${{ needs.inspect.outputs.docker_sha }}
-    secrets: inherit
-
-  test:
-    needs: [ inspect, build-image ]
     strategy:
       matrix:
         build: ${{ fromJson(needs.inspect.outputs.test-matrix) }}
@@ -324,10 +142,10 @@ jobs:
     runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
 
     # Keep this name in sync with the fetch-job-id step
-    name: "test ${{ matrix.build.runs-on }} (sha ${{ matrix.build.fromc }} - ${{ matrix.build.toc }})"
+    name: "bisect ${{ matrix.build.runs-on }} (sha ${{ matrix.build.fromc }} - ${{ matrix.build.toc }})"
 
     container:
-      image: ${{ !matrix.build.shared-runners && needs.build-image.outputs.docker-image-base || format('harbor.ci.tenstorrent.net/{0}', needs.build-image.outputs.docker-image-base) }}
+      image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -469,7 +287,6 @@ jobs:
           fi
 
       - uses: slackapi/slack-github-action@v3.0.1
-        if: ${{ github.event_name == 'workflow_run' }}
         with:
           webhook: ${{ secrets.SLACK_NIGHTLY_INSPECT_RESULT }}
           webhook-type: webhook-trigger
