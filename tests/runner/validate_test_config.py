@@ -30,6 +30,7 @@ if _PROJECT_ROOT not in sys.path:
 from tests.runner.test_config.constants import (
     ALLOWED_ARCHES,
     ALLOWED_FIELDS,
+    EMITPY_OVERRIDE_FIELDS,
     FRAMEWORKS,
     LLM_BATCH_SIZES,
     LLM_MESH_SHAPES,
@@ -352,6 +353,19 @@ class TestConfigValidator:
                                         f"arch_overrides['{arch_key}'] of {ctx}. "
                                         f"Allowed: {sorted(ALLOWED_FIELDS)}"
                                     )
+
+            # Validate emitpy_overrides (restricted to status-related fields only)
+            emitpy_overrides = cfg.get("emitpy_overrides")
+            if emitpy_overrides is not None:
+                if not isinstance(emitpy_overrides, dict):
+                    errors.append(f"emitpy_overrides is not a dict in {ctx}")
+                else:
+                    for key in emitpy_overrides.keys():
+                        if key not in EMITPY_OVERRIDE_FIELDS:
+                            errors.append(
+                                f"Unknown field '{key}' in emitpy_overrides of {ctx}. "
+                                f"Allowed: {sorted(EMITPY_OVERRIDE_FIELDS)}"
+                            )
 
             # Validate filecheck references
             self._validate_filechecks(cfg, ctx, errors)
