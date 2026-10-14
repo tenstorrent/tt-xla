@@ -69,7 +69,16 @@ def serialize_compiled_artifacts(
     unpickler.persistent_load = persistent_load
     unloaded_executable, _, _ = unpickler.load()
 
-    executable_io = io.BytesIO(unloaded_executable.xla_executable)
+    # Since jax 0.11 the executable is wrapped in an IFRT/PjRt protobuf envelope,
+    # so `xla_executable` no longer starts with our serialization magic. Locate
+    # the "TTSERv00" payload (our own stable sentinel) within the envelope and
+    # parse from there; parse_executable reads exact section sizes from its
+    # header, so any trailing envelope bytes are ignored.
+    raw = unloaded_executable.xla_executable
+    magic_offset = raw.find(b"TTSERv00")
+    if magic_offset < 0:
+        raise ValueError("Serialized executable payload (TTSERv00) not found")
+    executable_io = io.BytesIO(raw[magic_offset:])
 
     return parse_executable(executable_io)
 

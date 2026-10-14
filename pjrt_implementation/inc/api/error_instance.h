@@ -69,6 +69,9 @@ void onErrorMessage(PJRT_Error_Message_Args *args);
 // Implements PJRT_Error_GetCode API function.
 PJRT_Error *onErrorGetCode(PJRT_Error_GetCode_Args *args);
 
+// Implements PJRT_Error_ForEachPayload API function.
+PJRT_Error *onErrorForEachPayload(PJRT_Error_ForEachPayload_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt
