@@ -113,3 +113,30 @@ def test_model_filecheck(request):
         dtype_override=None,
     )
     tester.test(request=request)
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.filecheck(["linear_bias_rank2_bf16.ttnn.mlir"])
+def test_linear_bias_rank2_stays_bf16(request):
+    """A rank-2 activation through a biased bf16 Linear must not be promoted to f32.
+
+    Rank-2 activations lower via aten::addmm, whose PyTorch decomposition upcasts
+    all operands to f32; the flattened model IO path hits this on every linear.
+    Refs: tt-xla #5756.
+    """
+
+    class BiasedLinearModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = torch.nn.Linear(64, 128, bias=True, dtype=torch.bfloat16)
+
+        def forward(self, x):
+            return self.linear(x)
+
+    run_op_test(
+        BiasedLinearModel(),
+        [torch.randn(32, 64, dtype=torch.bfloat16)],
+        framework=Framework.TORCH,
+        request=request,
+    )
