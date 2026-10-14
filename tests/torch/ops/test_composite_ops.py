@@ -838,3 +838,60 @@ def test_sdpa_bool_mask_broadcast(monkeypatch, qkv_shape, mask_shape):
         shard_spec_fn=get_shard_spec,
         compiler_config=CompilerConfig(optimization_level=1),
     )
+
+
+@pytest.mark.nightly
+@pytest.mark.qb2_blackhole
+def test_sdpa_bool_mask_hunyuan_video_1_5_121_frames(monkeypatch):
+    """HunyuanVideo-1.5 DiT joint attention at 121 frames (S = 51275): the
+    (1, 1, S, S) bool mask is built on device from a 1-D token mask, as in
+    diffusers' HunyuanVideo15AttnProcessor2_0. The composite's bool -> additive
+    conversion must stay in the query dtype; an f32 round trip holds two extra
+    f32 copies of the mask (21 GB) and OOMs DRAM.
+    See https://github.com/tenstorrent/tt-xla/issues/6071.
+    """
+    monkeypatch.setenv("TT_XLA_CATCH_BOOL_MASK_SDPA", "1")
+
+    num_devices = xr.global_runtime_device_count()
+    batch_size, num_heads, head_dim = 1, 16, 128
+    video_tokens, text_tokens, text_valid = 49290, 1985, 1000
+    seq_len = video_tokens + text_tokens
+    if num_heads % num_devices != 0:
+        pytest.skip(f"num_heads={num_heads} not divisible by num_devices={num_devices}")
+
+    class HunyuanVideo15Attention(torch.nn.Module):
+        def forward(self, query, key, value, token_mask):
+            # Mask construction from HunyuanVideo15AttnProcessor2_0 (the front
+            # F.pad of the text mask to seq_len is done on the host here).
+            batch_size, _, seq_len, _ = query.shape
+            token_mask = token_mask.bool()
+            mask_1 = token_mask.view(batch_size, 1, 1, seq_len).repeat(1, 1, seq_len, 1)
+            mask_2 = mask_1.transpose(2, 3)
+            attn_mask = (mask_1 & mask_2).bool()
+            out = F.scaled_dot_product_attention(query, key, value, attn_mask=attn_mask)
+            # Rows of padding tokens are fully masked; the model drops them.
+            return out[:, :, : video_tokens + text_valid]
+
+    shape = (batch_size, num_heads, seq_len, head_dim)
+    query = torch.randn(*shape, dtype=torch.bfloat16)
+    key = torch.randn(*shape, dtype=torch.bfloat16)
+    value = torch.randn(*shape, dtype=torch.bfloat16)
+    token_mask = torch.ones(batch_size, seq_len, dtype=torch.bool)
+    token_mask[:, video_tokens + text_valid :] = False  # text padding
+
+    mesh = xs.Mesh(np.array(range(num_devices)), (1, num_devices), ("batch", "model"))
+
+    def get_shard_spec(args, kwargs):
+        head_sharded = (None, "model", None, None)
+        # Q/K/V are head-sharded; the token mask stays replicated.
+        return {args[0]: head_sharded, args[1]: head_sharded, args[2]: head_sharded}
+
+    run_graph_test(
+        HunyuanVideo15Attention(),
+        [query, key, value, token_mask],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        compiler_config=CompilerConfig(optimization_level=1),
+    )
