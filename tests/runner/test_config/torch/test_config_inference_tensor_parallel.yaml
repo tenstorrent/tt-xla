@@ -279,10 +279,9 @@ test_config:
 
   gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox,lb-blackhole]
-    status: KNOWN_FAILURE_XFAIL
-    assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
-    bringup_status: FAILED_RUNTIME
-    reason: "Bad StatusOr access: INTERNAL: Error code: 13; DRAM OOM (352 MB across 12 banks, bank_manager.cpp:462). Tracked by https://github.com/tenstorrent/tt-xla/issues/4007."
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    required_pcc: 0.86
 
   command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -604,7 +603,7 @@ test_config:
   qwen_3_8/multimodal/pytorch-Qwen/Qwen3.8-27B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
-    required_pcc: 0.87
+    required_pcc: 0.96
 
   qwen_3_coder/causal_lm/pytorch-30B_A3B_Instruct-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -635,7 +634,7 @@ test_config:
   gemma3/multimodal/pytorch-google/medgemma-27b-it-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
-    required_pcc: 0.87
+    required_pcc: 0.95
 
   opengvlab_internvl3/pytorch-OpenGVLab-InternVL3_5-38B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
@@ -718,7 +717,7 @@ test_config:
   qwen_3_6/multimodal/pytorch-Qwen/Qwen3.6-27B-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
-    required_pcc: 0.85
+    required_pcc: 0.96
 
   gemma4/pytorch-26B-A4B-it-tensor_parallel-inference:
     supported_archs: [qb2-blackhole]
