@@ -6,11 +6,13 @@ import copy
 import inspect
 
 import torch
+import torch.nn.utils.parametrize as parametrize
 import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector, DeviceType
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
+from loguru import logger
 from torch.utils._pytree import tree_map
 
 from .device_runner import DeviceRunner
@@ -181,6 +183,39 @@ class TorchDeviceRunner(DeviceRunner):
                 compiler_options=compiler_options,
             )
 
+    @staticmethod
+    def _has_weight_dtype_parametrization(model: torch.nn.Module) -> bool:
+        """Whether the weight-dtype parametrization is already registered."""
+        from tt_torch.weight_dtype import WeightDtypeParametrization
+
+        return any(
+            isinstance(p, WeightDtypeParametrization)
+            for m in model.modules()
+            if parametrize.is_parametrized(m)
+            for param_list in m.parametrizations.values()
+            for p in param_list
+        )
+
+    @classmethod
+    def _apply_weight_dtype_overrides(cls, model: torch.nn.Module, config) -> None:
+        """Register the weight-dtype parametrization on `model`, once."""
+        from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+        if cls._has_weight_dtype_parametrization(model):
+            return
+
+        applied = apply_weight_dtype_overrides(model, config)
+        if not applied:
+            # The config resolved to no parameters. Report it loudly rather than
+            # running silently in the wrong precision.
+            logger.warning(
+                f"Weight dtype config {config} matched no parameters on "
+                f"{type(model).__name__}. Running without dtype overrides."
+            )
+            return
+
+        logger.info(f"Applied {len(applied)} weight dtype overrides from {config}.")
+
     # @override
     def _safely_put_workload_on_device(
         self, workload: Workload, device: Device
@@ -203,7 +238,14 @@ class TorchDeviceRunner(DeviceRunner):
 
             # We need to tie weights for the model after moving it to the device.
             # For torch_xla this is a known quirk. See: https://docs.pytorch.org/xla/release/r2.8/learn/troubleshoot.html#xla-tensor-quirks
-            if hasattr(workload.model, "tie_weights"):
+            #
+            # Skipped once the weight-dtype parametrization is registered (at the
+            # end of this method): `weight` is then a computed property, not a
+            # Parameter, so tie_weights() would raise. Only the first placement
+            # needs it, the alias it establishes survives the later ones.
+            if hasattr(
+                workload.model, "tie_weights"
+            ) and not self._has_weight_dtype_parametrization(workload.model):
                 workload.model.tie_weights()
 
         is_multichip = (
@@ -262,6 +304,21 @@ class TorchDeviceRunner(DeviceRunner):
             _register_activation_constraints(
                 workload.activation_shard_spec_fn(workload.model), workload.mesh
             )
+
+        # Register the weight-dtype parametrization last:
+        # 1. After device placement, because torch.compile is lazy: the
+        #    parametrization must still be registered when the trace runs, since
+        #    tracing it is what emits the weight-dtype custom call.
+        # 2. After sharding, because loaders key shard specs by weight tensor
+        #    object and `mark_sharding` annotates exactly those keys. Registering
+        #    the parametrization first would make `weight` a computed property
+        #    handing out a new tensor per access, so the keys (and everything
+        #    `mark_sharding` annotates) would be intermediates discarded right
+        #    after, leaving the stored parameter unsharded.
+        if workload.model is not None:
+            weight_dtype_config = getattr(workload, "weight_dtype_config", None)
+            if weight_dtype_config is not None and device.type != "cpu":
+                self._apply_weight_dtype_overrides(workload.model, weight_dtype_config)
 
         # In the future, we will deprecate `workload.model` and use only
         # `workload.compiled_executable` carrying the model.
