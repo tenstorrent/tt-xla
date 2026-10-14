@@ -3,17 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import concurrent.futures
 import json
 import math
+import os
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 SECONDS_PER_MB = 120
 
 # Max model/op names listed inline per job in the human-readable plan summary.
 SUMMARY_MODEL_LIMIT = 25
+
+# Extraction is CPU-bound MLIR parsing and its cost grows superlinearly with the
+# op count of a module, so a handful of large models dominate the wall time. It
+# parallelizes cleanly per IR file. Capped rather than using every core because
+# each worker holds a fully parsed module in memory.
+DEFAULT_EXTRACT_JOBS = min(os.cpu_count() or 1, 8)
+
+# How often to print extraction progress, in files.
+EXTRACT_PROGRESS_EVERY = 25
 
 
 def estimate_seconds(size_bytes: int) -> int:
@@ -363,6 +375,84 @@ def _sanitize_op_dirname(name: str) -> str:
     return re.sub(r"[^0-9A-Za-z]+", "_", name).strip("_") or "op"
 
 
+def _extract_ops_from_file(task: tuple) -> dict:
+    """
+    Extract and locally-deduplicate the ops of a single IR file.
+
+    Runs in a worker process, so it returns plain picklable data and imports the
+    tt-mlir bindings itself. Deduplicating within the file before returning keeps
+    the amount of module text shipped back to the parent small -- most ops in a
+    model IR are repeats of one another.
+
+    Ops whose module text cannot be built are reported as failures and, matching
+    the serial path, are not recorded as seen, so an identical later op retries.
+    """
+    file_str, model_name, whitelist, blacklist = task
+
+    from op_by_op_infra.workflow import extract_ops_from_module
+
+    try:
+        module = Path(file_str).read_text(encoding="utf-8", errors="replace")
+    except (OSError, IOError) as error:
+        return {
+            "records": [],
+            "failures": [{"model": model_name, "file": file_str, "error": str(error)}],
+            "total_ops": 0,
+        }
+
+    try:
+        ops = extract_ops_from_module(module, origin_model=model_name)
+    except Exception as error:  # noqa: BLE001 - continue-on-failure by design
+        return {
+            "records": [],
+            "failures": [{"model": model_name, "file": file_str, "error": str(error)}],
+            "total_ops": 0,
+        }
+
+    records: list[dict] = []
+    failures: list[dict] = []
+    total_ops = 0
+    local_seen: set = set()
+
+    for op in ops:
+        # op_name can be an MLIR StringAttr rather than a plain str; coerce so
+        # filtering, dir-name sanitizing, and JSON serialization all work.
+        op_name = str(op.op_name)
+        if whitelist:
+            if op_name not in whitelist:
+                continue
+        elif blacklist:
+            if op_name in blacklist:
+                continue
+
+        total_ops += 1
+        key = op.op_string
+
+        if key and key in local_seen:
+            continue
+
+        try:
+            module_str = op.as_module_str()
+        except Exception as error:  # noqa: BLE001 - skip un-serializable ops
+            failures.append(
+                {"model": model_name, "op_name": op_name, "error": str(error)}
+            )
+            continue
+
+        if key:
+            local_seen.add(key)
+        records.append(
+            {
+                "op_name": op_name,
+                "op_string": key,
+                "origin_models": list(op.origin_model),
+                "module_str": module_str,
+            }
+        )
+
+    return {"records": records, "failures": failures, "total_ops": total_ops}
+
+
 def extract_unique_ops(
     root: Path,
     ir_file_prefix: str,
@@ -370,6 +460,8 @@ def extract_unique_ops(
     whitelist: list[str] | None,
     blacklist: list[str] | None,
     model_filter: str = "",
+    jobs: int = DEFAULT_EXTRACT_JOBS,
+    time_budget_seconds: int = 0,
 ) -> dict:
     """
     Extract ops from every matched IR under ``root``, deduplicate globally by
@@ -382,8 +474,10 @@ def extract_unique_ops(
     """
     # Imported lazily: this is the only command that needs the explorer/tt-mlir
     # python bindings, so `plan`/`dedupe`/`materialize` still run on runners
-    # without the wheel installed.
-    from op_by_op_infra.workflow import extract_ops_from_module
+    # without the wheel installed. The workers import it themselves; doing it here
+    # too fails fast in the parent with one clear error if the wheel is missing,
+    # rather than the same ImportError once per worker.
+    from op_by_op_infra.workflow import extract_ops_from_module  # noqa: F401
 
     whitelist = whitelist or []
     blacklist = blacklist or []
@@ -405,69 +499,101 @@ def extract_unique_ops(
     seen: dict[str, dict] = {}  # op_string -> unique record
     unique_records: list[dict] = []
 
-    for ir_file, model_name in matched:
-        try:
-            module = ir_file.read_text(encoding="utf-8", errors="replace")
-        except (OSError, IOError) as error:
-            print(f"WARNING: could not read {ir_file}: {error}", file=sys.stderr)
-            extraction_failures.append(
-                {"model": model_name, "file": str(ir_file), "error": str(error)}
-            )
-            continue
+    tasks = [
+        (str(ir_file), model_name, whitelist, blacklist)
+        for ir_file, model_name in matched
+    ]
+    workers = max(1, min(jobs, len(tasks) or 1))
+    started = time.monotonic()
+    files_done = 0
+    files_skipped = 0
+    budget_exhausted = False
 
-        try:
-            ops = extract_ops_from_module(module, origin_model=model_name)
-        except Exception as error:  # noqa: BLE001 - continue-on-failure by design
-            print(
-                f"WARNING: failed to extract ops from {ir_file}: {error}",
-                file=sys.stderr,
-            )
-            extraction_failures.append(
-                {"model": model_name, "file": str(ir_file), "error": str(error)}
-            )
-            continue
+    print(
+        f"Extracting ops from {len(tasks)} IR file(s) using {workers} worker(s)"
+        + (f", time budget {time_budget_seconds}s" if time_budget_seconds else ""),
+        file=sys.stderr,
+    )
 
-        for op in ops:
-            # op_name can be an MLIR StringAttr rather than a plain str; coerce so
-            # filtering, dir-name sanitizing, and JSON serialization all work.
-            op_name = str(op.op_name)
-            if whitelist:
-                if op_name not in whitelist:
+    # `map` yields results in submission order, so the resulting op indices (and
+    # therefore the op directory names) are identical to the serial ordering and
+    # do not depend on which worker finished first.
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
+        results = executor.map(_extract_ops_from_file, tasks)
+
+        for (ir_file, model_name), result in zip(matched, results):
+            files_done += 1
+            total_ops += result["total_ops"]
+
+            for failure in result["failures"]:
+                if "file" in failure:
+                    print(
+                        f"WARNING: failed to extract ops from {failure['file']}: "
+                        f"{failure['error']}",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"WARNING: could not build module for op "
+                        f"'{failure['op_name']}' from model "
+                        f"'{failure['model']}': {failure['error']}",
+                        file=sys.stderr,
+                    )
+            extraction_failures.extend(result["failures"])
+
+            for candidate in result["records"]:
+                key = candidate["op_string"]
+
+                if key and key in seen:
+                    record = seen[key]
+                    if model_name and model_name not in record["origin_models"]:
+                        record["origin_models"].append(model_name)
                     continue
-            elif blacklist:
-                if op_name in blacklist:
-                    continue
 
-            total_ops += 1
-            key = op.op_string
+                record = {
+                    "op_name": candidate["op_name"],
+                    "origin_models": candidate["origin_models"],
+                    "module_str": candidate["module_str"],
+                }
+                unique_records.append(record)
+                if key:
+                    seen[key] = record
 
-            if key and key in seen:
-                record = seen[key]
-                if model_name and model_name not in record["origin_models"]:
-                    record["origin_models"].append(model_name)
-                continue
-
-            try:
-                module_str = op.as_module_str()
-            except Exception as error:  # noqa: BLE001 - skip un-serializable ops
+            elapsed = time.monotonic() - started
+            if files_done % EXTRACT_PROGRESS_EVERY == 0 or files_done == len(tasks):
+                rate = files_done / elapsed if elapsed else 0
+                remaining = (len(tasks) - files_done) / rate if rate else 0
                 print(
-                    f"WARNING: could not build module for op '{op_name}' "
-                    f"from model '{model_name}': {error}",
+                    f"  extracted {files_done}/{len(tasks)} files "
+                    f"({len(unique_records)} unique ops so far, "
+                    f"{elapsed / 60:.1f}min elapsed, ~{remaining / 60:.1f}min left)",
                     file=sys.stderr,
                 )
-                extraction_failures.append(
-                    {"model": model_name, "op_name": op_name, "error": str(error)}
-                )
-                continue
 
-            record = {
-                "op_name": op_name,
-                "origin_models": list(op.origin_model),
-                "module_str": module_str,
-            }
-            unique_records.append(record)
-            if key:
-                seen[key] = record
+            # Stopping with a partial op set beats being killed by the job
+            # timeout with nothing uploaded, but it silently narrows coverage --
+            # so say exactly how much was dropped.
+            if time_budget_seconds and elapsed > time_budget_seconds:
+                files_skipped = len(tasks) - files_done
+                budget_exhausted = True
+                print(
+                    f"WARNING: extraction time budget of {time_budget_seconds}s "
+                    f"exhausted after {files_done}/{len(tasks)} files. "
+                    f"SKIPPING {files_skipped} remaining IR file(s); the unique-op "
+                    f"set is incomplete and ops only present in those files will "
+                    f"not be tested this run.",
+                    file=sys.stderr,
+                )
+                for future_task in tasks[files_done:]:
+                    extraction_failures.append(
+                        {
+                            "model": future_task[1],
+                            "file": future_task[0],
+                            "error": "skipped: extraction time budget exhausted",
+                        }
+                    )
+                executor.shutdown(wait=False, cancel_futures=True)
+                break
 
     # Write unique ops in a layout the existing planner + op_by_op_test consume as-is.
     prefix_parts = (
@@ -503,6 +629,11 @@ def extract_unique_ops(
         "model_filter": model_filter,
         "matched_files": len(matched),
         "matched_models": len({name for _, name in matched}),
+        "files_processed": files_done,
+        "files_skipped": files_skipped,
+        "extraction_complete": not budget_exhausted,
+        "extract_jobs": workers,
+        "extract_seconds": round(time.monotonic() - started, 1),
         "total_ops_after_filter": total_ops,
         "unique_ops": len(unique_records),
         "duplicate_ops_eliminated": total_ops - len(unique_records),
@@ -519,6 +650,8 @@ def command_extract_unique_ops(args: argparse.Namespace) -> int:
         args.whitelist.split(",") if args.whitelist else None,
         args.blacklist.split(",") if args.blacklist else None,
         args.model_filter,
+        args.jobs,
+        args.time_budget_seconds,
     )
 
     if args.manifest is not None:
@@ -530,6 +663,14 @@ def command_extract_unique_ops(args: argparse.Namespace) -> int:
     print(
         f"Matched IR files: {stats['matched_files']} "
         f"across {stats['matched_models']} model(s)\n"
+        f"Files processed: {stats['files_processed']}"
+        + (
+            f" (INCOMPLETE: {stats['files_skipped']} skipped on time budget)"
+            if not stats["extraction_complete"]
+            else ""
+        )
+        + f"\nExtraction wall time: {stats['extract_seconds']}s "
+        f"on {stats['extract_jobs']} worker(s)\n"
         f"Total ops (after filter): {total}\n"
         f"Unique ops: {unique}\n"
         f"Duplicate ops eliminated: {stats['duplicate_ops_eliminated']} "
@@ -614,6 +755,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest",
         type=Path,
         help="Optional path to write the JSON stats + per-op manifest.",
+    )
+    extract_parser.add_argument(
+        "--jobs",
+        type=int,
+        default=DEFAULT_EXTRACT_JOBS,
+        help=(
+            "Worker processes used to extract ops in parallel "
+            f"(default: {DEFAULT_EXTRACT_JOBS}). 1 runs serially."
+        ),
+    )
+    extract_parser.add_argument(
+        "--time-budget-seconds",
+        type=int,
+        default=0,
+        help=(
+            "Stop extracting after this many seconds and continue with the ops "
+            "found so far, loudly reporting how many IR files were skipped. "
+            "Default 0 means no budget. Set this below the job timeout so a slow "
+            "run still uploads a usable op set instead of being killed. This is a "
+            "soft bound, checked as each file's result is consumed: already-running "
+            "workers are allowed to finish, so the overshoot can be as large as the "
+            "slowest single IR file (tens of minutes for the biggest models). Leave "
+            "headroom accordingly."
+        ),
     )
     extract_parser.set_defaults(func=command_extract_unique_ops)
 
