@@ -1014,6 +1014,13 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
+  // Validate decomposition against the op model even without the optimizer so a
+  // kernel tt-metal can run (e.g. scaled_dot_product_attention) stays fused
+  // instead of decomposed to matmul+softmax at optimization_level 0
+  // (tt-xla#6081). At level > 0 the optimizer already enables this, so only opt
+  // in at level 0.
+  options.decompositionOpConstraints =
+      (compile_options.optimization_level == 0);
   // Map user-facing dtype names to BFPDtype enum values.
   if (compile_options.experimental_weight_dtype == "bfp_bf8") {
     options.experimentalWeightDtype = mlir::tt::ttnn::BFPDtype::BFP_BFloat8;
