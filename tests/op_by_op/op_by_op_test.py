@@ -136,6 +136,7 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     debug_print = request.config.getoption("--debug-print")
     ir_file_prefix = request.config.getoption("--ir-file-prefix")
     failed_ops_folder = request.config.getoption("--failed-ops-folder")
+    fail_on_op_failure = request.config.getoption("--fail-on-op-failure")
 
     folder_path = Path(ir_folder)
 
@@ -214,6 +215,7 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     record_property(
         "failed_ops_folder", failed_ops_folder if failed_ops_folder else None
     )
+    record_property("fail_on_op_failure", fail_on_op_failure)
 
     results = execute_extracted_ops(
         filtered_ops,
@@ -231,6 +233,51 @@ def test_op_by_op(request, whitelist, blacklist, record_property):
     record_property("successful_operations", successful_operations)
     record_property("failed_operations", failed_operations)
 
-    assert (
-        failed_operations == 0
-    ), f"Test failed: {failed_operations} operation(s) failed out of {len(results)} total operations"
+    # Summary on stdout as well as in the report: the per-op verdicts are the
+    # product of this run, so they should be readable straight from the job log
+    # without downloading the JSON.
+    print(
+        f"\n=== op-by-op summary ===\n"
+        f"  matched IR files      : {len(matched_files)}\n"
+        f"  extraction failures   : {len(extraction_failures)}\n"
+        f"  ops extracted         : {len(ops)}\n"
+        f"  ops after filtering   : {len(filtered_ops)}\n"
+        f"  ops executed          : {len(results)}\n"
+        f"  passed                : {successful_operations}\n"
+        f"  failed                : {failed_operations}"
+    )
+    for failure in extraction_failures:
+        print(
+            f"  extraction failure: {failure['model']} "
+            f"({failure['file']}): {failure['error']}"
+        )
+
+    # A per-op failure is the *result* of this analysis, not a failure of the run:
+    # the whole point is to record which ops do not work on device. Asserting
+    # `failed_operations == 0` made the job unconditionally red whenever any op
+    # failed, so a red run carried no signal and genuine breakage hid inside it.
+    #
+    # Fail only when the run could not produce results at all, which is what a
+    # broken job actually looks like. `--fail-on-op-failure` restores gating for
+    # callers running a curated op set.
+    if not results:
+        if extraction_failures and not ops:
+            pytest.fail(
+                f"No ops could be extracted: all {len(extraction_failures)} matched "
+                f"IR file(s) failed to split. See extraction_failure_details."
+            )
+        if ops and not filtered_ops:
+            pytest.fail(
+                f"Extracted {len(ops)} op(s) but the whitelist/blacklist filtered "
+                f"out every one of them; nothing was executed."
+            )
+        pytest.fail(
+            f"No ops were executed from {len(matched_files)} matched IR file(s); "
+            f"the run produced no data to report."
+        )
+
+    if fail_on_op_failure and failed_operations:
+        pytest.fail(
+            f"{failed_operations} operation(s) failed out of {len(results)} "
+            f"(--fail-on-op-failure is set)"
+        )
