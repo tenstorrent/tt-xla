@@ -1802,3 +1802,34 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+
+  # ── LTX-2.3 (https://github.com/tenstorrent/tt-xla/issues/4542) ────────────
+  # All measured 2026-09-21 on wormhole. Unlike the inference entries, these are
+  # capacity and allocation failures: they are driven by shapes rather than by
+  # weight values, so they stand whether or not the 22B checkpoint is present.
+  # Each reason carries the allocation this component actually asked for.
+  # ltx2_3/pytorch-Vocoder-single_device-training is deliberately absent: it did
+  # not reach a verdict inside a 900s cap, so there is nothing measured to record.
+  # The Fast/Pro transformer tiers are excluded rather than xfailed — see the
+  # inference config; they are weight-bound on one chip before training storage
+  # is added at all.
+  ltx2_3/pytorch-VideoVaeDecoder-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL @ tt_metal/impl/allocator/bank_manager.cpp:462: false — Out of Memory: Not enough space to allocate 12884901888 B DRAM buffer across 12 banks, where each bank needs to store 1073741824 B, but bank size is 1070773184 B (allocated: 541234720 B, free: 529538464 B, largest free block: 520853152 B)"
+  ltx2_3/pytorch-VideoVaeEncoder-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL @ tt_metal/impl/allocator/bank_manager.cpp:462: false — Out of Memory: Not enough space to allocate 6442450944 B DRAM buffer across 12 banks, where each bank needs to store 536870912 B, but bank size is 1070773184 B (allocated: 635084800 B, free: 435688384 B, largest free block: 415853504 B)"
+  ltx2_3/pytorch-AudioVaeDecoder-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL @ tt_metal/impl/allocator/bank_manager.cpp:462: false — Out of Memory: Not enough space to allocate 536870912 B DRAM buffer across 12 banks, where each bank needs to store 44740608 B, but bank size is 1070773184 B (allocated: 1018253536 B, free: 52519648 B, largest free block: 42015136 B)"
+  ltx2_3/pytorch-AudioVaeEncoder-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers in program 666 clash with L1 buffers on core range [0-0 - 7-7]. L1 buffer allocated at 109088 and static circular buffer region ends at 110972 — an L1 clash rather than a DRAM shortfall, unlike the other three VAE halves."
+  ltx2_3/pytorch-Fast-single_device-training:
+    status: EXCLUDE_MODEL # weight-bound on one chip at inference already; see test_config_inference_single_device.yaml
+  ltx2_3/pytorch-Pro-single_device-training:
+    status: EXCLUDE_MODEL # weight-bound on one chip at inference already; see test_config_inference_single_device.yaml
